@@ -68,8 +68,11 @@ use crate::{
     authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     authority_server::AuthorityServer,
     checkpoints::CheckpointServiceNoop,
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapterMetrics, MockConsensusClient,
+    },
     consensus_handler::SequencedConsensusTransaction,
-    test_utils::init_state_parameters_from_rng,
+    test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
     transaction_input_loader::TransactionInputLoader,
 };
 
@@ -7084,4 +7087,148 @@ async fn test_single_authority_reconfigure() {
     assert_eq!(state.epoch_store_for_testing().epoch(), 0);
     state.reconfigure_for_testing().await;
     assert_eq!(state.epoch_store_for_testing().epoch(), 1);
+}
+
+/// Tests graduated load shedding based on the consensus queue length
+/// in the white-flag (certificate-less) path of
+/// `AuthorityState::check_system_overload()`. Verifies that:
+/// - below soft limit: all transactions are accepted
+/// - between soft and hard limit: some transactions are rejected
+/// - at/above hard limit: almost all transactions are rejected
+#[tokio::test]
+async fn test_white_flag_pre_consensus_graduated_load_shedding() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(sender);
+    let gas_object2 = Object::with_owner_for_testing(sender);
+
+    let hard_limit = 20_000;
+    let soft_limit = hard_limit / 2;
+    let max_shedding_pct = 95;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    authority_state
+        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        hard_limit,
+        hard_limit / 2,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        soft_limit,
+        max_shedding_pct,
+    ));
+
+    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let tx = make_transfer_object_transaction(
+        gas_object1.compute_object_reference(),
+        gas_object2.compute_object_reference(),
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+
+    let white_flag_flow_enabled = true;
+    // Does not matter in the white-flag flow.
+    let do_authority_overload_check = false;
+
+    // Below soft limit (9_999 < 10_000): all transactions should be accepted.
+    consensus_adapter
+        .set_num_inflight_transactions_for_testing(soft_limit.checked_sub(1).unwrap() as u64);
+    let result = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        white_flag_flow_enabled,
+    );
+    assert!(result.is_ok());
+
+    // At soft limit (10_000): should still be accepted since the soft
+    // boundary is inclusive.
+    consensus_adapter.set_num_inflight_transactions_for_testing(soft_limit as u64);
+    let result = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        white_flag_flow_enabled,
+    );
+    assert!(result.is_ok());
+
+    // Between soft and hard limit (15_000): graduated shedding is active.
+    // shedding_pct = 95 * 5_000 / 10_000 = 47%. Whether this specific tx is
+    // rejected depends on its digest, so we check the metric instead.
+    consensus_adapter.set_num_inflight_transactions_for_testing(15_000);
+    let _ = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        white_flag_flow_enabled,
+    );
+    assert_eq!(
+        authority_state
+            .metrics
+            .consensus_queue_load_shedding_percentage
+            .get(),
+        47
+    );
+
+    // At hard limit (20_000): shedding at `max_shedding_pct` (95%). Whether
+    // this specific tx is rejected depends on its digest, so we check the
+    // metric instead.
+    consensus_adapter.set_num_inflight_transactions_for_testing(hard_limit as u64);
+    let _ = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        white_flag_flow_enabled,
+    );
+    assert_eq!(
+        authority_state
+            .metrics
+            .consensus_queue_load_shedding_percentage
+            .get(),
+        max_shedding_pct as i64,
+    );
+
+    // Above hard limit (20_001): still capped at `max_shedding_pct` (95%), but
+    // tx should be rejected because the hard limit is exceeded and the binary
+    // cutoff kicks in.
+    consensus_adapter
+        .set_num_inflight_transactions_for_testing(hard_limit.checked_add(1).unwrap() as u64);
+    let result = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        white_flag_flow_enabled,
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        authority_state
+            .metrics
+            .consensus_queue_load_shedding_percentage
+            .get(),
+        max_shedding_pct as i64,
+    );
+
+    // Verify that with `white_flag_flow_enabled = false` (certificate flow),
+    // the consensus graduated shedding does NOT apply - only the binary
+    // hard cutoff runs.
+    consensus_adapter.set_num_inflight_transactions_for_testing(15_000);
+    let result = authority_state.check_system_overload(
+        &consensus_adapter,
+        tx.data(),
+        do_authority_overload_check,
+        false, // certificate flow
+    );
+    // Should pass because 15_000 < `max_pending_transactions` (20_000).
+    assert!(result.is_ok());
 }

@@ -843,6 +843,16 @@ pub struct ConsensusConfig {
     /// Parameters for Starfish consensus
     #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
     pub parameters: Option<StarfishParameters>,
+
+    /// Consensus queue length at which graduated load shedding begins.
+    /// Used in the certificate-less (white-flag) mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_soft_limit: Option<usize>,
+
+    /// Max percentage of transactions to shed due to consensus queue
+    /// overload. Used in the certificate-less (white-flag) mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_max_percentage: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -852,6 +862,22 @@ impl ConsensusConfig {
 
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
+    }
+
+    /// Returns the consensus queue length at which graduated load shedding
+    /// begins. Defaults to `max_pending_transactions / 2`.
+    /// Used in the certificate-less (white-flag) mode.
+    pub fn graduated_load_shedding_soft_limit(&self) -> usize {
+        self.graduated_load_shedding_soft_limit
+            .unwrap_or(self.max_pending_transactions() / 2)
+    }
+
+    /// Returns the max percentage of transactions to shed due to consensus
+    /// queue overload. Defaults to 95%; the remaining ~5% are caught by the
+    /// binary hard cutoff in `check_consensus_overload()`.
+    /// Used in the certificate-less (white-flag) mode.
+    pub fn graduated_load_shedding_max_percentage(&self) -> u32 {
+        self.graduated_load_shedding_max_percentage.unwrap_or(95)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -1236,21 +1262,6 @@ pub struct AuthorityOverloadConfig {
     /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
-
-    /// Consensus queue length at which graduated pre-consensus load shedding
-    /// begins. This is used in the certificate-less (white-flag) mode.
-    #[serde(default = "default_consensus_queue_length_soft_limit")]
-    pub consensus_queue_length_soft_limit: usize,
-
-    /// Consensus queue length at which max pre-consensus load shedding is
-    /// applied. This is used in the certificate-less (white-flag) mode.
-    #[serde(default = "default_consensus_queue_length_hard_limit")]
-    pub consensus_queue_length_hard_limit: usize,
-
-    /// Max percentage of transactions to shed due to consensus queue overload.
-    /// This is used in the certificate-less (white-flag) mode.
-    #[serde(default = "default_max_consensus_load_shedding_percentage")]
-    pub max_consensus_load_shedding_percentage: u32,
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -1293,31 +1304,6 @@ fn default_max_transaction_manager_per_object_queue_length() -> usize {
     20
 }
 
-/// Default consensus queue length at which graduated pre-consensus load
-/// shedding begins. It is set to 50% of hard limit
-/// `ConsensusConfig::max_pending_transactions` = 20_000. This is used in the
-/// certificate-less (white-flag) mode.
-fn default_consensus_queue_length_soft_limit() -> usize {
-    10_000
-}
-
-/// Default consensus queue length at which max pre-consensus load shedding is
-/// applied. It is set to 100% of hard limit
-/// `ConsensusConfig::max_pending_transactions` = 20_000. This is used in the
-/// certificate-less (white-flag) mode.
-fn default_consensus_queue_length_hard_limit() -> usize {
-    20_000
-}
-
-/// Default max percentage of transactions to shed due to consensus queue
-/// overload. Set to 95% rather than 100% because the existing binary hard
-/// cutoff in `ConsensusAdapter::check_consensus_overload()` serves as a
-/// backstop for the remaining 5% fraction. This is used in the certificate-less
-/// (white-flag) mode.
-fn default_max_consensus_load_shedding_percentage() -> u32 {
-    95
-}
-
 impl Default for AuthorityOverloadConfig {
     fn default() -> Self {
         Self {
@@ -1334,10 +1320,6 @@ impl Default for AuthorityOverloadConfig {
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
-            consensus_queue_length_soft_limit: default_consensus_queue_length_soft_limit(),
-            consensus_queue_length_hard_limit: default_consensus_queue_length_hard_limit(),
-            max_consensus_load_shedding_percentage: default_max_consensus_load_shedding_percentage(
-            ),
         }
     }
 }

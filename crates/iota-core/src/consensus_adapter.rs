@@ -264,6 +264,14 @@ pub struct ConsensusAdapter {
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
+
+    /// Consensus queue length at which graduated load shedding begins.
+    /// Used in the certificate-less (white-flag) mode.
+    graduated_load_shedding_soft_limit: usize,
+
+    /// Max percentage of transactions to shed due to consensus queue
+    /// overload. Used in the certificate-less (white-flag) mode.
+    graduated_load_shedding_max_percentage: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -296,6 +304,8 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
+        graduated_load_shedding_soft_limit: usize,
+        graduated_load_shedding_max_percentage: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -313,7 +323,28 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
+            graduated_load_shedding_soft_limit,
+            graduated_load_shedding_max_percentage,
         }
+    }
+
+    /// Test-only: creates a consensus adapter with a `MockConsensusClient`,
+    /// default values for all parameters, and the given authority name.
+    #[cfg(test)]
+    pub fn with_authority_name_for_testing(authority_name: AuthorityName) -> Self {
+        Self::new(
+            Arc::new(MockConsensusClient::new()),
+            CheckpointStore::new_for_tests(),
+            authority_name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50_000,
+            95,
+        )
     }
 
     pub fn swap_low_scoring_authorities(
@@ -598,9 +629,33 @@ impl ConsensusAdapter {
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 
+    /// Returns the limit on the number of inflight transactions at this node.
+    pub(super) fn max_pending_transactions(&self) -> usize {
+        self.max_pending_transactions
+    }
+
+    /// Returns the consensus queue length at which graduated load shedding
+    /// begins. Used in the certificate-less (white-flag) mode.
+    pub(super) fn graduated_load_shedding_soft_limit(&self) -> usize {
+        self.graduated_load_shedding_soft_limit
+    }
+
+    /// Returns the max percentage of transactions to shed due to consensus
+    /// queue overload. Used in the certificate-less (white-flag) mode.
+    pub(super) fn graduated_load_shedding_max_percentage(&self) -> u32 {
+        self.graduated_load_shedding_max_percentage
+    }
+
     /// Returns the number of transactions currently in-flight in consensus.
-    pub fn num_inflight_transactions(&self) -> u64 {
+    pub(super) fn num_inflight_transactions(&self) -> u64 {
         self.num_inflight_transactions.load(Ordering::Relaxed)
+    }
+
+    /// Test-only: sets the number of in-flight transactions.
+    #[cfg(test)]
+    pub(super) fn set_num_inflight_transactions_for_testing(&self, value: u64) {
+        self.num_inflight_transactions
+            .store(value, Ordering::Relaxed);
     }
 
     /// Returns `true` if consensus has capacity to accept more transactions.
@@ -1461,6 +1516,8 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
+            50_000,
+            95,
         );
 
         // transaction to submit
@@ -1491,6 +1548,8 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50_000,
+            95,
         );
 
         let (delay_step, position, positions_moved, _) =
