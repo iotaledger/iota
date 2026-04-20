@@ -4,8 +4,7 @@
 import { RadioButton } from '@iota/apps-ui-kit';
 import { ThemePreference, useTheme } from '@iota/core';
 import { Overlay } from '_components';
-import { useAppSelector } from '_hooks';
-import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { useSidebar } from '_hooks';
 import { useNavigate } from 'react-router-dom';
 import { ampli } from '_src/shared/analytics/ampli';
 
@@ -18,10 +17,7 @@ const THEME_ENTRIES = (Object.entries(ThemePreference) as Array<[string, ThemePr
 export function ThemeSettings() {
     const { themePreference, setThemePreference } = useTheme();
     const navigate = useNavigate();
-    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
-    const useSidebar =
-        extensionViewType === ExtensionViewType.FullScreen ||
-        extensionViewType === ExtensionViewType.Popup;
+    const sidebar = useSidebar();
 
     function updateThemePreference(value: ThemePreference) {
         setThemePreference(value);
@@ -33,8 +29,8 @@ export function ThemeSettings() {
             title="Theme"
             closeOverlay={() => navigate('/tokens')}
             showBackButton
-            useInlineLayout={useSidebar}
-            hideCloseIcon={useSidebar}
+            useInlineLayout={sidebar}
+            hideCloseIcon={sidebar}
         >
             <div className="flex w-full flex-col">
                 {THEME_ENTRIES.map(([label, value]) => (

@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
-import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
+import {
+    useAppSelector,
+    formatAutoLock,
+    useAutoLockMinutes,
+    useLogoutMutation,
+    useSidebar,
+} from '_hooks';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
@@ -50,9 +56,8 @@ export function MenuList() {
     const autoLockInterval = useAutoLockMinutes();
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
+    const sidebar = useSidebar();
     const extensionType = useAppSelector((state) => state.app.extensionViewType);
-    const useSidebar =
-        extensionType === ExtensionViewType.FullScreen || extensionType === ExtensionViewType.Popup;
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -127,7 +132,7 @@ export function MenuList() {
             subtitle: networkConfig.name,
             icon: <Globe />,
             onClick: onNetworkClick,
-            hidden: useSidebar,
+            hidden: sidebar,
         },
         {
             title: 'Auto Lock Profile',
@@ -179,8 +184,8 @@ export function MenuList() {
             showModal
             title="Settings"
             closeOverlay={() => navigate('/tokens')}
-            useInlineLayout={useSidebar}
-            hideCloseIcon={useSidebar}
+            useInlineLayout={sidebar}
+            hideCloseIcon={sidebar}
         >
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">

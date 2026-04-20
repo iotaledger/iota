@@ -8,9 +8,8 @@ import {
     parseAutoLock,
     useAutoLockMinutes,
     useAutoLockMinutesMutation,
-    useAppSelector,
+    useSidebar,
 } from '_hooks';
-import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { Form } from '_src/ui/app/shared/forms/Form';
 import { useZodForm, toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
@@ -32,10 +31,7 @@ export function AutoLockAccounts() {
         formState: { isSubmitting, isValid, isDirty },
     } = form;
     const setAutoLockMutation = useAutoLockMinutesMutation();
-    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
-    const useSidebar =
-        extensionViewType === ExtensionViewType.FullScreen ||
-        extensionViewType === ExtensionViewType.Popup;
+    const sidebar = useSidebar();
 
     async function handleSave(data: { autoLock: ReturnType<typeof parseAutoLock> }) {
         await setAutoLockMutation.mutateAsync(
@@ -58,8 +54,8 @@ export function AutoLockAccounts() {
             title="Auto Lock Profile"
             closeOverlay={() => navigate('/tokens')}
             showBackButton
-            useInlineLayout={useSidebar}
-            hideCloseIcon={useSidebar}
+            useInlineLayout={sidebar}
+            hideCloseIcon={sidebar}
         >
             <Loading loading={autoLock.isPending}>
                 <Form className="flex h-full flex-col" form={form} onSubmit={handleSave}>

@@ -5,38 +5,37 @@
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
 import { Activity, Apps, Assets, Globe, Home, Settings } from '@iota/apps-ui-icons';
-import { useAppSelector } from '_hooks';
-import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { useAppSelector, useSidebar } from '_hooks';
 import { useMenuIsOpen, useNextMenuUrl } from '_components';
 import { getCustomNetwork } from '@iota/core';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import cx from 'clsx';
 import { motion } from 'framer-motion';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 type NavbarItemWithPath = NavbarItemWithId & {
     path: string;
 };
 
+const NAVBAR_ITEMS: NavbarItemWithPath[] = [
+    { id: 'home', icon: <Home />, text: 'Home', path: '/tokens' },
+    { id: 'assets', icon: <Assets />, text: 'Assets', path: '/nfts' },
+    { id: 'apps', icon: <Apps />, text: 'Apps', path: '/apps' },
+    { id: 'activity', icon: <Activity />, text: 'Activity', path: '/transactions' },
+];
+
 export function Navigation() {
     const navigate = useNavigate();
     const location = useLocation();
+    const sidebar = useSidebar();
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
-    const isPopup = extensionViewType === ExtensionViewType.Popup;
-    const useSidebar = isFullScreen || isPopup;
 
     const network = useAppSelector(({ app }) => app.network);
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const networkName = networkConfig?.name ?? network;
 
     const isNetworkActive = location.pathname.startsWith('/network');
-
-    const NAVBAR_ITEMS: NavbarItemWithPath[] = [
-        { id: 'home', icon: <Home />, text: 'Home', path: '/tokens' },
-        { id: 'assets', icon: <Assets />, text: 'Assets', path: '/nfts' },
-        { id: 'apps', icon: <Apps />, text: 'Apps', path: '/apps' },
-        { id: 'activity', icon: <Activity />, text: 'Activity', path: '/transactions' },
-    ];
 
     const activeId = NAVBAR_ITEMS.find((item) => location.pathname.startsWith(item.path))?.id || '';
 
@@ -50,7 +49,7 @@ export function Navigation() {
     const isMenuOpen = useMenuIsOpen();
     const menuUrl = useNextMenuUrl(!isMenuOpen, '/');
 
-    if (useSidebar) {
+    if (sidebar) {
         const sidebarWidth = isFullScreen ? 'w-44' : 'w-16';
 
         return (
@@ -73,7 +72,15 @@ export function Navigation() {
                         <motion.div
                             key={item.id}
                             role="button"
+                            tabIndex={0}
+                            aria-label={item.text}
                             onClick={() => handleItemClick(item.id)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleItemClick(item.id);
+                                }
+                            }}
                             data-testid={`nav-${item.id}`}
                             className={cx(
                                 'state-layer-secondary relative flex cursor-pointer flex-row items-center rounded-full',

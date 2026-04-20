@@ -34,7 +34,7 @@ export function PageTemplate({
         } else {
             navigate(-1);
         }
-    }, [navigate]);
+    }, [navigate, onBack]);
 
     const handleScroll = useCallback(() => {
         setIsScrolled((scrollRef.current?.scrollTop ?? 0) > 2);

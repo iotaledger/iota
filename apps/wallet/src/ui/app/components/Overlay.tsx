@@ -66,9 +66,7 @@ export function Overlay({
                 testId="overlay-title"
             />
             {headerAction && hideCloseIcon && (
-                <div className="absolute right-4 top-[-4.5px] translate-y-1/2">
-                    {headerAction}
-                </div>
+                <div className="absolute right-4 top-[-4.5px] translate-y-1/2">{headerAction}</div>
             )}
         </div>
     ) : null;

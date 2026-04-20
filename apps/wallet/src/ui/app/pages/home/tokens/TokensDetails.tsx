@@ -4,6 +4,7 @@
 
 import { Loading } from '_components';
 import { useActiveAccount, useActiveAddress, useAppSelector, useShouldOpenInNewTab } from '_hooks';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -75,9 +76,6 @@ export function TokenDetails() {
     const activeAccountAddress = activeAccount?.address;
     const { data: iotaName } = useGetDefaultIotaName(activeAccountAddress);
     const accountName = formatAccountName(activeAccount?.nickname, iotaName, activeAccountAddress);
-    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
-    const isKeystoneAccount = activeAccount && isKeystoneAccountSerializedUI(activeAccount);
-    const isPasskeyAccount = activeAccount && isPasskeyAccountSerializedUI(activeAccount);
     const network = useAppSelector((state) => state.app.network);
     const shouldOpenNewTab = useShouldOpenInNewTab();
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
@@ -241,27 +239,10 @@ export function TokenDetails() {
                     <div className="flex h-full flex-col gap-md" data-testid="coin-page">
                         <div className="flex flex-col gap-md overflow-y-auto scroll-smooth [scrollbar-gutter:stable]">
                             <div className="flex flex-col gap-xs">
-                                <Link
-                                    to="/accounts/manage"
-                                    data-testid="accounts-manage"
-                                    data-amp-mask
-                                    className="flex w-fit items-center gap-sm rounded-full py-xs px-sm no-underline transition-colors hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
-                                >
-                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
-                                        {isLedgerAccount ? (
-                                            <Ledger />
-                                        ) : isKeystoneAccount ? (
-                                            <Keystone />
-                                        ) : isPasskeyAccount ? (
-                                            <Passkey />
-                                        ) : (
-                                            <IotaLogoMark />
-                                        )}
-                                    </div>
-                                    <span className="navbar-item-label-color truncate text-label-lg">
-                                        {accountName}
-                                    </span>
-                                </Link>
+                                <AccountProfileLink
+                                    account={activeAccount}
+                                    accountName={accountName}
+                                />
                                 <div className="flex w-full items-center justify-between gap-lg px-sm py-md">
                                     <CoinBalance amount={tokenBalance} type={activeCoinType} />
                                     <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
@@ -334,27 +315,7 @@ export function TokenDetails() {
                         data-testid="coin-page"
                     >
                         <div className="flex flex-col gap-xs">
-                            <Link
-                                to="/accounts/manage"
-                                data-testid="accounts-manage"
-                                data-amp-mask
-                                className="flex w-fit items-center gap-sm rounded-full py-xs px-sm no-underline transition-colors hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
-                            >
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
-                                    {isLedgerAccount ? (
-                                        <Ledger />
-                                    ) : isKeystoneAccount ? (
-                                        <Keystone />
-                                    ) : isPasskeyAccount ? (
-                                        <Passkey />
-                                    ) : (
-                                        <IotaLogoMark />
-                                    )}
-                                </div>
-                                <span className="navbar-item-label-color truncate text-label-lg">
-                                    {accountName}
-                                </span>
-                            </Link>
+                            <AccountProfileLink account={activeAccount} accountName={accountName} />
                             <div className="flex w-full items-center justify-between gap-lg px-sm py-md">
                                 <CoinBalance amount={tokenBalance} type={activeCoinType} />
                                 <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
@@ -442,5 +403,39 @@ export function TokenDetails() {
                 />
             </Loading>
         </>
+    );
+}
+
+function AccountProfileLink({
+    account,
+    accountName,
+}: {
+    account: SerializedUIAccount | null;
+    accountName: string;
+}) {
+    const isLedgerAccount = account && isLedgerAccountSerializedUI(account);
+    const isKeystoneAccount = account && isKeystoneAccountSerializedUI(account);
+    const isPasskeyAccount = account && isPasskeyAccountSerializedUI(account);
+
+    return (
+        <Link
+            to="/accounts/manage"
+            data-testid="accounts-manage"
+            data-amp-mask
+            className="flex w-fit items-center gap-sm rounded-full px-sm py-xs no-underline transition-colors hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+        >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
+                {isLedgerAccount ? (
+                    <Ledger />
+                ) : isKeystoneAccount ? (
+                    <Keystone />
+                ) : isPasskeyAccount ? (
+                    <Passkey />
+                ) : (
+                    <IotaLogoMark />
+                )}
+            </div>
+            <span className="navbar-item-label-color truncate text-label-lg">{accountName}</span>
+        </Link>
     );
 }
