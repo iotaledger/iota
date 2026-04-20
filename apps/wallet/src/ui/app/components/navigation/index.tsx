@@ -71,6 +71,7 @@ export function Navigation() {
                         role="button"
                         tabIndex={0}
                         aria-label={item.text}
+                        aria-current={item.id === activeId ? 'page' : undefined}
                         onClick={() => handleItemClick(item.id)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -136,6 +137,7 @@ export function Navigation() {
                             'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                     )}
                     aria-label={`Network: ${networkName}`}
+                    aria-current={isNetworkActive ? 'page' : undefined}
                 >
                     <div
                         className={cx(
@@ -166,10 +168,10 @@ export function Navigation() {
                     className={cx(
                         'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
                         isFullScreen ? 'gap-sm px-xs py-xs' : 'justify-center py-xs',
-                        isMenuOpen &&
-                            'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
+                        isMenuOpen && 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                     )}
                     aria-label={isMenuOpen ? 'Close settings menu' : 'Open settings menu'}
+                    aria-current={isMenuOpen ? 'page' : undefined}
                     data-testid="wallet-settings-button"
                 >
                     <div

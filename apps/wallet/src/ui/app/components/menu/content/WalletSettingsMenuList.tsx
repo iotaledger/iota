@@ -4,12 +4,7 @@
 
 import { useNextMenuUrl, VerifyPasswordModal } from '_components';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useLogoutMutation,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';

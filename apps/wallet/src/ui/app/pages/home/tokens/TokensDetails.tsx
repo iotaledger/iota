@@ -63,7 +63,6 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 import { openInNewTab } from '_src/shared/utils';
-import { ampli } from '_src/shared/analytics';
 
 export function TokenDetails() {
     const navigate = useNavigate();
