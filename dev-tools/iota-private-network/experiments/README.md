@@ -41,7 +41,7 @@ docker pull nicolaka/netshoot
 1. Optionally rebuilds the `iota-node` and `iota-tools` Docker images.
 2. Bootstraps the validator network.
 3. Runs the private network.
-4. Runs grafana (available at `http:://localhost:3030/dashboards`)
+4. Runs grafana (available at `http://localhost:3000/dashboards`)
 5. Applies network latencies and controlled disruptions (packet loss, connection blocking, validator restarts).
 6. Periodically collects logs and saves them with timestamps.
 
@@ -445,5 +445,88 @@ Run from `experiments/`:
 ```
 
 This produces a sequence of alternating Mysticeti/Starfish experiments using the same disruption settings.
+
+---
+
+## Rolling Migration Test: `run-migration-test.py`
+
+`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies network latency, performs a mid-epoch rolling upgrade, and then stress-tests restarts (keep-DB and wipe-DB) over multiple epochs.
+
+The script must be run from inside:
+
+```
+iota/dev-tools/iota-private-network/experiments/
+```
+
+### Usage
+
+```
+./run-migration-test.py [options]
+```
+
+Supported flags:
+
+- `-r <network>`\
+  Release network to pull the old image from (`devnet`, `testnet`, `mainnet`, `alphanet`; default: `devnet`).
+
+- `-b <true|false>`\
+  Build the local upgrade image before running (default: `true`).
+
+- `-n <N>`\
+  Number of validators (2–100, default: `20`).
+
+- `-c <chain>`\
+  Chain override for protocol feature flags (`testnet`, `mainnet`, or empty for devnet-like; default: empty).
+
+- `-e <MINUTES>`\
+  Epoch duration in minutes (default: `15`).
+
+- `--geodistributed <true|false>`\
+  Use large geodistributed latencies (default: `true`).
+
+- `--load-qps <QPS>`\
+  Start a stress load generator at target QPS (default: `0` = disabled).
+
+- `--load-in-flight-ratio <N>`\
+  Stress load in-flight ratio (default: `5`).
+
+- `--load-transfer-objects <N>`\
+  Stress load `--transfer-object` value (default: `100`).
+
+### Phases
+
+1. **Image preparation** — pull released image, optionally build local image with BuildKit caching
+2. **Compose generation** — write `docker-compose.migration.yaml` for N validators with Prometheus/Grafana
+3. **Genesis bootstrap** — generate genesis template and validator configs
+4. **Network startup** — start validators, verify all are running (exact name matching, hard failure)
+5. **Latency injection** — launch `network-benchmark.sh` with geodistributed latencies
+6. **Load generator** (optional) — start stress benchmark, health-check container after startup
+7. **Mid-epoch wait** — progress bar until rolling upgrade window
+8. **Rolling upgrade** — upgrade validators one-by-one, hard failure if any doesn't restart
+9. **Epoch boundary** — wait for protocol version switch
+10. **Restart stress** — keep-DB and wipe-DB restarts across two post-upgrade epochs
+11. **Observation** — extended checkpoint liveness monitoring
+
+### Examples
+
+```bash
+# Default: 20 validators, devnet release, 15-min epochs
+./run-migration-test.py
+
+# Testnet release, 10 validators, 10-min epochs
+./run-migration-test.py -r testnet -n 10 -e 10
+
+# With load generator at 100 QPS
+./run-migration-test.py --load-qps 100
+
+# Mainnet chain flags, low-latency mode
+./run-migration-test.py -c mainnet --geodistributed false
+```
+
+### Logs
+
+- Main log: `logs/migration_script_latest.log` (archived as `logs/migration_script_<TIMESTAMP>.log`)
+- Per-validator logs: `logs/exp-validator-<i>-latest.log`
+- Load generator logs: `logs/load-generator-latest.log`
 
 ---
