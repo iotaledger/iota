@@ -134,6 +134,34 @@ impl Default for Config {
     }
 }
 
+/// Where to start a recovery stream relative to a known transaction digest.
+///
+/// - [`Inclusive`](Self::Inclusive) — yield the identified transaction, then
+///   everything after it.
+/// - [`Exclusive`](Self::Exclusive) — skip the identified transaction; start
+///   from the next one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+pub enum RecoveryPoint {
+    /// Include the transaction identified by the digest.
+    Inclusive(TransactionDigest),
+    /// Start after the transaction identified by the digest.
+    Exclusive(TransactionDigest),
+}
+
+impl RecoveryPoint {
+    /// Returns the contained transaction digest.
+    fn digest(&self) -> TransactionDigest {
+        match self {
+            Self::Inclusive(d) | Self::Exclusive(d) => *d,
+        }
+    }
+
+    /// Checks if the starting transaction should be included in the stream.
+    fn is_inclusive(&self) -> bool {
+        matches!(self, Self::Inclusive(_))
+    }
+}
+
 /// Provides real-time streaming of transactions and events from the IOTA
 /// Indexer by listening to PostgreSQL NOTIFY messages triggered when new
 /// checkpoints are committed to the indexer database.
@@ -264,10 +292,19 @@ impl InMemory {
     /// filtering.
     ///
     /// When `start_from` is `None`, subscribes to live events only. When
-    /// `start_from` is `Some(digest)`, the stream first backfills historical
-    /// events from the transaction identified by the digest inclusive) up to
-    /// the tip of the network, then seamlessly transitions to live events. This
-    /// enables stream recovery after a disconnection.
+    /// `start_from` is `Some(recovery_point)`, the stream first backfills
+    /// historical events from the transaction identified by the recovery
+    /// point's digest up to the tip of the network, then seamlessly transitions
+    /// to live events. This enables stream recovery after a disconnection.
+    ///
+    /// The recovery point variant controls whether events of the starting
+    /// transaction are included:
+    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are
+    ///   yielded.
+    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are
+    ///   skipped; streaming begins from the next transaction onward. Useful for
+    ///   reconnection, where the client already received that transaction's
+    ///   events in the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -276,7 +313,7 @@ impl InMemory {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use iota_indexer_streaming::error::IndexerStreamingError;
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
     /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     ///
     /// // live events only.
@@ -297,11 +334,11 @@ impl InMemory {
     /// # Example with a starting transaction digest
     ///
     /// ```rust,ignore
-    /// use iota_indexer_streaming::error::IndexerStreamingError;
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
     /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     ///
     /// // recover events from a specific transaction digest onwards.
-    /// let event_stream = streamer.subscribe_events(Some(tx_digest));
+    /// let event_stream = streamer.subscribe_events(Some(RecoveryPoint::Inclusive(tx_digest)));
     /// tokio::spawn(async move {
     ///     use futures::StreamExt;
     ///     while let Some(ev) = event_stream.next().await {
@@ -317,7 +354,7 @@ impl InMemory {
     /// ```
     pub fn subscribe_events(
         &self,
-        start_from: Option<TransactionDigest>,
+        start_from: Option<RecoveryPoint>,
     ) -> Pin<Box<dyn Stream<Item = IndexerStreamingResult<StoredEvent>> + Send>> {
         let stream = BroadcastStream::new(self.event_tx.subscribe());
         let live_stream = SubscriberStream::new(
@@ -327,22 +364,34 @@ impl InMemory {
             start_from.is_some(),
         )
         .map(Self::flatten_error);
-        let Some(tx_digest) = start_from else {
+        let Some(recovery_point) = start_from else {
             return Box::pin(live_stream);
         };
 
         let historical = HistoricalFetch::new(
             METRICS_EVENT_LABEL,
-            tx_digest,
+            recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
             self.metrics.clone(),
         );
 
-        let cursor = historical.cursor();
+        let cursor = historical.cursor_handle();
 
         let historical_events = historical
             .into_stream()
+            .skip_while({
+                let mut include_starting_tx = recovery_point.is_inclusive();
+                move |result| {
+                    future::ready(match result {
+                        Ok(_) if !include_starting_tx => {
+                            include_starting_tx = true;
+                            true
+                        }
+                        _ => false,
+                    })
+                }
+            })
             // we use Either represented by left/right stream methods to unify the two stream types
             // returned by the closure: stream::iter (multiple events) and stream::once (single
             // error). This avoids an extra heap allocation from Box::pin.
@@ -383,10 +432,18 @@ impl InMemory {
     /// filtering.
     ///
     /// When `start_from` is `None`, subscribes to live transactions only. When
-    /// `start_from` is `Some(digest)`, the stream first backfills historical
-    /// transactions from the one identified by the digest (inclusive) up to the
-    /// tip of the network, then seamlessly transitions to live transactions.
-    /// This enables stream recovery after a disconnection.
+    /// `start_from` is `Some(recovery_point)`, the stream first backfills
+    /// historical transactions from the one identified by the recovery point's
+    /// digest up to the tip of the network, then seamlessly transitions to
+    /// live transactions. This enables stream recovery after a disconnection.
+    ///
+    /// The recovery point variant controls whether the starting transaction
+    /// itself is included:
+    /// - [`RecoveryPoint::Inclusive`]: the starting transaction is yielded.
+    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction
+    ///   immediately after the one identified by the digest. Useful for
+    ///   reconnection, where the client already received that transaction in
+    ///   the previous session.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -414,11 +471,11 @@ impl InMemory {
     /// ```
     /// # Example with a starting transaction digest
     /// ```rust,ignore
-    /// use iota_indexer_streaming::error::IndexerStreamingError;
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
     /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     ///
     /// // recover transactions from a specific transaction digest onwards.
-    /// let tx_stream = streamer.subscribe_transactions(Some(tx_digest));
+    /// let tx_stream = streamer.subscribe_transactions(Some(RecoveryPoint::Inclusive(tx_digest)));
     /// tokio::spawn(async move {
     ///     use futures::StreamExt;
     ///     while let Some(tx) = tx_stream.next().await {
@@ -434,7 +491,7 @@ impl InMemory {
     /// ```
     pub fn subscribe_transactions(
         &self,
-        start_from: Option<TransactionDigest>,
+        start_from: Option<RecoveryPoint>,
     ) -> Pin<Box<dyn Stream<Item = IndexerStreamingResult<StoredTransaction>> + Send>> {
         let stream = BroadcastStream::new(self.transaction_tx.subscribe());
         let live_stream = SubscriberStream::new(
@@ -445,23 +502,35 @@ impl InMemory {
         )
         .map(Self::flatten_error);
 
-        let Some(tx_digest) = start_from else {
+        let Some(recovery_point) = start_from else {
             return Box::pin(live_stream);
         };
 
         let historical = HistoricalFetch::new(
             METRICS_TRANSACTION_LABEL,
-            tx_digest,
+            recovery_point.digest(),
             self.reader.clone(),
             self.config.transaction_batch_size.get(),
             self.metrics.clone(),
         );
 
-        let cursor = historical.cursor();
+        let cursor = historical.cursor_handle();
 
         Box::pin(
             historical
                 .into_stream()
+                .skip_while({
+                    let mut include_starting_tx = recovery_point.is_inclusive();
+                    move |result| {
+                        future::ready(match result {
+                            Ok(_) if !include_starting_tx => {
+                                include_starting_tx = true;
+                                true
+                            }
+                            _ => false,
+                        })
+                    }
+                })
                 // when switching from historical to live, the broadcast buffer may
                 // contain transactions already delivered by the historical backfill.
                 // Filter them out using the cursor to prevent duplicates.
@@ -856,11 +925,17 @@ impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
 /// a live broadcast stream to provide gap-free delivery from a recovery point.
 struct HistoricalFetch {
     /// Transaction digest to start fetching from.
-    digest: TransactionDigest,
+    start_from_digest: TransactionDigest,
     /// Next transaction sequence number to fetch.
     cursor: Arc<AtomicI64>,
+    /// Whether [`Self::cursor`] has been resolved from
+    /// [`Self::start_from_digest`].
+    ///
+    /// Needed because `0` is a valid cursor value (the genesis transaction),
+    /// so it cannot be used as a starting point for the unresolved state.
+    cursor_resolved: bool,
     /// Latest committed transaction sequence number in the database.
-    latest: i64,
+    latest_tx_in_db: i64,
     /// Database reader for fetching transactions.
     reader: IndexerReader,
     /// Buffered transactions from the last database batch fetch.
@@ -877,7 +952,7 @@ struct HistoricalFetch {
 impl HistoricalFetch {
     fn new(
         label: &'static str,
-        digest: TransactionDigest,
+        start_from_digest: TransactionDigest,
         reader: IndexerReader,
         batch_size: i64,
         metrics: Arc<InMemoryStreamMetrics>,
@@ -886,9 +961,10 @@ impl HistoricalFetch {
         active_subscriber_number.inc();
 
         Self {
-            digest,
+            start_from_digest,
             cursor: Arc::new(AtomicI64::new(0)),
-            latest: 0,
+            cursor_resolved: false,
+            latest_tx_in_db: 0,
             reader,
             buffer: VecDeque::new(),
             batch_size,
@@ -897,12 +973,22 @@ impl HistoricalFetch {
         }
     }
 
+    /// Returns the current value of the cursor.
+    fn cursor_value(&self) -> i64 {
+        self.cursor.load(Ordering::Relaxed)
+    }
+
+    /// Updates the cursor to the given value.
+    fn update_cursor(&self, value: i64) {
+        self.cursor.store(value, Ordering::Relaxed);
+    }
+
     /// Returns a shared reference to the cursor.
     ///
     /// The cursor tracks the next expected transaction sequence number and
     /// is updated as the historical stream progresses. Used by the live
     /// stream filter to skip already-delivered transactions.
-    fn cursor(&self) -> Arc<AtomicI64> {
+    fn cursor_handle(&self) -> Arc<AtomicI64> {
         self.cursor.clone()
     }
 
@@ -928,7 +1014,7 @@ impl HistoricalFetch {
     /// point the caller can chain a live stream.
     fn into_stream(self) -> impl Stream<Item = IndexerStreamingResult<StoredTransaction>> {
         stream::unfold(self, |mut state| {
-            let start_from = state.digest;
+            let start_from = state.start_from_digest;
             let span = tracing::info_span!("historical_backfill", %start_from);
             async move {
                 loop {
@@ -943,18 +1029,21 @@ impl HistoricalFetch {
                     }
 
                     // resolve the cursor from the digest if it hasn't been set yet.
-                    if state.cursor.load(Ordering::Relaxed) == 0 {
+                    if !state.cursor_resolved {
                         match Self::with_retry(|| async {
                             state
                                 .reader
                                 .db()
-                                .resolve_cursor_tx_digest_to_seq_num(state.digest)
+                                .resolve_cursor_tx_digest_to_seq_num(state.start_from_digest)
                                 .await
                                 .map_err(backoff::Error::transient)
                         })
                         .await
                         {
-                            Ok(cursor) => state.cursor.store(cursor, Ordering::Relaxed),
+                            Ok(cursor) => {
+                                state.cursor_resolved = true;
+                                state.update_cursor(cursor);
+                            },
                             Err(e) => {
                                 state.should_close_stream = true;
                                 let e = IndexerStreamingError::Postgres(format!(
@@ -968,8 +1057,8 @@ impl HistoricalFetch {
 
                     // check if cursor is ahead of latest available transaction on database, if so,
                     // refresh latest, so the stream can continue.
-                    if state.cursor.load(Ordering::Relaxed) > state.latest {
-                        state.latest = match Self::with_retry(|| async {
+                    if state.cursor_value() > state.latest_tx_in_db {
+                        state.latest_tx_in_db = match Self::with_retry(|| async {
                             state
                                 .reader
                                 .db()
@@ -1003,22 +1092,22 @@ impl HistoricalFetch {
                         };
 
                         debug!(
-                            cursor = state.cursor.load(Ordering::Relaxed),
-                            latest = state.latest,
+                            cursor = state.cursor_value(),
+                            latest = state.latest_tx_in_db,
                             "current state"
                         );
 
                         // if latest did not advance, we're at the tip and can close the historical
                         // backfill stream and move to the live one.
-                        if state.cursor.load(Ordering::Relaxed) > state.latest {
+                        if state.cursor_value() > state.latest_tx_in_db {
                             debug!("reached the tip and are in sync with live data");
                             return None;
                         }
                     }
 
                     // fetch transaction batch from database and update the cursor.
-                    let start = state.cursor.load(Ordering::Relaxed);
-                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest);
+                    let start = state.cursor_value();
+                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
 
                     let db_query_timer = state.query_tx_from_indexer_db_latency.start_timer();
                     match Self::with_retry(|| async {
@@ -1040,7 +1129,7 @@ impl HistoricalFetch {
                                 batch.len()
                             );
                             state.buffer.extend(batch);
-                            state.cursor.store(end + 1, Ordering::Relaxed);
+                            state.update_cursor(end + 1);
                         }
                         Err(e) => {
                             state.should_close_stream = true;
