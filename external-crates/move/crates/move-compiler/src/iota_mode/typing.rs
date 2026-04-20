@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
@@ -17,7 +20,10 @@ use crate::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
     parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
-    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
+    shared::{
+        CompilationEnv, Identifier,
+        program_info::{DatatypeKind, TypingProgramInfo},
+    },
     typing::{
         ast::{self as T, ModuleCall},
         core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
@@ -306,6 +312,11 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
     }
+    if let Some(sp!(view_loc, _)) =
+        attributes.get_(&iota_known_attributes::view::ViewAttribute.into())
+    {
+        view_signature(context, *view_loc, name, *visibility, signature);
+    }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
         attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
     {
@@ -592,6 +603,268 @@ fn invalid_otw_field_loc(fields: &Fields<(DocComment, Type)>) -> Option<InvalidO
 }
 
 //**************************************************************************************************
+// view types
+//**************************************************************************************************
+
+fn view_signature(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    visibility: Visibility,
+    signature: &FunctionSignature,
+) {
+    view_visibility(context, view_loc, name, visibility);
+
+    let FunctionSignature {
+        type_parameters: _,
+        parameters,
+        return_type,
+    } = signature;
+
+    let all_non_ctx_parameters = match parameters.last() {
+        Some((_, last_param, last_param_ty)) => {
+            let ctx_kind = tx_context_kind(last_param_ty);
+            if ctx_kind != TxContextKind::None {
+                if ctx_kind == TxContextKind::Mutable {
+                    let msg = format!("Invalid parameter type for view function '{}'", name);
+                    let param_msg = format!("Invalid view parameter '{}'", last_param.value.name);
+                    context.add_diag(diag!(
+                        VIEW_FUN_SIGNATURE_DIAG,
+                        (view_loc, msg),
+                        (
+                            last_param_ty.loc,
+                            "View functions cannot accept 'mutable TxContext' parameters",
+                        ),
+                        (last_param.loc, &param_msg)
+                    ));
+                }
+                &parameters[0..parameters.len() - 1]
+            } else {
+                parameters
+            }
+        }
+        _ => parameters,
+    };
+
+    for (_, param, param_ty) in all_non_ctx_parameters {
+        view_param_ty(context, view_loc, name, param, param_ty);
+    }
+
+    view_return_ty(context, view_loc, name, return_type);
+}
+
+fn view_visibility(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    visibility: Visibility,
+) {
+    if !matches!(visibility, Visibility::Public(_)) {
+        let msg = format!("Invalid visibility for view function '{}'", name);
+        let vloc = match visibility {
+            Visibility::Friend(loc) | Visibility::Package(loc) => loc,
+            Visibility::Internal => name.loc(),
+            Visibility::Public(_) => unreachable!("Cannot be public at this point"),
+        };
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (vloc, "View functions must be declared as 'public'"),
+        ));
+    }
+}
+
+fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, return_type: &Type) {
+    if matches!(return_type.value, Type_::Unit) {
+        let msg = format!("Invalid return type for view function '{}'", name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                return_type.loc,
+                "View functions must return at least one value"
+            ),
+        ));
+    } else if contains_object_ty(context.info.as_ref(), return_type) {
+        let msg = format!("Invalid return type for view function '{}'", name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                return_type.loc,
+                "View functions cannot return objects (including vectors/tuples containing objects)",
+            ),
+        ));
+    }
+}
+
+/// A valid view param type is
+/// - A primitive (including strings and non-object structs)
+/// - A vector of primitives (including nested vectors)
+/// - A reference to an object (NON MUTABLE)
+fn view_param_ty(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    param: &Var,
+    param_ty: &Type,
+) {
+    match &param_ty.value {
+        Type_::Ref(is_mut, inner) => {
+            if *is_mut && contains_object_ty(context.info.as_ref(), inner) {
+                let msg = format!("Invalid parameter type for view function '{}'", name);
+                let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+                context.add_diag(diag!(
+                    VIEW_FUN_SIGNATURE_DIAG,
+                    (view_loc, msg),
+                    (
+                        param_ty.loc,
+                        "View functions cannot accept mutable references to objects",
+                    ),
+                    (param.loc, &param_msg)
+                ));
+            }
+        }
+        // TODO maybe add more detalied reporting
+        _ if contains_object_ty(context.info.as_ref(), param_ty) => {
+            let msg = format!("Invalid parameter type for view function '{}'", name);
+            let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    param_ty.loc,
+                    "View functions cannot accept objects by value",
+                ),
+                (param.loc, &param_msg)
+            ));
+        }
+        _ => (),
+    }
+}
+
+pub(crate) fn contains_object_ty(info: &TypingProgramInfo, param_ty: &Type) -> bool {
+    let tparam_subst = BTreeMap::new();
+    let mut visiting = BTreeSet::new();
+    contains_object_ty_impl(info, param_ty, &tparam_subst, &mut visiting)
+}
+
+pub(crate) fn contains_object_ty_shallow(param_ty: &Type) -> bool {
+    match &param_ty.value {
+        Type_::Ref(_, t) => contains_object_ty_shallow(t),
+        Type_::Param(tp) => tp.abilities.has_ability_(Ability_::Key),
+        Type_::Apply(Some(abilities), _, targs) => {
+            abilities.has_ability_(Ability_::Key) || targs.iter().any(contains_object_ty_shallow)
+        }
+        Type_::Apply(None, _, _) => false,
+        Type_::Unit
+        | Type_::UnresolvedError
+        | Type_::Anything
+        | Type_::Var(_)
+        | Type_::Fun(_, _) => false,
+    }
+}
+
+fn contains_object_ty_impl(
+    info: &TypingProgramInfo,
+    param_ty: &Type,
+    tparam_subst: &BTreeMap<N::TParamID, Type>,
+    visiting: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
+) -> bool {
+    match &param_ty.value {
+        Type_::Ref(_, t) => contains_object_ty_impl(info, t, tparam_subst, visiting),
+        Type_::Param(tp) => {
+            if let Some(inst_ty) = tparam_subst.get(&tp.id) {
+                contains_object_ty_impl(info, inst_ty, tparam_subst, visiting)
+            } else {
+                tp.abilities.has_ability_(Ability_::Key)
+            }
+        }
+        Type_::Apply(Some(abilities), sp!(_, type_name_), targs) => {
+            if abilities.has_ability_(Ability_::Key)
+                || targs
+                    .iter()
+                    .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting))
+            {
+                return true;
+            }
+
+            let TypeName_::ModuleType(mident, datatype) = type_name_ else {
+                return false;
+            };
+
+            let marker = (*mident, *datatype);
+            if visiting.contains(&marker) {
+                // Break recursive datatype cycles.
+                return false;
+            }
+            visiting.insert(marker);
+            let contains = contains_object_in_datatype_fields(
+                info,
+                mident,
+                datatype,
+                targs,
+                tparam_subst,
+                visiting,
+            );
+            visiting.remove(&marker);
+            contains
+        }
+        Type_::Apply(None, _, targs) => targs
+            .iter()
+            .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting)),
+        Type_::Fun(args, ret) => {
+            args.iter()
+                .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting))
+                || contains_object_ty_impl(info, ret, tparam_subst, visiting)
+        }
+        Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
+    }
+}
+
+fn contains_object_in_datatype_fields(
+    info: &TypingProgramInfo,
+    mident: &ModuleIdent,
+    datatype: &DatatypeName,
+    targs: &[Type],
+    tparam_subst: &BTreeMap<N::TParamID, Type>,
+    visiting: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
+) -> bool {
+    let mut next_subst = tparam_subst.clone();
+
+    match info.datatype_kind(mident, datatype) {
+        DatatypeKind::Struct => {
+            let sdef = info.struct_definition(mident, datatype);
+            for (tp, arg_ty) in sdef.type_parameters.iter().zip(targs.iter()) {
+                next_subst.insert(tp.param.id, arg_ty.clone());
+            }
+            match &sdef.fields {
+                StructFields::Defined(_, fields) => fields.iter().any(|(_, _, (_, (_, ty)))| {
+                    contains_object_ty_impl(info, ty, &next_subst, visiting)
+                }),
+                StructFields::Native(_) => false,
+            }
+        }
+        DatatypeKind::Enum => {
+            let edef = info.enum_definition(mident, datatype);
+            for (tp, arg_ty) in edef.type_parameters.iter().zip(targs.iter()) {
+                next_subst.insert(tp.param.id, arg_ty.clone());
+            }
+            edef.variants
+                .iter()
+                .any(|(_, _, variant)| match &variant.fields {
+                    N::VariantFields::Defined(_, fields) => {
+                        fields.iter().any(|(_, _, (_, (_, ty)))| {
+                            contains_object_ty_impl(info, ty, &next_subst, visiting)
+                        })
+                    }
+                    N::VariantFields::Empty => false,
+                })
+        }
+    }
+}
+
+//**************************************************************************************************
 // entry types
 //**************************************************************************************************
 
@@ -616,7 +889,7 @@ fn entry_signature(
     entry_return(context, entry_loc, name, return_type);
 }
 
-fn tx_context_kind(sp!(_, last_param_ty_): &Type) -> TxContextKind {
+pub(crate) fn tx_context_kind(sp!(_, last_param_ty_): &Type) -> TxContextKind {
     // Already an error, so assume a valid, mutable TxContext
     if matches!(last_param_ty_, Type_::UnresolvedError | Type_::Var(_)) {
         return TxContextKind::Mutable;

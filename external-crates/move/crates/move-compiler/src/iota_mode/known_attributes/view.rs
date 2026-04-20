@@ -1,16 +1,10 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! IOTA View Function Attribute
-//!
-//! The `#[view]` attribute marks a function as a view function, meaning it:
-//! - Returns a value (non-void return type)
-//! - Does not mutate on-chain state
-//! - Can be called off-chain without a transaction
-
-use std::{collections::BTreeSet, fmt};
+//! IOTA View Attribute
 
 use once_cell::sync::Lazy;
+use std::{collections::BTreeSet, fmt};
 
 use crate::{
     expansion::ast::Attributes,
@@ -47,15 +41,11 @@ impl Attributes {
     }
 }
 
-//**************************************************************************************************
-// From
-//**************************************************************************************************
-
 impl From<ViewAttribute> for MoveKnownAttribute {
-    fn from(v: ViewAttribute) -> Self {
+    fn from(a: ViewAttribute) -> Self {
         Self::Flavored(FlavoredAttribute {
-            name: v.name(),
-            expected_positions: v.expected_positions(),
+            name: a.name(),
+            expected_positions: a.expected_positions(),
         })
     }
 }

@@ -1,0 +1,108 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: 2024.alpha
+  lint: false
+---
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:11:7
+   │
+11 │     #[view]
+   │       ^^^^ Invalid visibility for view function 'private_view'
+12 │     fun private_view(): u64 {
+   │         ------------ View functions must be declared as 'public'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:16:7
+   │
+16 │     #[view]
+   │       ^^^^ Invalid return type for view function 'no_return'
+17 │     public fun no_return() {
+   │                --------- View functions must return at least one value
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:21:7
+   │
+21 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'vec_of_obj'
+22 │     public fun vec_of_obj(_v: vector<Obj>): u64 {
+   │                           --  ----------- View functions cannot accept objects by value
+   │                           │    
+   │                           Invalid view parameter '_v'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:26:7
+   │
+26 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'mut_ref_vec_of_obj'
+27 │     public fun mut_ref_vec_of_obj(_v: &mut vector<Obj>): u64 {
+   │                                   --  ---------------- View functions cannot accept mutable references to objects
+   │                                   │    
+   │                                   Invalid view parameter '_v'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:31:7
+   │
+31 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'wrapper_ref'
+32 │     public fun wrapper_ref(w: &mut Wrapper): u64 {
+   │                            -  ------------ View functions cannot accept mutable references to objects
+   │                            │   
+   │                            Invalid view parameter 'w'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:38:7
+   │
+38 │     #[view]
+   │       ^^^^ Invalid return type for view function 'returns_object'
+39 │     public fun returns_object(): Obj {
+   │                                  --- View functions cannot return objects (including vectors/tuples containing objects)
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:43:7
+   │
+43 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'object_by_value'
+44 │     public fun object_by_value(_o: Obj): u64 {
+   │                                --  --- View functions cannot accept objects by value
+   │                                │    
+   │                                Invalid view parameter '_o'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:48:7
+   │
+48 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'mut_object_ref'
+49 │     public fun mut_object_ref(o: &mut Obj): u64 {
+   │                               -  -------- View functions cannot accept mutable references to objects
+   │                               │   
+   │                               Invalid view parameter 'o'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:54:7
+   │
+54 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'tx_context_arg'
+55 │     public fun tx_context_arg(ctx: &mut iota::tx_context::TxContext): u64 {
+   │                               ---  -------------------------------- View functions cannot accept 'mutable TxContext' parameters
+   │                               │     
+   │                               Invalid view parameter 'ctx'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:60:7
+   │
+60 │     #[view]
+   │       ^^^^ Invalid parameter type for view function 'transfer_obj_generic'
+61 │     public fun transfer_obj_generic<T: key + store>(o: T, to: address) {
+   │                                                     -  - View functions cannot accept objects by value
+   │                                                     │   
+   │                                                     Invalid view parameter 'o'
+
+error[Iota E02011]: invalid 'view' function signature
+   ┌─ tests/iota_mode/move_2024/typing/view_attribute/invalid.move:60:7
+   │
+60 │     #[view]
+   │       ^^^^ Invalid return type for view function 'transfer_obj_generic'
+61 │     public fun transfer_obj_generic<T: key + store>(o: T, to: address) {
+   │                -------------------- View functions must return at least one value
