@@ -31,11 +31,10 @@ pub enum IotaSystemStateSummary {
     V2(IotaSystemStateSummaryV2),
 }
 
-/// This is the JSON-RPC type for the
+/// This is a flattened summary of the
 /// [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1)
-/// object. It flattens all fields to make them top-level fields such that it as
-/// minimum dependencies to the internal data structures of the IOTA system
-/// state type.
+/// object, with minimum dependencies to the internal data structures of the
+/// IOTA system state type.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -169,11 +168,10 @@ pub struct IotaSystemStateSummaryV1 {
     pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
 }
 
-/// This is the JSON-RPC type for the
+/// This is a flattened summary of the
 /// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2)
-/// object. It flattens all fields to make them top-level fields such that it as
-/// minimum dependencies to the internal data structures of the IOTA system
-/// state type.
+/// object, with minimum dependencies to the internal data structures of the
+/// IOTA system state type.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
