@@ -24,4 +24,6 @@ Create a new documentation page following the project conventions in CLAUDE.md.
 
 - Check `content/_snippets/` for reusable components before writing new boilerplate.
 - Tags must exist in `content/tags.yml`. Use the Diátaxis tag plus at least one technology tag.
-- Never copy code inline; use `file=<rootDir>/...` or the `reference` keyword.
+- Never copy code inline; use `file=<rootDir>/...` (`<rootDir>` = `docs/`) or the `reference` keyword.
+- Domain terms defined in `site/config/jargon.js` are auto-highlighted in prose — use them.
+- If this page replaces an existing one at a different path, add a redirect in `docusaurus.config.js`.

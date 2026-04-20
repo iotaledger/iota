@@ -260,6 +260,30 @@ pnpm --filter iota-docs run download-iota-references
 
 `onBrokenLinks`, `onBrokenMarkdownLinks`, and `onBrokenAnchors` are all set to `throw`, so any broken reference fails the build.
 
+## Notable Plugins
+
+Three plugins directly affect how you write content:
+
+### rehype-jargon
+
+Domain terms defined in `site/config/jargon.js` are automatically highlighted in rendered pages with a tooltip showing the definition. To trigger a tooltip, wrap the term in underscores in your MDX: `_gas_`, `_epoch_`, `_finality_`. To add a new term, add an entry to `jargon.js` — keys are lowercase, values are HTML strings.
+
+### plugin-client-redirects
+
+When you rename or move a page, add a redirect so external links and search engine results don't break. Redirects live in `docusaurus.config.js` inside the `@docusaurus/plugin-client-redirects` config:
+
+```js
+{ from: '/old/path', to: '/new/path' },
+```
+
+The redirect logic derives child paths automatically, so a single entry covers `/old/path/sub-page` → `/new/path/sub-page`.
+
+Redirects are a grace period, not permanent. Once external links and search indexes have had reasonable time to update (a few months), remove the entry to keep the config clean.
+
+### docusaurus-plugin-llms
+
+Generates `llms-full-*.txt` files consumed by AI tools and agents. Each file covers a topic area via `includePatterns`. When adding a significant new content section, add it to the relevant pattern in `docusaurus.config.js`, or create a new `customLLMFiles` entry if it forms a distinct topic. Snippets (`_snippets/`) and files starting with `_` are excluded automatically.
+
 ## Common Mistakes to Avoid
 
 - **Mixing types:** A how-to that explains "why" is diluted; move the explanation to a dedicated explanation page and link to it.
@@ -268,3 +292,4 @@ pnpm --filter iota-docs run download-iota-references
 - **Explanation scope creep:** Explanation pages are the most likely to absorb stray instructions or reference tables. Keep them discursive and conceptual.
 - **Inline code:** Never copy code into the page. Use `file=<rootDir>/...` for monorepo sources or the `reference` keyword with a GitHub URL for external repos. Both accept an `#L1-L10` line-range anchor.
 - **Unregistered page:** A new page not added to its sidebar file will build but never appear in the navigation.
+- **Missing redirect:** Renaming or moving a page without a redirect entry in `docusaurus.config.js` breaks existing links silently — the build will succeed but users will hit 404s.

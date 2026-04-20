@@ -31,6 +31,7 @@ For each page, verify:
 
 - [ ] The page is registered in the correct `content/sidebars/<section>.js` category
 - [ ] No bare top-level string entries in the sidebar file
+- [ ] If the page was moved or renamed, a redirect entry exists in `docusaurus.config.js` under `@docusaurus/plugin-client-redirects`
 
 ## Output format
 
