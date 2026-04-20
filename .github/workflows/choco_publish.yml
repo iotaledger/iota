@@ -37,7 +37,7 @@ jobs:
       - name: Create LICENSE copy for chocolatey files list
         shell: bash
         run: |
-          cp LICENSE LICENSE.txt
+          cp LICENSE ./tmp/LICENSE.txt
 
       - name: Publish Windows iota binary to Chocolatey
         shell: bash
@@ -58,8 +58,3 @@ jobs:
 
           choco pack --version ${choco_version} configuration=release
           choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
-
-      - name: Remove LICENSE copy
-        shell: bash
-        run: |
-          rm LICENSE.txt
