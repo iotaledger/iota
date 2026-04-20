@@ -21,7 +21,6 @@ interface OverlayProps {
     onBack?: () => void;
     hideCloseIcon?: boolean;
     headerAction?: ReactNode;
-    /** Render inline (no Portal, no backdrop blur) — used in sidebar/fullscreen where settings are a regular page */
     useInlineLayout?: boolean;
 }
 
