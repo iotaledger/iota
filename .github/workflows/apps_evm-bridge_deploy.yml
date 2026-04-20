@@ -19,6 +19,7 @@ env:
   VERCEL_PROJECT_ID: ${{ secrets.EVM_BRIDGE_VERCEL_PROJECT_ID }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 jobs:
   resolve-deploy-type:
