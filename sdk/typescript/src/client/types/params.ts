@@ -327,7 +327,7 @@ export interface GetDynamicFieldsParams {
 /** Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer. */
 export interface GetEpochMetricsParams {
     /** Optional paging cursor */
-    cursor?: string | null | undefined;
+    cursor: string;
     /** Maximum number of items per page */
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
@@ -337,7 +337,7 @@ export interface GetEpochMetricsParams {
 /** Return a list of epoch info. Exclusively served by the indexer. */
 export interface GetEpochsParams {
     /** Optional paging cursor */
-    cursor?: string | null | undefined;
+    cursor: string;
     /** Maximum number of items per page */
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
@@ -462,7 +462,7 @@ export interface QueryEventsParams {
      */
     query: RpcTypes.IotaEventFilter;
     /** optional paging cursor */
-    cursor?: RpcTypes.EventId | null | undefined;
+    cursor?: RpcTypes.IotaEventID | null | undefined;
     /** maximum number of items per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */
@@ -582,7 +582,7 @@ export interface UnsafePayParams {
     /** the recipients' addresses, the length of this vector must be the same as amounts. */
     recipients: string[];
     /** the amounts to be transferred to recipients, following the same order */
-    amounts: string[];
+    amounts: (string | null)[];
     /**
      * gas object to be used in this transaction, node will pick one from the signer's possession if not
      * provided
@@ -627,7 +627,7 @@ export interface UnsafePayIotaParams {
     /** the recipients' addresses, the length of this vector must be the same as amounts. */
     recipients: string[];
     /** the amounts to be transferred to recipients, following the same order */
-    amounts: string[];
+    amounts: (string | null)[];
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
     signal?: AbortSignal;

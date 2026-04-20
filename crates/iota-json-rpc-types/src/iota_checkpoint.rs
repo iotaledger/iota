@@ -130,7 +130,7 @@ impl
 
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", rename = "EndOfEpochData")]
 pub struct EndOfEpochDataSchema {
     /// next_epoch_committee is `Some` if and only if the current checkpoint is
     /// the last checkpoint of an epoch.
@@ -214,6 +214,7 @@ impl From<EndOfEpochData> for EndOfEpochDataSchema {
 
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "CheckpointCommitment")]
 pub enum CheckpointCommitmentSchema {
     ECMHLiveObjectSetDigest(
         #[schemars(with = "ECMHLiveObjectSetDigestSchema")]
@@ -265,6 +266,7 @@ impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
 #[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "ECMHLiveObjectSetDigest")]
 pub struct ECMHLiveObjectSetDigestSchema {
     #[schemars(with = "[u8; 32]")]
     pub digest: Digest,

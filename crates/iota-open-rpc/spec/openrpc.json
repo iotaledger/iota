@@ -3853,7 +3853,7 @@
           "description": "The Name of the dynamic field",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/DynamicFieldNameSchema"
+            "$ref": "#/components/schemas/DynamicFieldName"
           }
         }
       ],
@@ -3926,7 +3926,7 @@
           "description": "The Name of the dynamic field",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/DynamicFieldNameSchema"
+            "$ref": "#/components/schemas/DynamicFieldName"
           }
         },
         {
@@ -6183,7 +6183,7 @@
             "description": "Commitments to checkpoint state",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CheckpointCommitmentSchema"
+              "$ref": "#/components/schemas/CheckpointCommitment"
             }
           },
           "digest": {
@@ -6195,7 +6195,7 @@
             "description": "Present only on the final checkpoint of the epoch.",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EndOfEpochDataSchema"
+                "$ref": "#/components/schemas/EndOfEpochData"
               },
               {
                 "type": "null"
@@ -6253,7 +6253,7 @@
           }
         }
       },
-      "CheckpointCommitmentSchema": {
+      "CheckpointCommitment": {
         "oneOf": [
           {
             "type": "object",
@@ -6262,7 +6262,7 @@
             ],
             "properties": {
               "ECMHLiveObjectSetDigest": {
-                "$ref": "#/components/schemas/ECMHLiveObjectSetDigestSchema"
+                "$ref": "#/components/schemas/ECMHLiveObjectSetDigest"
               }
             },
             "additionalProperties": false
@@ -6593,7 +6593,7 @@
           }
         }
       },
-      "DynamicFieldNameSchema": {
+      "DynamicFieldName": {
         "type": "object",
         "required": [
           "type",
@@ -6606,14 +6606,14 @@
           "value": true
         }
       },
-      "DynamicFieldTypeSchema": {
+      "DynamicFieldType": {
         "type": "string",
         "enum": [
           "dynamicField",
           "dynamicObject"
         ]
       },
-      "ECMHLiveObjectSetDigestSchema": {
+      "ECMHLiveObjectSetDigest": {
         "description": "The Sha256 digest of an EllipticCurveMultisetHash committing to the live object set.",
         "type": "object",
         "required": [
@@ -6632,7 +6632,7 @@
           }
         }
       },
-      "EndOfEpochDataSchema": {
+      "EndOfEpochData": {
         "type": "object",
         "required": [
           "epochCommitments",
@@ -6645,7 +6645,7 @@
             "description": "Commitments to epoch specific state (e.g. live object set)",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CheckpointCommitmentSchema"
+              "$ref": "#/components/schemas/CheckpointCommitment"
             }
           },
           "epochSupplyChange": {
@@ -7346,14 +7346,7 @@
         }
       },
       "IotaAddress": {
-        "type": "array",
-        "items": {
-          "type": "integer",
-          "format": "uint8",
-          "minimum": 0.0
-        },
-        "maxItems": 32,
-        "minItems": 32
+        "type": "string"
       },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
@@ -7822,7 +7815,7 @@
             "format": "base58"
           },
           "name": {
-            "$ref": "#/components/schemas/DynamicFieldNameSchema"
+            "$ref": "#/components/schemas/DynamicFieldName"
           },
           "objectId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -7831,7 +7824,7 @@
             "type": "string"
           },
           "type": {
-            "$ref": "#/components/schemas/DynamicFieldTypeSchema"
+            "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
             "$ref": "#/components/schemas/SequenceNumber"
@@ -10348,14 +10341,7 @@
         }
       },
       "ObjectID": {
-        "type": "array",
-        "items": {
-          "type": "integer",
-          "format": "uint8",
-          "minimum": 0.0
-        },
-        "maxItems": 32,
-        "minItems": 32
+        "type": "string"
       },
       "ObjectRead": {
         "oneOf": [

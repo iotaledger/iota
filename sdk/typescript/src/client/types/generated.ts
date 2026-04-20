@@ -41,13 +41,6 @@ export interface BalanceChange {
     /** Owner of the balance change */
     owner: ObjectOwner;
 }
-export type CallArg =
-    | {
-          Pure: number[];
-      }
-    | {
-          Object: ObjectArg;
-      };
 export interface Checkpoint {
     /** Commitments to checkpoint state */
     checkpointCommitments: CheckpointCommitment[];
@@ -61,7 +54,7 @@ export interface Checkpoint {
      * The running total gas costs of all transactions included in the current epoch so far until this
      * checkpoint.
      */
-    epochRollingGasCostSummary: GasCostSummary;
+    epochRollingGasCostSummary: IotaGasCostSummary;
     /** Total number of transactions committed since genesis, including those in this checkpoint. */
     networkTotalTransactions: string;
     /** Digest of the previous checkpoint */
@@ -83,48 +76,11 @@ export type CheckpointCommitment = {
     ECMHLiveObjectSetDigest: ECMHLiveObjectSetDigest;
 };
 export type CheckpointId = string | string;
-/** A claim consists of value and index_mod_4. */
-export interface Claim {
-    indexMod4: number;
-    value: string;
-}
-export interface CoinStruct {
-    balance: string;
-    coinObjectId: string;
-    coinType: string;
-    digest: string;
-    previousTransaction: string;
-    version: string;
-}
 /** RPC representation of the [Committee] type. */
 export interface CommitteeInfo {
     epoch: string;
     validators: [string, string][];
 }
-/** Unlike [enum Signature], [enum CompressedSignature] does not contain public key. */
-export type CompressedSignature =
-    | {
-          Ed25519: string;
-      }
-    | {
-          Secp256k1: string;
-      }
-    | {
-          Secp256r1: string;
-      }
-    | {
-          ZkLogin: string;
-      }
-    | {
-          Passkey: string;
-      }
-    | {
-          Move: string;
-      };
-/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
-export type ConsensusDeterminedVersionAssignments = {
-    CancelledTransactions: [string, [string, string][]][];
-};
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
@@ -154,7 +110,7 @@ export interface DevInspectArgs {
     /** The gas budget for the transaction. */
     gasBudget?: string | null;
     /** The gas objects used to pay for the transaction. */
-    gasObjects?: [string, string, string][] | null;
+    gasObjects?: IotaObjectRef[] | null;
     /** The sponsor of the gas for the transaction, might be different from the sender. */
     gasSponsor?: string | null;
     /** Whether to return the raw transaction data and effects. */
@@ -197,32 +153,11 @@ export interface DryRunTransactionBlockResponse {
     /** If an input object is congested, suggest a gas price to use. */
     suggestedGasPrice?: string | null;
 }
-export type DynamicFieldInfo =
-    | {
-          digest: string;
-          name: DynamicFieldName;
-          objectId: string;
-          objectType: string;
-          type: DynamicFieldType;
-          version: string;
-          bcsEncoding: 'base64';
-          bcsName: string;
-      }
-    | {
-          digest: string;
-          name: DynamicFieldName;
-          objectId: string;
-          objectType: string;
-          type: DynamicFieldType;
-          version: string;
-          bcsEncoding: 'base58';
-          bcsName: string;
-      };
 export interface DynamicFieldName {
     type: string;
     value: unknown;
 }
-export type DynamicFieldType = 'DynamicField' | 'DynamicObject';
+export type DynamicFieldType = 'dynamicField' | 'dynamicObject';
 /** The Sha256 digest of an EllipticCurveMultisetHash committing to the live object set. */
 export interface ECMHLiveObjectSetDigest {
     digest: number[];
@@ -300,7 +235,7 @@ export type IotaEvent =
            * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
            * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
            */
-          id: EventId;
+          id: IotaEventID;
           /** Move package where this event was emitted. */
           packageId: string;
           /** Parsed json value of the event */
@@ -322,7 +257,7 @@ export type IotaEvent =
            * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
            * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
            */
-          id: EventId;
+          id: IotaEventID;
           /** Move package where this event was emitted. */
           packageId: string;
           /** Parsed json value of the event */
@@ -344,6 +279,7 @@ export type IotaEventFilter =
           Sender: string;
       } /** Return events emitted by the given transaction. */
     | {
+          /** Base58 encoded data */
           Transaction: string;
       } /** Return events emitted in a specified Package. */
     | {
@@ -405,50 +341,11 @@ export type IotaEventFilter =
     | {
           Or: [IotaEventFilter, IotaEventFilter];
       };
-/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
-export interface EventId {
-    eventSeq: string;
-    txDigest: string;
-}
 export type ExecuteTransactionRequestType = 'WaitForEffectsCert' | 'WaitForLocalExecution';
 export type ExecutionStatus = {
     status: 'success' | 'failure';
     error?: string;
 };
-/**
- * Summary of the charges in a transaction. Storage is charged independently of computation. There are
- * 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the
- * transaction is executed. The cost of storage is the number of bytes of the objects being mutated
- * multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back
- * when manipulating an object. The `storage_rebate` is the `storage_cost` for an object minus fees.
- * `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and
- * there is a small fraction that is kept by the system. This value tracks that charge.
- *
- * When looking at a gas cost summary the amount charged to the user is
- * `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the
- * gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it
- * is tracked by the system in storage funds.
- *
- * Objects deleted, including the older versions of objects mutated, have the storage field on the
- * objects added up to a pool of "potential rebate". This rebate then is reduced by the "nonrefundable
- * rate" such that:
- * `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`
- */
-export interface GasCostSummary {
-    /** Cost of computation/execution */
-    computationCost: string;
-    /** The burned component of the computation/execution costs */
-    computationCostBurned: string;
-    /** The fee for the rebate. The portion of the storage rebate kept by the system. */
-    nonRefundableStorageFee: string;
-    /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
-    storageCost: string;
-    /**
-     * The amount of storage cost refunded to the user for all objects deleted or mutated in the
-     * transaction.
-     */
-    storageRebate: string;
-}
 export interface IotaGasData {
     budget: string;
     owner: string;
@@ -501,6 +398,7 @@ export interface IotaAuthenticatorStateExpire {
 export type IotaCallArg =
     | {
           type: 'object';
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: 'immOrOwnedObject';
@@ -515,6 +413,7 @@ export type IotaCallArg =
       }
     | {
           type: 'object';
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: 'receiving';
@@ -565,6 +464,33 @@ export interface CoinMetadata {
     /** Symbol for the token */
     symbol: string;
 }
+/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
+export type IotaConsensusDeterminedVersionAssignments = {
+    CancelledTransactions: [string, [string, string][]][];
+};
+export type IotaDynamicFieldInfo =
+    | {
+          /** Base58 encoded data */
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base64';
+          bcsName: string;
+      }
+    | {
+          /** Base58 encoded data */
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base58';
+          bcsName: string;
+      };
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
     | {
@@ -576,11 +502,58 @@ export type IotaEndOfEpochTransactionKind =
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
       };
+/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
+export interface IotaEventID {
+    eventSeq: string;
+    txDigest: string;
+}
 export interface IotaExecutionResult {
     /** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
     mutableReferenceOutputs?: [IotaArgument, number[], string][];
     /** The return values from the transaction */
     returnValues?: [number[], string][];
+}
+/**
+ * Summary of gas charges.
+ *
+ * Storage is charged independently of computation. There are 3 parts to the storage charges:
+ * `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of
+ * storage is the number of bytes of the objects being mutated multiplied by a variable storage cost
+ * per byte `storage_rebate`: this is the amount a user gets back when manipulating an object. The
+ * `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not
+ * all the value of the object storage cost is given back to user and there is a small fraction that is
+ * kept by the system. This value tracks that charge.
+ *
+ * When looking at a gas cost summary the amount charged to the user is
+ * `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the
+ * gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it
+ * is tracked by the system in storage funds.
+ *
+ * Objects deleted, including the older versions of objects mutated, have the storage field on the
+ * objects added up to a pool of "potential rebate". This rebate then is reduced by the "nonrefundable
+ * rate" such that:
+ * `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`
+ *
+ * # BCS
+ *
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * `text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee `
+ */
+export interface IotaGasCostSummary {
+    /** Cost of computation/execution */
+    computationCost: string;
+    /** The burned component of the computation/execution costs */
+    computationCostBurned: string;
+    /** The fee for the rebate. The portion of the storage rebate kept by the system. */
+    nonRefundableStorageFee: string;
+    /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
+    storageCost: string;
+    /**
+     * The amount of storage cost refunded to the user for all objects deleted or mutated in the
+     * transaction.
+     */
+    storageRebate: string;
 }
 export interface IotaJWK {
     alg: string;
@@ -760,6 +733,9 @@ export interface MoveCallIotaTransaction {
     package: string;
     /** The type arguments to the function. */
     type_arguments?: string[];
+}
+export interface IotaSupply {
+    value: string;
 }
 /**
  * This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent
@@ -1040,24 +1016,47 @@ export type IotaTransactionKind =
     | 'EndOfEpochTransaction'
     | 'SystemTransaction';
 /**
+ * Store the origin of a data type where it first appeared in the version chain.
+ *
+ * A data type is identified by the name of the module and the name of the struct/enum in combination.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
+export interface IotaTypeOrigin {
+    /**
+     * The name of the data type.
+     *
+     * Here this either refers to an enum or a struct identifier.
+     */
+    datatype_name: string;
+    /** The name of the module the data type resides in. */
+    module_name: string;
+    /** `Storage ID` of the package, where the given type first appeared. */
+    package: string;
+}
+/**
+ * Value for the [MovePackage]'s linkage_table.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
+export interface IotaUpgradeInfo {
+    /** `Storage ID`/`Package ID` of the referred package. */
+    upgraded_id: string;
+    /** The version of the package at `upgraded_id`. */
+    upgraded_version: string;
+}
+/**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
  * fields so that they are decoupled from the internal definitions.
  */
 export interface IotaValidatorSummary {
     authorityPubkeyBytes: string;
-    /**
-     * The fee set by the validator for providing staking services.
-     *
-     * This might be overridden by the protocol, that uses instead an effective commission rate. See more
-     * on the associated field.
-     */
     commissionRate: string;
     description: string;
-    /**
-     * The effective fee charged by the validator for staking services.
-     *
-     * This follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).
-     */
     effectiveCommissionRate?: string | null;
     /** ID of the exchange rate table object. */
     exchangeRatesId: string;
@@ -1104,23 +1103,6 @@ export interface IotaValidatorSummary {
     /** The total number of IOTA tokens in this pool. */
     stakingPoolIotaBalance: string;
     votingPower: string;
-}
-/**
- * MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through
- * Move code. This function represents the data received by the Move authenticate function during the
- * Account Abstraction authentication flow.
- */
-export type MoveAuthenticator = {
-    V1: MoveAuthenticatorV1;
-};
-/** MoveAuthenticatorV1 is the first version of MoveAuthenticator. */
-export interface MoveAuthenticatorV1 {
-    /** Input objects or primitive values */
-    call_args: CallArg[];
-    /** The object that is authenticated. Represents the account being the sender of the transaction. */
-    object_to_authenticate: CallArg;
-    /** Type arguments for the Move authenticate function */
-    type_arguments: string[];
 }
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
@@ -1181,28 +1163,6 @@ export interface MoveVariant {
     type: string;
     variant: string;
 }
-/** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
-export interface MultiSig {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: number;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKey;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
-/** The struct that contains the public key used for authenticating a MultiSig. */
-export interface MultiSigPublicKey {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
 export interface NetworkMetrics {
     /** Current checkpoint number */
     currentCheckpoint: string;
@@ -1219,20 +1179,6 @@ export interface NetworkMetrics {
     /** Peak TPS in the past 30 days */
     tps30Days: number;
 }
-export type ObjectArg =
-    | {
-          ImmOrOwnedObject: [string, string, string];
-      }
-    | {
-          SharedObject: {
-              id: string;
-              initial_shared_version: string;
-              mutable: boolean;
-          };
-      }
-    | {
-          Receiving: [string, string, string];
-      };
 /**
  * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
  * information.
@@ -1240,6 +1186,7 @@ export type ObjectArg =
 export type IotaObjectChange =
     /** Module published */
     | {
+          /** Base58 encoded data */
           digest: string;
           modules: string[];
           packageId: string;
@@ -1247,6 +1194,7 @@ export type IotaObjectChange =
           version: string;
       } /** Transfer objects to new address / wrap in another object */
     | {
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: string;
@@ -1256,6 +1204,7 @@ export type IotaObjectChange =
           version: string;
       } /** Object mutated. */
     | {
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: string;
@@ -1280,6 +1229,7 @@ export type IotaObjectChange =
           version: string;
       } /** Unwrapped object */
     | {
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: string;
@@ -1289,6 +1239,7 @@ export type IotaObjectChange =
           version: string;
       } /** New object creation */
     | {
+          /** Base58 encoded data */
           digest: string;
           objectId: string;
           objectType: string;
@@ -1422,6 +1373,18 @@ export interface OwnedObjectRef {
     owner: ObjectOwner;
     reference: IotaObjectRef;
 }
+/**
+ * Enum of different types of ownership for an object.
+ *
+ * # BCS
+ *
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * ````text owner = owner-address / owner-object / owner-shared / owner-immutable
+ *
+ * owner-address   = %x00 address owner-object    = %x01 object-id owner-shared    = %x02 u64 owner-immutable = %x03 ```
+ * ````
+ */
 export type ObjectOwner =
     /** Object is exclusively owned by a single address, and is mutable. */
     | {
@@ -1455,26 +1418,6 @@ export interface PaginatedCheckpoints {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
-export interface PaginatedCoins {
-    data: CoinStruct[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedDynamicFieldInfos {
-    data: DynamicFieldInfo[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
 export interface PaginatedEpochInfos {
     data: EpochInfo[];
     hasNextPage: boolean;
@@ -1498,7 +1441,17 @@ export interface PaginatedEpochMetricss {
 export interface PaginatedEvents {
     data: IotaEvent[];
     hasNextPage: boolean;
-    nextCursor?: EventId | null;
+    nextCursor?: IotaEventID | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedIotaDynamicFieldInfos {
+    data: IotaDynamicFieldInfo[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
 }
 /**
  * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
@@ -1518,30 +1471,13 @@ export interface PaginatedObjectsResponse {
 export interface PaginatedTransactionResponse {
     data: IotaTransactionBlockResponse[];
     hasNextPage: boolean;
+    /** Base58 encoded data */
     nextCursor?: string | null;
 }
 /** Provides metrics about the participation in the network. */
 export interface ParticipationMetrics {
     /** The count of distinct addresses with delegated stake. */
     totalAddresses: string;
-}
-/**
- * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
- * [struct RawPasskeyAuthenticator].
- */
-export interface PasskeyAuthenticator {
-    /**
-     * `authenticatorData` is a bytearray that encodes
-     * [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned
-     * by the authenticator attestation response as is.
-     */
-    authenticator_data: number[];
-    /**
-     * `clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed
-     * to the authenticator by the client during the authentication request (see
-     * [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))
-     */
-    client_data_json: string;
 }
 export interface ProtocolConfig {
     attributes: {
@@ -1571,22 +1507,6 @@ export type ProtocolConfigValue =
           bool: string;
       };
 export type PtbInput = IotaArgument | unknown;
-export type PublicKey =
-    | {
-          Ed25519: string;
-      }
-    | {
-          Secp256k1: string;
-      }
-    | {
-          Secp256r1: string;
-      }
-    | {
-          ZkLogin: string;
-      }
-    | {
-          Passkey: string;
-      };
 export type RPCTransactionRequestParams =
     | {
           transferObjectRequestParams: TransferObjectParams;
@@ -1605,23 +1525,13 @@ export type RawData =
           dataType: 'package';
           id: string;
           linkageTable: {
-              [key: string]: UpgradeInfo;
+              [key: string]: IotaUpgradeInfo;
           };
           moduleMap: {
               [key: string]: string;
           };
-          typeOriginTable: TypeOrigin[];
+          typeOriginTable: IotaTypeOrigin[];
           version: string;
-      };
-export type Signature =
-    | {
-          Ed25519IotaSignature: string;
-      }
-    | {
-          Secp256k1IotaSignature: string;
-      }
-    | {
-          Secp256r1IotaSignature: string;
       };
 export type StakeObject =
     | {
@@ -1649,9 +1559,6 @@ export type StakeObject =
           stakedIotaId: string;
           status: 'Unstaked';
       };
-export interface CoinSupply {
-    value: string;
-}
 export type TimelockedStake =
     | {
           expirationTimestampMs: string;
@@ -1720,7 +1627,7 @@ export type TransactionEffects =
          * in mutated.
          */
         gasObject: OwnedObjectRef;
-        gasUsed: GasCostSummary;
+        gasUsed: IotaGasCostSummary;
         messageVersion: 'v1';
         /**
          * The version that every modified (mutated or deleted) object had before it was modified by this
@@ -1755,14 +1662,15 @@ export interface TransactionBlockEffectsModifiedAtVersions {
 export type IotaTransactionBlockKind =
     /** A system transaction used for initializing the initial state of the chain. */
     | {
-          events: EventId[];
+          events: IotaEventID[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
     | {
           commit_timestamp_ms: string;
+          /** Base58 encoded data */
           consensus_commit_digest: string;
-          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
+          consensus_determined_version_assignments: IotaConsensusDeterminedVersionAssignments;
           epoch: string;
           kind: 'ConsensusCommitPrologueV1';
           round: string;
@@ -1802,6 +1710,7 @@ export interface IotaTransactionBlockResponse {
      */
     checkpoint?: string | null;
     confirmedLocalExecution?: boolean | null;
+    /** Base58 encoded data */
     digest: string;
     effects?: TransactionEffects | null;
     errors?: string[];
@@ -1931,40 +1840,6 @@ export interface TransferObjectParams {
     objectId: string;
     recipient: string;
 }
-/**
- * Store the origin of a data type where it first appeared in the version chain.
- *
- * A data type is identified by the name of the module and the name of the struct/enum in combination.
- *
- * # Undefined behavior
- *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
- */
-export interface TypeOrigin {
-    /**
-     * The name of the data type.
-     *
-     * Here this either refers to an enum or a struct identifier.
-     */
-    datatype_name: string;
-    /** The name of the module the data type resides in. */
-    module_name: string;
-    /** `Storage ID` of the package, where the given type first appeared. */
-    package: string;
-}
-/**
- * Value for the [MovePackage]'s linkage_table.
- *
- * # Undefined behavior
- *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
- */
-export interface UpgradeInfo {
-    /** `Storage ID`/`Package ID` of the referred package. */
-    upgraded_id: string;
-    /** The version of the package at `upgraded_id`. */
-    upgraded_version: string;
-}
 export interface ValidatorApy {
     address: string;
     apy: number;
@@ -1972,23 +1847,4 @@ export interface ValidatorApy {
 export interface ValidatorsApy {
     apys: ValidatorApy[];
     epoch: string;
-}
-/** An zk login authenticator with all the necessary fields. */
-export interface ZkLoginAuthenticator {
-    inputs: ZkLoginInputs;
-    maxEpoch: string;
-    userSignature: Signature;
-}
-/** All inputs required for the zk login proof verification and other public inputs. */
-export interface ZkLoginInputs {
-    addressSeed: string;
-    headerBase64: string;
-    issBase64Details: Claim;
-    proofPoints: ZkLoginProof;
-}
-/** The struct for zk login proof. */
-export interface ZkLoginProof {
-    a: string[];
-    b: string[][];
-    c: string[];
 }

@@ -84,7 +84,7 @@ impl<T, C> Page<T, C> {
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", rename = "DynamicFieldName")]
 pub struct DynamicFieldNameSchema {
     #[schemars(with = "String")]
     #[serde_as(as = "TypeTagSchema")]
@@ -134,7 +134,7 @@ impl From<DynamicFieldNameSchema> for DynamicFieldName {
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", rename = "DynamicFieldType")]
 pub enum DynamicFieldTypeSchema {
     DynamicField,
     DynamicObject,

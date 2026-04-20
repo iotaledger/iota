@@ -19,7 +19,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::Error as SerE
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 #[derive(JsonSchema)]
-pub struct IotaAddress(#[expect(unused)] [u8; 32]);
+pub struct IotaAddress(
+    #[expect(unused)]
+    #[schemars(with = "String")]
+    [u8; 32],
+);
 
 impl SerializeAs<NativeIotaAddress> for IotaAddress {
     fn serialize_as<S>(source: &NativeIotaAddress, serializer: S) -> Result<S::Ok, S::Error>
@@ -40,7 +44,11 @@ impl<'de> DeserializeAs<'de, NativeIotaAddress> for IotaAddress {
 }
 
 #[derive(JsonSchema)]
-pub struct ObjectID(#[expect(unused)] [u8; NativeObjectID::LENGTH]);
+pub struct ObjectID(
+    #[expect(unused)]
+    #[schemars(with = "String")]
+    [u8; NativeObjectID::LENGTH],
+);
 
 impl SerializeAs<NativeObjectID> for ObjectID {
     fn serialize_as<S>(source: &NativeObjectID, serializer: S) -> Result<S::Ok, S::Error>
