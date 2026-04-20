@@ -5,6 +5,7 @@ import { RadioButton } from '@iota/apps-ui-kit';
 import { ThemePreference, useTheme } from '@iota/core';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 import { ampli } from '_src/shared/analytics/ampli';
+import { useNavigate } from 'react-router-dom';
 
 const THEMES_TO_SHOW = [ThemePreference.Light, ThemePreference.Dark, ThemePreference.System];
 
@@ -14,13 +15,14 @@ const THEME_ENTRIES = (Object.entries(ThemePreference) as Array<[string, ThemePr
 
 export function ThemeSettings() {
     const { themePreference, setThemePreference } = useTheme();
+    const navigate = useNavigate();
 
     function updateThemePreference(value: ThemePreference) {
         setThemePreference(value);
         ampli.changedTheme({ theme: value });
     }
     return (
-        <PageTemplate title="Theme" showBackButton>
+        <PageTemplate title="Theme" showBackButton onClose={() => navigate('/tokens')}>
             <div className="flex w-full flex-col">
                 {THEME_ENTRIES.map(([label, value]) => (
                     <div className="px-md" key={value}>

@@ -48,7 +48,7 @@ export function AutoLockAccounts() {
         );
     }
     return (
-        <PageTemplate title="Auto Lock Profile" showBackButton>
+        <PageTemplate title="Auto Lock Profile" showBackButton onClose={() => navigate('/tokens')}>
             <Loading loading={autoLock.isPending}>
                 <Form className="flex h-full flex-col" form={form} onSubmit={handleSave}>
                     <AutoLockSelector disabled={isSubmitting} />
