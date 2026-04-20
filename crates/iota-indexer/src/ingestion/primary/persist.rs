@@ -172,17 +172,24 @@ impl PrimaryWriter {
                     .persist_object_history(object_history_changes_batch.clone()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
-                Box::pin(async {
-                    // We need to persist global order before writing objects, so that optimistic
-                    // indexing is blocked from overwriting objects table with old tx data
-                    // reference: https://github.com/iotaledger/iota/issues/10250
-                    self.state
-                        .persist_tx_global_order(tx_global_order_batch.clone())
-                        .await?;
-                    self.state
-                        .persist_checkpoint_objects(object_changes_batch)
-                        .await
+                Box::pin({
+                    let object_changes_batch = object_changes_batch.clone();
+                    async move {
+                        // We need to persist global order before writing objects, so that
+                        // optimistic indexing is blocked from overwriting
+                        // objects table with old tx data reference: https://github.com/iotaledger/iota/issues/10250
+                        self.state
+                            .persist_tx_global_order(tx_global_order_batch.clone())
+                            .await?;
+                        self.state.persist_objects(object_changes_batch).await
+                    }
                 }),
+                // Checkpointed objects are written in a separate task,
+                // independent from the global_order -> objects chain.
+                // Once backward history is added, it will be chained
+                // before this: backward_history -> checkpointed_objects.
+                self.state
+                    .persist_checkpointed_objects(object_changes_batch),
             ];
             if let Some(epoch_data) = epoch.clone() {
                 persist_tasks.push(self.state.persist_epoch(epoch_data));
