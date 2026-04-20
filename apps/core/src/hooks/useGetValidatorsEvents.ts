@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaEvent, type EventId } from '@iota/iota-sdk/client';
+import { IotaEvent, type IotaEventID } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 type GetValidatorsEvent = {
@@ -32,7 +32,7 @@ export function useGetValidatorsEvents({ limit, order }: GetValidatorsEvent) {
 
             if (limit > QUERY_MAX_RESULT_LIMIT) {
                 let hasNextPage = true;
-                let currCursor: EventId | null | undefined;
+                let currCursor: IotaEventID | null | undefined;
                 const results: IotaEvent[] = [];
 
                 while (hasNextPage && results.length < limit) {

@@ -3,7 +3,7 @@
 
 import type {
     DryRunTransactionBlockResponse,
-    GasCostSummary,
+    IotaGasCostSummary,
     IotaGasData,
     IotaTransactionBlockResponse,
     TransactionEffects,
@@ -11,10 +11,10 @@ import type {
 import { Optional } from '@tanstack/react-query';
 
 export type GasSummaryType =
-    | (GasCostSummary &
+    | (IotaGasCostSummary &
           Optional<IotaGasData, keyof IotaGasData> & {
               isSponsored: boolean;
-              gasUsed: GasCostSummary;
+              gasUsed: IotaGasCostSummary;
               totalGas?: string;
               owner?: string;
           })

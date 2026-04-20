@@ -134,7 +134,7 @@ impl From<DynamicFieldNameSchema> for DynamicFieldName {
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", rename = "DynamicFieldType")]
+#[serde(rename = "DynamicFieldType")]
 pub enum DynamicFieldTypeSchema {
     DynamicField,
     DynamicObject,

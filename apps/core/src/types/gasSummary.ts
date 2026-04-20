@@ -1,17 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GasCostSummary, IotaGasData } from '@iota/iota-sdk/client';
+import { IotaGasCostSummary, IotaGasData } from '@iota/iota-sdk/client';
 
 type Optional<T> = {
     [K in keyof T]?: T[K];
 };
 
 export type GasSummaryType =
-    | (GasCostSummary &
+    | (IotaGasCostSummary &
           Optional<IotaGasData> & {
               isSponsored: boolean;
-              gasUsed: GasCostSummary;
+              gasUsed: IotaGasCostSummary;
               totalGas?: string;
               owner?: string;
           })

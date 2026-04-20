@@ -6644,8 +6644,8 @@
       "DynamicFieldType": {
         "type": "string",
         "enum": [
-          "dynamicField",
-          "dynamicObject"
+          "DynamicField",
+          "DynamicObject"
         ]
       },
       "ECMHLiveObjectSetDigest": {

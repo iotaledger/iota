@@ -167,7 +167,7 @@ export interface DynamicFieldName {
     type: string;
     value: unknown;
 }
-export type DynamicFieldType = 'dynamicField' | 'dynamicObject';
+export type DynamicFieldType = 'DynamicField' | 'DynamicObject';
 /** The Sha256 digest of an EllipticCurveMultisetHash committing to the live object set. */
 export interface ECMHLiveObjectSetDigest {
     digest: number[];
