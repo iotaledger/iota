@@ -761,7 +761,9 @@
           "description": "the event query criteria.",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           }
         }
       ],
@@ -2246,7 +2248,9 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           }
         },
         {
@@ -2422,7 +2426,9 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           }
         }
       ],
@@ -2653,7 +2659,9 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "description": "Base58 encoded data",
+              "type": "string",
+              "format": "base58"
             }
           }
         },
@@ -3411,7 +3419,7 @@
         "name": "Page<IotaObjectResponse,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
         }
       },
       "examples": [
@@ -3686,7 +3694,7 @@
         "name": "Page<IotaObjectResponse,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
         }
       },
       "examples": [
@@ -3975,7 +3983,7 @@
         "name": "Page<IotaDynamicFieldInfo,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaDynamicFieldInfo_and_ObjectID"
         }
       },
       "examples": [
@@ -4981,7 +4989,9 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           }
         },
         {
@@ -5005,7 +5015,7 @@
         "name": "Page<IotaTransactionBlockResponse,Base58>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_TransactionDigest"
+          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_Base58"
         }
       },
       "examples": [
@@ -6155,62 +6165,6 @@
         "description": "Base64 encoding",
         "type": "string"
       },
-      "BigInt_for_uint": {
-        "type": "string"
-      },
-      "BigInt_for_uint128": {
-        "type": "string"
-      },
-      "BigInt_for_uint16": {
-        "type": "string"
-      },
-      "BigInt_for_uint32": {
-        "type": "string"
-      },
-      "BigInt_for_uint64": {
-        "type": "string"
-      },
-      "Bn254FqElement": {
-        "description": "A struct that stores a Bn254 Fq field element as 32 bytes.",
-        "type": "string"
-      },
-      "Bn254FrElement": {
-        "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
-        "type": "string"
-      },
-      "CallArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Pure"
-            ],
-            "properties": {
-              "Pure": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Object"
-            ],
-            "properties": {
-              "Object": {
-                "$ref": "#/components/schemas/ObjectArg"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6234,11 +6188,8 @@
           },
           "digest": {
             "description": "Checkpoint digest",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              }
-            ]
+            "type": "string",
+            "format": "base58"
           },
           "endOfEpochData": {
             "description": "Present only on the final checkpoint of the epoch.",
@@ -6269,14 +6220,11 @@
           },
           "previousDigest": {
             "description": "Digest of the previous checkpoint",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "base58"
           },
           "sequenceNumber": {
             "description": "Checkpoint sequence number",
@@ -6290,7 +6238,9 @@
             "description": "Transaction digests",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "description": "Base58 encoded data",
+              "type": "string",
+              "format": "base58"
             }
           },
           "validatorSignature": {
@@ -6319,70 +6269,15 @@
           }
         ]
       },
-      "CheckpointDigest": {
-        "description": "Representation of a Checkpoint's digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
       "CheckpointId": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           {
-            "$ref": "#/components/schemas/CheckpointDigest"
-          }
-        ]
-      },
-      "Claim": {
-        "description": "A claim consists of value and index_mod_4.",
-        "type": "object",
-        "required": [
-          "indexMod4",
-          "value"
-        ],
-        "properties": {
-          "indexMod4": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
-      "Coin": {
-        "type": "object",
-        "required": [
-          "balance",
-          "coinObjectId",
-          "coinType",
-          "digest",
-          "previousTransaction",
-          "version"
-        ],
-        "properties": {
-          "balance": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "coinObjectId": {
-            "$ref": "#/components/schemas/ObjectID"
-          },
-          "coinType": {
-            "type": "string"
-          },
-          "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
-          },
-          "previousTransaction": {
-            "$ref": "#/components/schemas/TransactionDigest"
-          },
-          "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           }
         ]
       },
@@ -6414,129 +6309,6 @@
             }
           }
         }
-      },
-      "CompressedSignature": {
-        "description": "Unlike [enum Signature], [enum CompressedSignature] does not contain public key.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Move"
-            ],
-            "properties": {
-              "Move": {
-                "$ref": "#/components/schemas/MoveAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "ConsensusCommitDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
-      "ConsensusDeterminedVersionAssignments": {
-        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "CancelledTransactions"
-            ],
-            "properties": {
-              "CancelledTransactions": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": [
-                    {
-                      "$ref": "#/components/schemas/TransactionDigest"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "array",
-                        "items": [
-                          {
-                            "$ref": "#/components/schemas/ObjectID"
-                          },
-                          {
-                            "$ref": "#/components/schemas/SequenceNumber"
-                          }
-                        ],
-                        "maxItems": 2,
-                        "minItems": 2
-                      }
-                    }
-                  ],
-                  "maxItems": 2,
-                  "minItems": 2
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "Data": {
         "oneOf": [
@@ -6657,20 +6429,7 @@
               "null"
             ],
             "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/ObjectID"
-                },
-                {
-                  "$ref": "#/components/schemas/SequenceNumber"
-                },
-                {
-                  "$ref": "#/components/schemas/ObjectDigest"
-                }
-              ],
-              "maxItems": 3,
-              "minItems": 3
+              "$ref": "#/components/schemas/ObjectRef"
             }
           },
           "gasSponsor": {
@@ -6761,14 +6520,6 @@
           }
         }
       },
-      "Digest": {
-        "description": "A representation of a 32 byte digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base58"
-          }
-        ]
-      },
       "DisplayFieldsResponse": {
         "type": "object",
         "properties": {
@@ -6842,76 +6593,7 @@
           }
         }
       },
-      "DynamicFieldInfo": {
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "bcsEncoding",
-              "bcsName"
-            ],
-            "properties": {
-              "bcsEncoding": {
-                "type": "string",
-                "enum": [
-                  "base64"
-                ]
-              },
-              "bcsName": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "bcsEncoding",
-              "bcsName"
-            ],
-            "properties": {
-              "bcsEncoding": {
-                "type": "string",
-                "enum": [
-                  "base58"
-                ]
-              },
-              "bcsName": {
-                "$ref": "#/components/schemas/Base58"
-              }
-            }
-          }
-        ],
-        "required": [
-          "digest",
-          "name",
-          "objectId",
-          "objectType",
-          "type",
-          "version"
-        ],
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
-          },
-          "name": {
-            "$ref": "#/components/schemas/DynamicFieldName"
-          },
-          "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
-          },
-          "objectType": {
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/DynamicFieldType"
-          },
-          "version": {
-            "$ref": "#/components/schemas/SequenceNumber2"
-          }
-        }
-      },
-      "DynamicFieldName": {
+      "DynamicFieldNameSchema": {
         "type": "object",
         "required": [
           "type",
@@ -6950,10 +6632,7 @@
           }
         }
       },
-      "Ed25519IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "EndOfEpochData": {
+      "EndOfEpochDataSchema": {
         "type": "object",
         "required": [
           "epochCommitments",
@@ -7274,7 +6953,9 @@
             ],
             "properties": {
               "Transaction": {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               }
             },
             "additionalProperties": false
@@ -7492,22 +7173,6 @@
           }
         ]
       },
-      "EventID": {
-        "description": "Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number.",
-        "type": "object",
-        "required": [
-          "eventSeq",
-          "txDigest"
-        ],
-        "properties": {
-          "eventSeq": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "txDigest": {
-            "$ref": "#/components/schemas/TransactionDigest"
-          }
-        }
-      },
       "ExecuteTransactionRequestType": {
         "type": "string",
         "enum": [
@@ -7551,59 +7216,6 @@
           }
         ]
       },
-      "GasCostSummary": {
-        "description": "Summary of the charges in a transaction. Storage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is                               given back to user and there is a small fraction that                               is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
-        "type": "object",
-        "required": [
-          "computationCost",
-          "computationCostBurned",
-          "nonRefundableStorageFee",
-          "storageCost",
-          "storageRebate"
-        ],
-        "properties": {
-          "computationCost": {
-            "description": "Cost of computation/execution",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "computationCostBurned": {
-            "description": "The burned component of the computation/execution costs",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "nonRefundableStorageFee": {
-            "description": "The fee for the rebate. The portion of the storage rebate kept by the system.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "storageCost": {
-            "description": "Storage cost, it's the sum of all storage cost for all objects created or mutated.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          },
-          "storageRebate": {
-            "description": "The amount of storage cost refunded to the user for all objects deleted or mutated in the transaction.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
-          }
-        }
-      },
       "GasData": {
         "type": "object",
         "required": [
@@ -7631,69 +7243,7 @@
         }
       },
       "GenericSignature": {
-        "description": "Due to the incompatibility of [enum Signature] (which dispatches a trait that assumes signature and pubkey bytes for verification), here we add a wrapper enum where member can just implement a lightweight [trait AuthenticatorTrait]. This way MultiSig (and future Authenticators) can implement its own `verify`.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "MultiSig"
-            ],
-            "properties": {
-              "MultiSig": {
-                "$ref": "#/components/schemas/MultiSig"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Signature"
-            ],
-            "properties": {
-              "Signature": {
-                "$ref": "#/components/schemas/Signature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLoginAuthenticator"
-            ],
-            "properties": {
-              "ZkLoginAuthenticator": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "PasskeyAuthenticator"
-            ],
-            "properties": {
-              "PasskeyAuthenticator": {
-                "$ref": "#/components/schemas/PasskeyAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "MoveAuthenticator"
-            ],
-            "properties": {
-              "MoveAuthenticator": {
-                "$ref": "#/components/schemas/MoveAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
+        "$ref": "#/components/schemas/Base64"
       },
       "GetPastObjectRequest": {
         "type": "object",
@@ -7714,15 +7264,11 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             ]
           }
         }
-      },
-      "Hex": {
-        "description": "Hex string encoding.",
-        "type": "string"
       },
       "InputObjectKind": {
         "oneOf": [
@@ -7767,7 +7313,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "default": true,
@@ -7800,7 +7346,14 @@
         }
       },
       "IotaAddress": {
-        "$ref": "#/components/schemas/Hex"
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "maxItems": 32,
+        "minItems": 32
       },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
@@ -7905,7 +7458,9 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "description": "Base58 encoded data",
+                    "type": "string",
+                    "format": "base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7917,7 +7472,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               },
@@ -7931,7 +7486,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7957,7 +7512,9 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "description": "Base58 encoded data",
+                    "type": "string",
+                    "format": "base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7969,7 +7526,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 }
               }
@@ -9836,19 +9393,11 @@
         "properties": {
           "datatype_name": {
             "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Identifier"
-              }
-            ]
+            "type": "string"
           },
           "module_name": {
             "description": "The name of the module the data type resides in.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Identifier"
-              }
-            ]
+            "type": "string"
           },
           "package": {
             "description": "`Storage ID` of the package, where the given type first appeared.",
@@ -9924,25 +9473,15 @@
             "$ref": "#/components/schemas/Base64"
           },
           "commissionRate": {
-            "description": "The fee set by the validator for providing staking services.\n\nThis might be overridden by the protocol, that uses instead an effective commission rate. See more on the associated field.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "description": {
             "type": "string"
           },
           "effectiveCommissionRate": {
-            "description": "The effective fee charged by the validator for staking services.\n\nThis follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "exchangeRatesId": {
@@ -10108,60 +9647,6 @@
           },
           "votingPower": {
             "type": "string"
-          }
-        }
-      },
-      "MoveAuthenticator": {
-        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "V1"
-            ],
-            "properties": {
-              "V1": {
-                "$ref": "#/components/schemas/MoveAuthenticatorV1"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "MoveAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "MoveAuthenticatorV1": {
-        "description": "MoveAuthenticatorV1 is the first version of MoveAuthenticator.",
-        "type": "object",
-        "required": [
-          "call_args",
-          "object_to_authenticate",
-          "type_arguments"
-        ],
-        "properties": {
-          "call_args": {
-            "description": "Input objects or primitive values",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CallArg"
-            }
-          },
-          "object_to_authenticate": {
-            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CallArg"
-              }
-            ]
-          },
-          "type_arguments": {
-            "description": "Type arguments for the Move authenticate function",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },
@@ -10415,73 +9900,6 @@
           }
         }
       },
-      "MultiSig": {
-        "description": "The struct that contains signatures and public keys necessary for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "bitmap",
-          "multisig_pk",
-          "sigs"
-        ],
-        "properties": {
-          "bitmap": {
-            "description": "A bitmap that indicates the position of which public key the signature should be authenticated with.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "multisig_pk": {
-            "description": "The public key encoded with each public key with its signature scheme used along with the corresponding weight.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MultiSigPublicKey"
-              }
-            ]
-          },
-          "sigs": {
-            "description": "The plain signature encoded with signature scheme.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CompressedSignature"
-            }
-          }
-        }
-      },
-      "MultiSigPublicKey": {
-        "description": "The struct that contains the public key used for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "pk_map",
-          "threshold"
-        ],
-        "properties": {
-          "pk_map": {
-            "description": "A list of public key and its corresponding weight.",
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/PublicKey"
-                },
-                {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2
-            }
-          },
-          "threshold": {
-            "description": "If the total weight of the public keys corresponding to verified signatures is larger than threshold, the MultiSig is verified.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          }
-        }
-      },
       "NetworkMetrics": {
         "type": "object",
         "required": [
@@ -10526,88 +9944,6 @@
           }
         }
       },
-      "ObjectArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "ImmOrOwnedObject"
-            ],
-            "properties": {
-              "ImmOrOwnedObject": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SharedObject"
-            ],
-            "properties": {
-              "SharedObject": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "initial_shared_version",
-                  "mutable"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  "mutable": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Receiving"
-            ],
-            "properties": {
-              "Receiving": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
         "oneOf": [
@@ -10623,7 +9959,9 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "modules": {
                 "type": "array",
@@ -10641,7 +9979,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10659,7 +9997,9 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10680,7 +10020,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10699,7 +10039,9 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10711,7 +10053,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10723,7 +10065,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10754,7 +10096,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10785,7 +10127,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10803,7 +10145,9 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10824,7 +10168,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -10842,7 +10186,9 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10863,7 +10209,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
@@ -10901,11 +10247,8 @@
           },
           "digest": {
             "description": "Base64 string representing the object digest",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectDigest"
-              }
-            ]
+            "type": "string",
+            "format": "base58"
           },
           "display": {
             "description": "The Display metadata for frontend UI rendering, default to be None unless IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not have Display defined",
@@ -10934,14 +10277,11 @@
           },
           "previousTransaction": {
             "description": "The digest of the transaction that created or last mutated this object. Default to be None unless IotaObjectDataOptions. showPreviousTransaction is set to true",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TransactionDigest"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "base58"
           },
           "storageRebate": {
             "description": "The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each time the object is mutated based on the present storage gas price.",
@@ -11007,11 +10347,15 @@
           }
         }
       },
-      "ObjectDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "ObjectID": {
-        "$ref": "#/components/schemas/Hex"
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "maxItems": 32,
+        "minItems": 32
       },
       "ObjectRead": {
         "oneOf": [
@@ -11148,11 +10492,8 @@
         "properties": {
           "digest": {
             "description": "Base64 string representing the object digest",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectDigest"
-              }
-            ]
+            "type": "string",
+            "format": "base58"
           },
           "objectId": {
             "description": "Hex code as string representing the object id",
@@ -11227,11 +10568,8 @@
               },
               "digest": {
                 "description": "Base64 string representing the object digest",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  }
-                ]
+                "type": "string",
+                "format": "base58"
               },
               "object_id": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -11240,7 +10578,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 ]
               }
@@ -11421,65 +10759,7 @@
           }
         }
       },
-      "Page_for_Coin_and_ObjectID": {
-        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
-        "type": "object",
-        "required": [
-          "data",
-          "hasNextPage"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Coin"
-            }
-          },
-          "hasNextPage": {
-            "type": "boolean"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "Page_for_DynamicFieldInfo_and_ObjectID": {
-        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
-        "type": "object",
-        "required": [
-          "data",
-          "hasNextPage"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DynamicFieldInfo"
-            }
-          },
-          "hasNextPage": {
-            "type": "boolean"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "Page_for_EpochInfo_and_BigInt_for_uint64": {
+      "Page_for_EpochInfo_and_String": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11558,6 +10838,35 @@
           }
         }
       },
+      "Page_for_IotaDynamicFieldInfo_and_ObjectID": {
+        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
+        "type": "object",
+        "required": [
+          "data",
+          "hasNextPage"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaDynamicFieldInfo"
+            }
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "Page_for_IotaObjectResponse_and_ObjectID": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
@@ -11587,7 +10896,7 @@
           }
         }
       },
-      "Page_for_TransactionBlockResponse_and_TransactionDigest": {
+      "Page_for_TransactionBlockResponse_and_Base58": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11605,14 +10914,12 @@
             "type": "boolean"
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TransactionDigest"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "description": "Base58 encoded data",
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "base58"
           }
         }
       },
@@ -11630,32 +10937,6 @@
             "minimum": 0.0
           }
         }
-      },
-      "PasskeyAuthenticator": {
-        "description": "An passkey authenticator with parsed fields. See field definition below. Can be initialized from [struct RawPasskeyAuthenticator].",
-        "type": "object",
-        "required": [
-          "authenticator_data",
-          "client_data_json"
-        ],
-        "properties": {
-          "authenticator_data": {
-            "description": "`authenticatorData` is a bytearray that encodes [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned by the authenticator attestation response as is.",
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
-          },
-          "client_data_json": {
-            "description": "`clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed to the authenticator by the client during the authentication request (see [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))",
-            "type": "string"
-          }
-        }
-      },
-      "PasskeyAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
       },
       "ProtocolConfig": {
         "type": "object",
@@ -11774,70 +11055,6 @@
           }
         ]
       },
-      "PublicKey": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginPublicIdentifier"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "RPCTransactionRequestParams": {
         "oneOf": [
           {
@@ -11890,7 +11107,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -11933,65 +11150,14 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
         ]
       },
-      "Secp256k1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "Secp256r1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
       "SequenceNumber": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
-      },
-      "SequenceNumber2": {
-        "$ref": "#/components/schemas/BigInt_for_uint64"
-      },
-      "Signature": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519IotaSignature"
-            ],
-            "properties": {
-              "Ed25519IotaSignature": {
-                "$ref": "#/components/schemas/Ed25519IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1IotaSignature"
-            ],
-            "properties": {
-              "Secp256k1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256k1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1IotaSignature"
-            ],
-            "properties": {
-              "Secp256r1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256r1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
+        "type": "string"
       },
       "Stake": {
         "type": "object",
@@ -12262,19 +11428,18 @@
                 "description": "The set of transaction digests this transaction depends on.",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TransactionDigest"
+                  "description": "Base58 encoded data",
+                  "type": "string",
+                  "format": "base58"
                 }
               },
               "eventsDigest": {
                 "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/TransactionEventsDigest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "base58"
               },
               "executedEpoch": {
                 "description": "The epoch when this transaction was executed.",
@@ -12328,11 +11493,8 @@
               },
               "transactionDigest": {
                 "description": "The transaction digest",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/TransactionDigest"
-                  }
-                ]
+                "type": "string",
+                "format": "base58"
               },
               "unwrapped": {
                 "description": "ObjectRef and owner of objects that are unwrapped in this transaction. Unwrapped objects are objects that were wrapped into other objects in the past, and just got extracted out.",
@@ -12370,7 +11532,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         }
       },
@@ -12421,7 +11583,9 @@
                 "type": "string"
               },
               "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
+                "description": "Base58 encoded data",
+                "type": "string",
+                "format": "base58"
               },
               "consensus_determined_version_assignments": {
                 "$ref": "#/components/schemas/IotaConsensusDeterminedVersionAssignments"
@@ -12593,7 +11757,9 @@
             ]
           },
           "digest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
           },
           "effects": {
             "anyOf": [
@@ -12732,17 +11898,6 @@
             ]
           }
         }
-      },
-      "TransactionDigest": {
-        "description": "A transaction will have a (unique) digest.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
-      "TransactionEventsDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "TransactionFilter": {
         "oneOf": [
@@ -13126,61 +12281,8 @@
           }
         }
       },
-      "TypeOrigin": {
-        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
-        "type": "object",
-        "required": [
-          "datatype_name",
-          "module_name",
-          "package"
-        ],
-        "properties": {
-          "datatype_name": {
-            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "type": "string"
-          },
-          "module_name": {
-            "description": "The name of the module the data type resides in.",
-            "type": "string"
-          },
-          "package": {
-            "description": "`Storage ID` of the package, where the given type first appeared.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            ]
-          }
-        }
-      },
       "TypeTag": {
         "type": "string"
-      },
-      "UpgradeInfo": {
-        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
-        "type": "object",
-        "required": [
-          "upgraded_id",
-          "upgraded_version"
-        ],
-        "properties": {
-          "upgraded_id": {
-            "description": "`Storage ID`/`Package ID` of the referred package.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            ]
-          },
-          "upgraded_version": {
-            "description": "The version of the package at `upgraded_id`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SequenceNumber2"
-              }
-            ]
-          }
-        }
       },
       "ValidatorApy": {
         "type": "object",
@@ -13215,95 +12317,6 @@
             "type": "string"
           }
         }
-      },
-      "ZkLoginAuthenticator": {
-        "description": "An zk login authenticator with all the necessary fields.",
-        "type": "object",
-        "required": [
-          "inputs",
-          "maxEpoch",
-          "userSignature"
-        ],
-        "properties": {
-          "inputs": {
-            "$ref": "#/components/schemas/ZkLoginInputs"
-          },
-          "maxEpoch": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "userSignature": {
-            "$ref": "#/components/schemas/Signature"
-          }
-        }
-      },
-      "ZkLoginAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "ZkLoginInputs": {
-        "description": "All inputs required for the zk login proof verification and other public inputs.",
-        "type": "object",
-        "required": [
-          "addressSeed",
-          "headerBase64",
-          "issBase64Details",
-          "proofPoints"
-        ],
-        "properties": {
-          "addressSeed": {
-            "$ref": "#/components/schemas/Bn254FrElement"
-          },
-          "headerBase64": {
-            "type": "string"
-          },
-          "issBase64Details": {
-            "$ref": "#/components/schemas/Claim"
-          },
-          "proofPoints": {
-            "$ref": "#/components/schemas/ZkLoginProof"
-          }
-        }
-      },
-      "ZkLoginProof": {
-        "description": "The struct for zk login proof.",
-        "type": "object",
-        "required": [
-          "a",
-          "b",
-          "c"
-        ],
-        "properties": {
-          "a": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          },
-          "b": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/Bn254FqElement"
-              }
-            }
-          },
-          "c": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          }
-        }
-      },
-      "ZkLoginPublicIdentifier": {
-        "description": "A wrapper struct to retrofit in [enum PublicKey] for zkLogin. Useful to construct [struct MultiSigPublicKey].",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
       }
     }
   }

@@ -169,7 +169,7 @@ fn to_iota_struct_tag_string(value: &NativeStructTag) -> Result<String, std::fmt
     let address = value.address;
     // trim leading zeros if address is in IOTA_ADDRESSES
     let address_str = if IOTA_ADDRESSES.contains(&address) {
-        address.short_str_lossless()
+        format!("0x{}", address.short_str_lossless())
     } else {
         address.to_canonical_string(/* with_prefix */ true)
     };
