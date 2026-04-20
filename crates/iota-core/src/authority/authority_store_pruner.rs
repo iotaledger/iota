@@ -1052,34 +1052,33 @@ mod tests {
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 3, 2, 1000).await;
+        let tmp_dir = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir.path(), 3, 2, 1000).await;
         assert_eq!(
             HashSet::from_iter(to_keep),
-            get_keys_after_pruning(&path).unwrap()
+            get_keys_after_pruning(tmp_dir.path()).unwrap()
         );
-        run_pruner(&tempfile::tempdir().unwrap().keep(), 3, 2, 1000).await;
     }
 
     // Tests pruning deleted objects (object tombstones).
     #[tokio::test]
     async fn test_pruning_tombstones() {
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 0, 0, 1000).await;
+        let tmp_dir = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir.path(), 0, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
+        assert_eq!(get_keys_after_pruning(tmp_dir.path()).unwrap().len(), 0);
 
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 3, 0, 1000).await;
+        let tmp_dir2 = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir2.path(), 3, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
+        assert_eq!(get_keys_after_pruning(tmp_dir2.path()).unwrap().len(), 0);
     }
 
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.keep();
-        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
         let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
@@ -1111,7 +1110,7 @@ mod tests {
             size
         }
 
-        let db_path = primary_path.clone().join("perpetual");
+        let db_path = tmp_dir.path().join("perpetual");
         let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
         let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
 

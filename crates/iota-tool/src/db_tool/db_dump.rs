@@ -315,18 +315,19 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.keep();
+        let tmp_dir = iota_common::tempdir();
+        let primary_path = tmp_dir.path();
 
         // Open the DB for writing
-        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
-        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(&primary_path, None);
+        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, primary_path, None);
+        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(primary_path, None);
 
         // Get all the tables for AuthorityEpochTables
         let tables = {
             let mut epoch_tables =
-                list_tables(AuthorityEpochTables::path(0, &primary_path)).unwrap();
+                list_tables(AuthorityEpochTables::path(0, primary_path)).unwrap();
             let mut perpetual_tables =
-                list_tables(AuthorityPerpetualTables::path(&primary_path)).unwrap();
+                list_tables(AuthorityPerpetualTables::path(primary_path)).unwrap();
             epoch_tables.append(&mut perpetual_tables);
             epoch_tables
         };
@@ -337,7 +338,7 @@ mod test {
             if dump_table(
                 StoreName::Validator,
                 Some(0),
-                primary_path.clone(),
+                primary_path.to_path_buf(),
                 &t,
                 0,
                 0,

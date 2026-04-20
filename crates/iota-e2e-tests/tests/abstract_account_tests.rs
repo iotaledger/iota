@@ -65,8 +65,8 @@ const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
 const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
     "authenticate_with_sponsor_and_sender";
-const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNED_TX_BYTES: &str =
-    "authenticate_ed25519_via_signed_tx_bytes";
+const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
+    "authenticate_ed25519_via_signing_digest";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -118,11 +118,11 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
 
 /// Test that the AuthContext byte fields are correctly populated during
 /// authentication and that an ed25519 signature can be verified against
-/// `signed_tx_bytes`.
+/// `signing_digest`.
 ///
-/// The Move authenticator (`authenticate_ed25519_via_signed_tx_bytes`) asserts:
-/// 1. `signed_tx_bytes` == `blake2b256(intent_tx_data_bytes)` and is 32 bytes
-/// 2. ed25519 signature over `signed_tx_bytes` is valid
+/// The Move authenticator (`authenticate_ed25519_via_signing_digest`) asserts:
+/// 1. `signing_digest` == `blake2b256(intent_tx_data_bytes)` and is 32 bytes
+/// 2. ed25519 signature over `signing_digest` is valid
 #[sim_test]
 async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -131,7 +131,7 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
     // authenticator
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNED_TX_BYTES)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender = aa_ref.0.into();
@@ -150,12 +150,12 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
         .await?;
 
     // sign_secure signs blake2b256(intent || bcs(TransactionData)), which is
-    // exactly what auth_ctx.signed_tx_bytes() returns on the Move side.
+    // exactly what auth_ctx.signing_digest() returns on the Move side.
     let signatures =
-        vec![test_env.create_move_authenticator_for_ed25519_via_signed_tx_bytes(&tx_data)?];
+        vec![test_env.create_move_authenticator_for_ed25519_via_signing_digest(&tx_data)?];
 
     // Execute — the Move authenticator asserts all structural invariants
-    // and verifies the ed25519 signature against signed_tx_bytes.
+    // and verifies the ed25519 signature against signing_digest.
     let tx = Transaction::from_generic_sig_data(tx_data, signatures);
     test_env.execute_and_check_tx_correctness(tx).await
 }
@@ -2077,10 +2077,10 @@ impl TestEnvironment {
     }
 
     /// Create the MoveAuthenticator for the ed25519 authenticator that verifies
-    /// against `auth_ctx.signed_tx_bytes()`. Uses `sign_secure` which signs
+    /// against `auth_ctx.signing_digest()`. Uses `sign_secure` which signs
     /// `blake2b256(intent || bcs(TransactionData))` — exactly what
-    /// `signed_tx_bytes` returns on the Move side.
-    fn create_move_authenticator_for_ed25519_via_signed_tx_bytes(
+    /// `signing_digest` returns on the Move side.
+    fn create_move_authenticator_for_ed25519_via_signing_digest(
         &self,
         tx_data: &TransactionData,
     ) -> anyhow::Result<GenericSignature> {

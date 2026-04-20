@@ -62,7 +62,7 @@ public fun intent_tx_data_bytes(ctx: &AuthContext): vector<u8> {
 
 /// Returns `Blake2b256(bcs::to_bytes(IntentMessage<TransactionData>))`.
 /// This is the message that protocol generic signatures sign over.
-public fun signed_tx_bytes(ctx: &AuthContext): vector<u8> {
+public fun signing_digest(ctx: &AuthContext): vector<u8> {
     let intent_msg = ctx.intent_tx_data_bytes();
     hash::blake2b256(&intent_msg)
 }

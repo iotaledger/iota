@@ -41,6 +41,7 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-simulator.workspace = true

@@ -4,6 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { createStakeTransaction, getGasSummary } from '../../utils';
+import { getUserFriendlyDryRunExecutionError } from '../../utils/formatUIErrors';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
 export function useNewStakeTransaction(validator: string, amount: bigint, senderAddress: string) {
@@ -19,7 +20,8 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
                 transactionBlock: txBytes,
             });
             if (txDryRun.effects.status.status !== 'success') {
-                throw new Error(txDryRun.effects.status.error || 'Transaction dry run failed');
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
             }
             return {
                 txBytes,

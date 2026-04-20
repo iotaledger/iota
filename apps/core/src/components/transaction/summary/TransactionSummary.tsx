@@ -29,11 +29,11 @@ export function TransactionSummary({
     transaction,
 }: TransactionSummaryProps) {
     const { data: txHash } = useQuery({
-        queryKey: ['transaction-signing-digest', transaction?.getData(), transaction],
+        queryKey: ['transaction-signing-digest', transaction, transaction?.getData()],
         async queryFn() {
-            if (!transaction) throw new Error('Missing transaction');
-            return transaction.getSigningDigest();
+            return transaction!.getSigningDigest();
         },
+        enabled: !!transaction,
     });
 
     if (isError) return null;

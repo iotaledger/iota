@@ -108,18 +108,18 @@ public fun authenticate_secp256r1(
     );
 }
 
-/// Ed25519 signature authenticator that uses `auth_ctx.signed_tx_bytes()`
+/// Ed25519 signature authenticator that uses `auth_ctx.signing_digest()`
 /// to verify the signature, and checks the structural invariants of the
 /// new AuthContext byte fields (tx_data_bytes, intent_tx_data_bytes,
-/// signed_tx_bytes).
+/// signing_digest).
 #[authenticator]
-public fun authenticate_ed25519_via_signed_tx_bytes(
+public fun authenticate_ed25519_via_signing_digest(
     account: &AbstractAccount,
     signature: vector<u8>,
     actx: &AuthContext,
     ctx: &TxContext,
 ) {
-    basic_keyed_aa::authenticate_ed25519_via_signed_tx_bytes(
+    basic_keyed_aa::authenticate_ed25519_via_signing_digest(
         &signature,
         borrow_public_key(account),
         actx,

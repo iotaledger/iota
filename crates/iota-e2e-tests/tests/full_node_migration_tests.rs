@@ -41,7 +41,6 @@ use iota_types::{
     transaction::{Argument, ObjectArg, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
-use tempfile::tempdir;
 use test_cluster::TestClusterBuilder;
 
 const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bin";
@@ -62,8 +61,8 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 
     // Setup the temporary dir and create the writer for the stardust object
     // snapshot
-    let dir = tempdir()?;
-    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let tmp_dir = iota_common::tempdir();
+    let stardudst_object_snapshot_file_path = tmp_dir.path().join(MIGRATION_DATA_FILE_NAME);
     let object_snapshot_writer =
         BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
 
@@ -107,8 +106,8 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
 
     // Setup the temporary dir and create the writer for the stardust object
     // snapshot
-    let dir = tempdir()?;
-    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let tmp_dir = iota_common::tempdir();
+    let stardudst_object_snapshot_file_path = tmp_dir.path().join(MIGRATION_DATA_FILE_NAME);
     let object_snapshot_writer =
         BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
 
@@ -172,8 +171,8 @@ async fn address_unlock_condition(
     iota_client: IotaClient,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     // Setup the temporary file based keystore
-    let dir = tempdir()?;
-    let keystore_path = dir.path().join(PathBuf::from("iotatempdb"));
+    let tmp_dir = iota_common::tempdir();
+    let keystore_path = tmp_dir.path().join(PathBuf::from("iotatempdb"));
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
 
     // For this example we need to derive an address that is not at index 0. This
