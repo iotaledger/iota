@@ -256,6 +256,26 @@ diesel::table! {
 }
 
 diesel::table! {
+    objects_backward_history (superseded_at_checkpoint, object_id, object_version) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        object_status -> Int2,
+        object_digest -> Nullable<Bytea>,
+        superseded_at_checkpoint -> Int8,
+        owner_type -> Nullable<Int2>,
+        owner_id -> Nullable<Bytea>,
+        object_type -> Nullable<Text>,
+        object_type_package -> Nullable<Bytea>,
+        object_type_module -> Nullable<Text>,
+        object_type_name -> Nullable<Text>,
+        serialized_object -> Nullable<Bytea>,
+        coin_type -> Nullable<Text>,
+        coin_balance -> Nullable<Int8>,
+        df_kind -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
     objects_history (checkpoint_sequence_number, object_id, object_version) {
         object_id -> Bytea,
         object_version -> Int8,
@@ -499,6 +519,7 @@ macro_rules! for_all_tables {
             move_call_metrics,
             move_calls,
             objects,
+            objects_backward_history,
             objects_history,
             objects_snapshot,
             objects_version,
