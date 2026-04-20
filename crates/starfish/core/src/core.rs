@@ -113,6 +113,10 @@ pub(crate) struct Core {
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
     encoder: Box<dyn ShardEncoder + Send + Sync>,
+    /// Clock round for which the wait for a strong-vote quorum has timed out.
+    /// Any subsequent block-creation attempt at that same round skips the
+    /// strong-vote quorum check, regardless of the reason that triggered it.
+    strong_vote_timed_out_round: Option<Round>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -158,10 +162,6 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::KnownLastBlock => true,
             ReasonToCreateBlock::FastSyncComplete => true,
         }
-    }
-
-    fn is_relaxed(&self) -> bool {
-        matches!(self, ReasonToCreateBlock::RelaxedTimeout)
     }
 }
 
@@ -232,6 +232,7 @@ impl Core {
             dag_state,
             last_known_proposed_round: min_propose_round,
             encoder,
+            strong_vote_timed_out_round: None,
         }
         .recover()
     }
@@ -761,6 +762,16 @@ impl Core {
             clock_round
         };
 
+        // Record when the wait for a strong-vote quorum has timed out for
+        // this clock round. Every subsequent attempt at the same round then
+        // skips the strong-vote check regardless of reason. A stale value
+        // from an earlier round is inert because only an exact match with
+        // the current clock_round below triggers the skip.
+        if matches!(reason, ReasonToCreateBlock::RelaxedTimeout) {
+            self.strong_vote_timed_out_round = Some(clock_round);
+        }
+        let strong_vote_timed_out = self.strong_vote_timed_out_round == Some(clock_round);
+
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
 
@@ -772,7 +783,7 @@ impl Core {
                 return None;
             }
 
-            if !reason.is_relaxed()
+            if !strong_vote_timed_out
                 && self.context.protocol_config.consensus_starfish_speed()
                 && !self.has_strong_vote_quorum(quorum_round)
             {
