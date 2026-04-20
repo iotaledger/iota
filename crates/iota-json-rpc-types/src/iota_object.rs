@@ -189,8 +189,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             version,
             digest,
             type_: type_.ok_or_else(|| anyhow!("Object type not found for object."))?,
-            owner: owner
-                .ok_or_else(|| anyhow!("Owner not found for object."))?,
+            owner: owner.ok_or_else(|| anyhow!("Owner not found for object."))?,
             previous_transaction: previous_transaction
                 .ok_or_else(|| anyhow!("Transaction digest not found for object."))?,
         })
@@ -324,11 +323,7 @@ impl IotaObjectData {
             version,
             digest,
             type_,
-            owner: if *show_owner {
-                Some(obj.owner)
-            } else {
-                None
-            },
+            owner: if *show_owner { Some(obj.owner) } else { None },
             storage_rebate: if *show_storage_rebate {
                 Some(obj.storage_rebate)
             } else {
@@ -623,9 +618,7 @@ impl TryInto<Object> for IotaObjectData {
                 p.module_map,
                 protocol_config.max_move_package_size(),
                 p.type_origin_table.into_iter().collect(),
-                p.linkage_table
-                    .into_iter()
-                    .collect(),
+                p.linkage_table.into_iter().collect(),
             )?),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"

@@ -24,7 +24,6 @@ pub struct IotaNameRecord {
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
     #[schemars(with = "ObjectIDSchema")]
-    
     pub nft_id: ObjectID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,

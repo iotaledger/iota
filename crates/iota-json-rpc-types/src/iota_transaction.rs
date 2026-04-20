@@ -1902,12 +1902,7 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                 cancelled_transactions
                     .into_iter()
                     .map(|(digest, version_assignments)| {
-                        (
-                            digest,
-                            version_assignments
-                                .into_iter()
-                                .collect(),
-                        )
+                        (digest, version_assignments.into_iter().collect())
                     })
                     .collect(),
             ),
@@ -1925,12 +1920,7 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
                     assignments
                         .into_iter()
                         .map(|(digest, version_assignments)| {
-                            (
-                                digest,
-                                version_assignments
-                                    .into_iter()
-                                    .collect(),
-                            )
+                            (digest, version_assignments.into_iter().collect())
                         })
                         .collect(),
                 )

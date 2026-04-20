@@ -11,7 +11,7 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, Page, IotaSupply,
+    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
 };
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;

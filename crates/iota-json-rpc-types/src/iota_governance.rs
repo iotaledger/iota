@@ -32,10 +32,7 @@ impl From<Committee> for IotaCommittee {
     fn from(committee: Committee) -> Self {
         Self {
             epoch: committee.epoch,
-            validators: committee
-                .voting_rights
-                .into_iter()
-                .collect(),
+            validators: committee.voting_rights.into_iter().collect(),
         }
     }
 }
@@ -44,10 +41,7 @@ impl From<IotaCommittee> for Committee {
     fn from(iota_committee: IotaCommittee) -> Self {
         Committee::new(
             iota_committee.epoch,
-            iota_committee
-                .validators
-                .into_iter()
-                .collect(),
+            iota_committee.validators.into_iter().collect(),
         )
     }
 }

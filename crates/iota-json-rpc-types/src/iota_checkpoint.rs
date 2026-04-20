@@ -187,9 +187,7 @@ impl From<EndOfEpochDataSchema> for EndOfEpochData {
             epoch_supply_change,
         } = iota_data;
         EndOfEpochData {
-            next_epoch_committee: next_epoch_committee
-                .into_iter()
-                .collect(),
+            next_epoch_committee: next_epoch_committee.into_iter().collect(),
             next_epoch_protocol_version,
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
             epoch_supply_change,
@@ -206,9 +204,7 @@ impl From<EndOfEpochData> for EndOfEpochDataSchema {
             epoch_supply_change,
         } = data;
         EndOfEpochDataSchema {
-            next_epoch_committee: next_epoch_committee
-                .into_iter()
-                .collect(),
+            next_epoch_committee: next_epoch_committee.into_iter().collect(),
             next_epoch_protocol_version,
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
             epoch_supply_change,
