@@ -180,7 +180,9 @@ impl MoveObjectExt for MoveObject {
         // 32 bytes for object ID, 8 for balance
         debug_assert!(self.contents().len() == 40);
 
-        self.contents_mut_unchecked()[ID_END_INDEX..].copy_from_slice(&value.to_le_bytes());
+        let mut new_contents = self.contents().to_vec();
+        new_contents[ID_END_INDEX..].copy_from_slice(&value.to_le_bytes());
+        self.set_contents(new_contents).unwrap();
     }
 
     /// Update the `timestamp_ms: u64` field of the `Clock` type.
@@ -191,7 +193,9 @@ impl MoveObjectExt for MoveObject {
         // 32 bytes for object ID, 8 for timestamp
         assert!(self.contents().len() == 40);
 
-        self.contents_mut_unchecked()[ID_END_INDEX..].copy_from_slice(&timestamp_ms.to_le_bytes());
+        let mut new_contents = self.contents().to_vec();
+        new_contents[ID_END_INDEX..].copy_from_slice(&timestamp_ms.to_le_bytes());
+        self.set_contents(new_contents).unwrap();
     }
 
     /// Update the contents of this object but does not increment its version
