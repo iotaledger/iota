@@ -1337,15 +1337,16 @@ impl Core {
         Some(missing)
     }
 
-    /// Checks whether a 2f+1 quorum of blocks at the given round have
-    /// `is_strong_vote() == true`, indicating data availability for the
-    /// leader's acknowledged blocks.
-    fn has_strong_vote_quorum(&self, round: Round) -> bool {
+    /// Returns true when 2f+1 stake of blocks at `voting_round` have
+    /// `is_strong_vote() == true`. A block at round R with `is_strong_vote`
+    /// certifies the leader at R-1, so a quorum at `voting_round` certifies
+    /// the leader at `voting_round - 1`.
+    fn has_strong_vote_quorum(&self, voting_round: Round) -> bool {
         let dag_state = self.dag_state.read();
-        let blocks = dag_state.get_last_cached_block_header_per_authority(round + 1);
+        let blocks = dag_state.get_last_cached_block_header_per_authority(voting_round + 1);
         let mut strong_votes = StakeAggregator::<QuorumThreshold>::new();
         for (block, _equivocating) in &blocks {
-            if block.round() == round && block.is_strong_vote() {
+            if block.round() == voting_round && block.is_strong_vote() {
                 strong_votes.add(block.author(), &self.context.committee);
             }
         }
