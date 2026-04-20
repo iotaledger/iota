@@ -324,41 +324,6 @@ impl GenesisObject {
     }
 }
 
-/// Deprecated: retained for BCS deserialization compatibility with historical
-/// transactions.
-#[deprecated(note = "JWK/authenticator state is no longer supported")]
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
-pub struct ActiveJwk {
-    pub jwk_id: fastcrypto_zkp::bn254::zk_login::JwkId,
-    pub jwk: fastcrypto_zkp::bn254::zk_login::JWK,
-    /// the most recent epoch in which the jwk was validated
-    pub epoch: u64,
-}
-
-#[deprecated(note = "JWK/authenticator state is no longer supported")]
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateExpire {
-    /// expire JWKs that have a lower epoch than this
-    pub min_epoch: u64,
-    /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_obj_initial_shared_version: SequenceNumber,
-}
-
-#[deprecated(note = "JWK/authenticator state is no longer supported")]
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateUpdateV1 {
-    /// Epoch of the authenticator state update transaction
-    pub epoch: u64,
-    /// Consensus round of the authenticator state update
-    pub round: u64,
-    /// newly active jwks
-    pub new_active_jwks: Vec<ActiveJwk>,
-    /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_obj_initial_shared_version: SequenceNumber,
-    // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2 to
-    // TransactionKind.
-}
-
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RandomnessStateUpdate {
     /// Epoch of the randomness state update transaction
@@ -387,7 +352,7 @@ pub enum TransactionKind {
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     #[deprecated(note = "JWK/authenticator state is no longer supported")]
-    AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
+    AuthenticatorStateUpdateV1Deprecated,
 
     /// EndOfEpochTransaction contains a list of transactions
     /// that are allowed to run at the end of the epoch.
@@ -411,9 +376,9 @@ pub enum EndOfEpochTransactionKind {
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
     #[deprecated(note = "JWK/authenticator state is no longer supported")]
-    AuthenticatorStateCreate,
+    AuthenticatorStateCreateDeprecated,
     #[deprecated(note = "JWK/authenticator state is no longer supported")]
-    AuthenticatorStateExpire(AuthenticatorStateExpire),
+    AuthenticatorStateExpireDeprecated,
 }
 
 impl EndOfEpochTransactionKind {
@@ -549,8 +514,10 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+            Self::AuthenticatorStateCreateDeprecated | Self::AuthenticatorStateExpireDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 vec![]
             }
         }
@@ -570,8 +537,10 @@ impl EndOfEpochTransactionKind {
             Self::ChangeEpochV4(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
-            Self::AuthenticatorStateExpire(_) | Self::AuthenticatorStateCreate => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+            Self::AuthenticatorStateExpireDeprecated | Self::AuthenticatorStateCreateDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 Either::Right(iter::empty())
             }
         }
@@ -662,9 +631,12 @@ impl EndOfEpochTransactionKind {
                     ));
                 }
             }
-            Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
+            Self::AuthenticatorStateCreateDeprecated | Self::AuthenticatorStateExpireDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 return Err(UserInputError::Unsupported(
-                    "authenticator state updates not enabled".to_string(),
+                    "authenticator state transactions are deprecated and were never created on IOTA".to_string(),
                 ));
             }
         }
@@ -1413,7 +1385,7 @@ impl TransactionKind {
         match self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::AuthenticatorStateUpdateV1(_)
+            | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
             TransactionKind::ProgrammableTransaction(_) => false,
@@ -1469,8 +1441,10 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
-            Self::AuthenticatorStateUpdateV1(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+            Self::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
@@ -1501,7 +1475,7 @@ impl TransactionKind {
         match &self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::AuthenticatorStateUpdateV1(_)
+            | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
             TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
@@ -1525,8 +1499,10 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateUpdateV1(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+            Self::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 vec![]
             }
             Self::RandomnessStateUpdate(update) => {
@@ -1578,9 +1554,13 @@ impl TransactionKind {
                 }
             }
 
-            TransactionKind::AuthenticatorStateUpdateV1(_) => {
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 return Err(UserInputError::Unsupported(
-                    "authenticator state updates not enabled".to_string(),
+                    "authenticator state transactions are deprecated and were never created on IOTA"
+                        .to_string(),
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
@@ -1616,7 +1596,7 @@ impl TransactionKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
-            Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
+            Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
@@ -1644,7 +1624,7 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : Programmable")?;
                 write!(writer, "{p}")?;
             }
-            Self::AuthenticatorStateUpdateV1(_) => {
+            Self::AuthenticatorStateUpdateV1Deprecated => {
                 writeln!(
                     writer,
                     "Transaction Kind : Authenticator State Update (deprecated)"

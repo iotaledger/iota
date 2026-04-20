@@ -51,10 +51,13 @@ impl TransactionBlockKind {
                 })
             }
             #[allow(deprecated)]
-            K::AuthenticatorStateUpdateV1(_) => {
-                // Deprecated: authenticator state (JWK) is no longer supported
-                // and was never enabled on IOTA.
-                unreachable!("AuthenticatorStateUpdateV1 transactions were never created on IOTA");
+            K::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                unreachable!(
+                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
+                );
             }
             K::EndOfEpochTransaction(eoe) => T::EndOfEpoch(EndOfEpochTransaction {
                 native: eoe,

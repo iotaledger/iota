@@ -591,8 +591,8 @@ impl DataFetcher for RemoteFetcher {
                             .base_gas_price(),
                     ),
                     #[allow(deprecated)]
-                    EndOfEpochTransactionKind::AuthenticatorStateCreate
-                    | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
+                    EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
+                    | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => continue,
                 };
 
                 // Backfill cache

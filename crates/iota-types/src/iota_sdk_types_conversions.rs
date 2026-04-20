@@ -480,8 +480,10 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::AuthenticatorStateUpdateV1(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+            InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
             InternalTxnKind::EndOfEpochTransaction(vec) => {
@@ -590,13 +592,10 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                 )
             }
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
-                Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
-                    epoch: 0,
-                    round: 0,
-                    new_active_jwks: vec![],
-                    authenticator_obj_initial_shared_version: 0.into(),
-                })
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                Self::AuthenticatorStateUpdateV1Deprecated
             }
             TransactionKind::EndOfEpoch(vec) => {
                 Self::EndOfEpochTransaction(vec.into_iter().map(Into::into).collect())
@@ -710,10 +709,14 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate
-            | crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
-                unreachable!("AuthenticatorState transactions were never created on IOTA");
+            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
+            | crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                unreachable!(
+                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
+                );
             }
         }
     }
@@ -819,8 +822,12 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
             }
             EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
             | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
-                unreachable!("AuthenticatorState transactions were never created on IOTA");
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                unreachable!(
+                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
+                );
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),
         }

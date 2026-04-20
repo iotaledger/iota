@@ -1469,18 +1469,6 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        #[allow(deprecated)]
-        if let TransactionKind::AuthenticatorStateUpdateV1(_auth_state) =
-            certificate.data().transaction_data().kind()
-        {
-            // AuthenticatorStateUpdateV1 was used for zkLogin JWK management. Since zkLogin
-            // has been removed, this is now a no-op. The enum variant is kept for backward
-            // compatibility with existing chain data and snapshots.
-            if let Some(err) = &execution_error_opt {
-                debug_fatal!("Authenticator state update failed: {:?}", err);
-            }
-        }
-
         let elapsed = process_certificate_start_time.elapsed().as_micros() as f64;
         if elapsed > 0.0 {
             self.metrics

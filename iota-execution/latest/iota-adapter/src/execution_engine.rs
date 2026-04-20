@@ -1311,13 +1311,13 @@ mod checked {
                             return Ok(Mode::empty_results());
                         }
                         #[allow(deprecated)]
-                        EndOfEpochTransactionKind::AuthenticatorStateCreate
-                        | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
-                            // Authenticator state (JWK) is deprecated and
-                            // disabled. These transaction kinds are retained
+                        EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
+                        | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
+                            // Deprecated: Authenticator state (JWK) is deprecated and
+                            // and was never enabled. These transaction kinds are retained
                             // only for BCS enum variant compatibility.
                             unreachable!(
-                                "AuthenticatorState transactions are deprecated and should never be created"
+                                "AuthenticatorState transactions are deprecated and were never created on IOTA"
                             );
                         }
                     }
@@ -1327,12 +1327,12 @@ mod checked {
                 )
             }
             #[allow(deprecated)]
-            TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                // Authenticator state (JWK) is deprecated and disabled.
-                // This transaction kind is retained only for BCS enum
-                // variant compatibility.
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 unreachable!(
-                    "AuthenticatorStateUpdateV1 is deprecated and should never be created"
+                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
                 );
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {

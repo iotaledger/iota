@@ -519,9 +519,13 @@ impl IotaTransactionBlockKind {
                 unreachable!()
             }
             #[allow(deprecated)]
-            TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
-                unreachable!("AuthenticatorStateUpdateV1 transactions were never created on IOTA");
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                unreachable!(
+                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
+                );
             }
             TransactionKind::RandomnessStateUpdate(update) => {
                 Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
@@ -531,10 +535,13 @@ impl IotaTransactionBlockKind {
                 })
             }
             TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
-                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
-                    transactions: end_of_epoch_tx
-                        .into_iter()
-                        .map(|tx| match tx {
+                Self::EndOfEpochTransaction(
+                    IotaEndOfEpochTransaction {
+                        transactions:
+                            end_of_epoch_tx
+                                .into_iter()
+                                .map(|tx| {
+                                    match tx {
                             EndOfEpochTransactionKind::ChangeEpoch(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
                             }
@@ -548,16 +555,20 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             #[allow(deprecated)]
-                            EndOfEpochTransactionKind::AuthenticatorStateCreate
-                            | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
-                                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                            EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
+                            | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
+                                // Deprecated: Authenticator state (JWK) is deprecated and
+                                // and was never enabled. These transaction kinds are retained
+                                // only for BCS enum variant compatibility.
                                 unreachable!(
-                                    "AuthenticatorState transactions were never created on IOTA"
+                                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
                                 );
                             }
-                        })
-                        .collect(),
-                })
+                        }
+                    })
+                    .collect(),
+                    },
+                )
             }
         })
     }
@@ -2719,7 +2730,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::Genesis(_) => Self::Genesis,
             TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
             #[allow(deprecated)]
-            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::SystemTransaction,
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => Self::SystemTransaction,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
             TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
