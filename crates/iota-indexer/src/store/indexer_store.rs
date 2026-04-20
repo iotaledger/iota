@@ -138,7 +138,12 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     /// the db.
     async fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError>;
 
-    async fn persist_checkpoint_objects(
+    async fn persist_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_checkpointed_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError>;
