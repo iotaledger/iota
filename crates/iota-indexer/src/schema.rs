@@ -41,6 +41,24 @@ diesel::table! {
 }
 
 diesel::table! {
+    checkpointed_objects (object_id) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        object_digest -> Bytea,
+        owner_type -> Int2,
+        owner_id -> Nullable<Bytea>,
+        object_type -> Nullable<Text>,
+        object_type_package -> Nullable<Bytea>,
+        object_type_module -> Nullable<Text>,
+        object_type_name -> Nullable<Text>,
+        serialized_object -> Bytea,
+        coin_type -> Nullable<Text>,
+        coin_balance -> Nullable<Int8>,
+        df_kind -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
     checkpoints (sequence_number) {
         sequence_number -> Int8,
         checkpoint_digest -> Bytea,
@@ -464,6 +482,7 @@ macro_rules! for_all_tables {
             address_metrics,
             addresses,
             chain_identifier,
+            checkpointed_objects,
             checkpoints,
             display,
             epoch_peak_tps,

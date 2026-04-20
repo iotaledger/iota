@@ -17,7 +17,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{objects, objects_history, objects_snapshot},
+    schema::{checkpointed_objects, objects, objects_history, objects_snapshot},
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -343,6 +343,49 @@ pub(crate) struct StoredDeletedHistoryObject {
     pub object_version: i64,
     pub object_status: i16,
     pub checkpoint_sequence_number: i64,
+}
+
+/// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
+///
+/// Mirrors all columns of `objects` except `finalized_in_cp`. Used as the
+/// base table for backward-diff consistent views, avoiding race conditions
+/// with optimistic indexing.
+#[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
+#[diesel(table_name = checkpointed_objects, primary_key(object_id))]
+pub struct StoredCheckpointedObject {
+    pub object_id: Vec<u8>,
+    pub object_version: i64,
+    pub object_digest: Vec<u8>,
+    pub owner_type: i16,
+    pub owner_id: Option<Vec<u8>>,
+    pub object_type: Option<String>,
+    pub object_type_package: Option<Vec<u8>>,
+    pub object_type_module: Option<String>,
+    pub object_type_name: Option<String>,
+    pub serialized_object: Vec<u8>,
+    pub coin_type: Option<String>,
+    pub coin_balance: Option<i64>,
+    pub df_kind: Option<i16>,
+}
+
+impl From<&StoredObject> for StoredCheckpointedObject {
+    fn from(o: &StoredObject) -> Self {
+        Self {
+            object_id: o.object_id.clone(),
+            object_version: o.object_version,
+            object_digest: o.object_digest.clone(),
+            owner_type: o.owner_type,
+            owner_id: o.owner_id.clone(),
+            object_type: o.object_type.clone(),
+            object_type_package: o.object_type_package.clone(),
+            object_type_module: o.object_type_module.clone(),
+            object_type_name: o.object_type_name.clone(),
+            serialized_object: o.serialized_object.clone(),
+            coin_type: o.coin_type.clone(),
+            coin_balance: o.coin_balance,
+            df_kind: o.df_kind,
+        }
+    }
 }
 
 impl From<IndexedObject> for StoredObject {
