@@ -1201,13 +1201,12 @@ impl AuthorityState {
         tx_data: &SenderSignedData,
     ) -> IotaResult {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
-        let config = self.overload_config();
 
         let shedding_pct = compute_consensus_load_shedding_percentage(
             num_inflight_txs,
-            config.consensus_queue_length_soft_limit,
-            config.consensus_queue_length_hard_limit,
-            config.max_consensus_load_shedding_percentage,
+            consensus_adapter.graduated_load_shedding_soft_limit(),
+            consensus_adapter.max_pending_transactions(),
+            consensus_adapter.graduated_load_shedding_max_percentage(),
         );
 
         self.metrics
