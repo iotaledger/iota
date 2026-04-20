@@ -333,7 +333,7 @@ mod tests {
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
     #[test]
-    pub fn test_authority_overload_info() {
+    fn test_authority_overload_info() {
         let overload_info = AuthorityOverloadInfo::default();
         assert!(!overload_info.is_overload.load(Ordering::Relaxed));
         assert_eq!(
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_calculate_load_shedding_ratio() {
+    fn test_calculate_load_shedding_ratio() {
         assert_eq!(calculate_load_shedding_percentage(95.0, 100.1), 0);
         assert_eq!(calculate_load_shedding_percentage(95.0, 100.0), 2);
         assert_eq!(calculate_load_shedding_percentage(100.0, 100.0), 7);
@@ -390,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_check_overload_signals() {
+    fn test_check_overload_signals() {
         let config = AuthorityOverloadConfig {
             execution_queue_latency_hard_limit: Duration::from_secs(10),
             execution_queue_latency_soft_limit: Duration::from_secs(1),
@@ -469,8 +469,205 @@ mod tests {
         );
     }
 
+    /// Tests that the consensus load shedding percentage is 0 below soft limit,
+    /// scales linearly between soft and hard limits, and caps at
+    /// `max_shedding_pct` at and above the hard limit. Also covers
+    /// misconfigured limits and edge cases.
+    #[test]
+    fn test_compute_consensus_load_shedding_percentage() {
+        let soft_limit = 10_000;
+        let hard_limit = 20_000;
+        let max_shedding_pct = 95;
+
+        // Below soft limit: no shedding.
+        // No inflight transactions
+        let num_inflight_txs = 0;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+        // Just below soft limit (9_999)
+        let num_inflight_txs = soft_limit.checked_sub(1).unwrap();
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+        // At soft limit (10_000)
+        let num_inflight_txs = soft_limit;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+
+        // Linear scaling between soft and hard limits.
+        // At 25% of range (12_500): 95 * 2_500 / 10_000 = 23
+        let num_inflight_txs = 12_500;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            23
+        );
+        // At midpoint (15_000): 95 * 5_000 / 10_000 = 47
+        let num_inflight_txs = 15_000;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            47
+        );
+        // At 75% of range (17_500): 95 * 7_500 / 10_000 = 71
+        let num_inflight_txs = 17_500;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            71
+        );
+        // Just below hard limit: 95 * 9_999 / 10_000 = 94
+        let num_inflight_txs = hard_limit.checked_sub(1).unwrap();
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            94
+        );
+
+        // At and above hard limit: capped at `max_shedding_pct`.
+        let num_inflight_txs = hard_limit;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            max_shedding_pct
+        );
+        //
+        let num_inflight_txs = 30_000;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            max_shedding_pct
+        );
+
+        // Edge case: soft >= hard (misconfigured) - no shedding.
+        let num_inflight_txs = 15_000;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                soft_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+        //
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                hard_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+        //
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                hard_limit,
+                soft_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+
+        // Edge case: `max_shedding_pct` is 100.
+        let max_shedding_pct = 100;
+        // At midpoint (15_000): 100 * 5_000 / 10_000 = 50
+        let num_inflight_txs = 15_000;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            50
+        );
+        // At hard_limit (20_000): 100 * 10_000 / 10_000 = 100
+        let num_inflight_txs = hard_limit;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            100
+        );
+
+        // Edge case: `max_shedding_pct` is 0 - never sheds.
+        let max_shedding_pct = 0;
+        // At midpoint (15_000)
+        let num_inflight_txs = 15_000;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+        // At hard_limit (20_000)
+        let num_inflight_txs = hard_limit;
+        assert_eq!(
+            compute_consensus_load_shedding_percentage(
+                num_inflight_txs,
+                soft_limit,
+                hard_limit,
+                max_shedding_pct
+            ),
+            0
+        );
+    }
+
     #[tokio::test(flavor = "current_thread")]
-    pub async fn test_check_authority_overload() {
+    async fn test_check_authority_overload() {
         telemetry_subscribers::init_for_testing();
 
         let config = AuthorityOverloadConfig {
@@ -685,7 +882,7 @@ mod tests {
     // Tests that when request generation rate is slower than execution rate, no
     // requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_no_overload() {
+    async fn test_workload_consistent_no_overload() {
         telemetry_subscribers::init_for_testing();
         run_consistent_workload_test(900.0, 1000.0, 0.0, 0.0).await;
     }
@@ -693,7 +890,7 @@ mod tests {
     // Tests that when request generation rate is slightly above execution rate, a
     // small portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_slightly_overload() {
+    async fn test_workload_consistent_slightly_overload() {
         telemetry_subscribers::init_for_testing();
         // Dropping rate should be around 15%.
         run_consistent_workload_test(1100.0, 1000.0, 0.05, 0.25).await;
@@ -702,7 +899,7 @@ mod tests {
     // Tests that when request generation rate is much higher than execution rate, a
     // large portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_overload() {
+    async fn test_workload_consistent_overload() {
         telemetry_subscribers::init_for_testing();
         // Dropping rate should be around 70%.
         run_consistent_workload_test(3000.0, 1000.0, 0.6, 0.8).await;
@@ -711,7 +908,7 @@ mod tests {
     // Tests that when there is a very short single spike, no request should be
     // dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_single_spike() {
+    async fn test_workload_single_spike() {
         telemetry_subscribers::init_for_testing();
         let (state, monitor_handle) = start_overload_monitor().await;
 
@@ -750,7 +947,7 @@ mod tests {
     // Tests that when there are regular spikes that keep queueing latency
     // consistently high, overload monitor should kick in and shed load.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_short_spike() {
+    async fn test_workload_consistent_short_spike() {
         telemetry_subscribers::init_for_testing();
         let (state, monitor_handle) = start_overload_monitor().await;
 
