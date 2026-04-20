@@ -1046,7 +1046,7 @@ impl HistoricalFetch {
                             },
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(format!(
+                                let e = IndexerStreamingError::NotFound(format!(
                                     "unable to resolve transaction, may not exist or has been pruned: {e}"
                                 ));
                                 error!("{e}");
