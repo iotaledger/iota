@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Loading, Overlay, AutoLockSelector, zodSchema } from '_components';
+import { Loading, AutoLockSelector, zodSchema } from '_components';
+import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 import {
     autoLockDataToMinutes,
     parseAutoLock,
     useAutoLockMinutes,
     useAutoLockMinutesMutation,
-    useSidebar,
 } from '_hooks';
 import { Form } from '_src/ui/app/shared/forms/Form';
 import { useZodForm, toast } from '@iota/core';
@@ -31,7 +31,6 @@ export function AutoLockAccounts() {
         formState: { isSubmitting, isValid, isDirty },
     } = form;
     const setAutoLockMutation = useAutoLockMinutesMutation();
-    const sidebar = useSidebar();
 
     async function handleSave(data: { autoLock: ReturnType<typeof parseAutoLock> }) {
         await setAutoLockMutation.mutateAsync(
@@ -49,14 +48,7 @@ export function AutoLockAccounts() {
         );
     }
     return (
-        <Overlay
-            showModal={true}
-            title="Auto Lock Profile"
-            closeOverlay={() => navigate('/tokens')}
-            showBackButton
-            useInlineLayout={sidebar}
-            hideCloseIcon={sidebar}
-        >
+        <PageTemplate title="Auto Lock Profile" showBackButton>
             <Loading loading={autoLock.isPending}>
                 <Form className="flex h-full flex-col" form={form} onSubmit={handleSave}>
                     <AutoLockSelector disabled={isSubmitting} />
@@ -69,6 +61,6 @@ export function AutoLockAccounts() {
                     />
                 </Form>
             </Loading>
-        </Overlay>
+        </PageTemplate>
     );
 }

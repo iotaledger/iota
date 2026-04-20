@@ -2,23 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
+import { ErrorBoundary, MenuContent, Navigation } from '_components';
 import cn from 'clsx';
-import { createContext, type ReactNode, useState } from 'react';
+import { createContext, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useLocation, Link } from 'react-router-dom';
-import { useActiveAccount, useSidebar } from '_hooks';
-import { Header } from '../header/Header';
+import { useLocation } from 'react-router-dom';
 import { Toaster } from '../toaster';
-import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { Badge, BadgeType } from '@iota/apps-ui-kit';
-import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
-import { useGetDefaultIotaName } from '@iota/core';
-import { formatAccountName } from '../../helpers';
-import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
-import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -51,70 +40,25 @@ export function PageMainLayout({
     bottomNavEnabled = false,
     topNavMenuEnabled = false,
 }: PageMainLayoutProps) {
-    const activeAccount = useActiveAccount();
-    const sidebar = useSidebar();
-    const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const location = useLocation();
-    const isHomePage = location.pathname === '/tokens';
-    // Key by the top-level route segment so only tab switches trigger the crossfade,
-    // not every sub-page navigation within a section.
     const topLevelRoute = location.pathname.split('/')[1] ?? '';
 
     return (
-        <div
-            className={cn(
-                'flex max-h-full w-full flex-1 flex-col flex-nowrap items-stretch overflow-hidden',
-                sidebar ? 'h-full rounded-xl' : 'justify-center',
-            )}
-        >
-            {sidebar ? (
-                // Sidebar on the left for popup/fullscreen (only when bottom nav is enabled, i.e. not on dapp approval pages)
-                <div className="flex w-full flex-1 flex-row overflow-hidden">
-                    {bottomNavEnabled && <Navigation />}
-                    <div
-                        className={cn(
-                            'flex flex-1 flex-col flex-nowrap overflow-hidden',
-                            bottomNavEnabled ? 'px-md py-sm' : '',
-                        )}
-                    >
-                        <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                            <div id="overlay-portal-container" />
-                            <div className="flex h-full flex-col overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
-                                <main className="flex h-full w-full flex-col overflow-hidden">
-                                    <RouteTransition routeKey={topLevelRoute}>
-                                        <PageMainLayoutContext.Provider
-                                            value={titlePortalContainer}
-                                        >
-                                            <ErrorBoundary>{children}</ErrorBoundary>
-                                        </PageMainLayoutContext.Provider>
-                                    </RouteTransition>
-                                </main>
-                                <Toaster bottomNavEnabled={bottomNavEnabled} />
-                            </div>
-                            {topNavMenuEnabled ? <MenuContent /> : null}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                // SidePanel: original bottom-nav layout
-                <>
-                    {isHomePage ? (
-                        <Header
-                            leftContent={<LeftContent account={activeAccount} />}
-                            middleContent={<div ref={setTitlePortalContainer} />}
-                            rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
-                        />
-                    ) : null}
+        <div className="flex h-full max-h-full w-full flex-1 flex-col flex-nowrap items-stretch overflow-hidden rounded-xl">
+            <div className="flex w-full flex-1 flex-row overflow-hidden">
+                {bottomNavEnabled && <Navigation />}
+                <div
+                    className={cn(
+                        'flex flex-1 flex-col flex-nowrap overflow-hidden',
+                        bottomNavEnabled ? 'px-md py-sm' : '',
+                    )}
+                >
                     <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                         <div id="overlay-portal-container" />
                         <div className="flex h-full flex-col overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
-                            <main
-                                className={cn('flex h-full w-full flex-col overflow-hidden', {
-                                    'p-5': bottomNavEnabled && isHomePage,
-                                })}
-                            >
+                            <main className="flex h-full w-full flex-col overflow-hidden">
                                 <RouteTransition routeKey={topLevelRoute}>
-                                    <PageMainLayoutContext.Provider value={titlePortalContainer}>
+                                    <PageMainLayoutContext.Provider value={null}>
                                         <ErrorBoundary>{children}</ErrorBoundary>
                                     </PageMainLayoutContext.Provider>
                                 </RouteTransition>
@@ -123,45 +67,8 @@ export function PageMainLayout({
                         </div>
                         {topNavMenuEnabled ? <MenuContent /> : null}
                     </div>
-                    {bottomNavEnabled ? <Navigation /> : null}
-                </>
-            )}
+                </div>
+            </div>
         </div>
-    );
-}
-
-function LeftContent({ account }: { account: SerializedUIAccount | null }) {
-    const { data: iotaName } = useGetDefaultIotaName(account?.address);
-    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
-
-    const isLedgerAccount = account && isLedgerAccountSerializedUI(account);
-    const isKeystoneAccount = account && isKeystoneAccountSerializedUI(account);
-    const isPasskeyAccount = account && isPasskeyAccountSerializedUI(account);
-
-    return (
-        <Link
-            to="/accounts/manage"
-            className="flex flex-row items-center gap-sm p-xs no-underline"
-            data-testid="accounts-manage"
-            data-amp-mask
-        >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
-                {isLedgerAccount ? (
-                    <Ledger />
-                ) : isKeystoneAccount ? (
-                    <Keystone />
-                ) : isPasskeyAccount ? (
-                    <Passkey />
-                ) : (
-                    <IotaLogoMark />
-                )}
-            </div>
-            <div className="flex flex-col items-start">
-                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                    {accountName}
-                </span>
-            </div>
-            {isLegacyAccount(account) && <Badge type={BadgeType.Neutral} label="Legacy" />}
-        </Link>
     );
 }

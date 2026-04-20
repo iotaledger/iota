@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
+import { useNextMenuUrl, VerifyPasswordModal } from '_components';
+import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 import {
     useAppSelector,
     formatAutoLock,
     useAutoLockMinutes,
     useLogoutMutation,
-    useSidebar,
 } from '_hooks';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -56,7 +56,6 @@ export function MenuList() {
     const autoLockInterval = useAutoLockMinutes();
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
-    const sidebar = useSidebar();
     const extensionType = useAppSelector((state) => state.app.extensionViewType);
 
     // Logout
@@ -132,7 +131,7 @@ export function MenuList() {
             subtitle: networkConfig.name,
             icon: <Globe />,
             onClick: onNetworkClick,
-            hidden: sidebar,
+            hidden: true,
         },
         {
             title: 'Auto Lock Profile',
@@ -180,13 +179,7 @@ export function MenuList() {
     ];
 
     return (
-        <Overlay
-            showModal
-            title="Settings"
-            closeOverlay={() => navigate('/tokens')}
-            useInlineLayout={sidebar}
-            hideCloseIcon={sidebar}
-        >
+        <PageTemplate title="Settings">
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
@@ -242,6 +235,6 @@ export function MenuList() {
                     </div>
                 </div>
             </div>
-        </Overlay>
+        </PageTemplate>
     );
 }

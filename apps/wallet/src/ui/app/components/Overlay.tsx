@@ -21,7 +21,6 @@ interface OverlayProps {
     onBack?: () => void;
     hideCloseIcon?: boolean;
     headerAction?: ReactNode;
-    useInlineLayout?: boolean;
 }
 
 export function Overlay({
@@ -35,7 +34,6 @@ export function Overlay({
     onBack,
     headerAction,
     hideCloseIcon,
-    useInlineLayout,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -75,15 +73,6 @@ export function Overlay({
             {children}
         </div>
     );
-
-    if (useInlineLayout) {
-        return (
-            <div className="flex h-full flex-col overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
-                {header}
-                {content}
-            </div>
-        );
-    }
 
     return (
         <Portal containerId="overlay-portal-container">

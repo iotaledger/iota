@@ -39,4 +39,3 @@ export * from './useGetSharedObjectsMultipleAddresses';
 export * from './useCheckCameraPermissionStatus';
 export * from './useShouldOpenInNewTab';
 export * from './useLogoutMutation';
-export * from './useSidebar';

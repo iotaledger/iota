@@ -113,7 +113,7 @@ function AppWrapper() {
                                                                                 'relative flex flex-col flex-nowrap items-center justify-center overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6',
                                                                                 extensionViewType ===
                                                                                     ExtensionViewType.SidePanel
-                                                                                    ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
+                                                                                    ? 'h-sidepanel-height w-sidepanel-width'
                                                                                     : extensionViewType ===
                                                                                         ExtensionViewType.FullScreen
                                                                                       ? 'h-[90vh] w-[min(80vw,_960px)]'
