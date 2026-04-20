@@ -8,9 +8,9 @@ leader_timeout:
 min_block_delay:
   secs: 0
   nanos: 50000000
-relaxed_leader_timeout:
+soft_leader_timeout:
   secs: 0
-  nanos: 125000000
+  nanos: 200000000
 max_forward_time_drift:
   secs: 0
   nanos: 500000000
