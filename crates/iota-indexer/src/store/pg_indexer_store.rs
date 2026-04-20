@@ -52,8 +52,8 @@ use crate::{
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
         objects::{
-            StoredCheckpointedObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
-            StoredObjectSnapshot, StoredObjects,
+            StoredBackwardHistoryObject, StoredCheckpointedObject, StoredDeletedObject,
+            StoredHistoryObject, StoredObject, StoredObjectSnapshot, StoredObjects,
         },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
@@ -67,11 +67,12 @@ use crate::{
     schema::{
         chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
-        event_struct_name, event_struct_package, events, feature_flags, objects, objects_history,
-        objects_snapshot, objects_version, optimistic_transactions, packages, protocol_configs,
-        pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
-        tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
-        tx_senders, tx_wrapped_or_deleted_objects, watermarks,
+        event_struct_name, event_struct_package, events, feature_flags, objects,
+        objects_backward_history, objects_history, objects_snapshot, objects_version,
+        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, transactions,
+        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order,
+        tx_input_objects, tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
+        watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
@@ -719,6 +720,13 @@ impl PgIndexerStore {
         .tap_err(|e| {
             tracing::error!("failed to persist object history with error: {e}");
         })
+    }
+
+    fn persist_objects_backward_history_chunk(
+        &self,
+        stored: Vec<StoredBackwardHistoryObject>,
+    ) -> Result<(), IndexerError> {
+        persist_chunk_into_table!(objects_backward_history::table, stored, &self.blocking_cp)
     }
 
     fn persist_object_version_chunk(
@@ -2437,6 +2445,38 @@ impl IndexerStore for PgIndexerStore {
             elapsed,
             "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
         );
+        Ok(())
+    }
+
+    async fn persist_object_backward_history(
+        &self,
+        objects: Vec<StoredBackwardHistoryObject>,
+    ) -> Result<(), IndexerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        let len = objects.len();
+        let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
+        let futures = chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_objects_backward_history_chunk(c))
+        });
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "failed to join persist_objects_backward_history_chunk futures: {e}"
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all objects backward history chunks: {e:?}"
+                ))
+            })?;
+        info!("Persisted {} objects backward history", len);
         Ok(())
     }
 
