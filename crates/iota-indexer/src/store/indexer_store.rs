@@ -17,6 +17,7 @@ use crate::{
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
+        objects::StoredBackwardHistoryObject,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
@@ -141,6 +142,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_object_backward_history(
+        &self,
+        objects: Vec<StoredBackwardHistoryObject>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_checkpointed_objects(
