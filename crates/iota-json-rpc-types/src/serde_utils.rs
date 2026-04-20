@@ -6,6 +6,7 @@ use iota_types::{
     IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
     MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::{IotaAddress as NativeIotaAddress, ObjectID as NativeObjectID},
+    parse_iota_struct_tag,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -15,7 +16,9 @@ use schemars::{
     JsonSchema,
     schema::{InstanceType, Metadata, SchemaObject},
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::Error as SerError};
+use serde::{
+    Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::Error as SerError,
+};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 #[derive(JsonSchema)]
@@ -209,7 +212,8 @@ impl<'de> DeserializeAs<'de, NativeStructTag> for StructTag {
     where
         D: Deserializer<'de>,
     {
-        NativeStructTag::deserialize(deserializer)
+        String::deserialize(deserializer)
+            .and_then(|s| parse_iota_struct_tag(&s).map_err(D::Error::custom))
     }
 }
 
