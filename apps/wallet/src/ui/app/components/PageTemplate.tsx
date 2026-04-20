@@ -14,6 +14,7 @@ interface PageTemplateProps {
     isTitleCentered?: boolean;
     showBackButton?: boolean;
     onBack?: () => void;
+    headerAction?: ReactNode;
 }
 
 export function PageTemplate({
@@ -23,6 +24,7 @@ export function PageTemplate({
     isTitleCentered,
     showBackButton,
     onBack,
+    headerAction,
 }: PageTemplateProps) {
     const navigate = useNavigate();
     const [isScrolled, setIsScrolled] = useState(false);
@@ -45,7 +47,7 @@ export function PageTemplate({
             {title && (
                 <div
                     className={cn(
-                        'border-b transition-colors duration-200',
+                        'relative border-b transition-colors duration-200',
                         isScrolled
                             ? 'border-shader-neutral-light-8 dark:border-shader-neutral-dark-8'
                             : 'border-transparent',
@@ -57,6 +59,11 @@ export function PageTemplate({
                         onBack={showBackButton ? handleBack : undefined}
                         onClose={onClose}
                     />
+                    {headerAction && !onClose && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                            {headerAction}
+                        </div>
+                    )}
                 </div>
             )}
             <div

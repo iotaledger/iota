@@ -174,7 +174,7 @@ export function MenuList() {
     ];
 
     return (
-        <PageTemplate title="Settings">
+        <PageTemplate title="Settings" onClose={() => navigate(-1)}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (

@@ -6,7 +6,8 @@ import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 import { type AccountType } from '_src/background/accounts/account';
 import { useInitializedGuard, useAccountGroups } from '_hooks';
 import { useNavigate } from 'react-router-dom';
-import { Overlay, useUnlockAccounts } from '_components';
+import { useUnlockAccounts } from '_components';
+import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 import { AccountGroup } from './AccountGroup';
 import { LockLocked } from '@iota/apps-ui-icons';
 import { AmpliSourceFlow } from '_src/shared/analytics';
@@ -30,12 +31,9 @@ export function ManageAccountsPage() {
     }
 
     return (
-        <Overlay
-            showModal
+        <PageTemplate
             title="Manage Accounts"
             showBackButton
-            titleCentered={false}
-            hideCloseIcon
             headerAction={
                 <Button
                     type={ButtonType.Secondary}
@@ -80,6 +78,6 @@ export function ManageAccountsPage() {
                     />
                 </div>
             </div>
-        </Overlay>
+        </PageTemplate>
     );
 }
