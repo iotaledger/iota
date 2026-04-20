@@ -40,3 +40,4 @@ export * from './nft-transfer';
 export * from './receipt';
 export * from './transfer-coin/CoinSelector';
 export * from './apps';
+export * from './NetworkPage';

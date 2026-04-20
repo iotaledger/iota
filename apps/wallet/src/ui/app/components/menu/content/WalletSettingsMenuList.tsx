@@ -4,7 +4,6 @@
 
 import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
 import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
-import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
@@ -52,6 +51,8 @@ export function MenuList() {
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
     const extensionType = useAppSelector((state) => state.app.extensionViewType);
+    const useSidebar =
+        extensionType === ExtensionViewType.FullScreen || extensionType === ExtensionViewType.Popup;
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -126,6 +127,7 @@ export function MenuList() {
             subtitle: networkConfig.name,
             icon: <Globe />,
             onClick: onNetworkClick,
+            hidden: useSidebar,
         },
         {
             title: 'Auto Lock Profile',
@@ -173,7 +175,13 @@ export function MenuList() {
     ];
 
     return (
-        <Overlay showModal title="Settings" closeOverlay={() => navigate('/tokens')}>
+        <Overlay
+            showModal
+            title="Settings"
+            closeOverlay={() => navigate('/tokens')}
+            useInlineLayout={useSidebar}
+            hideCloseIcon={useSidebar}
+        >
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
@@ -214,7 +222,6 @@ export function MenuList() {
                     />
                 </div>
                 <div className="flex flex-col gap-y-lg">
-                    <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
                         <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                             IOTA Wallet v{version}

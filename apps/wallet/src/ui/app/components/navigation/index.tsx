@@ -4,7 +4,7 @@
 
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
-import { Activity, Apps, Assets, Close, Globe, Home, Settings } from '@iota/apps-ui-icons';
+import { Activity, Apps, Assets, Globe, Home, Settings } from '@iota/apps-ui-icons';
 import { useAppSelector } from '_hooks';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { useMenuIsOpen, useNextMenuUrl } from '_components';
@@ -29,7 +29,7 @@ export function Navigation() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const networkName = networkConfig?.name ?? network;
 
-    const networkUrl = useNextMenuUrl(true, '/network');
+    const isNetworkActive = location.pathname.startsWith('/network');
 
     const NAVBAR_ITEMS: NavbarItemWithPath[] = [
         { id: 'home', icon: <Home />, text: 'Home', path: '/tokens' },
@@ -49,7 +49,6 @@ export function Navigation() {
 
     const isMenuOpen = useMenuIsOpen();
     const menuUrl = useNextMenuUrl(!isMenuOpen, '/');
-    const SettingsIcon = isMenuOpen ? Close : Settings;
 
     if (useSidebar) {
         const sidebarWidth = isFullScreen ? 'w-44' : 'w-16';
@@ -123,20 +122,36 @@ export function Navigation() {
                     ))}
                 </motion.div>
 
-                <div className="mt-auto flex w-full flex-col">
+                <div className="mt-auto flex w-full flex-col gap-y-sm">
                     <Link
-                        to={networkUrl}
+                        to="/network"
                         className={cx(
                             'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
                             isFullScreen ? 'gap-sm px-xs py-xs' : 'justify-center py-xs',
+                            isNetworkActive &&
+                                'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                         )}
                         aria-label={`Network: ${networkName}`}
                     >
-                        <div className="flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6">
-                            <Globe className="navbar-item-icon-color" />
+                        <div
+                            className={cx(
+                                'flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6',
+                                isNetworkActive
+                                    ? 'navbar-item-icon-selected-color'
+                                    : 'navbar-item-icon-color',
+                            )}
+                        >
+                            <Globe />
                         </div>
                         {isFullScreen && (
-                            <span className="navbar-item-label-color truncate text-label-lg">
+                            <span
+                                className={cx(
+                                    'truncate text-label-lg',
+                                    isNetworkActive
+                                        ? 'navbar-item-label-selected-color'
+                                        : 'navbar-item-label-color',
+                                )}
+                            >
                                 {networkName}
                             </span>
                         )}
@@ -161,7 +176,7 @@ export function Navigation() {
                                     : 'navbar-item-icon-color',
                             )}
                         >
-                            <SettingsIcon />
+                            <Settings />
                         </div>
                         {isFullScreen && (
                             <span
