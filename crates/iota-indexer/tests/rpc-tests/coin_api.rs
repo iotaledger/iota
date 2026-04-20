@@ -855,7 +855,7 @@ async fn mint_trusted_coin(
     .await?;
     assert_eq!(tx_response.status_ok(), Some(true));
 
-    let created_coin_obj_ref = tx_response.effects.unwrap().created()[0].reference.clone();
+    let created_coin_obj_ref = tx_response.effects.unwrap().created()[0].reference;
 
     Ok(created_coin_obj_ref)
 }

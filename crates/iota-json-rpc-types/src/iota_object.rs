@@ -139,7 +139,7 @@ impl IotaObjectResponse {
 
     pub fn owner(&self) -> Option<Owner> {
         if let Some(data) = &self.data {
-            return data.owner.map(Into::into);
+            return data.owner;
         }
         None
     }
@@ -190,8 +190,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             digest,
             type_: type_.ok_or_else(|| anyhow!("Object type not found for object."))?,
             owner: owner
-                .ok_or_else(|| anyhow!("Owner not found for object."))?
-                .into(),
+                .ok_or_else(|| anyhow!("Owner not found for object."))?,
             previous_transaction: previous_transaction
                 .ok_or_else(|| anyhow!("Transaction digest not found for object."))?,
         })
@@ -326,7 +325,7 @@ impl IotaObjectData {
             digest,
             type_,
             owner: if *show_owner {
-                Some(obj.owner.into())
+                Some(obj.owner)
             } else {
                 None
             },
@@ -568,7 +567,7 @@ impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
             version: object_info.version,
             digest: object_info.digest,
             type_: show_type.then_some(object_info.type_),
-            owner: show_owner.then_some(object_info.owner.into()),
+            owner: show_owner.then_some(object_info.owner),
             previous_transaction: show_previous_transaction
                 .then_some(object_info.previous_transaction),
             storage_rebate: None,
@@ -623,10 +622,9 @@ impl TryInto<Object> for IotaObjectData {
                 self.version,
                 p.module_map,
                 protocol_config.max_move_package_size(),
-                p.type_origin_table.into_iter().map(Into::into).collect(),
+                p.type_origin_table.into_iter().collect(),
                 p.linkage_table
                     .into_iter()
-                    .map(|(k, v)| (k, v.into()))
                     .collect(),
             )?),
             _ => Err(anyhow!(
@@ -637,8 +635,7 @@ impl TryInto<Object> for IotaObjectData {
             data,
             owner: self
                 .owner
-                .ok_or_else(|| anyhow!("Owner is required to convert IotaObjectData to Object"))?
-                .into(),
+                .ok_or_else(|| anyhow!("Owner is required to convert IotaObjectData to Object"))?,
             previous_transaction: self.previous_transaction.ok_or_else(|| {
                 anyhow!("previous_transaction is required to convert IotaObjectData to Object")
             })?,
@@ -671,7 +668,7 @@ impl SerializeAs<ObjectRef> for ObjectRefSchema {
     where
         S: serde::Serializer,
     {
-        let iota_object_ref: ObjectRefSchema = source.clone().into();
+        let iota_object_ref: ObjectRefSchema = (*source).into();
         iota_object_ref.serialize(serializer)
     }
 }

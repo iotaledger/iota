@@ -738,11 +738,11 @@ impl RpcExampleProvider {
                     mutated: vec![
                         OwnedObjectRef {
                             owner: Owner::AddressOwner(signer),
-                            reference: gas_ref.into(),
+                            reference: gas_ref,
                         },
                         OwnedObjectRef {
                             owner: Owner::AddressOwner(recipient),
-                            reference: object_ref.into(),
+                            reference: object_ref,
                         },
                     ],
                     unwrapped: vec![],

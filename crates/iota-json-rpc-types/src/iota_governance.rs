@@ -35,7 +35,6 @@ impl From<Committee> for IotaCommittee {
             validators: committee
                 .voting_rights
                 .into_iter()
-                .map(|(pub_key, stake)| (pub_key.into(), stake))
                 .collect(),
         }
     }
@@ -48,7 +47,6 @@ impl From<IotaCommittee> for Committee {
             iota_committee
                 .validators
                 .into_iter()
-                .map(|(pub_key, stake)| (pub_key.into(), stake))
                 .collect(),
         )
     }

@@ -94,7 +94,7 @@ impl From<Owner> for OwnerSchema {
     fn from(value: Owner) -> Self {
         match value {
             Owner::AddressOwner(address) => OwnerSchema::AddressOwner(address),
-            Owner::ObjectOwner(object_id) => OwnerSchema::ObjectOwner(object_id.into()),
+            Owner::ObjectOwner(object_id) => OwnerSchema::ObjectOwner(object_id),
             Owner::Shared {
                 initial_shared_version,
             } => OwnerSchema::Shared {
@@ -109,7 +109,7 @@ impl From<OwnerSchema> for Owner {
     fn from(value: OwnerSchema) -> Self {
         match value {
             OwnerSchema::AddressOwner(address) => Owner::AddressOwner(address),
-            OwnerSchema::ObjectOwner(object_id) => Owner::ObjectOwner(object_id.into()),
+            OwnerSchema::ObjectOwner(object_id) => Owner::ObjectOwner(object_id),
             OwnerSchema::Shared {
                 initial_shared_version,
             } => Owner::Shared {

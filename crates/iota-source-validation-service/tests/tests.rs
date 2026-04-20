@@ -119,7 +119,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         .find(|refe| matches!(refe.owner, Owner::Immutable))
         .unwrap();
     let package_id = package.reference.0;
-    let tmp_dir = tempfile::tempdir();
+    let tmp_dir = tempfile::tempdir().unwrap();
     let upgrade_pkg_path =
         copy_with_published_at_manifest(&package_path, &tmp_dir.path().to_path_buf(), package_id);
     // Run the upgrade.

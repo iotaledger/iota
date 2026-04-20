@@ -115,9 +115,9 @@ impl
             digest,
             network_total_transactions,
             previous_digest,
-            epoch_rolling_gas_cost_summary: epoch_rolling_gas_cost_summary.into(),
+            epoch_rolling_gas_cost_summary,
             timestamp_ms,
-            end_of_epoch_data: end_of_epoch_data.map(Into::into),
+            end_of_epoch_data,
             transactions: contents.iter().map(|digest| digest.transaction).collect(),
             // TODO: populate commitment for rpc clients. Most likely, rpc clients don't need this
             // info (if they need it, they need to get signed BCS data anyway in order to trust
@@ -189,7 +189,6 @@ impl From<EndOfEpochDataSchema> for EndOfEpochData {
         EndOfEpochData {
             next_epoch_committee: next_epoch_committee
                 .into_iter()
-                .map(|(pub_key, stake)| (pub_key.into(), stake))
                 .collect(),
             next_epoch_protocol_version,
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),
@@ -209,7 +208,6 @@ impl From<EndOfEpochData> for EndOfEpochDataSchema {
         EndOfEpochDataSchema {
             next_epoch_committee: next_epoch_committee
                 .into_iter()
-                .map(|(pub_key, stake)| (pub_key.into(), stake))
                 .collect(),
             next_epoch_protocol_version,
             epoch_commitments: epoch_commitments.into_iter().map(Into::into).collect(),

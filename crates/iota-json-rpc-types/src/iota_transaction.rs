@@ -539,7 +539,7 @@ impl IotaTransactionBlockKind {
                     .events
                     .into_iter()
                     .enumerate()
-                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)).into())
+                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
             TransactionKind::ConsensusCommitPrologueV1(p) => {
@@ -635,7 +635,7 @@ impl IotaTransactionBlockKind {
                     .events
                     .into_iter()
                     .enumerate()
-                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)).into())
+                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
             TransactionKind::ConsensusCommitPrologueV1(p) => {
@@ -1001,7 +1001,7 @@ impl IotaTransactionBlockEffects {
             status,
             gas_object: OwnedObjectRef {
                 owner: Owner::AddressOwner(IotaAddress::random_for_testing_only()),
-                reference: iota_types::base_types::random_object_ref().into(),
+                reference: iota_types::base_types::random_object_ref(),
             },
             executed_epoch: 0,
             modified_at_versions: vec![],
@@ -1063,7 +1063,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
                     },
                 )
                 .collect(),
-            gas_used: native.gas_cost_summary().clone().into(),
+            gas_used: native.gas_cost_summary().clone(),
             shared_objects: native
                 .input_shared_objects()
                 .into_iter()
@@ -1077,8 +1077,8 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             unwrapped_then_deleted: native.unwrapped_then_deleted().to_vec(),
             wrapped: native.wrapped().to_vec(),
             gas_object: OwnedObjectRef {
-                owner: native.gas_object().1.into(),
-                reference: native.gas_object().0.into(),
+                owner: native.gas_object().1,
+                reference: native.gas_object().0,
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
@@ -1620,8 +1620,8 @@ fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
         .map(|(oref, owner)| OwnedObjectRef {
-            owner: owner.into(),
-            reference: oref.into(),
+            owner,
+            reference: oref,
         })
         .collect()
 }
@@ -1906,7 +1906,6 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                             digest,
                             version_assignments
                                 .into_iter()
-                                .map(|(object_id, version)| (object_id, version))
                                 .collect(),
                         )
                     })
@@ -1930,7 +1929,6 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
                                 digest,
                                 version_assignments
                                     .into_iter()
-                                    .map(|(object_id, version)| (object_id, version))
                                     .collect(),
                             )
                         })
@@ -2441,7 +2439,7 @@ impl From<InputObjectKind> for IotaInputObjectKind {
     fn from(input: InputObjectKind) -> Self {
         match input {
             InputObjectKind::MovePackage(id) => Self::MovePackage(id),
-            InputObjectKind::ImmOrOwnedMoveObject(oref) => Self::ImmOrOwnedMoveObject(oref.into()),
+            InputObjectKind::ImmOrOwnedMoveObject(oref) => Self::ImmOrOwnedMoveObject(oref),
             InputObjectKind::SharedMoveObject {
                 id,
                 initial_shared_version,

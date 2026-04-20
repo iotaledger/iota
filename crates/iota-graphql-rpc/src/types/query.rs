@@ -200,7 +200,7 @@ impl Query {
                     tx_data.clone().into_kind(),
                     Some(tx_data.gas_price().into()),
                     Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget().into()),
+                    Some(tx_data.gas_budget()),
                     Some(tx_data.gas().to_vec()),
                 )
             };

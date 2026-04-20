@@ -638,7 +638,7 @@ impl ReadApiServer for ReadApi {
                     ))
                 }
                 PastObjectRead::ObjectDeleted(oref) => {
-                    Ok(IotaPastObjectResponse::ObjectDeleted(oref.into()))
+                    Ok(IotaPastObjectResponse::ObjectDeleted(oref))
                 }
                 PastObjectRead::VersionNotFound(id, seq_num) => {
                     Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num))

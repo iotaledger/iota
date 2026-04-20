@@ -119,7 +119,7 @@ impl ReadApi {
             PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
 
             PastObjectRead::ObjectDeleted(object_ref) => {
-                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref))
             }
 
             PastObjectRead::VersionFound(object_ref, object, layout) => {

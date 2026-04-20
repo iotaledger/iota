@@ -87,7 +87,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     let owner = data.owner?;
     let previous_transaction = data.previous_transaction?;
 
-    let object = Object::new_move(move_object, owner.into(), previous_transaction);
+    let object = Object::new_move(move_object, owner, previous_transaction);
 
     // We need to get the inner object to modify the storage rebate
     let mut inner = object.into_inner();

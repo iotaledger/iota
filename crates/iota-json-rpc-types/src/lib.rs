@@ -145,7 +145,7 @@ impl SerializeAs<DynamicFieldType> for DynamicFieldTypeSchema {
     where
         S: serde::Serializer,
     {
-        let schema = DynamicFieldTypeSchema::from(type_.clone());
+        let schema = DynamicFieldTypeSchema::from(*type_);
         schema.serialize(serializer)
     }
 }
@@ -213,9 +213,9 @@ impl From<DynamicFieldInfo> for IotaDynamicFieldInfo {
         }: DynamicFieldInfo,
     ) -> Self {
         Self {
-            name: name.into(),
+            name,
             bcs_name: BcsName::new(bcs_name),
-            type_: type_.into(),
+            type_,
             object_type,
             object_id,
             version,
@@ -237,9 +237,9 @@ impl From<IotaDynamicFieldInfo> for DynamicFieldInfo {
         }: IotaDynamicFieldInfo,
     ) -> Self {
         Self {
-            name: name.into(),
+            name,
             bcs_name: bcs_name.into_bytes(),
-            type_: type_.into(),
+            type_,
             object_type,
             object_id,
             version,
