@@ -86,7 +86,7 @@ To see nested spans visualized with [Jaeger](https://www.jaegertracing.io), do t
 2. Run IOTA like this (trace enables the most detailed spans):
 
    ```bash
-   TRACE_FILTER=1 RUST_LOG="info,iota_core=trace" ./iota start
+   TRACE_FILTER=1 RUST_LOG="info,iota_core=trace" ./iota-localnet start
    ```
 
 3. Run some transfers with IOTA CLI client, or run the benchmarking tool.

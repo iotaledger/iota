@@ -1,8 +1,8 @@
 ---
-description: 'Learn about the role of in oracles in blockchain,their role in providing external data to smart contracts and the available oracles in IOTA EVM.'
+description: "Learn about the role of in oracles in blockchain,their role in providing external data to smart contracts and the available oracles in IOTA EVM."
 image: /img/logo/WASP_logo_dark.png
 tags:
-- evm
+  - evm
 teams:
   - iotaledger/l2-smart-contract
 ---

@@ -3,38 +3,44 @@
 
 use std::ops::Range;
 
-use iota_rest_api::Client;
+use iota_grpc_client::Client;
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 
-/// Get the current epoch.
-pub async fn current_epoch(rest_client: &Client) -> anyhow::Result<EpochId> {
-    let chk = rest_client.get_latest_checkpoint().await?;
-    Ok(chk.epoch)
+/// Gets epoch id and its first checkpoint sequence number.
+///
+/// if `None`, returns the current epoch.
+pub async fn epoch_info(
+    client: &Client,
+    epoch_id: Option<EpochId>,
+) -> anyhow::Result<(EpochId, CheckpointSequenceNumber)> {
+    let epoch = client
+        .get_epoch(epoch_id, Some("epoch,first_checkpoint"))
+        .await
+        .map_err(anyhow::Error::new)?
+        .into_inner();
+
+    epoch
+        .epoch_id()
+        .and_then(|epoch_id| {
+            epoch
+                .first_checkpoint_sequence_number()
+                .map(|ch| (epoch_id, ch))
+        })
+        .map_err(Into::into)
 }
 
 /// Get the range of [`CheckpointSequenceNumber`] from the first checkpoint of
 /// the epoch containing the watermark up to but not including the watermark.
 pub async fn checkpoint_sequence_number_range_to_watermark(
-    rest_client: &Client,
+    client: &Client,
     watermark: CheckpointSequenceNumber,
 ) -> anyhow::Result<Range<CheckpointSequenceNumber>> {
-    let chk = rest_client.get_checkpoint_summary(watermark).await?;
-    let chk_seq_num = epoch_first_checkpoint_sequence_number(rest_client, chk.epoch).await?;
-    Ok(chk_seq_num..watermark)
-}
+    let chk = client
+        .get_checkpoint_by_sequence_number(watermark, None, None, None)
+        .await?
+        .into_inner();
 
-/// Get the [`CheckpointSequenceNumber`] of the first checkpoint in the
-/// specified epoch.
-pub async fn epoch_first_checkpoint_sequence_number(
-    rest_client: &Client,
-    epoch: EpochId,
-) -> anyhow::Result<CheckpointSequenceNumber> {
-    let previous_epoch = epoch.saturating_sub(1);
-    if epoch == 0 {
-        return Ok(0);
-    }
-    let last_epoch_chk = rest_client
-        .get_epoch_last_checkpoint(previous_epoch)
-        .await?;
-    Ok(last_epoch_chk.sequence_number + 1)
+    let epoch_id = chk.summary()?.summary()?.epoch;
+    let (_, epoch_first_checkpoint_seq_num) = epoch_info(client, Some(epoch_id)).await?;
+    Ok(epoch_first_checkpoint_seq_num..watermark)
 }

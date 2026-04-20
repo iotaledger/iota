@@ -319,7 +319,7 @@ mod tests {
     use tempfile::TempDir;
     use typed_store::{
         Map, reopen,
-        rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
+        rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
     };
 
     use crate::hard_link;
@@ -335,11 +335,14 @@ mod tests {
         const FIRST_CF: &str = "First_CF";
         const SECOND_CF: &str = "Second_CF";
 
-        let db_a = open_cf(
+        let db_a = open_cf_opts(
             input_path,
             None,
             MetricConf::new("test_db_hard_link_1"),
-            &[FIRST_CF, SECOND_CF],
+            &[
+                (FIRST_CF, default_db_options().options),
+                (SECOND_CF, default_db_options().options),
+            ],
         )
         .unwrap();
 
@@ -353,11 +356,14 @@ mod tests {
 
         // set up db hard link
         hard_link(input_path, output_path)?;
-        let db_b = open_cf(
+        let db_b = open_cf_opts(
             output_path,
             None,
             MetricConf::new("test_db_hard_link_2"),
-            &[FIRST_CF, SECOND_CF],
+            &[
+                (FIRST_CF, default_db_options().options),
+                (SECOND_CF, default_db_options().options),
+            ],
         )
         .unwrap();
 

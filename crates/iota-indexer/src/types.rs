@@ -323,14 +323,16 @@ pub enum DynamicFieldKind {
 
 #[derive(Clone, Debug)]
 pub struct IndexedObject {
-    pub checkpoint_sequence_number: CheckpointSequenceNumber,
+    /// The checkpoint at which this object was indexed.
+    /// `None` for objects indexed by the optimistic path (checkpoint unknown).
+    pub checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
     pub object: Object,
     pub df_kind: Option<DynamicFieldType>,
 }
 
 impl IndexedObject {
     pub fn from_object(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
         object: Object,
         df_kind: Option<DynamicFieldType>,
     ) -> Self {
@@ -520,6 +522,16 @@ pub enum IndexedObjectChange {
         object_id: ObjectID,
         version: SequenceNumber,
     },
+    /// Unwrapped object
+    Unwrapped {
+        sender: IotaAddress,
+        owner: Owner,
+        #[serde_as(as = "IotaStructTag")]
+        object_type: StructTag,
+        object_id: ObjectID,
+        version: SequenceNumber,
+        digest: ObjectDigest,
+    },
     /// New object creation
     Created {
         sender: IotaAddress,
@@ -599,6 +611,21 @@ impl From<ObjectChange> for IndexedObjectChange {
                 object_type,
                 object_id,
                 version,
+            },
+            ObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
             },
             ObjectChange::Created {
                 sender,
@@ -687,6 +714,21 @@ impl From<IndexedObjectChange> for ObjectChange {
                 object_id,
                 version,
             },
+            IndexedObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => ObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
             IndexedObjectChange::Created {
                 sender,
                 owner,
@@ -737,12 +779,92 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
             timestamp_ms: response.timestamp_ms,
             confirmed_local_execution: response.confirmed_local_execution,
             checkpoint: response.checkpoint,
-            errors: vec![],
+            errors: response.errors,
             raw_effects: if options.show_raw_effects {
                 response.raw_effects
             } else {
                 Default::default()
             },
         }
+    }
+}
+
+/// Provides conversion methods from gRPC types to iota core types.
+pub(crate) mod grpc_conversion {
+
+    use iota_grpc_types::v1::{
+        command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
+        object::Objects as GrpcObjects,
+    };
+    use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
+    use iota_types::{
+        iota_sdk_types_conversions::type_tag_sdk_to_core, object::Object, transaction::Argument,
+    };
+
+    use crate::types::IndexerResult;
+
+    /// Converts [`GrpcObjects`] into [`Vec<Object>`]
+    pub(crate) fn objects(objects: &GrpcObjects) -> IndexerResult<Vec<Object>> {
+        objects
+            .objects
+            .iter()
+            .map(|o| -> IndexerResult<_> { Ok(Object::try_from(o.object()?)?) })
+            .collect()
+    }
+
+    fn convert_command_outputs_into_mutated_by_ref(
+        command_outputs: GrpcCommandOutputs,
+    ) -> IndexerResult<Vec<(IotaArgument, Vec<u8>, IotaTypeTag)>> {
+        command_outputs
+            .outputs
+            .into_iter()
+            .map(|command_output| -> IndexerResult<_> {
+                Ok((
+                    IotaArgument::from(Argument::from(command_output.argument()?)),
+                    command_output.output_bcs()?.to_vec(),
+                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                ))
+            })
+            .collect()
+    }
+
+    fn convert_command_outputs_into_return_values(
+        command_outputs: GrpcCommandOutputs,
+    ) -> IndexerResult<Vec<(Vec<u8>, IotaTypeTag)>> {
+        command_outputs
+            .outputs
+            .into_iter()
+            .map(|command_output| -> IndexerResult<_> {
+                Ok((
+                    command_output.output_bcs()?.to_vec(),
+                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                ))
+            })
+            .collect()
+    }
+
+    /// Converts [`GrpcCommandResults`] into [`IotaExecutionResult`]
+    pub(crate) fn command_results(
+        command_results: GrpcCommandResults,
+    ) -> IndexerResult<Vec<IotaExecutionResult>> {
+        command_results
+            .results
+            .into_iter()
+            .map(|command_result| -> IndexerResult<_> {
+                let mutable_reference_outputs = command_result
+                    .mutated_by_ref()
+                    .map_err(Into::into)
+                    .and_then(|c| convert_command_outputs_into_mutated_by_ref(c.clone()))?;
+                let return_values = command_result
+                    .return_values()
+                    .map_err(Into::into)
+                    .and_then(|c| convert_command_outputs_into_return_values(c.clone()))?;
+
+                Ok(IotaExecutionResult {
+                    mutable_reference_outputs,
+                    return_values,
+                })
+            })
+            .collect()
     }
 }

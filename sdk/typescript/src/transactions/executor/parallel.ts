@@ -244,7 +244,6 @@ export class ParallelTransactionExecutor {
             if (gasCoin && gasUsed && gasResult.owner === this.#signer.toIotaAddress()) {
                 const totalUsed =
                     BigInt(gasUsed.computationCost) +
-                    BigInt(gasUsed.storageCost) +
                     BigInt(gasUsed.storageCost) -
                     BigInt(gasUsed.storageRebate);
 

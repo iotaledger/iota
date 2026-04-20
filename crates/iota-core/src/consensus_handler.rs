@@ -12,6 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::{CommitConsumerMonitor, CommitIndex};
+use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
@@ -166,7 +167,9 @@ impl<C> ConsensusHandler<C> {
             low_scoring_authorities,
             committee,
             metrics,
-            processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
+            processed_cache: LruCache::new(
+                NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
+            ),
             transaction_scheduler,
             backpressure_subscriber,
         }
@@ -487,8 +490,8 @@ impl MysticetiConsensusHandler {
                     consensus_handler
                         .handle_consensus_output(consensus_output)
                         .await;
-                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
                 }
+                commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
         Self {
@@ -537,8 +540,8 @@ impl StarfishConsensusHandler {
                     consensus_handler
                         .handle_consensus_output(consensus_output)
                         .await;
-                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
                 }
+                commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
         Self {

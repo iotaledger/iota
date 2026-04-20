@@ -75,11 +75,12 @@ impl SignedBlockVerifier {
             .context
             .protocol_config
             .max_transactions_in_block_bytes() as usize;
-        if batch.iter().map(|t| t.len()).sum::<usize>() > total_transactions_size_limit
+        let total_transaction_bytes = batch.iter().map(|t| t.len()).sum::<usize>();
+        if total_transaction_bytes > total_transactions_size_limit
             && total_transactions_size_limit > 0
         {
             return Err(ConsensusError::TooManyTransactionBytes {
-                size: batch.len(),
+                size: total_transaction_bytes,
                 limit: total_transactions_size_limit,
             });
         }
@@ -108,6 +109,10 @@ impl BlockVerifier for SignedBlockVerifier {
         // Verify the block's signature.
         block.verify_signature(&self.context)?;
 
+        // Validate overlap indices before accessing ancestors() or acknowledgments()
+        // to prevent panics from adversarial index values in deserialized headers.
+        block.verify_references_indices()?;
+
         // Verify the block's ancestor refs are consistent with the block's round,
         // and total parent stakes reach quorum.
         if block.ancestors().len() > committee.size() {
@@ -116,16 +121,24 @@ impl BlockVerifier for SignedBlockVerifier {
                 committee.size(),
             ));
         }
+
         if block.ancestors().is_empty() {
             return Err(ConsensusError::InsufficientParentStakes {
                 parent_stakes: 0,
                 quorum: committee.quorum_threshold(),
             });
         }
+        for acknowledgment in block.acknowledgments() {
+            ConsensusError::quick_validation_authority_indices(
+                &[acknowledgment.author],
+                committee,
+            )?;
+        }
+
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
-            ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
+            ConsensusError::quick_validation_authority_indices(&[ancestor.author], committee)?;
             if (i == 0 && ancestor.author != block.author())
                 || (i > 0 && ancestor.author == block.author())
             {
@@ -161,9 +174,6 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
-
-        // TODO: transaction verification is removed from here. It should be done when
-        // the transaction data gets available by Data/Transaction Manager
         Ok(())
     }
 
@@ -223,7 +233,7 @@ pub(crate) mod test {
         let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
         let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
             BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
@@ -417,7 +427,6 @@ pub(crate) mod test {
         // Block with ancestors from the same authority.
         {
             let block = test_block
-                .clone()
                 .set_ancestors(vec![
                     BlockRef::new(8, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
                     BlockRef::new(8, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),

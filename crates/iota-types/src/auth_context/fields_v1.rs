@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::ObjectID,
+    base_types::{ObjectDigest, ObjectID, SequenceNumber},
     transaction::{Argument, CallArg, Command, ObjectArg},
     type_input::TypeName,
 };
@@ -32,15 +32,15 @@ pub const MAKE_MOVE_VEC_DATA_STRUCT_NAME: &IdentStr = ident_str!("MakeMoveVecDat
 pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 
 // ---------------------------------------------------------------------------
-// AuthContextMoveCall
+// MoveProgrammableMoveCall
 // ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
-/// [`AuthContextCommand`], substituting [`TypeName`] for
+/// [`MoveCommand`], substituting [`TypeName`] for
 /// [`crate::type_input::TypeInput`] so that the type can derive
 /// [`Serialize`]/[`Deserialize`] without a custom implementation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuthContextMoveCall {
+pub struct MoveProgrammableMoveCall {
     pub package: ObjectID,
     pub module: String,
     pub function: String,
@@ -49,7 +49,7 @@ pub struct AuthContextMoveCall {
 }
 
 // ---------------------------------------------------------------------------
-// AuthContextCommand
+// MoveCommand
 // ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::Command`], substituting [`TypeName`] for
@@ -57,8 +57,8 @@ pub struct AuthContextMoveCall {
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuthContextCommand {
-    MoveCall(Box<AuthContextMoveCall>),
+pub enum MoveCommand {
+    MoveCall(Box<MoveProgrammableMoveCall>),
     TransferObjects(Vec<Argument>, Argument),
     SplitCoins(Argument, Vec<Argument>),
     MergeCoins(Argument, Vec<Argument>),
@@ -67,10 +67,10 @@ pub enum AuthContextCommand {
     Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
 }
 
-impl From<&Command> for AuthContextCommand {
+impl From<&Command> for MoveCommand {
     fn from(cmd: &Command) -> Self {
         match cmd {
-            Command::MoveCall(m) => AuthContextCommand::MoveCall(Box::new(AuthContextMoveCall {
+            Command::MoveCall(m) => MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
                 package: m.package,
                 module: m.module.clone(),
                 function: m.function.clone(),
@@ -78,23 +78,20 @@ impl From<&Command> for AuthContextCommand {
                 arguments: m.arguments.clone(),
             })),
             Command::TransferObjects(objects, recipient) => {
-                AuthContextCommand::TransferObjects(objects.clone(), *recipient)
+                MoveCommand::TransferObjects(objects.clone(), *recipient)
             }
-            Command::SplitCoins(coin, amounts) => {
-                AuthContextCommand::SplitCoins(*coin, amounts.clone())
-            }
+            Command::SplitCoins(coin, amounts) => MoveCommand::SplitCoins(*coin, amounts.clone()),
             Command::MergeCoins(target_coin, source_coins) => {
-                AuthContextCommand::MergeCoins(*target_coin, source_coins.clone())
+                MoveCommand::MergeCoins(*target_coin, source_coins.clone())
             }
             Command::Publish(modules, dependencies) => {
-                AuthContextCommand::Publish(modules.clone(), dependencies.clone())
+                MoveCommand::Publish(modules.clone(), dependencies.clone())
             }
-            Command::MakeMoveVec(type_arg, elements) => AuthContextCommand::MakeMoveVec(
-                type_arg.as_ref().map(TypeName::from),
-                elements.clone(),
-            ),
+            Command::MakeMoveVec(type_arg, elements) => {
+                MoveCommand::MakeMoveVec(type_arg.as_ref().map(TypeName::from), elements.clone())
+            }
             Command::Upgrade(modules, dependencies, package, upgrade_ticket) => {
-                AuthContextCommand::Upgrade(
+                MoveCommand::Upgrade(
                     modules.clone(),
                     dependencies.clone(),
                     *package,
@@ -105,7 +102,7 @@ impl From<&Command> for AuthContextCommand {
     }
 }
 
-impl AuthContextCommand {
+impl MoveCommand {
     pub fn type_() -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
@@ -117,27 +114,69 @@ impl AuthContextCommand {
 }
 
 // ---------------------------------------------------------------------------
-// AuthContextCallArg
+// MoveCallArg
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
-/// by the Move-side `ptb_call_arg::CallArg`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuthContextCallArg {
-    Pure(Vec<u8>),
-    Object(ObjectArg),
+/// Mirrors [`crate::transaction::ObjectArg`], matching the BCS layout expected
+/// by the Move-side `ptb_call_arg::ObjectArg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MoveObjectArg {
+    ImmOrOwnedObject((ObjectID, SequenceNumber, ObjectDigest)),
+    SharedObject {
+        id: ObjectID,
+        initial_shared_version: SequenceNumber,
+        mutable: bool,
+    },
+    Receiving((ObjectID, SequenceNumber, ObjectDigest)),
 }
 
-impl From<&CallArg> for AuthContextCallArg {
-    fn from(arg: &CallArg) -> Self {
-        match arg {
-            CallArg::Pure(bytes) => AuthContextCallArg::Pure(bytes.clone()),
-            CallArg::Object(obj_arg) => AuthContextCallArg::Object(*obj_arg),
+impl From<&ObjectArg> for MoveObjectArg {
+    fn from(obj: &ObjectArg) -> Self {
+        match obj {
+            ObjectArg::ImmOrOwnedObject(r) => MoveObjectArg::ImmOrOwnedObject(*r),
+            ObjectArg::SharedObject {
+                id,
+                initial_shared_version,
+                mutable,
+            } => MoveObjectArg::SharedObject {
+                id: *id,
+                initial_shared_version: *initial_shared_version,
+                mutable: *mutable,
+            },
+            ObjectArg::Receiving(r) => MoveObjectArg::Receiving(*r),
         }
     }
 }
 
-impl AuthContextCallArg {
+impl MoveObjectArg {
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: CALL_ARG_MODULE_NAME.to_owned(),
+            name: OBJECT_ARG_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+}
+
+/// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
+/// by the Move-side `ptb_call_arg::CallArg`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MoveCallArg {
+    Pure(Vec<u8>),
+    Object(MoveObjectArg),
+}
+
+impl From<&CallArg> for MoveCallArg {
+    fn from(arg: &CallArg) -> Self {
+        match arg {
+            CallArg::Pure(bytes) => MoveCallArg::Pure(bytes.clone()),
+            CallArg::Object(obj_arg) => MoveCallArg::Object(MoveObjectArg::from(obj_arg)),
+        }
+    }
+}
+
+impl MoveCallArg {
     pub fn type_() -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
@@ -182,23 +221,23 @@ mod tests {
         bcs::from_bytes(&bytes).unwrap()
     }
 
-    // ── AuthContextCallArg ───────────────────────────────────────────────────
+    // ── MoveCallArg ───────────────────────────────────────────────────
 
     #[test]
     fn call_arg_pure_round_trip() {
-        let arg = AuthContextCallArg::Pure(vec![1, 2, 3]);
+        let arg = MoveCallArg::Pure(vec![1, 2, 3]);
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_imm_or_owned_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref()));
+        let arg = MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_shared_object_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::SharedObject {
+        let arg = MoveCallArg::Object(MoveObjectArg::SharedObject {
             id: obj_id(),
             initial_shared_version: SequenceNumber::from(5),
             mutable: true,
@@ -208,37 +247,76 @@ mod tests {
 
     #[test]
     fn call_arg_receiving_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::Receiving(obj_ref()));
+        let arg = MoveCallArg::Object(MoveObjectArg::Receiving(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
-    // ── From<&CallArg> for AuthContextCallArg ────────────────────────────────
+    // ── From<&CallArg> for MoveCallArg ────────────────────────────────
 
     #[test]
     fn call_arg_from_pure() {
         let data = vec![10, 20, 30];
-        let converted = AuthContextCallArg::from(&CallArg::Pure(data.clone()));
-        assert_eq!(converted, AuthContextCallArg::Pure(data));
+        let converted = MoveCallArg::from(&CallArg::Pure(data.clone()));
+        assert_eq!(converted, MoveCallArg::Pure(data));
     }
 
     #[test]
     fn call_arg_from_object() {
         let obj_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
-        let converted = AuthContextCallArg::from(&CallArg::Object(obj_arg));
-        assert_eq!(converted, AuthContextCallArg::Object(obj_arg));
+        let converted = MoveCallArg::from(&CallArg::Object(obj_arg));
+        assert_eq!(
+            converted,
+            MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(obj_ref()))
+        );
     }
 
     #[test]
     fn call_arg_from_call_arg() {
         let call_arg = CallArg::Pure(vec![99]);
-        let converted = AuthContextCallArg::from(&call_arg);
-        assert!(matches!(converted, AuthContextCallArg::Pure(_)));
+        let converted = MoveCallArg::from(&call_arg);
+        assert!(matches!(converted, MoveCallArg::Pure(_)));
     }
 
-    // ── AuthContextCommand round-trips ────────────────────────────────────────
+    // ── BCS compatibility: MoveObjectArg ↔ ObjectArg ─────────────────
 
-    fn sample_move_call() -> AuthContextCommand {
-        AuthContextCommand::MoveCall(Box::new(AuthContextMoveCall {
+    #[test]
+    fn object_arg_bcs_compatible_imm_or_owned() {
+        let tx_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
+        let ctx_arg = MoveObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
+
+    #[test]
+    fn object_arg_bcs_compatible_shared() {
+        let tx_arg = ObjectArg::SharedObject {
+            id: obj_id(),
+            initial_shared_version: SequenceNumber::from(5),
+            mutable: true,
+        };
+        let ctx_arg = MoveObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
+
+    #[test]
+    fn object_arg_bcs_compatible_receiving() {
+        let tx_arg = ObjectArg::Receiving(obj_ref());
+        let ctx_arg = MoveObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
+
+    // ── MoveCommand round-trips ────────────────────────────────────────
+
+    fn sample_move_call() -> MoveCommand {
+        MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
             package: obj_id(),
             module: "my_module".to_string(),
             function: "my_func".to_string(),
@@ -256,7 +334,7 @@ mod tests {
 
     #[test]
     fn command_transfer_objects_round_trip() {
-        let cmd = AuthContextCommand::TransferObjects(
+        let cmd = MoveCommand::TransferObjects(
             vec![Argument::Input(0), Argument::Result(1)],
             Argument::Input(2),
         );
@@ -265,13 +343,13 @@ mod tests {
 
     #[test]
     fn command_split_coins_round_trip() {
-        let cmd = AuthContextCommand::SplitCoins(Argument::GasCoin, vec![Argument::Input(0)]);
+        let cmd = MoveCommand::SplitCoins(Argument::GasCoin, vec![Argument::Input(0)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
     #[test]
     fn command_merge_coins_round_trip() {
-        let cmd = AuthContextCommand::MergeCoins(
+        let cmd = MoveCommand::MergeCoins(
             Argument::GasCoin,
             vec![Argument::Input(0), Argument::Input(1)],
         );
@@ -280,13 +358,13 @@ mod tests {
 
     #[test]
     fn command_publish_round_trip() {
-        let cmd = AuthContextCommand::Publish(vec![vec![1, 2, 3]], vec![obj_id()]);
+        let cmd = MoveCommand::Publish(vec![vec![1, 2, 3]], vec![obj_id()]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
     #[test]
     fn command_make_move_vec_with_type_round_trip() {
-        let cmd = AuthContextCommand::MakeMoveVec(
+        let cmd = MoveCommand::MakeMoveVec(
             Some(TypeName {
                 name: "0x2::coin::Coin<u64>".to_string(),
             }),
@@ -297,13 +375,13 @@ mod tests {
 
     #[test]
     fn command_make_move_vec_no_type_round_trip() {
-        let cmd = AuthContextCommand::MakeMoveVec(None, vec![Argument::Result(0)]);
+        let cmd = MoveCommand::MakeMoveVec(None, vec![Argument::Result(0)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
     #[test]
     fn command_upgrade_round_trip() {
-        let cmd = AuthContextCommand::Upgrade(
+        let cmd = MoveCommand::Upgrade(
             vec![vec![0xde, 0xad]],
             vec![obj_id()],
             obj_id(),
@@ -312,7 +390,7 @@ mod tests {
         assert_eq!(round_trip(&cmd), cmd);
     }
 
-    // ── From<&Command> for AuthContextCommand ────────────────────────────────
+    // ── From<&Command> for MoveCommand ────────────────────────────────
 
     /// Primitive TypeInput variants (Bool, U8, …) must be converted to their
     /// canonical string representation as TypeName.
@@ -336,7 +414,7 @@ mod tests {
                 type_arguments: vec![type_input],
                 arguments: vec![],
             }));
-            let AuthContextCommand::MoveCall(call) = AuthContextCommand::from(&cmd) else {
+            let MoveCommand::MoveCall(call) = MoveCommand::from(&cmd) else {
                 panic!("expected MoveCall");
             };
             assert_eq!(
@@ -367,7 +445,7 @@ mod tests {
             type_arguments: vec![type_input],
             arguments: vec![],
         }));
-        let AuthContextCommand::MoveCall(call) = AuthContextCommand::from(&cmd) else {
+        let MoveCommand::MoveCall(call) = MoveCommand::from(&cmd) else {
             panic!("expected MoveCall");
         };
         assert_eq!(call.type_arguments, vec![expected]);
@@ -378,7 +456,7 @@ mod tests {
         let type_input = TypeInput::Bool;
         let expected = TypeName::from(&type_input);
         let cmd = Command::MakeMoveVec(Some(type_input), vec![Argument::Input(0)]);
-        let AuthContextCommand::MakeMoveVec(name, _) = AuthContextCommand::from(&cmd) else {
+        let MoveCommand::MakeMoveVec(name, _) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
         assert_eq!(name, Some(expected));
@@ -387,7 +465,7 @@ mod tests {
     #[test]
     fn command_from_make_move_vec_none_type() {
         let cmd = Command::MakeMoveVec(None, vec![]);
-        let AuthContextCommand::MakeMoveVec(name, elements) = AuthContextCommand::from(&cmd) else {
+        let MoveCommand::MakeMoveVec(name, elements) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
         assert!(name.is_none());
@@ -403,7 +481,7 @@ mod tests {
             type_arguments: vec![TypeInput::U8],
             arguments: vec![],
         }));
-        let converted = AuthContextCommand::from(&cmd);
-        assert!(matches!(converted, AuthContextCommand::MoveCall(_)));
+        let converted = MoveCommand::from(&cmd);
+        assert!(matches!(converted, MoveCommand::MoveCall(_)));
     }
 }

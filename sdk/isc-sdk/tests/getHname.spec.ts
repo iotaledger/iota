@@ -1,3 +1,6 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from 'vitest';
 import { getHname } from '../src/utils/getHname';
 import { AccountsContractMethod, CoreContract } from '../src/enums/contracts.enums';

@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
 
       # ─── Foundational setup ──────────────────────────────────────────────────
       # These steps run without continue-on-error, and none of the subsequent steps have "if failure()" or "if always()"
@@ -94,7 +94,7 @@ jobs:
           echo "runTsSdk=${{ inputs.isNightly || inputs.isTypescriptSDK || inputs.isRpc }}" >> $GITHUB_OUTPUT
 
       - name: Build Iota binary
-        run: cargo build --bin iota --features indexer --profile dev
+        run: cargo build --bin iota --bin iota-localnet --features indexer --profile dev
 
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -109,7 +109,7 @@ jobs:
       - name: Set environment variables
         run: |
           echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
-          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
+          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota-localnet) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       # ─── Test groups ─────────────────────────────────────────────────────────
       # All steps below use: if: (!cancelled() && !failure()) && <group-condition>
@@ -151,7 +151,7 @@ jobs:
 
       - name: Build apps-backend
         id: build-apps-backend
-        if: (!cancelled() && !failure()) && steps.conditions.outputs.runAppsBackend == 'true'
+        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runAppsBackend == 'true' || steps.conditions.outputs.runDashboard == 'true'|| steps.conditions.outputs.runWallet == 'true')
         continue-on-error: ${{ inputs.isNightly }}
         run: pnpm turbo --filter apps-backend build
 
@@ -198,7 +198,7 @@ jobs:
 
       - name: Build Wallet
         id: build-wallet
-        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runDashboard == 'true' || steps.conditions.outputs.runWallet == 'true')
+        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runDashboard == 'true' || steps.conditions.outputs.runWallet == 'true' || steps.conditions.outputs.runEvmBridge == 'true')
         continue-on-error: ${{ inputs.isNightly }}
         run: pnpm wallet build:rc
 
@@ -249,7 +249,7 @@ jobs:
 
       - name: Run Local net
         if: (!cancelled() && !failure()) && (steps.conditions.outputs.runWallet == 'true' || steps.conditions.outputs.runEvmBridge == 'true')
-        run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
+        run: cargo run --bin iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Install Playwright Browsers for Wallet
         id: install-playwright-wallet

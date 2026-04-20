@@ -281,7 +281,7 @@ async fn scan_block_headers(
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
                 ),
-            context.clone(),
+            context,
         )
         .unwrap();
     {
@@ -366,7 +366,7 @@ async fn read_and_contain_transactions(
     store
         .write(
             WriteBatch::default().block_headers(written_headers),
-            context.clone(),
+            context,
         )
         .unwrap();
 
@@ -613,7 +613,7 @@ async fn test_voting_block_headers_storage(
     // Write to voting storage using WriteBatch
     let write_batch = WriteBatch::default().voting_block_headers(voting_headers.clone());
     store
-        .write(write_batch, context.clone())
+        .write(write_batch, context)
         .expect("Write voting block headers should not fail");
 
     // Read back

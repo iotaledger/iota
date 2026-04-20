@@ -22,7 +22,7 @@ use tracing::instrument;
 use typed_store::{
     DBMapUtils,
     rocks::{DBMap, MetricConf},
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use crate::mutex_table::MutexTable;
@@ -112,8 +112,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_pending_tx_log_basic() -> anyhow::Result<()> {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let pending_txes = WritePathPendingTransactionLog::new(temp_dir.path().to_path_buf());
+        let tmp_dir = iota_common::tempdir();
+        let pending_txes = WritePathPendingTransactionLog::new(tmp_dir.path().to_path_buf());
         let tx = VerifiedTransaction::new_unchecked(create_fake_transaction());
         let tx_digest = *tx.digest();
         assert!(

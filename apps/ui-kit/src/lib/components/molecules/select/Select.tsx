@@ -201,29 +201,31 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                             onClick={closeDropdown}
                         />
                     )}
-                    <div
-                        className={cx('absolute z-50 min-w-full', {
-                            hidden: !isOpen,
-                            'top-full':
-                                !dropdownPosition || dropdownPosition === DropdownPosition.Bottom,
-                            'bottom-full': dropdownPosition === DropdownPosition.Top,
-                        })}
-                    >
-                        <Dropdown>
-                            {options.map((option) => {
-                                const optionIsString = typeof option === 'string';
-                                return (
-                                    <ListItem
-                                        onClick={() => handleOptionClick(option)}
-                                        hideBottomBorder
-                                        key={optionIsString ? option : option.id}
-                                    >
-                                        <OptionLabel option={option} />
-                                    </ListItem>
-                                );
-                            })}
-                        </Dropdown>
-                    </div>
+                    {isOpen && (
+                        <div
+                            className={cx(
+                                'absolute z-50 min-w-full animate-dropdown-show',
+                                dropdownPosition === DropdownPosition.Top
+                                    ? 'bottom-full origin-bottom'
+                                    : 'top-full origin-top',
+                            )}
+                        >
+                            <Dropdown>
+                                {options.map((option) => {
+                                    const optionIsString = typeof option === 'string';
+                                    return (
+                                        <ListItem
+                                            onClick={() => handleOptionClick(option)}
+                                            hideBottomBorder
+                                            key={optionIsString ? option : option.id}
+                                        >
+                                            <OptionLabel option={option} />
+                                        </ListItem>
+                                    );
+                                })}
+                            </Dropdown>
+                        </div>
+                    )}
                 </div>
             </InputWrapper>
         );

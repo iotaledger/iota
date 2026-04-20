@@ -22,9 +22,6 @@ outputs:
   isMoveExampleUsedByOthers:
     description: True when changes happened to the Move examples that are used by other tests
     value: "${{ steps.diff.outputs.isMoveExampleUsedByOthers }}"
-  isRosetta:
-    description: True when changes happened to the rosetta code
-    value: "${{ steps.diff.outputs.isRosetta }}"
   isExternalCrates:
     description: True when changes happened in external crates
     value: "${{ steps.diff.outputs.isExternalCrates }}"
@@ -109,10 +106,6 @@ runs:
             - ".github/workflows/_rust_tests.yml"
             - "Cargo.toml"
             - "Cargo.lock"
-            - "rust-toolchain.toml"
-          isRosetta:
-            - ".github/scripts/rosetta/**"
-            - "crates/iota-rosetta/**"
             - "rust-toolchain.toml"
           isExternalCrates:
             - "external-crates/move/crates/**"

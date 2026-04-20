@@ -68,7 +68,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
-            (Self::SCORING_METRICS_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_CF, cf_options),
         ];
         let rocksdb = open_cf_opts(
             path,

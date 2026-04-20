@@ -60,7 +60,7 @@ export function getPureBcsSchema(typeSignature: OpenMoveTypeSignatureBody): BcsT
 
     if ('vector' in typeSignature) {
         if (typeSignature.vector === 'u8') {
-            return bcs.vector(bcs.U8).transform({
+            return bcs.byteVector().transform({
                 input: (val: string | Uint8Array) =>
                     typeof val === 'string' ? new TextEncoder().encode(val) : val,
                 output: (val) => val,

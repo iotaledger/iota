@@ -8,6 +8,7 @@
 
 pub mod checkpoints;
 pub mod epochs;
+pub mod health;
 pub mod objects;
 pub mod service_info;
 pub mod transactions;

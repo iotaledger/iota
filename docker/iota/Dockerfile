@@ -20,7 +20,7 @@ RUN mkdir -p ~/.cargo && \
     echo -e "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=lld\"]" > ~/.cargo/config.toml
 
 # Install additional dependencies
-RUN apt install -y libpq5 libpq-dev ca-certificates
+RUN apt install -y ca-certificates
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
 COPY consensus consensus
@@ -43,7 +43,7 @@ ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y libpq5 ca-certificates curl
+RUN apt update && apt install -y ca-certificates curl
 
 COPY --from=builder /iota/iota /usr/local/bin
 

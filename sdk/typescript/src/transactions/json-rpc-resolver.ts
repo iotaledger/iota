@@ -58,8 +58,8 @@ async function setGasPrice(
     transactionData: TransactionDataBuilder,
     options: BuildTransactionOptions,
 ) {
-    if (!transactionData.gasConfig.price) {
-        transactionData.gasConfig.price = String(await getClient(options).getReferenceGasPrice());
+    if (!transactionData.gasData.price) {
+        transactionData.gasData.price = String(await getClient(options).getReferenceGasPrice());
     }
 }
 
@@ -67,7 +67,7 @@ async function setGasBudget(
     transactionData: TransactionDataBuilder,
     options: BuildTransactionOptions,
 ) {
-    if (transactionData.gasConfig.budget) {
+    if (transactionData.gasData.budget) {
         return;
     }
 
@@ -89,7 +89,7 @@ async function setGasBudget(
         );
     }
 
-    const safeOverhead = GAS_SAFE_OVERHEAD * BigInt(transactionData.gasConfig.price || 1n);
+    const safeOverhead = GAS_SAFE_OVERHEAD * BigInt(transactionData.gasData.price || 1n);
 
     const baseComputationCostWithOverhead =
         BigInt(dryRunResult.effects.gasUsed.computationCost) + safeOverhead;
@@ -99,7 +99,7 @@ async function setGasBudget(
         BigInt(dryRunResult.effects.gasUsed.storageCost) -
         BigInt(dryRunResult.effects.gasUsed.storageRebate);
 
-    transactionData.gasConfig.budget = String(
+    transactionData.gasData.budget = String(
         gasBudget > baseComputationCostWithOverhead ? gasBudget : baseComputationCostWithOverhead,
     );
 }
@@ -109,9 +109,9 @@ async function setGasPayment(
     transactionData: TransactionDataBuilder,
     options: BuildTransactionOptions,
 ) {
-    if (!transactionData.gasConfig.payment) {
+    if (!transactionData.gasData.payment) {
         const coins = await getClient(options).getCoins({
-            owner: transactionData.gasConfig.owner || transactionData.sender!,
+            owner: transactionData.gasData.owner || transactionData.sender!,
             coinType: IOTA_TYPE_ARG,
         });
 
@@ -138,9 +138,7 @@ async function setGasPayment(
             throw new Error('No valid gas coins found for the transaction.');
         }
 
-        transactionData.gasConfig.payment = paymentCoins.map((payment) =>
-            parse(ObjectRef, payment),
-        );
+        transactionData.gasData.payment = paymentCoins.map((payment) => parse(ObjectRef, payment));
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     future::Future,
     path::PathBuf,
     sync::{
@@ -71,7 +71,7 @@ impl Scenario {
     async fn new(do_after: Option<(u32, ActionCb)>, action_count: Arc<AtomicU32>) -> Self {
         let authority = TestAuthorityBuilder::new().build().await;
 
-        let store = authority.database_for_testing().clone();
+        let store = authority.database_for_testing();
         let epoch_store = authority.epoch_store_for_testing().clone();
 
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
@@ -154,9 +154,7 @@ impl Scenario {
         let tx = VerifiedTransaction::new_unchecked(tx);
         let events: TransactionEvents = Default::default();
 
-        let effects = TestEffectsBuilder::new(tx.inner())
-            .with_events_digest(events.digest())
-            .build();
+        let effects = TestEffectsBuilder::new(tx.inner()).build();
 
         TransactionOutputs {
             transaction: Arc::new(tx),
@@ -351,7 +349,7 @@ impl Scenario {
         assert!(self.transactions.insert(tx), "transaction is not unique");
 
         self.cache()
-            .write_transaction_outputs(1 /* epoch */, outputs.clone());
+            .write_transaction_outputs(1 /* epoch */, outputs);
 
         self.count_action();
         tx
@@ -359,7 +357,8 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        self.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = self.cache().build_db_batch(1, &[tx]);
+        self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
 
@@ -555,7 +554,8 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        s.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = s.cache().build_db_batch(1, &[tx]);
+        s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
 
@@ -642,42 +642,42 @@ async fn test_extra_outputs() {
 
         s.cache.get_transaction_block(&tx).unwrap();
         let fx = s.cache.get_executed_effects(&tx).unwrap();
-        let events_digest = fx.events_digest().unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        let _events_digest = fx.events_digest().unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         s.commit(tx).await;
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         // clear cache
         s.reset_cache();
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         s.with_created(&[3]);
         let tx = s.do_tx().await;
 
         // when Events is empty, it should be treated as None
         let fx = s.cache.get_executed_effects(&tx).unwrap();
-        let events_digest = fx.events_digest().unwrap();
+        assert!(fx.events_digest().is_none());
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
 
         s.commit(tx).await;
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
 
         s.reset_cache();
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
     })
@@ -1191,14 +1191,14 @@ async fn latest_object_cache_race_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));
@@ -1286,7 +1286,7 @@ async fn latest_object_cache_race_test() {
 
     // a thread that does nothing but watch to see if the cache goes back in time
     let checker = {
-        let cache = cache.clone();
+        let cache = cache;
         let start = Instant::now();
         std::thread::spawn(move || {
             let mut latest = OBJECT_START_VERSION;
@@ -1359,7 +1359,6 @@ async fn test_transaction_cache_race() {
     };
 
     let t2 = {
-        let barrier = barrier.clone();
         std::thread::spawn(move || {
             for (tx, _) in txns {
                 barrier.wait();
@@ -1378,14 +1377,14 @@ async fn concurrent_latest_object_cache_race_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));
@@ -1481,14 +1480,14 @@ async fn concurrent_latest_object_cache_collision_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));

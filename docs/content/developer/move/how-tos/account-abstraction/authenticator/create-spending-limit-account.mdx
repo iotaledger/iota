@@ -1,0 +1,77 @@
+---
+description: "How to create accounts that enforce a maximum withdrawal amount per transaction using intent-aware authentication"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Enforce a Per-Transaction Spending Limit
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to create accounts that enforce a maximum withdrawal amount per transaction, by inspecting the transaction's commands before authorizing it.
+
+:::tip Recommended reading
+
+This guide builds on patterns from the [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand public key verification used here.
+
+:::
+
+:::tip Why is this possible?
+
+The authenticator receives the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext), which includes [`tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands) — the ordered list of commands in the Programmable Transaction Block (PTB). This lets the authenticator inspect what the transaction will do before deciding whether to allow it. Rather than simply verifying who is sending the transaction, it can also verify what the transaction intends to do.
+
+:::
+
+## Example Code
+
+1. Define the authenticator. It verifies the Ed25519 signature, scans the PTB for withdrawal commands and sums their amounts, then checks that the total does not exceed the stored spending limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L152-L172
+```
+2. The two helpers called by the authenticator. `lookup_and_calculate_withdrawals` iterates over [`auth_ctx.tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands), identifies calls to `withdraw_from_balance_reserve`, and resolves each amount from [`auth_ctx.tx_inputs()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_inputs). `is_withdraw_call` validates that the call targets the correct package, module, function, and that the first argument is the account itself.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L239-L298
+```
+3. Create the account with a public key, an empty balance reserve, and a spending limit — all attached as dynamic fields.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L89-L116
+```
+4. Fund the balance reserve and withdraw from it within the spending limit.
+
+The authenticator itself cannot modify state. Instead, it validates that the transaction contains calls to `withdraw_from_balance_reserve` whose total amount does not exceed the stored spending limit.
+
+The actual state update (decreasing the spending limit) happens inside `withdraw_from_balance_reserve`, which subtracts the withdrawn amount from the stored limit after the transaction is authorized.
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L178-L199
+```
+
+## Expected Behavior
+
+- The authenticator scans the full PTB before execution. If the sum of all `withdraw_from_balance_reserve` calls exceeds the spending limit, the transaction is rejected.
+- Only calls to `withdraw_from_balance_reserve` in this package, on the account object itself, are counted toward the limit.
+- The spending limit is also enforced at runtime inside `withdraw_from_balance_reserve` as a defense-in-depth check, and decremented after each successful withdrawal.
+- Withdrawals from an insufficient balance reserve fail with `EInsufficientBalanceReserve`.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="limit" label="Spending limit account module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move
+```
+
+</TabItem>
+<TabItem value="reserve" label="Balance reserve module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move
+```
+
+</TabItem>
+<TabItem value="auth" label="Spending limit authentication helpers">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move
+```
+
+</TabItem>
+</Tabs>

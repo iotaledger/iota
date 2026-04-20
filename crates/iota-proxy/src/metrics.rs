@@ -54,7 +54,7 @@ pub fn start_prometheus_server(listener: TcpListener) -> RegistryService {
         .route(METRICS_ROUTE, get(metrics))
         .route(POD_HEALTH_ROUTE, get(pod_health))
         .layer(Extension(registry_service.clone()))
-        .layer(Extension(pod_health_data.clone()))
+        .layer(Extension(pod_health_data))
         .layer(
             ServiceBuilder::new().layer(
                 TraceLayer::new_for_http().on_response(

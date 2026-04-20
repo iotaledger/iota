@@ -42,7 +42,8 @@ const DialogOverlay = React.forwardRef<
     <RadixDialog.Overlay
         ref={ref}
         className={cx(
-            ' dialog-overlay-bg absolute h-full w-full backdrop-blur-md names:backdrop-blur-lg',
+            'dialog-overlay-bg absolute h-full w-full backdrop-blur-md names:backdrop-blur-lg',
+            'data-[state=open]:animate-dialog-overlay-show',
         )}
         {...props}
     >
@@ -118,6 +119,9 @@ const DialogContent = React.forwardRef<
                             'dialog-content-bg dialog-outline absolute flex flex-col justify-center',
                             dialogPositioning,
                             widthClass,
+                            position === DialogPosition.Right
+                                ? 'data-[state=open]:animate-dialog-panel-show'
+                                : 'data-[state=open]:animate-dialog-content-show',
                         )}
                         {...props}
                     >

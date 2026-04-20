@@ -560,8 +560,11 @@ impl ValidatorService {
                 .get_signed_effects_and_maybe_resign(&tx_digest, epoch_store)?
             {
                 let events = if include_events {
-                    if let Some(digest) = signed_effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if signed_effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(signed_effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }
@@ -678,8 +681,11 @@ impl ValidatorService {
                     .execute_certificate(&certificate, epoch_store)
                     .await?;
                 let events = if include_events {
-                    if let Some(digest) = effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }
@@ -887,11 +893,12 @@ impl ValidatorService {
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let client_addr = if self.client_id_source.is_none() {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+        let client_addr = if let Some(client_id_source) = &self.client_id_source {
+            self.get_client_ip_addr(&request, client_id_source)
         } else {
-            self.get_client_ip_addr(&request, self.client_id_source.as_ref().unwrap())
+            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
         };
+
         let request = request.into_inner();
 
         let certificates =
@@ -1102,11 +1109,11 @@ impl ValidatorService {
         wrapped_response: WrappedServiceResponse<T>,
     ) -> Result<tonic::Response<T>, tonic::Status> {
         let (error, spam_weight, unwrapped_response) = match wrapped_response {
-            Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
+            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
             Err(status) => (
                 Some(IotaError::from(status.clone())),
                 Weight::zero(),
-                Err(status.clone()),
+                Err(status),
             ),
         };
 
@@ -1115,7 +1122,7 @@ impl ValidatorService {
                 direct: client,
                 through_fullnode: None,
                 error_info: error.map(|e| {
-                    let error_type = String::from(e.clone().as_ref());
+                    let error_type = String::from(e.as_ref());
                     let error_weight = normalize(e);
                     (error_weight, error_type)
                 }),

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { openInNewTab } from '_shared/utils';
-import { growthbook, setAttributes } from '_src/shared/experimentation/features';
+import { appsBackendClient, setAttributes } from '_src/shared/experimentation/features';
 import { coerce, lte } from 'semver';
 import Browser from 'webextension-polyfill';
 
@@ -17,7 +17,7 @@ import Permissions from './permissions';
 import { initSentry } from './sentry';
 import Transactions from './transactions';
 
-growthbook.refreshFeatures().catch(() => {
+appsBackendClient.refreshFeatures().catch(() => {
     // silence the error
 });
 initSentry();
@@ -100,7 +100,11 @@ accountSourcesEvents.on('accountSourcesChanged', () => {
 
 Browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === AUTO_LOCK_ALARM_NAME) {
-        lockAllAccountsAndSources();
+        (async () => {
+            await lockAllAccountsAndSources();
+            accountSourcesEvents.emit('accountSourcesChanged');
+            accountsEvents.emit('accountsChanged');
+        })();
     } else if (alarm.name === CLEAN_UP_ALARM_NAME) {
         Transactions.clearStaleTransactions();
     }

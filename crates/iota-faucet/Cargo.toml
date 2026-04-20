@@ -45,6 +45,7 @@ telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
+iota-common.workspace = true
 test-cluster.workspace = true
 
 [[bin]]
@@ -55,3 +56,6 @@ path = "src/main.rs"
 ignored = [
   "eyre", # imported through a procedural macro
 ]
+
+[lints]
+workspace = true

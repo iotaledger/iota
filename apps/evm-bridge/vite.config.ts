@@ -9,5 +9,6 @@ export default defineConfig({
     plugins: [react()],
     define: {
         COMMIT_REV: JSON.stringify(COMMIT_REV),
+        'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND ?? ''),
     },
 });

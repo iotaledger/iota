@@ -26,3 +26,7 @@ export async function genFileTypeMsg(displayString: string, signal: AbortSignal)
             return `1 Image File`;
         });
 }
+
+export function isString(value: unknown): boolean {
+    return typeof value === 'string';
+}

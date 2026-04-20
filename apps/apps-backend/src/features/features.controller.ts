@@ -1,9 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
+import { Response } from 'express';
 import {
     NAME_ADDRESS_RESOLUTION_FEATURE,
     KNOWN_ADDRESSES_ALIASES,
@@ -13,8 +15,36 @@ import { RECOGNIZED_DAPPS } from './dapps.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
-    @Get('/staging')
-    getStagingFeatures() {
+    constructor(private readonly configService: ConfigService) {}
+
+    @Get('staging')
+    getStagingRedirect(@Res() res: Response) {
+        const stagingBackend = this.configService.getOrThrow<string>('STAGING_APPS_BACKEND');
+        return res.redirect(`${stagingBackend}/api/features`);
+    }
+
+    @Get('production')
+    getProductionRedirect(@Res() res: Response) {
+        const productionBackend = this.configService.getOrThrow<string>('PROD_APPS_BACKEND');
+        return res.redirect(`${productionBackend}/api/features`);
+    }
+
+    @Get()
+    getFeatures() {
+        const deployType = this.configService.get<string>('DEPLOY_TYPE');
+
+        switch (deployType) {
+            case 'production':
+                return this.getProductionFeatures();
+            case 'rc':
+                return this.getRcFeatures();
+            case 'staging':
+            default:
+                return this.getStagingFeatures();
+        }
+    }
+
+    private getStagingFeatures() {
         return {
             status: 200,
             features: {
@@ -43,6 +73,7 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                        minVersion: '',
                     },
                 },
                 [Feature.WalletPasskeys]: {
@@ -101,8 +132,12 @@ export class FeaturesController {
         };
     }
 
-    @Get('/production')
-    getProductionFeatures() {
+    private getRcFeatures() {
+        // RC features are currently identical to staging
+        return this.getStagingFeatures();
+    }
+
+    private getProductionFeatures() {
         return {
             status: 200,
             features: {
@@ -131,6 +166,7 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                        minVersion: '',
                     },
                 },
                 [Feature.WalletPasskeys]: {
@@ -181,18 +217,9 @@ export class FeaturesController {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
                 [Feature.ExplorerTFIdentity]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
             },
-            dateUpdated: new Date().toISOString(),
-        };
-    }
-
-    @Get('/apps')
-    getAppsFeatures() {
-        return {
-            status: 200,
-            apps: [], // Note: we'll add wallet dapps when evm will be ready
             dateUpdated: new Date().toISOString(),
         };
     }

@@ -1,0 +1,46 @@
+---
+description: 'How to add, remove, and borrow dynamic fields on an account in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Manage Account Dynamic Fields
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to add, remove, and borrow [dynamic fields](../../../../iota-101/objects/dynamic-fields/dynamic-fields.mdx) on an existing account using basic dynamic field functions at runtime, using `IOTAccount` as an example.
+
+## Example Code
+
+1. Add a new dynamic field to the account using `add_field`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L120-L131
+```
+2. Remove a dynamic field from the account using `remove_field`. The removed value is returned.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L136-L146
+```
+3. Borrow a mutable reference to a dynamic field using `borrow_field_mut`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L151-L161
+```
+
+:::note Dynamic Field Rotation
+
+To rotate a dynamic field you can just remove([`df::remove`](../../../../references/framework/iota/dynamic_field.mdx#iota_dynamic_field_remove)) and add([`df::add`](../../../../references/framework/iota/dynamic_field.mdx#iota_dynamic_field_add)) a dynamic field with the same name.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L167-L179
+```
+
+:::
+
+## Expected Behavior
+
+- `add_field` aborts if a field with the same name already exists.
+- `remove_field` aborts if no field with the given name exists.
+- All three functions abort if the transaction sender is not the account itself.
+
+## Full Example Code
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move
+```

@@ -27,21 +27,25 @@ export function PaginationOptions({
             icon: <DoubleArrowLeft />,
             disabled: !hasFirst,
             onClick: onFirst,
+            'aria-label': 'First page',
         },
         {
             icon: <ArrowLeft />,
             disabled: !hasPrev,
             onClick: onPrev,
+            'aria-label': 'Previous page',
         },
         {
             icon: <ArrowRight />,
             disabled: !hasNext,
             onClick: onNext,
+            'aria-label': 'Next page',
         },
         {
             icon: <DoubleArrowRight />,
             disabled: !hasLast,
             onClick: onLast,
+            'aria-label': 'Last page',
         },
     ];
     return (

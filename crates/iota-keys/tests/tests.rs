@@ -280,7 +280,7 @@ fn test_migrate_v1_to_v2_no_aliases() {
     backup_keystore_path.set_extension("keystore_extension.migrated");
     assert!(backup_keystore_path.exists());
 
-    let mut backup_aliases_path = keystore_path.clone();
+    let mut backup_aliases_path = keystore_path;
     backup_aliases_path.set_extension("aliases.migrated");
     assert!(backup_aliases_path.exists());
 }
@@ -330,7 +330,7 @@ fn test_migrate_v1_to_v2_with_aliases() {
     backup_keystore_path.set_extension("migrated");
     assert!(backup_keystore_path.exists());
 
-    let mut backup_aliases_path = keystore_path.clone();
+    let mut backup_aliases_path = keystore_path;
     backup_aliases_path.set_extension("aliases.migrated");
     assert!(backup_aliases_path.exists());
 }

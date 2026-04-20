@@ -19,10 +19,6 @@ const SENTRY_DSN = IS_SENTRY_ENABLED
         : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400'
     : undefined;
 
-const SENTRY_SAMPLE_RATE = import.meta.env.VITE_SENTRY_SAMPLE_RATE
-    ? parseFloat(import.meta.env.VITE_SENTRY_SAMPLE_RATE)
-    : 0;
-
 export function initSentry() {
     Sentry.init({
         enabled: IS_SENTRY_ENABLED && Boolean(SENTRY_DSN),
@@ -37,7 +33,7 @@ export function initSentry() {
                 matchRoutes,
             }),
         ],
-        tracesSampleRate: SENTRY_SAMPLE_RATE,
+        tracesSampleRate: IS_PROD ? 0.0025 : 1.0,
         // Browser extensions
         denyUrls: [
             /extensions\//i,

@@ -5,18 +5,17 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_types::{
-    auth_context::{AuthContext, AuthContextCallArg, AuthContextCommand},
+    auth_context::{AuthContext, MoveCallArg, MoveCommand},
     digests::MoveAuthenticatorDigest,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
-    gas_algebra::AbstractMemorySize,
-    runtime_value::{MoveStructLayout, MoveTypeLayout},
-    vm_status::StatusCode,
+    gas_algebra::AbstractMemorySize, runtime_value::MoveTypeLayout, vm_status::StatusCode,
 };
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
 use move_vm_types::values::{GlobalValue, StructRef, Value};
-use serde::{Serialize, de::DeserializeOwned};
+
+use crate::utils;
 
 // AuthenticationContext is a wrapper around AuthContext that is exposed to
 // NativeContextExtensions in order to provide authentication context
@@ -37,6 +36,7 @@ pub struct AuthenticationContext {
     cached_digest: Option<GlobalValue>,
     cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
+    cached_tx_data_bytes: Option<(GlobalValue, AbstractMemorySize)>,
 }
 
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
@@ -49,6 +49,7 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
+            cached_tx_data_bytes: None,
         }
     }
 
@@ -59,6 +60,7 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
+            cached_tx_data_bytes: None,
         }
     }
 
@@ -76,7 +78,7 @@ impl AuthenticationContext {
             let rust_value = (auth_context.digest(),);
             let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
 
-            self.cached_digest = Some(to_global_value(&rust_value, digest_move_layout)?.0);
+            self.cached_digest = Some(utils::to_global_value(&rust_value, digest_move_layout)?.0);
         }
 
         self.cached_digest
@@ -105,13 +107,43 @@ impl AuthenticationContext {
             let rust_value = (auth_context.tx_inputs(),);
             let inputs_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
 
-            self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
+            self.cached_tx_inputs = Some(utils::to_global_value(&rust_value, inputs_move_layout)?);
         }
 
         let (cached_tx_inputs, move_value_size) = self.cached_tx_inputs.as_ref().unwrap();
 
         Ok((
             cached_tx_inputs
+                .borrow_global()
+                .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+                .value_as::<StructRef>()?
+                .borrow_field(0)?,
+            *move_value_size,
+        ))
+    }
+
+    /// Returns a `Value` containing tx data bytes ref.
+    /// Caches the result to avoid redundant conversions and allocations on
+    /// subsequent calls.
+    pub fn tx_data_bytes_ref(&mut self) -> PartialVMResult<(Value, AbstractMemorySize)> {
+        if self.cached_tx_data_bytes.is_none() {
+            let auth_context = self.auth_context.borrow();
+
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     tx_data_bytes: vector<u8>
+            // }`
+            let rust_value = (auth_context.tx_data_bytes(),);
+            let bytes_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+
+            self.cached_tx_data_bytes =
+                Some(utils::to_global_value(&rust_value, bytes_move_layout)?);
+        }
+
+        let (cached_tx_data_bytes, move_value_size) = self.cached_tx_data_bytes.as_ref().unwrap();
+
+        Ok((
+            cached_tx_data_bytes
                 .borrow_global()
                 .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
                 .value_as::<StructRef>()?
@@ -137,7 +169,8 @@ impl AuthenticationContext {
             let rust_value = (auth_context.tx_commands(),);
             let commands_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
 
-            self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
+            self.cached_tx_commands =
+                Some(utils::to_global_value(&rust_value, commands_move_layout)?);
         }
 
         let (cached_tx_commands, move_value_size) = self.cached_tx_commands.as_ref().unwrap();
@@ -164,6 +197,7 @@ impl AuthenticationContext {
         input_move_layout: MoveTypeLayout,
         tx_commands_value: Vec<Value>,
         command_move_layout: MoveTypeLayout,
+        tx_data_bytes_opt: Option<Vec<u8>>,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
@@ -174,13 +208,13 @@ impl AuthenticationContext {
 
         let tx_commands = tx_commands_value
             .into_iter()
-            .map(|value| from_value(value, &command_move_layout))
-            .collect::<PartialVMResult<Vec<AuthContextCommand>>>()?;
+            .map(|value| utils::from_value(value, &command_move_layout))
+            .collect::<PartialVMResult<Vec<MoveCommand>>>()?;
 
         let tx_inputs = tx_inputs_value
             .into_iter()
-            .map(|value| from_value(value, &input_move_layout))
-            .collect::<PartialVMResult<Vec<AuthContextCallArg>>>()?;
+            .map(|value| utils::from_value(value, &input_move_layout))
+            .collect::<PartialVMResult<Vec<MoveCallArg>>>()?;
 
         let auth_digest =
             MoveAuthenticatorDigest::try_from(auth_digest_value.as_slice()).map_err(|err| {
@@ -188,63 +222,20 @@ impl AuthenticationContext {
                     .with_message(err.to_string())
             })?;
 
+        let tx_data_bytes =
+            tx_data_bytes_opt.unwrap_or_else(|| self.auth_context.borrow().tx_data_bytes().clone());
+
         self.auth_context
             .borrow_mut()
-            .replace(auth_digest, tx_inputs, tx_commands);
+            .replace(auth_digest, tx_inputs, tx_commands, tx_data_bytes);
 
         // Drop cached values to ensure they are recreated with the updated AuthContext
         // data
         self.cached_digest = None;
         self.cached_tx_inputs = None;
         self.cached_tx_commands = None;
+        self.cached_tx_data_bytes = None;
 
         Ok(())
     }
-}
-
-fn struct_layout_with_field(field: MoveTypeLayout) -> MoveTypeLayout {
-    MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![field]))))
-}
-
-fn to_global_value<T: ?Sized + Serialize>(
-    field: &T,
-    field_move_layout: MoveTypeLayout,
-) -> PartialVMResult<(GlobalValue, AbstractMemorySize)> {
-    let move_layout = struct_layout_with_field(field_move_layout);
-
-    let move_value = to_value(field, &move_layout)?;
-    let move_value_size = move_value.legacy_size();
-
-    Ok((
-        GlobalValue::cached(move_value).expect("Failed to cache global value"),
-        move_value_size,
-    ))
-}
-
-fn to_value<T: ?Sized + Serialize>(
-    input: &T,
-    input_move_layout: &MoveTypeLayout,
-) -> PartialVMResult<Value> {
-    let bytes = bcs::to_bytes(input).map_err(|err| {
-        PartialVMError::new(StatusCode::VALUE_SERIALIZATION_ERROR)
-            .with_message(format!("Failed to serialize an input: {err}"))
-    })?;
-    Value::simple_deserialize(&bytes, input_move_layout).ok_or_else(|| {
-        PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
-            .with_message("Failed to deserialize an input to a Move value".to_string())
-    })
-}
-
-fn from_value<T: DeserializeOwned>(
-    value: Value,
-    value_move_layout: &MoveTypeLayout,
-) -> PartialVMResult<T> {
-    let bytes = value.simple_serialize(value_move_layout).ok_or_else(|| {
-        PartialVMError::new(StatusCode::VALUE_SERIALIZATION_ERROR)
-            .with_message("Failed to serialize a value".to_string())
-    })?;
-    bcs::from_bytes::<T>(&bytes).map_err(|err| {
-        PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
-            .with_message(format!("Failed to deserialize a value: {err}"))
-    })
 }

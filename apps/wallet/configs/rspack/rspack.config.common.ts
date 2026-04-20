@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
 import { rspack } from '@rspack/core';
 import type { Configuration } from '@rspack/core';
+import { TsCheckerRspackPlugin } from 'ts-checker-rspack-plugin';
 
 import packageJson from '../../package.json';
 
@@ -281,6 +282,11 @@ const commonConfig: () => Promise<Configuration> = async () => {
                           perChunkOutput: true,
                       }),
                   ]),
+            new TsCheckerRspackPlugin({
+                typescript: {
+                    configFile: TS_CONFIG_FILE,
+                },
+            }),
             sentryWebpackPlugin({
                 org: 'iota-foundation-eu',
                 project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing

@@ -4,14 +4,13 @@
 use std::{
     mem::take,
     str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 
 use anyhow::{bail, ensure};
 use blake2::Digest;
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
-use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
@@ -27,10 +26,8 @@ use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
-    balance::Balance,
     base_types::{IotaAddress, ObjectID},
-    coin::Coin,
-    collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
+    collection_types::{Entry, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,
     error::IotaObjectResponseError,
@@ -58,9 +55,6 @@ use crate::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 
-/// The overbid must be at least of 1 IOTA, which is 10^9 NANOs
-const MIN_OVERBID: u64 = 1_000_000_000;
-
 /// Minimum coin amount (in NANOs) required for gas payment eligibility.
 /// Coins below this value (9_000_000 NANOs = 0.009 IOTA) are ignored for gas
 /// payment.
@@ -69,9 +63,6 @@ const MIN_COIN_AMOUNT_FOR_GAS_PAYMENT: u64 = 9_000_000;
 /// Tool to register and manage names and subnames
 #[derive(Parser)]
 pub enum NameCommand {
-    /// Auction related operations, like bidding and claiming
-    #[command(subcommand)]
-    Auction(AuctionCommand),
     /// Check the availability of a name and return its price if available.
     /// Subnames are always free to register by the parent name owner.
     Availability { name: Name },
@@ -280,7 +271,6 @@ impl NameCommand {
         let iota_client = context.get_client().await?;
 
         Ok(match self {
-            Self::Auction(cmd) => cmd.execute(context).await?,
             Self::Availability { name } => {
                 let name_str = name.to_string();
 
@@ -889,245 +879,6 @@ impl NameCommand {
     }
 }
 
-/// Commands related to the auction system
-#[derive(Parser)]
-pub enum AuctionCommand {
-    /// Place a new bid
-    Bid {
-        /// The name. Ex. my-name.iota
-        name: Name,
-        /// The bid amount. Must be at least one IOTA more than the last highest
-        /// bid. Defaults to the minimum possible bid.
-        #[arg(long)]
-        amount: Option<u64>,
-        /// The coin to use for payment. If not provided, selects the first coin
-        /// with enough balance.
-        #[arg(long)]
-        coin: Option<ObjectID>,
-        // Whether to print detailed output.
-        #[arg(long)]
-        verbose: bool,
-        #[command(flatten)]
-        payment: PaymentArgs,
-        #[command(flatten)]
-        gas_data: GasDataArgs,
-        #[command(flatten)]
-        processing: TxProcessingArgs,
-    },
-    /// Claim the name if the auction winner is the sender
-    Claim {
-        /// The name. Ex. my-name.iota
-        name: Name,
-        // Whether to print detailed output.
-        #[arg(long)]
-        verbose: bool,
-        #[command(flatten)]
-        payment: PaymentArgs,
-        #[command(flatten)]
-        gas_data: GasDataArgs,
-        #[command(flatten)]
-        processing: TxProcessingArgs,
-    },
-    /// Get metadata of an auction
-    Metadata { name: Name },
-    /// Start an auction, if it's not started yet, and make the first bid
-    Start {
-        /// The name. Ex. my-name.iota
-        name: Name,
-        /// The initial bid amount. Must be at least the minimum cost of the
-        /// name. Defaults to the minimum.
-        #[arg(long)]
-        amount: Option<u64>,
-        /// The coin to use for payment. If not provided, selects the first coin
-        /// with enough balance.
-        #[arg(long)]
-        coin: Option<ObjectID>,
-        // Whether to print detailed output.
-        #[arg(long)]
-        verbose: bool,
-        #[command(flatten)]
-        payment: PaymentArgs,
-        #[command(flatten)]
-        gas_data: GasDataArgs,
-        #[command(flatten)]
-        processing: TxProcessingArgs,
-    },
-}
-
-impl AuctionCommand {
-    pub async fn execute(
-        self,
-        context: &mut WalletContext,
-    ) -> Result<NameCommandResult, anyhow::Error> {
-        let iota_client = context.get_client().await?;
-        let graphql_client = SimpleClient::new(
-            context
-                .active_env()?
-                .graphql()
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
-        );
-
-        Ok(match self {
-            Self::Bid {
-                name,
-                amount,
-                coin,
-                verbose,
-                payment,
-                gas_data,
-                mut processing,
-            } => {
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
-
-                let auction = auction_house.get_auction(&name, &iota_client).await?;
-
-                let min_price = auction.current_bid.value() + MIN_OVERBID;
-                let amount = amount.unwrap_or(min_price);
-                ensure!(
-                    amount >= min_price,
-                    "bid amount must be at least {min_price} for this name"
-                );
-                let sender = processing.sender;
-                let coin =
-                    select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
-                        .await?;
-
-                let mut args = vec![
-                    format!("--split-coins {coin} [{amount}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house.id,
-                        name.to_string(),
-                    ),
-                ];
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
-
-                handle_transaction_result(res, verbose, async |res| {
-                    Ok(NameCommandResult::AuctionBid {
-                        auction: auction_house.get_auction(&name, &iota_client).await?,
-                        digest: res.digest,
-                    })
-                })
-                .await?
-            }
-            Self::Claim {
-                name,
-                verbose,
-                payment,
-                gas_data,
-                mut processing,
-            } => {
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
-
-                // Checking if the auction does not exist or has been already claimed
-                let _ = auction_house.get_auction(&name, &iota_client).await?;
-
-                let sender = processing.sender;
-
-                let mut args = vec![
-                    "--move-call iota::tx_context::sender".to_string(),
-                    "--assign sender".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::claim @{} '{name}' @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house.id
-                    ),
-                    "--assign nft".to_string(),
-                    "--transfer-objects [nft] sender".to_string(),
-                ];
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
-
-                handle_transaction_result(res, verbose, async |res| {
-                    Ok(NameCommandResult::AuctionClaim {
-                        record: get_registry_entry(&name, &iota_client).await?.name_record,
-                        nft: get_owned_nft_by_name::<NameRegistration>(&name, sender, context)
-                            .await?,
-                        digest: res.digest,
-                    })
-                })
-                .await?
-            }
-            Self::Metadata { name } => NameCommandResult::AuctionMetadata(
-                get_auction_house(&iota_client, &graphql_client)
-                    .await?
-                    .get_auction(&name, &iota_client)
-                    .await?,
-            ),
-            Self::Start {
-                name,
-                amount,
-                coin,
-                verbose,
-                payment,
-                gas_data,
-                mut processing,
-            } => {
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
-
-                let min_price = fetch_pricing_config(&iota_client)
-                    .await?
-                    .get_price(name.label(1).unwrap())?;
-                let amount = amount.unwrap_or(min_price);
-                ensure!(
-                    amount >= min_price,
-                    "bid amount must be at least {min_price} for this name"
-                );
-                let sender = processing.sender;
-                let coin =
-                    select_coin_arg_for_payment(&name.to_string(), coin, amount, sender, context)
-                        .await?;
-
-                let iota_names_config = get_iota_names_config(&iota_client).await?;
-
-                let mut args = vec![
-                    format!("--split-coins {coin} [{amount}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house.id,
-                        iota_names_config.object_id,
-                        name.to_string(),
-                    ),
-                ];
-                let display = take(&mut processing.display);
-                args.extend(payment.into_args());
-                args.extend(gas_data.into_args());
-                args.extend(processing.into_args());
-
-                let res = IotaClientCommands::PTB(PTB { args, display })
-                    .execute(context)
-                    .await?;
-
-                handle_transaction_result(res, verbose, async |res| {
-                    Ok(NameCommandResult::AuctionStart {
-                        auction: auction_house.get_auction(&name, &iota_client).await?,
-                        digest: res.digest,
-                    })
-                })
-                .await?
-            }
-        })
-    }
-}
-
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub enum SubnameCommand {
@@ -1447,20 +1198,6 @@ impl SubnameCommand {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum NameCommandResult {
-    AuctionBid {
-        auction: Auction,
-        digest: TransactionDigest,
-    },
-    AuctionClaim {
-        record: NameRecord,
-        nft: NameRegistration,
-        digest: TransactionDigest,
-    },
-    AuctionMetadata(Auction),
-    AuctionStart {
-        auction: Auction,
-        digest: TransactionDigest,
-    },
     Availability {
         name: String,
         price: Option<u64>,
@@ -1545,41 +1282,6 @@ pub enum NameCommandResult {
 impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AuctionBid {
-                auction,
-                digest: transaction,
-            } => {
-                writeln!(f, "Successfully placed bid for {}", auction.name)?;
-                writeln!(f, "Auction status: {}", auction.status())?;
-                format_auction(f, auction)?;
-                writeln!(f, "\nNFT:")?;
-                format_nft(f, &auction.nft)?;
-                write!(f, "\nTransaction digest: {transaction}")
-            }
-            Self::AuctionClaim {
-                record,
-                nft,
-                digest: transaction,
-            } => {
-                writeln!(f, "Successfully claimed {}", nft.name())?;
-                format_name_record(f, record)?;
-                writeln!(f, "\nCreated NFT:")?;
-                format_nft(f, nft)?;
-                write!(f, "\nTransaction digest: {transaction}")
-            }
-            Self::AuctionMetadata(auction) => {
-                writeln!(f, "Auction status: {}", auction.status())?;
-                format_auction(f, auction)
-            }
-            Self::AuctionStart {
-                auction,
-                digest: transaction,
-            } => {
-                writeln!(f, "Successfully started auction for {}", auction.name)?;
-                writeln!(f, "Auction status: {}", auction.status())?;
-                format_auction(f, auction)?;
-                write!(f, "\nTransaction digest: {transaction}")
-            }
             Self::Availability { name, price } => match price {
                 Some(price) => {
                     write!(f, "\"{name}\" is available for {price} NANOs")
@@ -1781,30 +1483,6 @@ impl std::fmt::Display for NameCommandResult {
             }
         }
     }
-}
-
-fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::Result {
-    let start_datetime = DateTime::<Utc>::from(auction.start_timestamp())
-        .format("%Y-%m-%d %H:%M:%S.%f UTC")
-        .to_string();
-    let end_datetime = DateTime::<Utc>::from(auction.end_timestamp())
-        .format("%Y-%m-%d %H:%M:%S.%f UTC")
-        .to_string();
-
-    let data = [
-        ("Start", start_datetime),
-        ("End", end_datetime),
-        (
-            "Current Bid",
-            auction.current_bid.balance.value().to_string(),
-        ),
-        ("Current Bidder", auction.current_bidder.to_string()),
-    ];
-    let mut table_builder = Table::builder(data);
-    table_builder.set_header(["field", "value"]);
-    let mut table = table_builder.build();
-    table.with(tabled::settings::Style::rounded());
-    write!(f, "{table}")
 }
 
 fn format_registry_entry(f: &mut std::fmt::Formatter, entry: &RegistryEntry) -> std::fmt::Result {
@@ -2338,90 +2016,6 @@ async fn select_coin_arg_for_payment(
     })
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Auction {
-    pub name: Name,
-    pub start_timestamp_ms: u64,
-    pub end_timestamp_ms: u64,
-    pub current_bidder: IotaAddress,
-    pub current_bid: Coin,
-    pub nft: NameRegistration,
-}
-
-impl Auction {
-    fn start_timestamp(&self) -> SystemTime {
-        UNIX_EPOCH + Duration::from_millis(self.start_timestamp_ms)
-    }
-
-    fn end_timestamp(&self) -> SystemTime {
-        UNIX_EPOCH + Duration::from_millis(self.end_timestamp_ms)
-    }
-
-    fn is_active(&self) -> bool {
-        SystemTime::now() <= self.end_timestamp()
-    }
-
-    fn status(&self) -> &str {
-        if self.is_active() {
-            "Active"
-        } else {
-            "Finished"
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AuctionEntry {
-    pub id: ObjectID,
-    pub name: Name,
-    pub node: LinkedTableNode<Name, Auction>,
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct AuctionHouse {
-    id: ObjectID,
-    balance: Balance,
-    auctions: LinkedTable<Name>,
-}
-
-impl AuctionHouse {
-    async fn get_auction(&self, name: &Name, client: &IotaClient) -> anyhow::Result<Auction> {
-        let iota_names_config = get_iota_names_config(client).await?;
-        let name_type_tag = Name::type_(iota_names_config.package_address);
-        let name_bytes = bcs::to_bytes(name).unwrap();
-
-        let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
-            self.auctions.id,
-            &TypeTag::Struct(Box::new(name_type_tag)),
-            &name_bytes,
-        )?;
-
-        let auction_entry = match get_object_from_bcs::<AuctionEntry>(client, object_id).await {
-            Ok(auction_entry) => auction_entry,
-            Err(RpcError::IotaObjectResponse(IotaObjectResponseError::NotExists { .. })) => {
-                bail!("auction for \"{name}\" does not exist")
-            }
-            Err(RpcError::IotaObjectResponse(IotaObjectResponseError::Deleted { .. })) => {
-                bail!("auction for \"{name}\" has already been claimed")
-            }
-            e => bail!("{e:?}"),
-        };
-
-        Ok(auction_entry.node.value)
-    }
-}
-
-async fn get_auction_house(
-    iota_client: &IotaClient,
-    graphql_client: &SimpleClient,
-) -> Result<AuctionHouse, RpcError> {
-    let auction_package_address = get_auction_package_address(iota_client).await?;
-    let auction_house_id = get_auction_house_id(auction_package_address, graphql_client).await?;
-
-    get_object_from_bcs::<AuctionHouse>(iota_client, auction_house_id).await
-}
-
 // Fetch the package ID of a package that got authorized for the IOTA-Names
 // object by it's module name and struct name.
 async fn fetch_package_id_by_module_and_name(
@@ -2446,53 +2040,6 @@ async fn fetch_package_id_by_module_and_name(
         }
     }
     bail!("failed to find package ID for {module_name}::{struct_name}")
-}
-
-async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
-    let auction_package_address = fetch_package_id_by_module_and_name(
-        client,
-        &Identifier::from_str("auction")?,
-        &Identifier::from_str("AuctionAuth")?,
-    )
-    .await?;
-
-    Ok(auction_package_address)
-}
-
-async fn get_auction_house_id(
-    auction_package_id: ObjectID,
-    client: &SimpleClient,
-) -> anyhow::Result<ObjectID> {
-    let variable = GraphqlQueryVariable {
-        name: "type".to_string(),
-        ty: "String".to_string(),
-        value: serde_json::Value::String(format!("{auction_package_id}::auction::AuctionHouse")),
-    };
-    let query = r#"{
-        objects(filter: {type: $type}) {
-            edges {
-                node {
-                    address
-                    asMoveObject {
-                        contents {
-                            json
-                        }
-                    }
-                }
-            }
-        }
-    }"#;
-    let response = client
-        .execute_to_graphql(query.to_string(), true, vec![variable], vec![])
-        .await?;
-    ensure!(response.errors().is_empty(), "{:?}", response.errors());
-
-    let response_body = response.response_body_json();
-    let object_id_str = response_body["data"]["objects"]["edges"][0]["node"]["address"]
-        .as_str()
-        .ok_or(anyhow::anyhow!("missing AuctionHouse object"))?;
-    let object_id = ObjectID::from_str(object_id_str)?;
-    Ok(object_id)
 }
 
 #[derive(thiserror::Error, Debug)]

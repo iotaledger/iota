@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LogLevel } from '@amplitude/analytics-types';
-import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
+import { attachEnvironmentPlugin, dialogContextPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
 import { type ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
-import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 import { Identify } from '@amplitude/analytics-browser';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';

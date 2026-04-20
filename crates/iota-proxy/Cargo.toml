@@ -47,8 +47,11 @@ telemetry-subscribers.workspace = true
 
 [dev-dependencies]
 axum-server.workspace = true
-mime.workspace = true
+mime = "0.3"
 tower.workspace = true
 
 [build-dependencies]
 prost-build = "0.13.1"
+
+[lints]
+workspace = true

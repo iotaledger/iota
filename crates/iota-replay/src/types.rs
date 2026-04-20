@@ -50,6 +50,8 @@ pub struct OnChainTransactionInfo {
     pub modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
     pub shared_object_refs: Vec<ObjectRef>,
     pub gas: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+    #[serde(default)]
+    pub gas_owner: Option<IotaAddress>,
     pub gas_budget: u64,
     pub gas_price: u64,
     pub executed_epoch: u64,

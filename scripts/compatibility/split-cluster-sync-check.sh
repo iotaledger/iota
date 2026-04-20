@@ -43,19 +43,19 @@ echo "Using working dir $WORKING_DIR"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
+# remember current commit
+CURRENT_COMMIT=$(git rev-parse HEAD)
+
 # check if binaries have already been built
-if [ -f "$WORKING_DIR/iota-node-release" ] && [ -f "$WORKING_DIR/iota-release" ] && [ -f "$WORKING_DIR/iota-node-candidate" ]; then
+if [ -f "$WORKING_DIR/iota-node-release" ] && [ -f "$WORKING_DIR/iota-localnet-release" ] && [ -f "$WORKING_DIR/iota-node-candidate" ]; then
   echo "Binaries already built, skipping build"
 else
-  echo "Building iota-node and iota at $RELEASE_COMMIT"
-
-  # remember current commit
-  CURRENT_COMMIT=$(git rev-parse HEAD)
+  echo "Building iota-node and iota-localnet at $RELEASE_COMMIT"
 
   git checkout $RELEASE_COMMIT || exit 1
-  cargo build --bin iota-node --bin iota || exit 1
+  cargo build --bin iota-node --bin iota-localnet || exit 1
   cp ./target/debug/iota-node "$WORKING_DIR/iota-node-release"
-  cp ./target/debug/iota "$WORKING_DIR/iota-release"
+  cp ./target/debug/iota-localnet "$WORKING_DIR/iota-localnet-release"
 
   echo "Building iota-node at $RELEASE_CANDIDATE_COMMIT"
   git checkout $RELEASE_CANDIDATE_COMMIT || exit 1
@@ -69,7 +69,7 @@ fi
 export IOTA_CONFIG_DIR="$WORKING_DIR/config"
 rm -rf "$IOTA_CONFIG_DIR"
 
-"$WORKING_DIR/iota-release" genesis --epoch-duration-ms 600000 --committee-size 4
+"$WORKING_DIR/iota-localnet-release" genesis --epoch-duration-ms 600000 --committee-size 4
 
 LOG_DIR="$WORKING_DIR/logs"
 METRICS_DIR="$WORKING_DIR/metrics"

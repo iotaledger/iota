@@ -677,6 +677,7 @@ fn inactive_validators_exchange_rates(
         system_state_summary.inactive_pools_id,
         system_state_summary.inactive_pools_size,
         |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+        Some(system_state_summary.protocol_version),
     )?;
 
     validator_exchange_rates(state, tables)
@@ -730,6 +731,7 @@ fn candidate_validators_exchange_rate(
         system_state_summary.validator_candidates_id,
         system_state_summary.validator_candidates_size,
         |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+        Some(system_state_summary.protocol_version),
     )?;
 
     validator_exchange_rates(state, tables)
@@ -786,6 +788,7 @@ fn validator_summary_from_system_state<K, F>(
     table_id: ObjectID,
     limit: u64,
     key: F,
+    protocol_version: Option<u64>,
 ) -> RpcInterimResult<Vec<ValidatorTable>>
 where
     F: Fn(DynamicFieldInfo) -> RpcInterimResult<K>,
@@ -797,7 +800,8 @@ where
         .get_dynamic_fields(table_id, None, limit as usize)?
         .into_iter()
         .map(|(_object_id, df)| {
-            let validator_summary = get_validator_from_table(object_store, table_id, &key(df)?)?;
+            let validator_summary =
+                get_validator_from_table(object_store, table_id, &key(df)?, protocol_version)?;
 
             Ok((
                 validator_summary.iota_address,
@@ -956,8 +960,7 @@ mod tests {
         let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
         let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
 
-        let expected: Vec<(u64, PoolTokenExchangeRate)> =
-            vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
+        let expected: Vec<(u64, PoolTokenExchangeRate)> = vec![(3, rate3), (2, rate2), (1, rate1)];
         assert_eq!(backfill_rates(rates), expected);
     }
 
@@ -977,9 +980,9 @@ mod tests {
         let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (5, rate5.clone())];
 
         let expected = vec![
-            (5, rate5.clone()),
+            (5, rate5),
             (4, rate3.clone()),
-            (3, rate3.clone()),
+            (3, rate3),
             (2, rate1.clone()),
             (1, rate1),
         ];
