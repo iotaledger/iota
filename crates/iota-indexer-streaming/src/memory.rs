@@ -136,9 +136,9 @@ impl Default for Config {
 
 /// Where to start a recovery stream relative to a known transaction digest.
 ///
-/// - [`Inclusive`](Self::Inclusive) — yield the identified transaction, then
+/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then
 ///   everything after it.
-/// - [`Exclusive`](Self::Exclusive) — skip the identified transaction; start
+/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start
 ///   from the next one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum RecoveryPoint {
