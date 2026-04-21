@@ -162,7 +162,7 @@ impl MoveObjectExt for MoveObject {
     /// value. It is the caller's responsibility to check that `self` is a coin.
     /// This function may panic or do something unexpected otherwise.
     fn get_coin_value_unchecked(&self) -> u64 {
-        debug_assert!(self.object_type.is_coin());
+        debug_assert!(self.object_type().is_coin());
         // 32 bytes for object ID, 8 for balance
         debug_assert!(self.contents().len() == 40);
 
@@ -176,7 +176,7 @@ impl MoveObjectExt for MoveObject {
     /// coin.
     /// This function may panic or do something unexpected otherwise.
     fn set_coin_value_unchecked(&mut self, value: u64) {
-        debug_assert!(self.object_type.is_coin());
+        debug_assert!(self.object_type().is_coin());
         // 32 bytes for object ID, 8 for balance
         debug_assert!(self.contents().len() == 40);
 
@@ -238,21 +238,21 @@ impl MoveObjectExt for MoveObject {
     /// higher (and checked to be higher in debug).
     fn increment_version_to(&mut self, next: SequenceNumber) {
         debug_assert!(
-            self.version < next,
+            self.version() < next,
             "Not an increment: {} to {next}",
-            self.version
+            self.version()
         );
-        self.version = next;
+        self.set_version(next);
     }
 
     /// Sets the version to a lower value (checked in debug).
     fn decrement_version_to(&mut self, prev: SequenceNumber) {
         debug_assert!(
-            prev < self.version,
+            prev < self.version(),
             "Not a decrement: {} to {prev}",
-            self.version
+            self.version()
         );
-        self.version = prev;
+        self.set_version(prev);
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -314,7 +314,7 @@ impl MoveObjectExt for MoveObject {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.object_type.coin_type_opt() {
+        if let Some(type_tag) = self.object_type().coin_type_opt() {
             let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
