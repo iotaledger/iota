@@ -7106,7 +7106,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
 
     let hard_limit = 20_000;
     let soft_limit = hard_limit / 2;
-    let max_shedding_pct = 95;
+    let max_shedding_pct = 100;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
     authority_state
@@ -7160,13 +7160,13 @@ async fn test_consensus_queue_graduated_load_shedding() {
 
     // Below, at, and above hard limit: metric should report the graduated
     // percentage (capped at `max_shedding_pct` at/above hard limit).
-    // At 15_000: 95 * 5_000 / 10_000 = 47%. At/above 20_000: capped at 95%.
-    // Whether a specific tx is rejected depends on its digest, so we check
-    // the metric instead (except for "above hard", where the binary cutoff
-    // rejects deterministically) - `expect_err` variable.
+    // At 15_000: 100 * 5_000 / 10_000 = 50%. At/above 20_000: capped at 100%.
+    // At 15_000, whether a specific tx is rejected depends on its digest, so
+    // we check the metric instead. At/above the hard limit, rejection is
+    // deterministic (100% graduated shedding, plus the binary cutoff above).
     for (num_inflight_txs, expected_pct, expect_err) in [
-        (15_000, 47, false),                      // graduated
-        (hard_limit, max_shedding_pct, false),    // at hard limit
+        (15_000, 50, false),                      // graduated, non-deterministic
+        (hard_limit, max_shedding_pct, true),     // at hard limit: 100% shedding
         (hard_limit + 1, max_shedding_pct, true), // above hard limit: binary cutoff rejects
     ] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
@@ -7190,8 +7190,8 @@ async fn test_consensus_queue_graduated_load_shedding() {
         if expect_err {
             assert!(
                 result.is_err(),
-                "above hard limit ({num_inflight_txs} > {hard_limit}), transaction should always \
-                    be rejected by the binary hard cutoff"
+                "at/above hard limit ({num_inflight_txs} >= {hard_limit}), transaction should \
+                    always be rejected (100% graduated shedding, plus binary cutoff above)",
             );
         }
     }

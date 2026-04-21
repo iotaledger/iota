@@ -343,7 +343,7 @@ impl ConsensusAdapter {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            95,
+            100,
         )
     }
 
@@ -1517,7 +1517,7 @@ mod adapter_tests {
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            95,
+            100,
         );
 
         // transaction to submit
@@ -1549,7 +1549,7 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            95,
+            100,
         );
 
         let (delay_step, position, positions_moved, _) =

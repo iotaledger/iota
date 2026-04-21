@@ -878,11 +878,13 @@ impl ConsensusConfig {
     }
 
     /// Returns the max percentage of transactions to shed due to consensus
-    /// queue overload. Defaults to 95%; the remaining ~5% are caught by the
-    /// binary hard cutoff in `check_consensus_overload()`.
-    /// Used in the certificate-less (white-flag) mode.
+    /// queue overload. Defaults to 100%: at and above
+    /// `max_pending_transactions`, graduated shedding rejects every
+    /// transaction, so the consensus queue cannot grow past the hard limit.
+    /// The binary hard cutoff in `check_consensus_overload()` remains as
+    /// defense-in-depth. Used in the certificate-less (white-flag) mode.
     pub fn graduated_load_shedding_max_percentage(&self) -> u32 {
-        self.graduated_load_shedding_max_percentage.unwrap_or(95)
+        self.graduated_load_shedding_max_percentage.unwrap_or(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {

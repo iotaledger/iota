@@ -1143,16 +1143,16 @@ impl AuthorityState {
         white_flag_flow_enabled: bool,
     ) -> IotaResult {
         if white_flag_flow_enabled {
-            // Graduated shedding: 0% to 95% as consensus queue fills from soft to hard
-            // limit.
+            // Graduated shedding: 0% to 100% as consensus queue fills from soft
+            // to hard limit.
             self.check_consensus_queue_overload(consensus_adapter, tx_data)
                 .tap_err(|_| {
                     self.update_overload_metrics("consensus");
                 })?;
 
-            // Binary hard cutoff backstop: catches the remaining 5% if queue
-            // exceeds `max_pending_transactions`. Graduated shedding caps at 95%,
-            // so this ensures we never actually exceed the hard limit.
+            // Binary hard cutoff as defense-in-depth: graduated shedding at 100%
+            // already rejects everything at or above `max_pending_transactions`,
+            // so this check is redundant but kept as a safeguard.
             consensus_adapter.check_consensus_overload().tap_err(|_| {
                 self.update_overload_metrics("consensus");
             })?;
