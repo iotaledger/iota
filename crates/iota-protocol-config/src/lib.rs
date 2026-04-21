@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 24;
+pub const MAX_PROTOCOL_VERSION: u64 = 25;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -139,6 +139,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable Move-based sponsor account authentication in devnet.
 //             Add AuthContext native functions cost for reading tx_data_bytes.
 //             Enable additional borrow checks.
+// Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
+//             supported.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2708,6 +2710,15 @@ impl ProtocolConfig {
 
                     // Enable additional borrow checks.
                     cfg.feature_flags.additional_borrow_checks = true;
+                }
+                #[allow(deprecated)]
+                25 => {
+                    // Deprecate zkLogin related parameters since zkLogin is no longer supported.
+                    cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = None;
+                    cfg.check_zklogin_id_cost_base = None;
+                    cfg.check_zklogin_issuer_cost_base = None;
+                    cfg.max_jwk_votes_per_validator_per_epoch = None;
+                    cfg.max_age_of_jwk_in_epochs = None;
                 }
 
                 // Use this template when making changes:
