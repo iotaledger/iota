@@ -6,7 +6,7 @@ use iota_types::{
     IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
     MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::{IotaAddress as NativeIotaAddress, ObjectID as NativeObjectID},
-    parse_iota_struct_tag,
+    parse_iota_struct_tag, parse_iota_type_tag,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -242,6 +242,7 @@ impl<'de> DeserializeAs<'de, NativeTypeTag> for TypeTag {
     where
         D: Deserializer<'de>,
     {
-        NativeTypeTag::deserialize(deserializer)
+        let s = String::deserialize(deserializer)?;
+        parse_iota_type_tag(&s).map_err(D::Error::custom)
     }
 }
