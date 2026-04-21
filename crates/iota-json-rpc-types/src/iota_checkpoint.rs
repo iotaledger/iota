@@ -247,7 +247,7 @@ impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
     fn from(iota_commitment: CheckpointCommitmentSchema) -> Self {
         match iota_commitment {
             CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitment::ECMHLiveObjectSetDigest(digest.into())
+                CheckpointCommitment::ECMHLiveObjectSetDigest(digest)
             }
         }
     }
@@ -257,7 +257,7 @@ impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
     fn from(commitment: CheckpointCommitment) -> Self {
         match commitment {
             CheckpointCommitment::ECMHLiveObjectSetDigest(digest) => {
-                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest.into())
+                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest)
             }
         }
     }
