@@ -96,7 +96,7 @@ impl IotaTxValidator {
                 }
                 #[allow(deprecated)]
                 ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
+                | ConsensusTransactionKind::NewJWKFetchedDeprecated
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }
@@ -320,7 +320,6 @@ mod tests {
     /// so the developer must explicitly map each variant to its gating flag.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
-        use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
         use iota_protocol_config::ProtocolConfig;
         use iota_types::crypto::AuthorityPublicKeyBytes;
 
@@ -359,7 +358,7 @@ mod tests {
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
+                | ConsensusTransactionKind::NewJWKFetchedDeprecated
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
@@ -382,20 +381,8 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublish(authority),
             ),
             (
-                "NewJWKFetched",
-                ConsensusTransactionKind::NewJWKFetched(
-                    authority,
-                    JwkId {
-                        iss: "test".into(),
-                        kid: "test".into(),
-                    },
-                    JWK {
-                        kty: "RSA".into(),
-                        e: "AQAB".into(),
-                        n: "test".into(),
-                        alg: "RS256".into(),
-                    },
-                ),
+                "NewJWKFetchedDeprecated",
+                ConsensusTransactionKind::NewJWKFetchedDeprecated,
             ),
             (
                 "CapabilityNotificationV1",

@@ -15,7 +15,6 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentScope;
 use once_cell::sync::OnceCell;
@@ -81,7 +80,7 @@ pub enum ConsensusTransactionKey {
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
     #[deprecated(note = "JWK is no longer supported")]
-    NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
+    NewJWKFetchedDeprecated,
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
     MisbehaviorReport(
@@ -107,7 +106,7 @@ impl Debug for ConsensusTransactionKey {
                 name.concise(),
                 generation
             ),
-            Self::NewJWKFetched(_) => {
+            Self::NewJWKFetchedDeprecated => {
                 write!(f, "NewJWKFetched(deprecated: JWK is no longer supported)")
             }
             Self::RandomnessDkgMessage(name) => {
@@ -252,7 +251,7 @@ pub enum ConsensusTransactionKind {
     SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
     #[deprecated(note = "JWK is no longer supported")]
-    NewJWKFetched(AuthorityName, JwkId, JWK),
+    NewJWKFetchedDeprecated,
 
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
@@ -639,12 +638,8 @@ impl ConsensusTransaction {
                 )
             }
 
-            ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
-                ConsensusTransactionKey::NewJWKFetched(Box::new((
-                    *authority,
-                    id.clone(),
-                    key.clone(),
-                )))
+            ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                ConsensusTransactionKey::NewJWKFetchedDeprecated
             }
             ConsensusTransactionKind::RandomnessDkgMessage(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgMessage(*authority)

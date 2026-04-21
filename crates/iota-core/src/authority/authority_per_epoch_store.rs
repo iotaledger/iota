@@ -2841,7 +2841,7 @@ impl AuthorityPerEpochStore {
             }
             #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetched(..),
+                kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
                 ..
             }) => {
                 // JWK consensus updates are no longer supported after ZkLogin
@@ -4215,7 +4215,7 @@ impl AuthorityPerEpochStore {
             }
             #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetched(..),
+                kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
                 ..
             }) => {
                 // JWK consensus updates are no longer supported after ZkLogin removal

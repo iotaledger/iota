@@ -1342,12 +1342,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn enable_jwk_consensus_updates(&self) -> bool {
-        // Deprecated: JWK consensus updates are no longer supported after ZkLogin
-        // removal.
-        false
-    }
-
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
