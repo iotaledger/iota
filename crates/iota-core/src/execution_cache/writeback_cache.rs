@@ -103,10 +103,6 @@ use crate::{
 #[path = "unit_tests/writeback_cache_tests.rs"]
 pub mod writeback_cache_tests;
 
-#[cfg(test)]
-#[path = "unit_tests/notify_read_input_objects_tests.rs"]
-mod notify_read_input_objects_tests;
-
 #[derive(Clone, PartialEq, Eq)]
 enum ObjectEntry {
     Object(Object),
@@ -579,18 +575,7 @@ impl WritebackCache {
         entry.insert(version, object.clone());
 
         if let ObjectEntry::Object(object) = &object {
-            if object.is_package() {
-                self.object_notify_read
-                    .notify(&InputKey::Package { id: *object_id }, &());
-            } else if !object.is_child_object() {
-                self.object_notify_read.notify(
-                    &InputKey::VersionedObject {
-                        id: object.id(),
-                        version: object.version(),
-                    },
-                    &(),
-                );
-            }
+            super::notify_object_written(&self.object_notify_read, object);
         }
     }
 
@@ -614,15 +599,11 @@ impl WritebackCache {
             .value_mut()
             .insert(object_key.1, marker_value);
 
-        if matches!(marker_value, MarkerValue::SharedDeleted(_)) {
-            self.object_notify_read.notify(
-                &InputKey::VersionedObject {
-                    id: object_key.0,
-                    version: object_key.1,
-                },
-                &(),
-            );
-        }
+        // It is possible for a transaction to use a shared
+        // object in the input, hence we must notify that it is now available
+        // at the assigned version, so that any transaction waiting for this
+        // object version can start execution.
+        super::notify_marker_written(&self.object_notify_read, object_key, &marker_value);
     }
 
     // lock both the dirty and committed sides of the cache, and then pass the
@@ -1862,75 +1843,13 @@ impl ObjectCacheRead for WritebackCache {
         receiving_keys: &'a HashSet<InputKey>,
         epoch: &'a EpochId,
     ) -> BoxFuture<'a, Vec<()>> {
-        async move {
-            self.object_notify_read
-                .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
-                    let mut results = vec![None; keys.len()];
-
-                    let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-                        .iter()
-                        .enumerate()
-                        .filter(|(idx, key)| {
-                            if key.is_cancelled() {
-                                // Shared objects in canceled transactions are always available.
-                                results[*idx] = Some(());
-                                false
-                            } else {
-                                true
-                            }
-                        })
-                        .partition(|(_, key)| key.version().is_some());
-                    let versioned_object_keys: Vec<_> = keys_with_version
-                        .iter()
-                        .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
-                        .collect();
-                    ObjectCacheRead::multi_get_objects_by_key(self, &versioned_object_keys)
-                        .into_iter()
-                        .zip(keys_with_version.iter())
-                        .for_each(|(o, (idx, input_key))| match o {
-                            Some(_) => results[*idx] = Some(()),
-                            None => {
-                                if receiving_keys.contains(input_key) {
-                                    // There could be a more recent version of this object, and the
-                                    // object at the specified version
-                                    // could have already been pruned. In such a case `has_key` will
-                                    // be false, but since this is a receiving object we should mark
-                                    // it as available if we can determine
-                                    // that an object with a version greater than or equal to the
-                                    // specified version exists or was deleted. We will then let
-                                    // mark it as available to
-                                    // let the transaction
-                                    // through so it can fail at execution.
-                                    let is_available =
-                                        ObjectCacheRead::get_object(self, &input_key.id())
-                                            .map(|obj| {
-                                                obj.version() >= input_key.version().unwrap()
-                                            })
-                                            .unwrap_or(false);
-                                    if is_available {
-                                        results[*idx] = Some(());
-                                    }
-                                } else if self
-                                    .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
-                                    .is_some()
-                                {
-                                    // If the shared object was deleted, mark it as
-                                    // available so the transaction can proceed.
-                                    results[*idx] = Some(());
-                                }
-                            }
-                        });
-                    keys_without_version.iter().for_each(|(idx, key)| {
-                        if self.get_package_object(&key.id()).is_some() {
-                            results[*idx] = Some(());
-                        }
-                    });
-                    Ok(results)
-                })
-                .await
-                .unwrap()
-        }
-        .boxed()
+        super::notify_read_input_objects_impl(
+            &self.object_notify_read,
+            self,
+            input_and_receiving_keys,
+            receiving_keys,
+            epoch,
+        )
     }
 }
 
@@ -2371,5 +2290,23 @@ impl StateSyncAPI for WritebackCache {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+impl WritebackCache {
+    pub(super) fn write_object_for_testing(&self, object: Object) {
+        let id = object.id();
+        let version = object.version();
+        self.write_object_entry(&id, version, ObjectEntry::Object(object));
+    }
+
+    pub(super) fn write_marker_for_testing(
+        &self,
+        epoch_id: EpochId,
+        object_key: &ObjectKey,
+        marker_value: MarkerValue,
+    ) {
+        self.write_marker_value(epoch_id, object_key, marker_value);
     }
 }

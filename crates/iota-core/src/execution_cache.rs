@@ -5,7 +5,7 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::fatal;
+use iota_common::{fatal, sync::notify_read::NotifyRead};
 use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -46,10 +46,128 @@ pub mod passthrough_cache;
 pub mod proxy_cache;
 pub mod writeback_cache;
 
+#[cfg(test)]
+#[path = "execution_cache/unit_tests/notify_read_input_objects_tests.rs"]
+mod notify_read_input_objects_tests;
+
 use metrics::ExecutionCacheMetrics;
 pub use passthrough_cache::PassthroughCache;
 pub use proxy_cache::ProxyCache;
 pub use writeback_cache::WritebackCache;
+
+/// Shared implementation of `notify_read_input_objects` used by both
+/// `WritebackCache` and `PassthroughCache`. Waits until all input and receiving
+/// objects become available by checking the cache/store via `ObjectCacheRead`
+/// trait methods and registering for notifications on missing keys.
+fn notify_read_input_objects_impl<'a>(
+    object_notify_read: &'a NotifyRead<InputKey, ()>,
+    cache: &'a (impl ObjectCacheRead + ?Sized),
+    input_and_receiving_keys: &'a [InputKey],
+    receiving_keys: &'a HashSet<InputKey>,
+    epoch: &'a EpochId,
+) -> BoxFuture<'a, Vec<()>> {
+    async move {
+        object_notify_read
+            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
+                let mut results = vec![None; keys.len()];
+
+                let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, key)| {
+                        if key.is_cancelled() {
+                            // Shared objects in canceled transactions are always available.
+                            results[*idx] = Some(());
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                    .partition(|(_, key)| key.version().is_some());
+                let versioned_object_keys: Vec<_> = keys_with_version
+                    .iter()
+                    .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
+                    .collect();
+                ObjectCacheRead::multi_get_objects_by_key(cache, &versioned_object_keys)
+                    .into_iter()
+                    .zip(keys_with_version.iter())
+                    .for_each(|(o, (idx, input_key))| match o {
+                        Some(_) => results[*idx] = Some(()),
+                        None => {
+                            if receiving_keys.contains(input_key) {
+                                // There could be a more recent version of this object, and the
+                                // object at the specified version could have already been pruned.
+                                // In such a case `has_key` will be false, but since this is a
+                                // receiving object we should mark it as available if we can
+                                // determine that an object with a version greater than or equal to
+                                // the specified version exists or was deleted. We will then let
+                                // mark it as available to let the transaction through so it can
+                                // fail at execution.
+                                let is_available =
+                                    ObjectCacheRead::get_object(cache, &input_key.id())
+                                        .map(|obj| obj.version() >= input_key.version().unwrap())
+                                        .unwrap_or(false);
+                                if is_available {
+                                    results[*idx] = Some(());
+                                }
+                            } else if cache
+                                .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
+                                .is_some()
+                            {
+                                // If the shared object was deleted, mark it as
+                                // available so the transaction can proceed.
+                                results[*idx] = Some(());
+                            }
+                        }
+                    });
+                keys_without_version.iter().for_each(|(idx, key)| {
+                    if cache.get_package_object(&key.id()).is_some() {
+                        results[*idx] = Some(());
+                    }
+                });
+                Ok(results)
+            })
+            .await
+            .unwrap()
+    }
+    .boxed()
+}
+
+/// Notify waiters that a written object is now available. Packages are notified
+/// via `InputKey::Package`, non-child objects via `InputKey::VersionedObject`.
+/// Child objects are never awaited so they are skipped.
+fn notify_object_written(object_notify_read: &NotifyRead<InputKey, ()>, object: &Object) {
+    if object.is_package() {
+        object_notify_read.notify(&InputKey::Package { id: object.id() }, &());
+    } else if !object.is_child_object() {
+        object_notify_read.notify(
+            &InputKey::VersionedObject {
+                id: object.id(),
+                version: object.version(),
+            },
+            &(),
+        );
+    }
+}
+
+/// Notify waiters that a marker value has been written. Only `SharedDeleted`
+/// markers need notification, since they satisfy input object reads for shared
+/// objects that were deleted.
+fn notify_marker_written(
+    object_notify_read: &NotifyRead<InputKey, ()>,
+    object_key: &ObjectKey,
+    marker_value: &MarkerValue,
+) {
+    if matches!(marker_value, MarkerValue::SharedDeleted(_)) {
+        object_notify_read.notify(
+            &InputKey::VersionedObject {
+                id: object_key.0,
+                version: object_key.1,
+            },
+            &(),
+        );
+    }
+}
 
 // If you have Arc<ExecutionCache>, you cannot return a reference to it as
 // an &Arc<dyn ExecutionCacheRead> (for example), because the trait object is a
