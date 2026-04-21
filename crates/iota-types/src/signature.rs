@@ -186,9 +186,9 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(s) => Ok(CompressedSignature::ZkLogin(
-                ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),
-            )),
+            GenericSignature::ZkLoginAuthenticator(s) => Err(IotaError::UnsupportedFeature {
+                error: "zkLogin is not supported".to_string(),
+            }),
             GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
                 PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
             )),

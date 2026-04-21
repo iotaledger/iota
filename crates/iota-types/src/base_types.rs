@@ -752,8 +752,6 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     /// threshold, concatenation of all n flag, public keys and
     /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
     /// || ... || flag_n || pk_n || weight_n`.
-    ///
-    /// When flag_i is ZkLogin, pk_i is deprecated and no longer supported.
     fn from(multisig_pk: &MultiSigPublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::MultiSig.flag()]);

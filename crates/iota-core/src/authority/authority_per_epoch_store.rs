@@ -2844,8 +2844,9 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
                 ..
             }) => {
-                // JWK consensus updates are no longer supported after ZkLogin
-                // removal
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These consensus transaction kinds are retained
+                // only for BCS enum variant compatibility.
                 return None;
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -4218,8 +4219,10 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::NewJWKFetchedDeprecated,
                 ..
             }) => {
-                // JWK consensus updates are no longer supported after ZkLogin removal
-                debug!("Ignoring NewJWKFetched transaction");
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // and was never enabled. These consensus transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                debug!("Ignoring NewJWKFetchedDeprecated transaction");
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {

@@ -1247,8 +1247,8 @@ mod checked {
             TransactionKind::EndOfEpochTransaction(txns) => {
                 let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
-                #[allow(clippy::never_loop)]
-                for (i, tx) in txns.into_iter().enumerate() {
+
+                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);

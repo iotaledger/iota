@@ -25,7 +25,6 @@ pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
 
@@ -215,10 +214,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
         self.randomness_obj_initial_shared_version
     }
@@ -250,10 +245,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
 
     fn flags(&self) -> &[EpochFlag] {
         &self.flags
-    }
-
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
     }
 
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
