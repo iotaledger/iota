@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -775,14 +775,22 @@ impl Core {
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
 
+        // Fetch the leader block header at quorum_round once; reused for the
+        // leader-existence check, the strong-vote readiness check, and the
+        // block header's strong_vote field.
+        let leader_header = self.leader_header(quorum_round);
+
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
         if !reason.is_forced() {
-            if !self.leaders_exist(quorum_round) {
+            if leader_header.is_none() {
                 return None;
             }
 
+            // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
+            // soft-timeout): 2f+1 strong votes at clock_round-1 for the leader
+            // at clock_round-2.
             if !strong_vote_timed_out
                 && self.context.protocol_config.consensus_starfish_speed()
                 && !self.has_strong_vote_quorum(quorum_round)
@@ -799,6 +807,27 @@ impl Core {
             {
                 return None;
             }
+        }
+
+        // Compute the strong_vote once; reused for readiness check 2 and
+        // the block header below.
+        let strong_vote = if self.context.protocol_config.consensus_starfish_speed() {
+            leader_header.as_ref().map(|h| self.compute_strong_vote(h))
+        } else {
+            None
+        };
+
+        // Strong-vote readiness check 2 (StarfishSpeed only, bypassed on
+        // soft-timeout): our block would itself be a strong vote for the
+        // leader at clock_round-1 (strong_vote is Some(empty)).
+        if !reason.is_forced()
+            && !strong_vote_timed_out
+            && self.context.protocol_config.consensus_starfish_speed()
+            && !strong_vote
+                .as_ref()
+                .is_some_and(|missing| missing.is_empty())
+        {
+            return None;
         }
 
         // Determine the ancestors to be included in proposal. A quorum of ancestor must
@@ -920,7 +949,6 @@ impl Core {
         // Create the block and insert to storage.
         let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
         let block_header = if self.context.protocol_config.consensus_starfish_speed() {
-            let strong_vote = self.compute_strong_vote(clock_round, &ancestors);
             BlockHeader::V2(BlockHeaderV2::new(
                 self.context.committee.epoch(),
                 clock_round,
@@ -1300,26 +1328,12 @@ impl Core {
         included_ancestors
     }
 
-    /// Computes the strong_vote bitmask for a block being proposed at
-    /// `clock_round`. Checks data availability for the previous round's
-    /// leader block and its acknowledgments.
-    fn compute_strong_vote(
-        &self,
-        clock_round: Round,
-        ancestors: &[VerifiedBlockHeader],
-    ) -> Option<AuthoritySet> {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            error!("compute_strong_vote called while consensus_starfish_speed is disabled");
-            return None;
-        }
-
-        let leader_round = clock_round.saturating_sub(1);
-        let leaders = self.leaders(leader_round);
-
-        let leader_header = ancestors.iter().find(|a| {
-            a.round() == leader_round && leaders.iter().any(|s| s.authority == a.author())
-        })?;
-
+    /// Given a leader block header, computes the `strong_vote` bitmask for
+    /// a block voting on that leader: the set of authorities (the leader
+    /// itself and those it acknowledges) whose transaction data is not
+    /// locally available. An empty set means a strong vote; a non-empty set
+    /// means strong blame.
+    fn compute_strong_vote(&self, leader_header: &VerifiedBlockHeader) -> AuthoritySet {
         let dag_state = self.dag_state.read();
         let mut missing = AuthoritySet::new();
 
@@ -1334,7 +1348,7 @@ impl Core {
             }
         }
 
-        Some(missing)
+        missing
     }
 
     /// Returns true when 2f+1 stake of blocks at `voting_round` have
@@ -1353,20 +1367,14 @@ impl Core {
         strong_votes.reached_threshold(&self.context.committee)
     }
 
-    /// Checks whether the leaders of the round exist.
-    fn leaders_exist(&self, round: Round) -> bool {
-        let dag_state = self.dag_state.read();
-        for leader in self.leaders(round) {
-            // Search for all the leaders. If at least one is not found, then return false.
-            // A linear search should be fine here as the set of elements is not expected to
-            // be small enough and more sophisticated data structures might not
-            // give us much here.
-            if !dag_state.contains_cached_block_header_at_slot(leader) {
-                return false;
-            }
-        }
-
-        true
+    /// Returns the leader block header for `round` if it is present in the
+    /// DAG. Starfish has exactly one leader per round, so this is either
+    /// `Some(leader_block)` or `None`.
+    fn leader_header(&self, round: Round) -> Option<VerifiedBlockHeader> {
+        let leader = self.leaders(round).into_iter().next()?;
+        self.dag_state
+            .read()
+            .get_cached_block_header_at_slot(Slot::new(round, leader.authority))
     }
 
     /// Returns the leaders of the provided round.

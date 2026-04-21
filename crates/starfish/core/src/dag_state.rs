@@ -1660,6 +1660,45 @@ impl DagState {
         result.next().is_some()
     }
 
+    /// Returns the cached block header at the given slot, or `None` if no
+    /// such block is cached (including when the slot is older than the
+    /// authority's last evicted round). If multiple equivocating blocks
+    /// exist at the same slot, returns the one with the largest
+    /// `BlockHeaderDigest` — matching the selection rule used by
+    /// `get_last_cached_block_header_per_authority`.
+    pub(crate) fn get_cached_block_header_at_slot(
+        &self,
+        slot: Slot,
+    ) -> Option<VerifiedBlockHeader> {
+        if slot.round == GENESIS_ROUND {
+            return self
+                .genesis
+                .iter()
+                .find(|(k, _)| k.author == slot.authority)
+                .map(|(_, b)| (**b).clone());
+        }
+
+        if slot.round <= self.evicted_rounds[slot.authority] {
+            return None;
+        }
+
+        self.recent_headers_refs_by_authority[slot.authority]
+            .range((
+                Included(BlockRef::new(
+                    slot.round,
+                    slot.authority,
+                    BlockHeaderDigest::MIN,
+                )),
+                Included(BlockRef::new(
+                    slot.round,
+                    slot.authority,
+                    BlockHeaderDigest::MAX,
+                )),
+            ))
+            .next_back()
+            .and_then(|block_ref| self.recent_block_headers.get(block_ref).cloned())
+    }
+
     /// Checks whether the required block headers are in cache; if not, then
     /// check in store. The method is not caching back the
     /// results, so it's expensive to keep asking for cache missing block
