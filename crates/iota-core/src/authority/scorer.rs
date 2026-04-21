@@ -208,7 +208,7 @@ impl Scorer {
     pub(crate) fn current_scores(&self) -> Vec<u64> {
         self.current_scores
             .iter()
-            .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+            .map(|x| x.load(Ordering::Relaxed))
             .collect()
     }
 
