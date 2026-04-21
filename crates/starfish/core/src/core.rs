@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -1334,6 +1334,10 @@ impl Core {
     /// locally available. An empty set means a strong vote; a non-empty set
     /// means strong blame.
     fn compute_strong_vote(&self, leader_header: &VerifiedBlockHeader) -> AuthoritySet {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            error!("compute_strong_vote called while consensus_starfish_speed is disabled");
+        }
+
         let dag_state = self.dag_state.read();
         let mut missing = AuthoritySet::new();
 
