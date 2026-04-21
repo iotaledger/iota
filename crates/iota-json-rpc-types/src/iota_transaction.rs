@@ -849,7 +849,7 @@ pub struct IotaTransactionBlockEffectsV1 {
     /// Empty if no shared objects were used.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub shared_objects: Vec<ObjectRef>,
     /// The transaction digest
     #[schemars(with = "Base58")]
@@ -868,18 +868,18 @@ pub struct IotaTransactionBlockEffectsV1 {
     /// Object Refs of objects now deleted (the old refs).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub deleted: Vec<ObjectRef>,
     /// Object refs of objects previously wrapped in other objects but now
     /// deleted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub unwrapped_then_deleted: Vec<ObjectRef>,
     /// Object refs of objects now wrapped in other objects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub wrapped: Vec<ObjectRef>,
     /// The updated gas object reference. Have a dedicated field for convenient
     /// access. It's also included in mutated.
@@ -1631,7 +1631,7 @@ fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
 #[serde(rename = "GasData", rename_all = "camelCase")]
 pub struct IotaGasData {
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub payment: Vec<ObjectRef>,
     #[schemars(with = "IotaAddressSchema")]
     pub owner: IotaAddress,
@@ -2026,7 +2026,7 @@ pub enum IotaInputObjectKind {
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(
         #[schemars(with = "ObjectRefSchema")]
-        #[serde_with(as = "ObjectRefSchema")]
+        #[serde_as(as = "ObjectRefSchema")]
         ObjectRef,
     ),
     // A Move object that's shared and mutable.
@@ -2511,7 +2511,7 @@ pub struct TransactionBlockBytes {
     pub tx_bytes: Base64,
     /// the gas objects to be used
     #[schemars(with = "Vec<ObjectRefSchema>")]
-    #[serde_with(as = "Vec<ObjectRefSchema>")]
+    #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub gas: Vec<ObjectRef>,
     /// objects to be used in this transaction
     pub input_objects: Vec<IotaInputObjectKind>,
@@ -2544,7 +2544,7 @@ pub struct OwnedObjectRef {
     #[serde_as(as = "OwnerSchema")]
     pub owner: Owner,
     #[schemars(with = "ObjectRefSchema")]
-    #[serde_with(as = "ObjectRefSchema")]
+    #[serde_as(as = "ObjectRefSchema")]
     pub reference: ObjectRef,
 }
 

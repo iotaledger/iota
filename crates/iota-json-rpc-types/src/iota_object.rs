@@ -54,7 +54,7 @@ pub struct IotaObjectResponse {
     pub data: Option<IotaObjectData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<IotaObjectResponseErrorSchema>")]
-    #[serde_with(as = "Option<IotaObjectResponseErrorSchema>")]
+    #[serde_as(as = "Option<IotaObjectResponseErrorSchema>")]
     pub error: Option<IotaObjectResponseError>,
 }
 
@@ -1159,7 +1159,7 @@ pub enum IotaPastObjectResponse {
     /// The object is found to be deleted with this version
     ObjectDeleted(
         #[schemars(with = "ObjectRefSchema")]
-        #[serde_with(as = "ObjectRefSchema")]
+        #[serde_as(as = "ObjectRefSchema")]
         ObjectRef,
     ),
     /// The object exists but not found with this version

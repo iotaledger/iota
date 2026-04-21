@@ -67,7 +67,7 @@ pub struct Checkpoint {
     /// Present only on the final checkpoint of the epoch.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<EndOfEpochDataSchema>")]
-    #[serde_with(as = "Option<EndOfEpochDataSchema>")]
+    #[serde_as(as = "Option<EndOfEpochDataSchema>")]
     pub end_of_epoch_data: Option<EndOfEpochData>,
     /// Transaction digests
     #[schemars(with = "Vec<Base58>")]
@@ -75,7 +75,7 @@ pub struct Checkpoint {
 
     /// Commitments to checkpoint state
     #[schemars(with = "Vec<CheckpointCommitmentSchema>")]
-    #[serde_with(as = "Vec<CheckpointCommitmentSchema>")]
+    #[serde_as(as = "Vec<CheckpointCommitmentSchema>")]
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     /// Validator Signature
     #[schemars(with = "Base64")]
@@ -218,8 +218,8 @@ impl From<EndOfEpochData> for EndOfEpochDataSchema {
 pub enum CheckpointCommitmentSchema {
     ECMHLiveObjectSetDigest(
         #[schemars(with = "ECMHLiveObjectSetDigestSchema")]
-        #[serde_with(as = "ECMHLiveObjectSetDigestSchema")]
-        ECMHLiveObjectSetDigestSchema,
+        #[serde_as(as = "ECMHLiveObjectSetDigestSchema")]
+        ECMHLiveObjectSetDigest,
     ),
 }
 

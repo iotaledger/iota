@@ -183,12 +183,12 @@ impl From<DynamicFieldTypeSchema> for DynamicFieldType {
 #[serde(rename_all = "camelCase")]
 pub struct IotaDynamicFieldInfo {
     #[schemars(with = "DynamicFieldNameSchema")]
-    #[serde_with(as = "DynamicFieldNameSchema")]
+    #[serde_as(as = "DynamicFieldNameSchema")]
     pub name: DynamicFieldName,
     #[serde(flatten)]
     pub bcs_name: BcsName,
     #[schemars(with = "DynamicFieldTypeSchema")]
-    #[serde_with(as = "DynamicFieldTypeSchema")]
+    #[serde_as(as = "DynamicFieldTypeSchema")]
     pub type_: DynamicFieldType,
     pub object_type: String,
     #[schemars(with = "ObjectIDSchema")]
