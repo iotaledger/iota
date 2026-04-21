@@ -26,10 +26,15 @@ use iota_types::{
 use tokio_stream::wrappers::ReceiverStream;
 
 /// Maximum number of transactions allowed in a single `submit_tx` request.
-const MAX_TRANSACTIONS_PER_SUBMIT: usize = 256;
+/// Sized so that per-item traffic tallies from a single max-batch request
+/// stay well under `PolicyConfig::channel_capacity` (default 100), leaving
+/// room for concurrent requests before the tally channel overflows.
+const MAX_TRANSACTIONS_PER_SUBMIT: usize = 32;
 
 /// Maximum number of queries allowed in a single `get_tx_status` request.
-const MAX_QUERIES_PER_GET_TX_STATUS: usize = 256;
+/// Sized to match `MAX_TRANSACTIONS_PER_SUBMIT` for the same tally-channel
+/// reason.
+const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 
 /// Timeout for waiting on transaction execution in `get_tx_status`.
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
@@ -40,22 +45,35 @@ const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 /// semaphore.
 const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 
-/// A single streamed item in a V2 RPC response.
-type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), tonic::Status>;
+/// A single streamed item in a V2 RPC response. The `Weight` is the per-item
+/// spam-policy contribution decided by domain logic (see `weight_for_update`).
+type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
 
 use iota_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
-    authority_server::{StreamResponse, ValidatorService, ValidatorServiceMetrics},
+    authority_server::{StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize},
     consensus_adapter::ConsensusAdapter,
 };
+
+/// Spam weight for a submission outcome. `wait_for_tx_finality` decides its
+/// weight per code path because the `Executed` variant has different meaning
+/// there (duplicate query vs legitimate polling completion).
+fn weight_for_update(update: &TxStatusUpdate) -> Weight {
+    match update {
+        TxStatusUpdate::Submitted => Weight::zero(),
+        TxStatusUpdate::Executed { .. } => Weight::one(),
+        TxStatusUpdate::Rejected { error } => normalize(error),
+        TxStatusUpdate::Expired { .. } => Weight::zero(),
+    }
+}
 
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
         transactions: Vec<Transaction>,
-    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), tonic::Status> {
+    ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
@@ -96,7 +114,7 @@ impl ValidatorService {
                     let metrics = metrics.clone();
                     async move {
                         let tx_digest = *transaction.digest();
-                        let result = Self::submit_single_tx(
+                        let (update, weight) = Self::submit_single_tx(
                             &state,
                             &consensus_adapter,
                             &metrics,
@@ -104,10 +122,7 @@ impl ValidatorService {
                             transaction,
                         )
                         .await;
-                        match result {
-                            Ok(submit_result) => Ok((tx_digest, submit_result)),
-                            Err(status) => Err(status),
-                        }
+                        Ok(((tx_digest, update), weight))
                     }
                 })
                 .buffer_unordered(MAX_CONCURRENT_SUBMIT_TASKS);
@@ -121,30 +136,48 @@ impl ValidatorService {
             }
         });
 
-        // TODO(#11080): scale traffic weight with batch size.
-        Ok((ReceiverStream::new(rx), Weight::one()))
+        Ok(ReceiverStream::new(rx))
     }
 
     /// Handles submission of a single transaction. Validates, checks for prior
     /// execution, verifies signature, runs deny checks, and submits to
-    /// consensus.
+    /// consensus. Returns the terminal status together with the per-item
+    /// traffic weight derived from the outcome.
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         transaction: Transaction,
-    ) -> Result<TxStatusUpdate, tonic::Status> {
+    ) -> (TxStatusUpdate, Weight) {
+        let update = Self::submit_single_tx_inner(
+            state,
+            consensus_adapter,
+            metrics,
+            epoch_store,
+            transaction,
+        )
+        .await;
+        let weight = weight_for_update(&update);
+        (update, weight)
+    }
+
+    async fn submit_single_tx_inner(
+        state: &Arc<AuthorityState>,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        metrics: &Arc<ValidatorServiceMetrics>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        transaction: Transaction,
+    ) -> TxStatusUpdate {
         let tx_digest = *transaction.digest();
 
-        let build_executed =
-            |effects: TransactionEffects| -> Result<TxStatusUpdate, tonic::Status> {
-                let effects_digest = effects.digest();
-                Ok(TxStatusUpdate::Executed {
-                    effects_digest,
-                    details: Some(Self::build_executed_data(state, &effects)),
-                })
-            };
+        let build_executed = |effects: TransactionEffects| -> TxStatusUpdate {
+            let effects_digest = effects.digest();
+            TxStatusUpdate::Executed {
+                effects_digest,
+                details: Some(Self::build_executed_data(state, &effects)),
+            }
+        };
 
         // Check system overload.
         if let Err(e) = state.check_system_overload(
@@ -156,14 +189,14 @@ impl ValidatorService {
                 .num_rejected_tx_during_overload
                 .with_label_values(&[e.as_ref()])
                 .inc();
-            return Ok(TxStatusUpdate::Rejected { error: e });
+            return TxStatusUpdate::Rejected { error: e };
         }
 
         // Validate transaction.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
-            return Ok(TxStatusUpdate::Rejected { error: e });
+            return TxStatusUpdate::Rejected { error: e };
         }
 
         // Check if already executed. Transient cache errors are treated as
@@ -184,7 +217,7 @@ impl ValidatorService {
             Ok(verified) => verified,
             Err(e) => {
                 metrics.signature_errors.inc();
-                return Ok(TxStatusUpdate::Rejected { error: e });
+                return TxStatusUpdate::Rejected { error: e };
             }
         };
         drop(tx_verif_guard);
@@ -195,9 +228,9 @@ impl ValidatorService {
             .should_accept_user_certs()
         {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return Ok(TxStatusUpdate::Rejected {
+            return TxStatusUpdate::Rejected {
                 error: IotaError::ValidatorHaltedAtEpochEnd,
-            });
+            };
         }
 
         // Content validation: deny checks + owned object version validation.
@@ -206,7 +239,7 @@ impl ValidatorService {
             .await
         {
             Ok(objs) => objs,
-            Err(e) => return Ok(TxStatusUpdate::Rejected { error: e }),
+            Err(e) => return TxStatusUpdate::Rejected { error: e },
         };
         if let Err(e) = state
             .get_cache_writer()
@@ -221,16 +254,16 @@ impl ValidatorService {
             {
                 return build_executed(effects);
             }
-            return Ok(TxStatusUpdate::Rejected { error: e });
+            return TxStatusUpdate::Rejected { error: e };
         }
 
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return Ok(TxStatusUpdate::Rejected {
+            return TxStatusUpdate::Rejected {
                 error: IotaError::ValidatorHaltedAtEpochEnd,
-            });
+            };
         }
 
         // Submit to consensus.
@@ -239,10 +272,10 @@ impl ValidatorService {
             Some(&reconfiguration_lock),
             epoch_store,
         ) {
-            return Ok(TxStatusUpdate::Rejected { error: e });
+            return TxStatusUpdate::Rejected { error: e };
         }
 
-        Ok(TxStatusUpdate::Submitted)
+        TxStatusUpdate::Submitted
     }
 
     /// Waits for one or more previously submitted transactions to reach
@@ -251,7 +284,7 @@ impl ValidatorService {
     async fn get_tx_status_impl(
         &self,
         request: DomainGetTxStatusRequest,
-    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), tonic::Status> {
+    ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
@@ -284,33 +317,43 @@ impl ValidatorService {
             let epoch_store = epoch_store.clone();
             let tx_sender = tx_sender.clone();
             spawn_monitored_task!(async move {
-                let update = Self::wait_for_tx_finality(
+                let (update, weight) = Self::wait_for_tx_finality(
                     &state,
                     &epoch_store,
                     query.transaction_digest,
                     query.include_details,
                 )
                 .await;
-                let _ = tx_sender.send(Ok((query.transaction_digest, update))).await;
+                let _ = tx_sender
+                    .send(Ok(((query.transaction_digest, update), weight)))
+                    .await;
             });
         }
 
-        Ok((ReceiverStream::new(rx), Weight::one()))
+        Ok(ReceiverStream::new(rx))
     }
 
     /// Waits for a single transaction to reach finality. Returns immediately
-    /// if already executed, otherwise blocks up to the timeout.
+    /// if already executed, otherwise blocks up to the timeout. The returned
+    /// `Weight` is the per-item spam contribution decided by the path taken:
+    /// a fast-path cache hit means the client is querying an already-finalized
+    /// tx (duplicate/redundant query, `Weight::one()`), while every wait-path
+    /// outcome corresponds to legitimate polling for an in-flight tx and is
+    /// weighted as `Weight::zero()`.
     async fn wait_for_tx_finality(
         state: &Arc<AuthorityState>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx_digest: TransactionDigest,
         include_details: bool,
-    ) -> TxStatusUpdate {
-        // Fast path: already executed.
+    ) -> (TxStatusUpdate, Weight) {
+        // Fast path: already executed → duplicate query, spam-like.
         let cache = state.get_transaction_cache_reader();
         match cache.try_get_executed_effects(&tx_digest) {
             Ok(Some(effects)) => {
-                return Self::build_executed_update(state, effects, include_details);
+                return (
+                    Self::build_executed_update(state, effects, include_details),
+                    Weight::one(),
+                );
             }
             Err(e) => {
                 tracing::warn!(?tx_digest, "failed to read effects cache: {e}");
@@ -319,7 +362,8 @@ impl ValidatorService {
             Ok(None) => {}
         }
 
-        // Wait for execution, rejection, epoch end, or timeout.
+        // Wait for execution, rejection, epoch end, or timeout. All outcomes
+        // below are legitimate polling for an in-flight tx → Weight::zero().
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(GET_TX_STATUS_TIMEOUT_SECS),
             epoch_store.within_alive_epoch(async {
@@ -337,7 +381,7 @@ impl ValidatorService {
         )
         .await;
 
-        match result {
+        let update = match result {
             // Epoch ended before execution or rejection.
             Ok(Err(())) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
@@ -348,9 +392,12 @@ impl ValidatorService {
                         ?tx_digest,
                         "empty effects from notify_read, returning Expired"
                     );
-                    return TxStatusUpdate::Expired {
-                        epoch: epoch_store.epoch(),
-                    };
+                    return (
+                        TxStatusUpdate::Expired {
+                            epoch: epoch_store.epoch(),
+                        },
+                        Weight::zero(),
+                    );
                 };
                 let details = if include_details {
                     match cache.try_get_executed_effects(&tx_digest) {
@@ -385,7 +432,8 @@ impl ValidatorService {
             Err(_timeout) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
             },
-        }
+        };
+        (update, Weight::zero())
     }
 
     /// Builds a `TxStatusUpdate::Executed` from known effects, optionally

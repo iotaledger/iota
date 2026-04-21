@@ -221,33 +221,17 @@ impl ValidatorService {
         client: Option<IpAddr>,
         response: Result<(T, Weight), tonic::Status>,
     ) -> Result<T, tonic::Status> {
-        let (error, spam_weight, unwrapped_response): (
-            Option<IotaError>,
-            Weight,
-            Result<T, tonic::Status>,
-        ) = match response {
-            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
-            Err(status) => (
-                Some(IotaError::from(status.clone())),
-                Weight::zero(),
-                Err(status),
-            ),
-        };
-
-        if let Some(traffic_controller) = self.traffic_controller.clone() {
-            traffic_controller.tally(TrafficTally {
-                direct: client,
-                through_fullnode: None,
-                error_info: error.map(|e| {
-                    let error_type = String::from(e.as_ref());
-                    let error_weight = normalize(e);
-                    (error_weight, error_type)
-                }),
-                spam_weight,
-                timestamp: SystemTime::now(),
-            })
-        }
-        unwrapped_response
+        let (spam_weight, error, unwrapped): (Weight, Option<IotaError>, Result<T, tonic::Status>) =
+            match response {
+                Ok((result, w)) => (w, None, Ok(result)),
+                Err(status) => (
+                    Weight::zero(),
+                    Some(IotaError::from(status.clone())),
+                    Err(status),
+                ),
+            };
+        record_tally(self.traffic_controller.as_ref(), client, spam_weight, error);
+        unwrapped
     }
 
     /// Extracts the domain request from a proto request and checks traffic
@@ -283,23 +267,52 @@ impl ValidatorService {
         Ok(tonic::Response::new(proto))
     }
 
-    /// Tallies traffic and maps each domain stream item into its proto
-    /// equivalent.
-    // TODO(#11080): tally traffic per-item, not just once at stream creation.
+    /// Tallies traffic per stream item and maps each domain item into its
+    /// proto equivalent. Each item carries its own business-logic Weight,
+    /// which feeds the spam-policy axis of the traffic controller. Top-level
+    /// errors are tallied once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
         ip: Option<IpAddr>,
-        result: Result<(S, Weight), tonic::Status>,
+        result: Result<S, tonic::Status>,
     ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
     where
-        S: tokio_stream::Stream<Item = Result<DomainItem, tonic::Status>> + Send + 'static,
+        S: tokio_stream::Stream<Item = Result<(DomainItem, Weight), tonic::Status>>
+            + Send
+            + 'static,
         DomainItem: TryInto<ProtoItem> + 'static,
         DomainItem::Error: std::fmt::Display,
         ProtoItem: 'static,
     {
-        let stream = self.tally_traffic(ip, result)?;
-        let mapped = stream.map(|item| {
-            item.and_then(|v| {
+        let stream = match result {
+            Ok(s) => s,
+            Err(status) => {
+                record_tally(
+                    self.traffic_controller.as_ref(),
+                    ip,
+                    Weight::zero(),
+                    Some(IotaError::from(status.clone())),
+                );
+                return Err(status);
+            }
+        };
+
+        let traffic_controller = self.traffic_controller.clone();
+        let mapped = stream.map(move |item| {
+            let (spam_weight, error, forward): (
+                Weight,
+                Option<IotaError>,
+                Result<DomainItem, tonic::Status>,
+            ) = match item {
+                Ok((data, w)) => (w, None, Ok(data)),
+                Err(status) => (
+                    Weight::zero(),
+                    Some(IotaError::from(status.clone())),
+                    Err(status),
+                ),
+            };
+            record_tally(traffic_controller.as_ref(), ip, spam_weight, error);
+            forward.and_then(|v| {
                 v.try_into().map_err(|e| {
                     tonic::Status::internal(format!("stream item conversion failed: {e}"))
                 })
@@ -322,7 +335,7 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
 }
 
 // TODO(#11095): refine error-to-weight mapping.
-fn normalize(err: IotaError) -> Weight {
+pub(super) fn normalize(err: &IotaError) -> Weight {
     match err {
         IotaError::UserInput {
             error: UserInputError::IncorrectUserSignature { .. },
@@ -335,6 +348,29 @@ fn normalize(err: IotaError) -> Weight {
         | IotaError::WrongEpoch { .. } => Weight::one(),
         _ => Weight::zero(),
     }
+}
+
+/// Records a single traffic tally (no-op if traffic control is disabled).
+fn record_tally(
+    traffic_controller: Option<&Arc<TrafficController>>,
+    client: Option<IpAddr>,
+    spam_weight: Weight,
+    error: Option<IotaError>,
+) {
+    let Some(tc) = traffic_controller else {
+        return;
+    };
+    tc.tally(TrafficTally {
+        direct: client,
+        through_fullnode: None,
+        error_info: error.map(|e| {
+            let error_type = String::from(e.as_ref());
+            let error_weight = normalize(&e);
+            (error_weight, error_type)
+        }),
+        spam_weight,
+        timestamp: SystemTime::now(),
+    });
 }
 
 /// Implements generic pre- and post-processing. Since this is on the critical

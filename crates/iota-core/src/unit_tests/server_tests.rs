@@ -1405,8 +1405,8 @@ async fn test_v2_get_tx_status_too_many_queries() {
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
     ));
 
-    // Build 257 queries (exceeds MAX_QUERIES_PER_GET_TX_STATUS = 256).
-    let queries: Vec<_> = (0..257)
+    // Build 33 queries (exceeds MAX_QUERIES_PER_GET_TX_STATUS = 32).
+    let queries: Vec<_> = (0..33)
         .map(|_| (iota_types::digests::TransactionDigest::random(), false))
         .collect();
 
