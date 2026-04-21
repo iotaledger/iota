@@ -86,8 +86,6 @@ pub enum KeyToolCommand {
         tx_bytes: String,
         #[arg(long)]
         sig: Option<GenericSignature>,
-        #[arg(long, default_value = "0")]
-        cur_epoch: u64,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
@@ -96,8 +94,6 @@ pub enum KeyToolCommand {
         multisig: MultiSig,
         #[arg(long)]
         tx_bytes: Option<String>,
-        #[arg(long, default_value = "0")]
-        cur_epoch: u64,
     },
     /// Decode a Base64 encoded signature and print its deserialized content.
     /// Also supports decoding a Base64 encoded SenderSignedTransaction and
@@ -429,11 +425,7 @@ impl KeyToolCommand {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
             }
-            KeyToolCommand::DecodeMultiSig {
-                multisig,
-                tx_bytes,
-                cur_epoch,
-            } => {
+            KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
                 let pks = multisig.get_pk().pubkeys();
                 let sigs = multisig.get_sigs();
                 let bitmap = multisig.get_indices()?;
@@ -477,7 +469,6 @@ impl KeyToolCommand {
                     let res = s.verify_authenticator(
                         &IntentMessage::new(Intent::iota_transaction(), tx_data),
                         address,
-                        cur_epoch,
                         &VerifyParams::default(),
                     );
 
@@ -579,11 +570,7 @@ impl KeyToolCommand {
                 };
                 CommandOutput::DecodeSig(decoded)
             }
-            KeyToolCommand::DecodeOrVerifyTx {
-                tx_bytes,
-                sig,
-                cur_epoch,
-            } => {
+            KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
                 let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
@@ -596,7 +583,6 @@ impl KeyToolCommand {
                         let res = s.verify_authenticator(
                             &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
                             tx_data.sender(),
-                            cur_epoch,
                             &VerifyParams::default(),
                         );
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {

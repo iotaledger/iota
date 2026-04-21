@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
@@ -79,14 +79,6 @@ impl Hash for MultiSig {
 }
 
 impl AuthenticatorTrait for MultiSig {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch_id: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> Result<(), IotaError> {
-        Ok(())
-    }
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,

@@ -243,12 +243,7 @@ async fn test_passkey_authenticator() {
         .unwrap(),
     );
 
-    let res = sig.verify_authenticator(
-        &response.intent_msg,
-        response.sender,
-        0,
-        &Default::default(),
-    );
+    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
     assert!(res.is_ok());
 }
 
@@ -362,7 +357,6 @@ async fn test_real_passkey_output() {
     let res = sig.verify_authenticator(
         &IntentMessage::new(Intent::iota_transaction(), tx_data),
         address,
-        0,
         &Default::default(),
     );
     assert!(res.is_ok());

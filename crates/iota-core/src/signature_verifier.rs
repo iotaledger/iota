@@ -327,13 +327,7 @@ impl SignatureVerifier {
     pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> IotaResult {
         self.signed_data_cache.is_verified(
             signed_tx.full_message_digest(),
-            || {
-                verify_sender_signed_data_message_signatures(
-                    signed_tx,
-                    self.committee.epoch(),
-                    &self.verify_params,
-                )
-            },
+            || verify_sender_signed_data_message_signatures(signed_tx, &self.verify_params),
             || Ok(()),
         )
     }

@@ -3001,20 +3001,15 @@ pub type SignedTransaction = Envelope<SenderSignedData, AuthoritySignInfo>;
 pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedData, AuthoritySignInfo>;
 
 impl Transaction {
-    pub fn verify_signature_for_testing(
-        &self,
-        current_epoch: EpochId,
-        verify_params: &VerifyParams,
-    ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(self.data(), current_epoch, verify_params)
+    pub fn verify_signature_for_testing(&self, verify_params: &VerifyParams) -> IotaResult {
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)
     }
 
     pub fn try_into_verified_for_testing(
         self,
-        current_epoch: EpochId,
         verify_params: &VerifyParams,
     ) -> IotaResult<VerifiedTransaction> {
-        self.verify_signature_for_testing(current_epoch, verify_params)?;
+        self.verify_signature_for_testing(verify_params)?;
         Ok(VerifiedTransaction::new_from_verified(self))
     }
 }
@@ -3025,11 +3020,7 @@ impl SignedTransaction {
         committee: &Committee,
         verify_params: &VerifyParams,
     ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            committee.epoch(),
-            verify_params,
-        )?;
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)?;
 
         self.auth_sig().verify_secure(
             self.data(),
@@ -3070,11 +3061,7 @@ impl CertifiedTransaction {
         committee: &Committee,
         verify_params: &VerifyParams,
     ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            committee.epoch(),
-            verify_params,
-        )?;
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)?;
         self.auth_sig().verify_secure(
             self.data(),
             Intent::iota_app(IntentScope::SenderSignedTransaction),

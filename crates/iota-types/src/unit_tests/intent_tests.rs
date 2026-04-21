@@ -79,7 +79,7 @@ fn test_authority_signature_intent() {
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
-        tx.try_into_verified_for_testing(epoch, &Default::default())
+        tx.try_into_verified_for_testing(&Default::default())
             .is_ok()
     );
 

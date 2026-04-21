@@ -18,7 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
@@ -227,14 +227,6 @@ impl Hash for PasskeyAuthenticator {
 }
 
 impl AuthenticatorTrait for PasskeyAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
-
     /// Verify an intent message of a transaction with an passkey authenticator.
     fn verify_claims<T>(
         &self,

@@ -11,7 +11,6 @@ use parking_lot::RwLock;
 use prometheus::IntCounter;
 
 use crate::{
-    committee::EpochId,
     error::{IotaError, IotaResult},
     signature::VerifyParams,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -113,7 +112,6 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
 /// be from a checkpoint.
 pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
-    current_epoch: EpochId,
     verify_params: &VerifyParams,
 ) -> IotaResult {
     let intent_message = txn.intent_message();
@@ -149,7 +147,7 @@ pub fn verify_sender_signed_data_message_signatures(
 
     // 4. Every signature must be valid.
     for (signer, signature) in present_sigs {
-        signature.verify_authenticator(intent_message, signer, current_epoch, verify_params)?;
+        signature.verify_authenticator(intent_message, signer, verify_params)?;
     }
     Ok(())
 }

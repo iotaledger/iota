@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    committee::EpochId,
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -126,14 +125,6 @@ impl MoveAuthenticator {
 }
 
 impl AuthenticatorTrait for MoveAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        self.inner
-            .verify_user_authenticator_epoch(epoch, max_epoch_upper_bound_delta)
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(
@@ -473,13 +464,6 @@ impl MoveAuthenticatorV1 {
 }
 
 impl AuthenticatorTrait for MoveAuthenticatorV1 {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(

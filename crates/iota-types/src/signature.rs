@@ -21,7 +21,6 @@ use tracing::instrument;
 
 use crate::{
     base_types::IotaAddress,
-    committee::EpochId,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
         SignatureScheme,
@@ -49,12 +48,6 @@ impl VerifyParams {
 /// A lightweight trait that all members of [enum GenericSignature] implement.
 #[enum_dispatch]
 pub trait AuthenticatorTrait {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult;
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
@@ -73,16 +66,6 @@ pub trait AuthenticatorTrait {
 pub struct ZkLoginAuthenticatorDeprecated;
 
 impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Err(IotaError::UnsupportedFeature {
-            error: "zkLogin is not supported".to_string(),
-        })
-    }
-
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
@@ -137,13 +120,11 @@ impl GenericSignature {
         &self,
         value: &IntentMessage<T>,
         author: IotaAddress,
-        epoch: EpochId,
         verify_params: &VerifyParams,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.verify_user_authenticator_epoch(epoch, None)?;
         self.verify_claims(value, author, verify_params)
     }
 
@@ -335,10 +316,6 @@ impl<'de> ::serde::Deserialize<'de> for GenericSignature {
 /// This ports the wrapper trait to the verify_secure defined on [enum
 /// Signature].
 impl AuthenticatorTrait for Signature {
-    fn verify_user_authenticator_epoch(&self, _: EpochId, _: Option<EpochId>) -> IotaResult {
-        Ok(())
-    }
-
     #[instrument(level = "trace", skip_all)]
     fn verify_claims<T>(
         &self,
