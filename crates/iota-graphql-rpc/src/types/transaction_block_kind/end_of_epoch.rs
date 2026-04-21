@@ -443,15 +443,6 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
-            #[allow(deprecated)]
-            N::AuthenticatorStateCreateDeprecated | N::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
-            }
         }
     }
 }

@@ -1,6 +1,5 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
-assertion_line: 18
 expression: sdl
 ---
 """

@@ -375,10 +375,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV4(ChangeEpochV4),
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
-    #[deprecated(note = "JWK/authenticator state is no longer supported")]
-    AuthenticatorStateCreateDeprecated,
-    #[deprecated(note = "JWK/authenticator state is no longer supported")]
-    AuthenticatorStateExpireDeprecated,
 }
 
 impl EndOfEpochTransactionKind {
@@ -514,35 +510,15 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateCreateDeprecated | Self::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                vec![]
-            }
         }
     }
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match self {
-            Self::ChangeEpoch(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV2(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV3(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV4(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::AuthenticatorStateExpireDeprecated | Self::AuthenticatorStateCreateDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                Either::Right(iter::empty())
-            }
+            Self::ChangeEpoch(_)
+            | Self::ChangeEpochV2(_)
+            | Self::ChangeEpochV3(_)
+            | Self::ChangeEpochV4(_) => vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter(),
         }
     }
 
@@ -630,14 +606,6 @@ impl EndOfEpochTransactionKind {
                         "passing of validator scores required".to_string(),
                     ));
                 }
-            }
-            Self::AuthenticatorStateCreateDeprecated | Self::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                return Err(UserInputError::Unsupported(
-                    "authenticator state transactions are deprecated and were never created on IOTA".to_string(),
-                ));
             }
         }
         Ok(())
@@ -1419,7 +1387,6 @@ impl TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
-                    _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
                 }
             }
             _ => None,

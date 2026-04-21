@@ -535,13 +535,10 @@ impl IotaTransactionBlockKind {
                 })
             }
             TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
-                Self::EndOfEpochTransaction(
-                    IotaEndOfEpochTransaction {
-                        transactions:
-                            end_of_epoch_tx
-                                .into_iter()
-                                .map(|tx| {
-                                    match tx {
+                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
+                    transactions: end_of_epoch_tx
+                        .into_iter()
+                        .map(|tx| match tx {
                             EndOfEpochTransactionKind::ChangeEpoch(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
                             }
@@ -554,21 +551,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
-                            #[allow(deprecated)]
-                            EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
-                            | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
-                                // Deprecated: Authenticator state (JWK) is deprecated and
-                                // and was never enabled. These transaction kinds are retained
-                                // only for BCS enum variant compatibility.
-                                unreachable!(
-                                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                                );
-                            }
-                        }
-                    })
-                    .collect(),
-                    },
-                )
+                        })
+                        .collect(),
+                })
             }
         })
     }

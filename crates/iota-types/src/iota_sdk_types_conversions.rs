@@ -709,15 +709,6 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
-            | crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
-            }
         }
     }
 }
@@ -819,15 +810,6 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     scores: change_epoch_v4.scores,
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
-            }
-            EndOfEpochTransactionKind::AuthenticatorStateCreateDeprecated
-            | EndOfEpochTransactionKind::AuthenticatorStateExpireDeprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
