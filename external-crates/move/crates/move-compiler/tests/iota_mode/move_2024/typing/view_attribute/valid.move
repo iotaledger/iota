@@ -10,12 +10,6 @@ module a::m {
     }
 
     #[view]
-    public fun with_mut_non_object_reference(v: &mut u64): u64 {
-        let _ = v;
-        0
-    }
-
-    #[view]
     public fun returns_ref(): &u64 {
         abort 0
     }
