@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    time::Instant,
+};
 
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
@@ -202,6 +205,28 @@ impl ConsensusAuthority {
 
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
+        // `fast_sync_active` is a shared flag used by the fast syncer to
+        // signal when it has any work in flight. The regular commit syncer
+        // and the header synchronizer both read it to pause their
+        // dispatch loops while fast sync is active, avoiding overlapping
+        // ancestor fetches. Only created when fast sync will actually run;
+        // `None` keeps the gate a no-op on deployments (e.g. mainnet today)
+        // where fast sync is disabled.
+        //
+        // Seeded from the durable `DagState::fast_sync_ongoing` flag so a
+        // restart mid-fast-sync starts in the paused state, without
+        // waiting for fast sync's first schedule-loop tick to set it.
+        // Afterwards fast sync owns the atomic; the durable flag is not
+        // reactive enough for runtime gating.
+        let fast_sync_active: Option<Arc<AtomicBool>> =
+            if context.protocol_config.consensus_fast_commit_sync()
+                && context.parameters.enable_fast_commit_syncer
+            {
+                Some(Arc::new(AtomicBool::new(fast_sync_ongoing)))
+            } else {
+                None
+            };
+
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -211,10 +236,12 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             sync_last_known_own_block,
+            fast_sync_active.clone(),
         );
 
         // Both commit syncers run, but only one actively fetches based on the gap.
         // CommitSyncer handles small gaps, FastCommitSyncer handles large gaps.
+
         let regular_commit_syncer_handle = RegularCommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
@@ -224,6 +251,7 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             header_synchronizer.clone(),
+            fast_sync_active.clone(),
         )
         .start();
 
@@ -231,25 +259,20 @@ impl ConsensusAuthority {
         // config flag are enabled. The protocol flag also controls gRPC endpoint
         // availability, while the local flag allows operators to disable the
         // syncer without a protocol upgrade.
-        let fast_commit_syncer_handle = if context.protocol_config.consensus_fast_commit_sync()
-            && context.parameters.enable_fast_commit_syncer
-        {
-            Some(
-                FastCommitSyncer::new(
-                    context.clone(),
-                    core_dispatcher.clone(),
-                    commit_vote_monitor.clone(),
-                    commit_consumer_monitor.clone(),
-                    network_client.clone(),
-                    block_verifier.clone(),
-                    dag_state.clone(),
-                    header_synchronizer.clone(),
-                )
-                .start(),
+        let fast_commit_syncer_handle = fast_sync_active.as_ref().map(|flag| {
+            FastCommitSyncer::new(
+                context.clone(),
+                core_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                commit_consumer_monitor.clone(),
+                network_client.clone(),
+                block_verifier.clone(),
+                dag_state.clone(),
+                header_synchronizer.clone(),
+                flag.clone(),
             )
-        } else {
-            None
-        };
+            .start()
+        });
 
         let network_service = Arc::new(AuthorityService::new(
             context.clone(),

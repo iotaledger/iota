@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -28,10 +28,12 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
-        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
-        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_with_headers, verify_transactions_with_transactions_refs,
+        CommitSyncType, CommitSyncerHandle, Inner,
+        fast::{FastSyncPauseSource, paused_by_fast_sync},
+        fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
+        schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
+        verify_fetched_headers, verify_transactions_with_headers,
+        verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -78,6 +80,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        fast_sync_active: Option<Arc<AtomicBool>>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -89,6 +92,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             dag_state,
             header_synchronizer,
             sync_type: CommitSyncType::Regular,
+            fast_sync_active,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
         RegularCommitSyncer {
@@ -162,6 +166,19 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                 .protocol_config
                 .consensus_fast_commit_sync()
                 && self.inner.context.parameters.enable_fast_commit_syncer,
+        ) {
+            return;
+        }
+
+        // Pause regular scheduling while the fast commit syncer has any work
+        // in flight. Prevents both syncers from racing on overlapping commit
+        // ranges and forcing duplicate ancestor fetches through the
+        // HeaderSynchronizer. When fast sync is disabled at this deployment,
+        // `fast_sync_active` is `None` and this gate short-circuits.
+        if paused_by_fast_sync(
+            self.inner.fast_sync_active.as_ref(),
+            &self.inner.context.metrics.node_metrics,
+            FastSyncPauseSource::RegularSchedule,
         ) {
             return;
         }
@@ -451,6 +468,18 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
     }
 
     fn try_start_fetches(&mut self) {
+        // Do not move entries from `pending_fetches` into `inflight_fetches`
+        // while the fast commit syncer is doing work. Already-inflight fetches
+        // are not touched — they complete naturally and their results are
+        // deduped against `synced_commit_index` in `handle_fetch_result`.
+        if paused_by_fast_sync(
+            self.inner.fast_sync_active.as_ref(),
+            &self.inner.context.metrics.node_metrics,
+            FastSyncPauseSource::RegularStartFetches,
+        ) {
+            return;
+        }
+
         let inner = self.inner.clone();
         shared_try_start_fetches(
             &self.inner,
@@ -968,6 +997,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let mut commit_syncer = RegularCommitSyncer::new(
@@ -979,6 +1009,7 @@ mod tests {
             block_verifier,
             dag_state,
             header_synchronizer,
+            None,
         );
 
         // Check initial state.
