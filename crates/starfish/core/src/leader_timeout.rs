@@ -138,7 +138,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // When the soft leader timeout expires, attempt block creation without requiring
                 // a strong-vote quorum. Only active when starfish speed is enabled.
                 () = &mut soft_timeout, if !soft_timed_out && self.starfish_speed_enabled => {
-                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::RelaxedTimeout).await {
+                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::SoftTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(

@@ -124,7 +124,7 @@ pub(crate) enum ReasonToCreateBlock {
     MinBlockDelayTimeout,
     AddBlock,
     AddBlockHeader,
-    RelaxedTimeout,
+    SoftTimeout,
     MaxLeaderTimeout,
     Recover,
     QuorumSubscribersExist,
@@ -140,7 +140,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => "AddBlock",
             ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
             ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
-            ReasonToCreateBlock::RelaxedTimeout => "RelaxedTimeout",
+            ReasonToCreateBlock::SoftTimeout => "SoftTimeout",
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
@@ -156,7 +156,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => false,
             ReasonToCreateBlock::MaxLeaderTimeout => true,
             ReasonToCreateBlock::AddBlockHeader => false,
-            ReasonToCreateBlock::RelaxedTimeout => false,
+            ReasonToCreateBlock::SoftTimeout => false,
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
@@ -767,7 +767,7 @@ impl Core {
         // skips the strong-vote check regardless of reason. A stale value
         // from an earlier round is inert because only an exact match with
         // the current clock_round below triggers the skip.
-        if matches!(reason, ReasonToCreateBlock::RelaxedTimeout) {
+        if matches!(reason, ReasonToCreateBlock::SoftTimeout) {
             self.strong_vote_timed_out_round = Some(clock_round);
         }
         let strong_vote_timed_out = self.strong_vote_timed_out_round == Some(clock_round);
