@@ -1,0 +1,73 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 11 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 13-89:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12061200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 91:
+//# run test::m1::create --sender A
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7), object(2,8), object(2,9)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 19782800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 93:
+//# view-object 2,8
+Owner: Shared( 2 )
+Version: 2
+Contents: test::m1::GreatGrandParent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,8),
+        },
+    },
+}
+
+task 4, lines 95-97:
+//# view-object 2,9
+Owner: Account Address ( A )
+Version: 2
+Contents: test::m1::GreatGrandParent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,9),
+        },
+    },
+}
+
+task 5, line 99:
+//# run test::m1::borrow_mut --sender A --args object(2,8)
+mutated: object(0,0), object(2,8)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+
+task 6, line 101:
+//# run test::m1::borrow_mut --sender A --args object(2,9)
+mutated: object(0,0), object(2,9)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2302800,  storage_rebate: 2302800, non_refundable_storage_fee: 0
+
+task 7, line 103:
+//# run test::m1::add_remove --sender A --args object(2,8)
+mutated: object(0,0), object(2,1), object(2,2), object(2,5), object(2,7), object(2,8)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10381600,  storage_rebate: 10381600, non_refundable_storage_fee: 0
+
+task 8, line 105:
+//# run test::m1::add_remove --sender A --args object(2,9)
+mutated: object(0,0), object(2,0), object(2,3), object(2,4), object(2,6), object(2,9)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10381600,  storage_rebate: 10381600, non_refundable_storage_fee: 0
+
+task 9, line 107:
+//# run test::m1::write_back --sender A --args object(2,8)
+mutated: object(0,0), object(2,2), object(2,7), object(2,8)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6475200,  storage_rebate: 6475200, non_refundable_storage_fee: 0
+
+task 10, line 109:
+//# run test::m1::write_back --sender A --args object(2,9)
+mutated: object(0,0), object(2,3), object(2,6), object(2,9)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6475200,  storage_rebate: 6475200, non_refundable_storage_fee: 0
