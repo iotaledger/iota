@@ -24,7 +24,7 @@ use crate::{
     committee::EpochId,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
-        SignatureScheme, ZkLoginAuthenticatorAsBytes,
+        SignatureScheme,
     },
     error::{IotaError, IotaResult},
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorInner, MoveAuthenticatorV1},
@@ -66,13 +66,13 @@ pub trait AuthenticatorTrait {
 }
 
 /// Deprecated zkLogin authenticator — empty stub retained only so the
-/// [`GenericSignature::ZkLoginAuthenticator`] enum variant compiles.
+/// [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles.
 /// Instances are never constructed; deserialization rejects the flag byte.
 #[deprecated(note = "zkLogin is no longer supported")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
-pub struct ZkLoginAuthenticator;
+pub struct ZkLoginAuthenticatorDeprecated;
 
-impl AuthenticatorTrait for ZkLoginAuthenticator {
+impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
     fn verify_user_authenticator_epoch(
         &self,
         _epoch: EpochId,
@@ -98,7 +98,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     }
 }
 
-impl AsRef<[u8]> for ZkLoginAuthenticator {
+impl AsRef<[u8]> for ZkLoginAuthenticatorDeprecated {
     fn as_ref(&self) -> &[u8] {
         &[]
     }
@@ -115,7 +115,7 @@ impl AsRef<[u8]> for ZkLoginAuthenticator {
 pub enum GenericSignature {
     MultiSig,
     Signature,
-    ZkLoginAuthenticator,
+    ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
 }
@@ -186,9 +186,11 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(s) => Err(IotaError::UnsupportedFeature {
-                error: "zkLogin is not supported".to_string(),
-            }),
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
+            }
             GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
                 PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
             )),
@@ -229,9 +231,11 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(_) => Err(IotaError::UnsupportedFeature {
-                error: "zkLogin is not supported".to_string(),
-            }),
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
+            }
             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
@@ -261,7 +265,7 @@ impl ToFromBytes for GenericSignature {
                 SignatureScheme::MultiSig => {
                     Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
                 }
-                SignatureScheme::ZkLoginAuthenticator => {
+                SignatureScheme::ZkLoginAuthenticatorDeprecated => {
                     // zkLogin is no longer supported — reject at deserialization.
                     Err(FastCryptoError::GeneralError(
                         "zkLogin is not supported".to_string(),
@@ -288,7 +292,7 @@ impl AsRef<[u8]> for GenericSignature {
         match self {
             GenericSignature::MultiSig(s) => s.as_ref(),
             GenericSignature::Signature(s) => s.as_ref(),
-            GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
+            GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref(),
             GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
             GenericSignature::MoveAuthenticator(s) => s.as_ref(),
         }

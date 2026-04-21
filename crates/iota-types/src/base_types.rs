@@ -782,9 +782,11 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::ZkLoginAuthenticator(_) => Err(IotaError::UnsupportedFeature {
-                error: "zkLogin is not supported".to_string(),
-            }),
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
+            }
             GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
             GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
         }

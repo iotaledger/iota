@@ -77,7 +77,7 @@ fn check_disabled_features(
     );
 
     tx_signatures.iter().try_for_each(|s| {
-        if let GenericSignature::ZkLoginAuthenticator(_) = s {
+        if let GenericSignature::ZkLoginAuthenticatorDeprecated(_) = s {
             deny_if_true!(true, "zkLogin is not supported");
         } else if let GenericSignature::MoveAuthenticator(_) = s {
             deny_if_true!(

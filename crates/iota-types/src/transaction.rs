@@ -2432,7 +2432,7 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                GenericSignature::ZkLoginAuthenticator(_) => {
+                GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                     return Err(IotaError::UserInput {
                         error: UserInputError::Unsupported(
                             "zklogin is not enabled on this network".to_string(),

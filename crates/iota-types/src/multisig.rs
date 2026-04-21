@@ -207,7 +207,7 @@ impl AuthenticatorTrait for MultiSig {
                     )
                 }
                 #[allow(deprecated)]
-                CompressedSignature::ZkLogin(_) => {
+                CompressedSignature::ZkLoginDeprecated => {
                     return Err(IotaError::InvalidSignature {
                         error: "zkLogin sig not supported".to_string(),
                     });

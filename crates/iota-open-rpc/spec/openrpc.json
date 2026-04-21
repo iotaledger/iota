@@ -6443,16 +6443,10 @@
           },
           {
             "deprecated": true,
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
+            "type": "string",
+            "enum": [
+              "ZkLoginDeprecated"
+            ]
           },
           {
             "type": "object",
@@ -7701,11 +7695,11 @@
           {
             "type": "object",
             "required": [
-              "ZkLoginAuthenticator"
+              "ZkLoginAuthenticatorDeprecated"
             ],
             "properties": {
-              "ZkLoginAuthenticator": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticator"
+              "ZkLoginAuthenticatorDeprecated": {
+                "$ref": "#/components/schemas/ZkLoginAuthenticatorDeprecated"
               }
             },
             "additionalProperties": false
@@ -11796,7 +11790,7 @@
             "deprecated": true,
             "type": "string",
             "enum": [
-              "ZkLogin"
+              "ZkLoginDeprecated"
             ]
           },
           {
@@ -13188,18 +13182,10 @@
           }
         }
       },
-      "ZkLoginAuthenticator": {
-        "description": "Deprecated zkLogin authenticator — empty stub retained only so the [`GenericSignature::ZkLoginAuthenticator`] enum variant compiles. Instances are never constructed; deserialization rejects the flag byte.",
+      "ZkLoginAuthenticatorDeprecated": {
+        "description": "Deprecated zkLogin authenticator — empty stub retained only so the [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles. Instances are never constructed; deserialization rejects the flag byte.",
         "deprecated": true,
         "type": "null"
-      },
-      "ZkLoginAuthenticatorAsBytes": {
-        "deprecated": true,
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
       }
     }
   }

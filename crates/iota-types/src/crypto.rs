@@ -295,7 +295,7 @@ pub enum PublicKey {
     Secp256k1(Secp256k1PublicKeyAsBytes),
     Secp256r1(Secp256r1PublicKeyAsBytes),
     #[deprecated(note = "zkLogin is no longer supported")]
-    ZkLogin,
+    ZkLoginDeprecated,
     Passkey(Secp256r1PublicKeyAsBytes),
 }
 
@@ -306,7 +306,7 @@ impl AsRef<[u8]> for PublicKey {
             PublicKey::Secp256k1(pk) => &pk.0,
             PublicKey::Secp256r1(pk) => &pk.0,
             #[allow(deprecated)]
-            PublicKey::ZkLogin => &[],
+            PublicKey::ZkLoginDeprecated => &[],
             PublicKey::Passkey(pk) => &pk.0,
         }
     }
@@ -386,7 +386,7 @@ impl PublicKey {
             PublicKey::Secp256k1(_) => Secp256k1IotaSignature::SCHEME,
             PublicKey::Secp256r1(_) => Secp256r1IotaSignature::SCHEME,
             #[allow(deprecated)]
-            PublicKey::ZkLogin => SignatureScheme::ZkLoginAuthenticator,
+            PublicKey::ZkLoginDeprecated => SignatureScheme::ZkLoginAuthenticatorDeprecated,
             PublicKey::Passkey(_) => SignatureScheme::PasskeyAuthenticator,
         }
     }
@@ -1700,7 +1700,7 @@ pub enum SignatureScheme {
     BLS12381, // This is currently not supported for user Iota Address.
     MultiSig,
     #[deprecated(note = "zkLogin is no longer supported")]
-    ZkLoginAuthenticator,
+    ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
 }
@@ -1714,7 +1714,7 @@ impl SignatureScheme {
             SignatureScheme::MultiSig => 0x03,
             SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota
             // Address.
-            SignatureScheme::ZkLoginAuthenticator => 0x05,
+            SignatureScheme::ZkLoginAuthenticatorDeprecated => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
             SignatureScheme::MoveAuthenticator => 0x07,
         }
@@ -1743,7 +1743,7 @@ impl SignatureScheme {
             0x02 => Ok(SignatureScheme::Secp256r1),
             0x03 => Ok(SignatureScheme::MultiSig),
             0x04 => Ok(SignatureScheme::BLS12381),
-            0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
+            0x05 => Ok(SignatureScheme::ZkLoginAuthenticatorDeprecated),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
             0x07 => Ok(SignatureScheme::MoveAuthenticator),
             _ => Err(IotaError::KeyConversion("Invalid key scheme".to_string())),
@@ -1758,14 +1758,10 @@ pub enum CompressedSignature {
     Secp256k1(Secp256k1SignatureAsBytes),
     Secp256r1(Secp256r1SignatureAsBytes),
     #[deprecated(note = "zkLogin is no longer supported")]
-    ZkLogin(ZkLoginAuthenticatorAsBytes),
+    ZkLoginDeprecated,
     Passkey(PasskeyAuthenticatorAsBytes),
     Move(MoveAuthenticatorAsBytes),
 }
-
-#[deprecated(note = "zkLogin is no longer supported")]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct PasskeyAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
@@ -1779,7 +1775,7 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Ed25519(sig) => &sig.0,
             CompressedSignature::Secp256k1(sig) => &sig.0,
             CompressedSignature::Secp256r1(sig) => &sig.0,
-            CompressedSignature::ZkLogin(sig) => &sig.0,
+            CompressedSignature::ZkLoginDeprecated => &[],
             CompressedSignature::Passkey(sig) => &sig.0,
             CompressedSignature::Move(sig) => &sig.0,
         }
