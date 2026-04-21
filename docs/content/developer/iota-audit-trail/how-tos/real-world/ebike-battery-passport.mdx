@@ -1,0 +1,230 @@
+---
+title: E-Bike Battery Passport - Audit Trail
+sidebar_label: E-Bike Battery Passport
+description: Real-world example demonstrating how to use IOTA Audit Trail to model a Digital Product Passport for an e-bike battery with lifecycle tracking, service-network authorization, and reward payouts.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# E-Bike Battery Passport - Audit Trail
+
+This real-world example models a Digital Product Passport (DPP) for an e-bike battery, inspired by the public IOTA DPP demo. Seven actors — a manufacturer, lifecycle manager, distributor, consumer, service technician, recycler, and an Extended Producer Responsibility Organization (EPRO) — collaborate through a shared, tamper-proof Audit Trail. The example demonstrates role-scoped capabilities, an access-request flow where a technician is denied writes until explicitly authorized, and reward-payout evidence recorded alongside the maintenance event.
+
+## Business Context
+
+The EU Digital Product Passport regulation requires that products carry a verifiable, machine-readable history covering their entire lifecycle. For e-bike batteries this means tracking manufacturing, distribution, ownership, servicing, and end-of-life processing. A blockchain-based audit trail provides:
+
+- **Regulatory Compliance**: Immutable, chronological records satisfying EU Battery Regulation and DPP data retention requirements
+- **Service-Network Authorization**: Only manufacturer-authorized technicians can write maintenance records, enforced by time-scoped capabilities
+- **Lifecycle Credit Rewards**: Verified service events trigger documented reward payouts, creating an auditable incentive trail
+- **Supply Chain Transparency**: Every stakeholder — from manufacturer to recycler — can independently verify the battery's history
+- **Consumer Trust**: End users can confirm authenticity, maintenance history, and sustainability claims before and during ownership
+
+## Field Usage Strategy
+
+- **`immutable_metadata`**: Battery passport identity — product name, manufacturer, and serial number
+- **`updatable_metadata`**: Current lifecycle stage (e.g., `"Lifecycle Stage: Manufactured"` through `"Lifecycle Stage: Maintained and Ready for Continued Use"`)
+- **`record.data`**: Event payload — product details, logistics data, commissioning info, maintenance findings, or reward payout evidence
+- **`record.metadata`**: Structured event context (e.g., `"event:annual_maintenance"`, `"event:lcc_reward_distributed"`)
+- **`record.tag`**: Event category — `manufacturing`, `logistics`, `ownership`, `maintenance`, `recycling`, `rewards`
+
+### Role Design
+
+| Role | Permissions | RoleTags | Holder |
+|------|------------|----------|--------|
+| `Admin` | Full administrative control | — | Manufacturer (trail creator) |
+| `Manufacturer` | AddRecord, DeleteRecord, CorrectRecord | `"manufacturing"` | EcoBike factory systems |
+| `Distributor` | AddRecord, DeleteRecord, CorrectRecord | `"logistics"` | Logistics provider |
+| `Consumer` | AddRecord, DeleteRecord, CorrectRecord | `"ownership"` | Battery owner |
+| `ServiceTechnician` | AddRecord, DeleteRecord, CorrectRecord | `"maintenance"` | Authorized technician (issued on demand) |
+| `Recycler` | AddRecord, DeleteRecord, CorrectRecord | `"recycling"` | End-of-life processor |
+| `EPRO` | AddRecord, DeleteRecord, CorrectRecord | `"rewards"` | EcoCycle EPRO settlement operator |
+| `LifecycleManager` | UpdateMetadata, DeleteMetadata | — | Lifecycle stage coordinator |
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trail client SDK installed
+- Familiarity with [Role-Based Access Control](../../explanations/role-based-access-control.mdx) and [tagged records](../use-tagged-records.mdx)
+
+## Implementation Overview
+
+### 1. Create the DPP Trail
+
+Create a trail with six record tags covering the full battery lifecycle, the product identity as immutable metadata, the initial lifecycle stage as updatable metadata, and the DPP-creation event as the first record.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L72-L102
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L65-L82
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Define DPP Roles and Issue Capabilities
+
+Create tag-scoped roles for each lifecycle participant: Manufacturer, Distributor, Consumer, Recycler, and EPRO each receive record-admin permissions for their respective tags. The ServiceTechnician role is created but its capability is not yet issued — the technician must be explicitly authorized later. A LifecycleManager role receives metadata-admin permissions to update the lifecycle stage.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L107-L160
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L86-L102
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Populate the Passport with Lifecycle Events
+
+Build up the battery's history by recording product details (bill of materials, compliance certifications, sustainability data), a reward policy from the EPRO, distribution and logistics events, and consumer commissioning. The lifecycle manager updates the stage metadata at each transition.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L165-L228
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L106-L170
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Service Technician Requests Maintenance Access
+
+The technician can read the full DPP history using public read access, but any attempt to write a maintenance record is denied — the ServiceTechnician role exists but no capability has been issued yet. After the manufacturer verifies the technician's credentials, a time-scoped capability (valid for 30 days) is issued, and the lifecycle stage is updated to reflect the ongoing maintenance.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L233-L285
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L174-L226
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Record the Maintenance Event and Reward Payout
+
+The authorized technician records the annual maintenance event with a health snapshot (76% battery health, detailed findings, and next service date). The EPRO then writes a reward-payout record referencing the maintenance event, documenting a 1-LCC (Lifecycle Credit) reward. The lifecycle stage is updated to reflect the completed service.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L290-L338
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L230-L269
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Verify the Resulting Passport
+
+Read back the on-chain trail state and the full record history. Verify that all seven DPP records are present (creation, product details, reward policy, distribution, commissioning, maintenance, reward payout), that all roles and tags are registered, and that the lifecycle stage reflects the completed maintenance.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L343-L399
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L273-L312
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Electric Vehicle Battery Passport
+- **Scenario**: Full lifecycle tracking for EV traction batteries under EU Battery Regulation, from cell manufacturing through vehicle integration, second-life repurposing, and final recycling
+- **Tags**: `"manufacturing"`, `"assembly"`, `"ownership"`, `"maintenance"`, `"second_life"`, `"recycling"`, `"rewards"`
+
+### Consumer Electronics Repair Passport
+- **Scenario**: EU Right to Repair compliance for smartphones and laptops, tracking authorized repairs, spare-part provenance, and repairability scoring
+- **Tags**: `"manufacturing"`, `"distribution"`, `"ownership"`, `"repair"`, `"recycling"`
+
+### Industrial Machinery Service Log
+- **Scenario**: Maintenance and inspection logging for factory equipment with certified-technician access control and predictive-maintenance data
+- **Tags**: `"installation"`, `"inspection"`, `"maintenance"`, `"incident"`, `"decommission"`, `"rewards"`
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts
+```
+
+</TabItem>
+</Tabs>
