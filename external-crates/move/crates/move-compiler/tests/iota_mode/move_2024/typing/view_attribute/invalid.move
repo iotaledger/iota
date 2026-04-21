@@ -69,6 +69,12 @@ module a::m {
 
     #[view]
     public native fun native_view(): bool;
+
+    #[view]
+    public fun with_mut_non_object_reference(v: &mut u64): u64 {
+        let _ = v;
+        0
+    }
 }
 
 module iota::object {

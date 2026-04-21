@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
@@ -20,10 +17,7 @@ use crate::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
     parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
-    shared::{
-        CompilationEnv, Identifier,
-        program_info::{DatatypeKind, TypingProgramInfo},
-    },
+    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
     typing::{
         ast::{self as T, ModuleCall},
         core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
@@ -685,7 +679,8 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
                 "View functions must return at least one value"
             ),
         ));
-    } else if contains_object_ty(context.info.as_ref(), return_type) {
+        // TODO change to restricting to return only primitives and vectors of primitives
+    } else if contains_object_ty_shallow(return_type) {
         let msg = format!("Invalid return type for view function '{}'", name);
         context.add_diag(diag!(
             VIEW_FUN_SIGNATURE_DIAG,
@@ -701,7 +696,7 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
 /// A valid view param type is
 /// - A primitive (including strings and non-object structs)
 /// - A vector of primitives (including nested vectors)
-/// - A reference to an object (NON MUTABLE)
+/// - A NON mutable reference to a user defined struct type
 fn view_param_ty(
     context: &mut Context,
     view_loc: Loc,
@@ -710,8 +705,8 @@ fn view_param_ty(
     param_ty: &Type,
 ) {
     match &param_ty.value {
-        Type_::Ref(is_mut, inner) => {
-            if *is_mut && contains_object_ty(context.info.as_ref(), inner) {
+        Type_::Ref(is_mut, _) => {
+            if *is_mut {
                 let msg = format!("Invalid parameter type for view function '{}'", name);
                 let param_msg = format!("Invalid view parameter '{}'", param.value.name);
                 context.add_diag(diag!(
@@ -719,14 +714,14 @@ fn view_param_ty(
                     (view_loc, msg),
                     (
                         param_ty.loc,
-                        "View functions cannot accept mutable references to objects",
+                        "View functions cannot accept mutable references",
                     ),
                     (param.loc, &param_msg)
                 ));
             }
         }
         // TODO maybe add more detalied reporting
-        _ if contains_object_ty(context.info.as_ref(), param_ty) => {
+        _ if contains_user_defined_type_by_value(param_ty) => {
             let msg = format!("Invalid parameter type for view function '{}'", name);
             let param_msg = format!("Invalid view parameter '{}'", param.value.name);
             context.add_diag(diag!(
@@ -734,7 +729,21 @@ fn view_param_ty(
                 (view_loc, msg),
                 (
                     param_ty.loc,
-                    "View functions cannot accept objects by value",
+                    "View functions cannot accept user-defined types by value",
+                ),
+                (param.loc, &param_msg)
+            ));
+        }
+        _ if contains_paramtetric_object_ty(param_ty) => {
+            let msg = format!("Invalid parameter type for view function '{}'", name);
+            let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    param_ty.loc,
+                    "View functions cannot accept types that could potentially be objects, such as \
+                    type parameters with the 'key' ability",
                 ),
                 (param.loc, &param_msg)
             ));
@@ -743,16 +752,38 @@ fn view_param_ty(
     }
 }
 
-pub(crate) fn contains_object_ty(info: &TypingProgramInfo, param_ty: &Type) -> bool {
-    let tparam_subst = BTreeMap::new();
-    let mut visiting = BTreeSet::new();
-    contains_object_ty_impl(info, param_ty, &tparam_subst, &mut visiting)
+pub(crate) fn contains_user_defined_type_by_value(param_ty: &Type) -> bool {
+    match &param_ty.value {
+        Type_::Ref(_, _) => false,
+        Type_::Apply(_, sp!(_, TypeName_::ModuleType(_, _)), _) => true,
+        Type_::Apply(_, sp!(_, TypeName_::Builtin(_)), targs) => {
+            targs.iter().any(contains_user_defined_type_by_value)
+        }
+        Type_::Apply(_, sp!(_, TypeName_::Multiple(_)), targs) => {
+            targs.iter().any(contains_user_defined_type_by_value)
+        }
+        Type_::Param(_) => false,
+        Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
+        Type_::Fun(_, _) => true,
+    }
+}
+
+pub(crate) fn contains_paramtetric_object_ty(param_ty: &Type) -> bool {
+    match &param_ty.value {
+        Type_::Ref(_, _) => false,
+        Type_::Param(tp) => tp.abilities.has_ability_(Ability_::Key),
+        Type_::Apply(_, _, targs) => targs.iter().any(contains_paramtetric_object_ty),
+        Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
+        Type_::Fun(_, _) => true,
+    }
 }
 
 pub(crate) fn contains_object_ty_shallow(param_ty: &Type) -> bool {
     match &param_ty.value {
         Type_::Ref(_, t) => contains_object_ty_shallow(t),
-        Type_::Param(tp) => tp.abilities.has_ability_(Ability_::Key),
+        Type_::Param(tp) => {
+            tp.abilities.has_ability_(Ability_::Copy) || tp.abilities.has_ability_(Ability_::Drop)
+        }
         Type_::Apply(Some(abilities), _, targs) => {
             abilities.has_ability_(Ability_::Key) || targs.iter().any(contains_object_ty_shallow)
         }
@@ -762,105 +793,6 @@ pub(crate) fn contains_object_ty_shallow(param_ty: &Type) -> bool {
         | Type_::Anything
         | Type_::Var(_)
         | Type_::Fun(_, _) => false,
-    }
-}
-
-fn contains_object_ty_impl(
-    info: &TypingProgramInfo,
-    param_ty: &Type,
-    tparam_subst: &BTreeMap<N::TParamID, Type>,
-    visiting: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
-) -> bool {
-    match &param_ty.value {
-        Type_::Ref(_, t) => contains_object_ty_impl(info, t, tparam_subst, visiting),
-        Type_::Param(tp) => {
-            if let Some(inst_ty) = tparam_subst.get(&tp.id) {
-                contains_object_ty_impl(info, inst_ty, tparam_subst, visiting)
-            } else {
-                tp.abilities.has_ability_(Ability_::Key)
-            }
-        }
-        Type_::Apply(Some(abilities), sp!(_, type_name_), targs) => {
-            if abilities.has_ability_(Ability_::Key)
-                || targs
-                    .iter()
-                    .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting))
-            {
-                return true;
-            }
-
-            let TypeName_::ModuleType(mident, datatype) = type_name_ else {
-                return false;
-            };
-
-            let marker = (*mident, *datatype);
-            if visiting.contains(&marker) {
-                // Break recursive datatype cycles.
-                return false;
-            }
-            visiting.insert(marker);
-            let contains = contains_object_in_datatype_fields(
-                info,
-                mident,
-                datatype,
-                targs,
-                tparam_subst,
-                visiting,
-            );
-            visiting.remove(&marker);
-            contains
-        }
-        Type_::Apply(None, _, targs) => targs
-            .iter()
-            .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting)),
-        Type_::Fun(args, ret) => {
-            args.iter()
-                .any(|t| contains_object_ty_impl(info, t, tparam_subst, visiting))
-                || contains_object_ty_impl(info, ret, tparam_subst, visiting)
-        }
-        Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
-    }
-}
-
-fn contains_object_in_datatype_fields(
-    info: &TypingProgramInfo,
-    mident: &ModuleIdent,
-    datatype: &DatatypeName,
-    targs: &[Type],
-    tparam_subst: &BTreeMap<N::TParamID, Type>,
-    visiting: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
-) -> bool {
-    let mut next_subst = tparam_subst.clone();
-
-    match info.datatype_kind(mident, datatype) {
-        DatatypeKind::Struct => {
-            let sdef = info.struct_definition(mident, datatype);
-            for (tp, arg_ty) in sdef.type_parameters.iter().zip(targs.iter()) {
-                next_subst.insert(tp.param.id, arg_ty.clone());
-            }
-            match &sdef.fields {
-                StructFields::Defined(_, fields) => fields.iter().any(|(_, _, (_, (_, ty)))| {
-                    contains_object_ty_impl(info, ty, &next_subst, visiting)
-                }),
-                StructFields::Native(_) => false,
-            }
-        }
-        DatatypeKind::Enum => {
-            let edef = info.enum_definition(mident, datatype);
-            for (tp, arg_ty) in edef.type_parameters.iter().zip(targs.iter()) {
-                next_subst.insert(tp.param.id, arg_ty.clone());
-            }
-            edef.variants
-                .iter()
-                .any(|(_, _, variant)| match &variant.fields {
-                    N::VariantFields::Defined(_, fields) => {
-                        fields.iter().any(|(_, _, (_, (_, ty)))| {
-                            contains_object_ty_impl(info, ty, &next_subst, visiting)
-                        })
-                    }
-                    N::VariantFields::Empty => false,
-                })
-        }
     }
 }
 
