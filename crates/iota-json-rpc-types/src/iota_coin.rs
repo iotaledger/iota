@@ -16,7 +16,9 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
     Page,
-    serde_utils::{Base58, ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema},
+    serde_utils::{
+        Base58, ObjectID as ObjectIDSchema, SequenceNumberU64 as SequenceNumberU64Schema,
+    },
 };
 
 pub type CoinPage = Page<Coin, ObjectID>;
@@ -92,8 +94,7 @@ pub struct Coin {
     pub coin_type: String,
     #[schemars(with = "ObjectIDSchema")]
     pub coin_object_id: ObjectID,
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[schemars(with = "Base58")]
     pub digest: ObjectDigest,

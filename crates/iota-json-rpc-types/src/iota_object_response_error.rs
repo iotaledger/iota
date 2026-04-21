@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::serde_utils::{
-    Base58, ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema,
+    Base58, ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
 };
 
 #[serde_as]

@@ -43,7 +43,8 @@ use crate::{
     iota_owner::OwnerSchema,
     serde_utils::{
         Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        SequenceNumber as SequenceNumberSchema, StructTag as StructTagSchema,
+        SequenceNumberString as SequenceNumberSchema, SequenceNumberU64 as SequenceNumberU64Schema,
+        StructTag as StructTagSchema,
     },
 };
 
@@ -210,8 +211,7 @@ pub struct IotaObjectData {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58")]
@@ -640,7 +640,6 @@ impl TryInto<Object> for IotaObjectData {
     }
 }
 
-#[serde_as]
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "ObjectRef")]
 pub struct ObjectRefSchema {
@@ -648,8 +647,7 @@ pub struct ObjectRefSchema {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58")]
@@ -1165,19 +1163,15 @@ pub enum IotaPastObjectResponse {
     /// The object exists but not found with this version
     VersionNotFound(
         #[schemars(with = "ObjectIDSchema")] ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
-        SequenceNumber,
+        #[schemars(with = "SequenceNumberU64Schema")] SequenceNumber,
     ),
     /// The asked object version is higher than the latest
     VersionTooHigh {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         asked_version: SequenceNumber,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         latest_version: SequenceNumber,
     },
 }

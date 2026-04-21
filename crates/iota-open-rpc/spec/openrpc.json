@@ -117,7 +117,7 @@
                     },
                     "reference": {
                       "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                      "version": "2",
+                      "version": 2,
                       "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
                     }
                   },
@@ -127,7 +127,7 @@
                     },
                     "reference": {
                       "objectId": "0x6a06153b9fc486e101f0e9e2703ac8666d06aecc4ddf7e7926a361970c65a5b1",
-                      "version": "2",
+                      "version": 2,
                       "digest": "GdfET1avZReDftpJNB8LSuHJ2cKUheSbEaLMzuPVXHsM"
                     }
                   }
@@ -138,7 +138,7 @@
                   },
                   "reference": {
                     "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                    "version": "2",
+                    "version": 2,
                     "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
                   }
                 },
@@ -226,7 +226,7 @@
                     "payment": [
                       {
                         "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                        "version": "2",
+                        "version": 2,
                         "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                       }
                     ],
@@ -261,7 +261,7 @@
                     },
                     "reference": {
                       "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                      "version": "2",
+                      "version": 2,
                       "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                     }
                   },
@@ -271,7 +271,7 @@
                     },
                     "reference": {
                       "objectId": "0x4f82f1c8587b98d64c00bfb46c3843bd8bf6ccfa7c65a86138698cd1fdcac3dc",
-                      "version": "2",
+                      "version": 2,
                       "digest": "Cv7n2YaM7Am1ssZGu4khsFkcKHnpgVhwFCSs4kLjrtLW"
                     }
                   }
@@ -282,7 +282,7 @@
                   },
                   "reference": {
                     "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                    "version": "2",
+                    "version": 2,
                     "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
                   }
                 },
@@ -430,7 +430,7 @@
                     "payment": [
                       {
                         "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                        "version": "2",
+                        "version": 2,
                         "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                       }
                     ],
@@ -465,7 +465,7 @@
                     },
                     "reference": {
                       "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                      "version": "2",
+                      "version": 2,
                       "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                     }
                   },
@@ -475,7 +475,7 @@
                     },
                     "reference": {
                       "objectId": "0x8ef76f56c399633a2eb310bca9124e5f2f38ce739eaacbb6600688804e078448",
-                      "version": "2",
+                      "version": 2,
                       "digest": "9Tvs1pGrMbNv7kkr1PoKLsWamyQpaFz5UWbL2AQ1ezk2"
                     }
                   }
@@ -486,7 +486,7 @@
                   },
                   "reference": {
                     "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                    "version": "2",
+                    "version": 2,
                     "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
                   }
                 },
@@ -1235,7 +1235,7 @@
             "value": {
               "data": {
                 "objectId": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809",
-                "version": "1",
+                "version": 1,
                 "digest": "33K5ZXJ3RyubvYaHuEnQ1QXmmbhgtrFwp199dnEbL4n7",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -2332,7 +2332,7 @@
                     "payment": [
                       {
                         "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                        "version": "2",
+                        "version": 2,
                         "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                       }
                     ],
@@ -2367,7 +2367,7 @@
                     },
                     "reference": {
                       "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                      "version": "2",
+                      "version": 2,
                       "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                     }
                   },
@@ -2377,7 +2377,7 @@
                     },
                     "reference": {
                       "objectId": "0x5eeb1d449e2516166d57d71fdeb154d0dc9ecdb7b30057d0a932684cac352cdc",
-                      "version": "2",
+                      "version": 2,
                       "digest": "GK4NxEKSrK88XkPNeuBqtJYPmU9yMTWMD7K9TdU4ybKN"
                     }
                   }
@@ -2388,7 +2388,7 @@
                   },
                   "reference": {
                     "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                    "version": "2",
+                    "version": 2,
                     "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
                   }
                 },
@@ -2526,7 +2526,7 @@
               {
                 "data": {
                   "objectId": "0x504d411325e3c7f89d412044fe99007efb0f94f1e64d2e8090c619a39299d87e",
-                  "version": "1",
+                  "version": 1,
                   "digest": "AibMqH69gKT5t7rVTsDZFy2X5iHtoNDobKaZ62mg3FCU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2549,7 +2549,7 @@
               {
                 "data": {
                   "objectId": "0x23618df6438d21a48040e6bb568cafc13246bd847c60448160e0358cac4a1134",
-                  "version": "1",
+                  "version": 1,
                   "digest": "D5W76mT1A3tqCmE1Z5MdV5obNzesMXLfLKpRDHSp1fyz",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2572,7 +2572,7 @@
               {
                 "data": {
                   "objectId": "0x8b95b4eaa9fd3b22b43f6b2c8e92090bd6d16522a6fd4fa83ec70a5f197ad656",
-                  "version": "1",
+                  "version": 1,
                   "digest": "H2o2pWgceQgTtYrMacR4xnCi4vqGiuozDA6k2rBc4m3q",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2595,7 +2595,7 @@
               {
                 "data": {
                   "objectId": "0x3fbbd3ebef7dbcc7b02346cdf05674452cc61f316af5d5d7c02b94b023242685",
-                  "version": "1",
+                  "version": 1,
                   "digest": "3ovR1s3bZt6AN1AQ7QhGUfX9BSwgjJPvL6XaczgeSKXU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2618,7 +2618,7 @@
               {
                 "data": {
                   "objectId": "0x9b5cd5df0df2a168259b7115a41ccc0a372b6fd0026e0c63043492ce4d0c19a6",
-                  "version": "1",
+                  "version": 1,
                   "digest": "25QdFqrh9FgxhGQyAxZsNEakYmHezqmU3FMPud7JGRB5",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2752,7 +2752,7 @@
                       "payment": [
                         {
                           "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                          "version": "2",
+                          "version": 2,
                           "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                         }
                       ],
@@ -2787,7 +2787,7 @@
                       },
                       "reference": {
                         "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                        "version": "2",
+                        "version": 2,
                         "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                       }
                     },
@@ -2797,7 +2797,7 @@
                       },
                       "reference": {
                         "objectId": "0x24962ee4193c8c0d2fb28bbe0eb4ba5fc87a2c6d1a7c12c9454872c5ea06d5e1",
-                        "version": "2",
+                        "version": 2,
                         "digest": "3gmeyj5oEdE8A4PvjWsDSHchC6tb6YQj18gnD7xnDqGz"
                       }
                     }
@@ -2808,7 +2808,7 @@
                     },
                     "reference": {
                       "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                      "version": "2",
+                      "version": 2,
                       "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
                     }
                   },
@@ -2869,7 +2869,7 @@
                       "payment": [
                         {
                           "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                          "version": "2",
+                          "version": 2,
                           "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                         }
                       ],
@@ -2904,7 +2904,7 @@
                       },
                       "reference": {
                         "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                        "version": "2",
+                        "version": 2,
                         "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                       }
                     },
@@ -2914,7 +2914,7 @@
                       },
                       "reference": {
                         "objectId": "0x2fac1a70e20e146fb1303bd60eb4bea9bd453e50690b423241f0e2e9beabd601",
-                        "version": "2",
+                        "version": 2,
                         "digest": "HyJbrm9Th6ox4oU9vrrRzgZSaCu1n3omMJ1fAcHswvvo"
                       }
                     }
@@ -2925,7 +2925,7 @@
                     },
                     "reference": {
                       "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                      "version": "2",
+                      "version": 2,
                       "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
                     }
                   },
@@ -2986,7 +2986,7 @@
                       "payment": [
                         {
                           "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                          "version": "2",
+                          "version": 2,
                           "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                         }
                       ],
@@ -3021,7 +3021,7 @@
                       },
                       "reference": {
                         "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                        "version": "2",
+                        "version": 2,
                         "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                       }
                     },
@@ -3031,7 +3031,7 @@
                       },
                       "reference": {
                         "objectId": "0xc820a75b574224b920aa9b005093b820df24ef8b43715499f4fff4e056c0cd5c",
-                        "version": "2",
+                        "version": 2,
                         "digest": "6jsxetsBSZJ5ozgZuDmHXJzn9ZBp8emivfYHe6tnHg7C"
                       }
                     }
@@ -3042,7 +3042,7 @@
                     },
                     "reference": {
                       "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                      "version": "2",
+                      "version": 2,
                       "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
                     }
                   },
@@ -3089,7 +3089,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         },
         {
@@ -3138,7 +3138,7 @@
               "status": "VersionFound",
               "details": {
                 "objectId": "0x11af4b844ff94b3fbef6e36b518da3ad4c5856fa686464524a876b463d129760",
-                "version": "4",
+                "version": 4,
                 "digest": "5VPAwDXy3BL72ehFc7gSJoz27ahMd6spUg5YwYc4ibcv",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -3237,7 +3237,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf",
-                  "version": "4",
+                  "version": 4,
                   "digest": "5pCqw4G6F1hXcukW3XwhBzas9RqeFrUkvNon5jgX3ewg",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3261,7 +3261,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0x5cd6fa76ed1d18f05f15e35075252ddec4fb83621d55952d9172fcfcb72feae2",
-                  "version": "12",
+                  "version": 12,
                   "digest": "CE9bNT96Sa2BxQQH2id4PRxTgW5TW7zm6VVhDeRNBegW",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3446,7 +3446,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x91825debff541cf4e08b5c5f7296ff9840e6f0b185af93984cde8cf3870302c0",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "7dp5WtTmtGp83EXYYFMzjBJRFeSgR67AzqMETLrfgeFx",
                   "balance": "200000000",
                   "previousTransaction": "9WfFUVhjbbh4tWkyUse1QxzbKX952cyXScH7xJNPB2vQ"
@@ -3454,7 +3454,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x48a53f22e2e901ea2a5bf44fdd5bb94a1d83b6efc4dd779f0890ca3b1f6ba997",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "9xLdMXezY8d1yRA2TtN6pYjapyy2EVKHWNriGPFGCFvd",
                   "balance": "200000000",
                   "previousTransaction": "Byq9SyV7x6fvzaf88YRA9JM8vLbVLJAqUX8pESDmKcgw"
@@ -3462,7 +3462,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x6867fcc63161269c5c0c73b02229486bbaff319209dfb8299ced3b8609037997",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "5xexWFq6QpGHBQyC9P2cbAJXq9qm2EjzfuRM9NwS1uyG",
                   "balance": "200000000",
                   "previousTransaction": "CEjwHmo98nAiYhSMfKoSDvUMtfKJ6ge6Uj4wKotK4MPZ"
@@ -3725,7 +3725,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0xa5a8e30db5a798a7354340b6ea78a66f50921841ab5359ec7a3dc01f282420ae",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "tw5DzJTfdxTn4f3rekFrhN7dQTUezBgsEhycDobTBLb",
                   "balance": "200000000",
                   "previousTransaction": "HSein75AFXgdsnbABWLQ5mvjFmPFWrBFi9CMVsNn7gJr"
@@ -3733,7 +3733,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x47dfa99496428c65b2054ad7db1872b87ff05b1047bb5e3adf5257cceb08ecb4",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "AfgFe7ZfjJ5dWV6VAy2LbtvBFhcABkvdvwEjLrRcFqtr",
                   "balance": "200000000",
                   "previousTransaction": "5WHnm9jUZEtDvSvsj7HBrP5BoxA3UY6R57qqumXJXboV"
@@ -3741,7 +3741,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0xd4f062dbcfc3bf73f5861945592222ff7b090ac21c8a3cf840abdc5b743da778",
-                  "version": "103626",
+                  "version": 103626,
                   "digest": "9er6jxigfuQEKsn9gtPV2oW1zGQRcFtKNijHVe88GUJD",
                   "balance": "200000000",
                   "previousTransaction": "H3gwoKE2FSLx3BwvNTTKqCsNHmg6ARzm345icHhXUAEW"
@@ -3885,7 +3885,7 @@
             "value": {
               "data": {
                 "objectId": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b",
-                "version": "1",
+                "version": 1,
                 "digest": "FnxePMX8y7AqX5mRL4nCcK4xecSrpHrd85c3sJDmh5uG",
                 "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                 "owner": {
@@ -4332,7 +4332,7 @@
                 {
                   "data": {
                     "objectId": "0xd87765d1aadec2db8cc24c312542c8359b6b5e3bfeab524e5edaad3a204b4053",
-                    "version": "13488",
+                    "version": 13488,
                     "digest": "8qCvxDHh5LtDfF95Ci9G7vvQN2P6y4v55S9xoKBYp7FM",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4345,7 +4345,7 @@
                 {
                   "data": {
                     "objectId": "0x26ed170e0427f9416a614d23284116375c16bd317738fd2c7a885362e04923f5",
-                    "version": "13488",
+                    "version": 13488,
                     "digest": "5Ka3vDaDy9h5UYk3Maz3vssWHrhbcGXQgwg8fL2ygyTi",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4358,7 +4358,7 @@
                 {
                   "data": {
                     "objectId": "0x2aea16d6fb49b7d1ae51f33b01ed8e1ac66916858610c124bb6fd73bb13e141c",
-                    "version": "13488",
+                    "version": 13488,
                     "digest": "D3hfhfecVcmRcqNEkxkoFMzbuXvBqWj1JkCNU9zbnYMo",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -6312,7 +6312,7 @@
             "format": "base58"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         }
       },
@@ -7299,7 +7299,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }
@@ -7348,7 +7348,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   },
                   "mutable": {
                     "default": true,
@@ -7500,7 +7500,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   }
                 }
               },
@@ -7514,7 +7514,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7554,7 +7554,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   }
                 }
               }
@@ -7778,7 +7778,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber"
+                            "$ref": "#/components/schemas/SequenceNumberU64"
                           }
                         ],
                         "maxItems": 2,
@@ -7862,7 +7862,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         }
       },
@@ -9457,7 +9457,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }
@@ -10007,7 +10007,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10048,7 +10048,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10081,7 +10081,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10093,7 +10093,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10124,7 +10124,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10155,7 +10155,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10196,7 +10196,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10237,7 +10237,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           }
@@ -10329,7 +10329,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
@@ -10452,7 +10452,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ],
                 "maxItems": 2,
@@ -10483,10 +10483,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10528,7 +10528,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
@@ -10599,7 +10599,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   }
                 ]
               }
@@ -10737,7 +10737,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber"
+                        "$ref": "#/components/schemas/SequenceNumberU64"
                       }
                     ]
                   }
@@ -11157,7 +11157,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -11200,14 +11200,19 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           }
         ]
       },
-      "SequenceNumber": {
+      "SequenceNumberString": {
         "type": "string"
+      },
+      "SequenceNumberU64": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
       },
       "Stake": {
         "type": "object",
@@ -11582,7 +11587,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         }
       },

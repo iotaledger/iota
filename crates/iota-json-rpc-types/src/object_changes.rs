@@ -18,7 +18,7 @@ use crate::{
     iota_owner::OwnerSchema,
     serde_utils::{
         Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        SequenceNumber as SequenceNumberSchema, StructTag as StructTagSchema,
+        SequenceNumberString as SequenceNumberSchema, StructTag as StructTagSchema,
     },
 };
 

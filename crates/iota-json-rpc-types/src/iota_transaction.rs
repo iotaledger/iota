@@ -61,8 +61,8 @@ use crate::{
     object_changes::ObjectChange,
     serde_utils::{
         Base58, GenericSignature as GenericSignatureSchema, IotaAddress as IotaAddressSchema,
-        ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema,
-        TypeTag as TypeTagSchema,
+        ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
+        SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
 };
 
@@ -1886,7 +1886,7 @@ pub struct IotaConsensusCommitPrologueV1 {
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[schemars(with = "Vec<(Base58, Vec<(ObjectIDSchema, SequenceNumberSchema)>)>")]
+        #[schemars(with = "Vec<(Base58, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
         Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ),
 }

@@ -73,13 +73,13 @@ impl<'de> DeserializeAs<'de, NativeObjectID> for ObjectID {
 
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct SequenceNumber(
+pub struct SequenceNumberString(
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     u64,
 );
 
-impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumber {
+impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberString {
     fn serialize_as<S>(
         source: &iota_types::base_types::SequenceNumber,
         serializer: S,
@@ -87,21 +87,24 @@ impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumber {
     where
         S: Serializer,
     {
-        SequenceNumber(source.value()).serialize(serializer)
+        SequenceNumberString(source.value()).serialize(serializer)
     }
 }
 
-impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for SequenceNumber {
+impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for SequenceNumberString {
     fn deserialize_as<D>(
         deserializer: D,
     ) -> Result<iota_types::base_types::SequenceNumber, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let schema = SequenceNumber::deserialize(deserializer)?;
+        let schema = SequenceNumberString::deserialize(deserializer)?;
         Ok(iota_types::base_types::SequenceNumber::from_u64(schema.0))
     }
 }
+
+#[derive(JsonSchema)]
+pub struct SequenceNumberU64(#[expect(unused)] u64);
 
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]

@@ -7,7 +7,9 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
     ProtocolConfigResponse,
-    serde_utils::{Base58, ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema},
+    serde_utils::{
+        Base58, ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{

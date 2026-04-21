@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::serde_utils::{
-    IotaAddress as IotaAddressSchema, SequenceNumber as SequenceNumberSchema,
+    IotaAddress as IotaAddressSchema, SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
 /// Enum of different types of ownership for an object.
@@ -42,8 +42,7 @@ pub enum OwnerSchema {
     /// Object is shared, can be used by any address, and is mutable.
     Shared {
         /// The version at which the object became shared
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         initial_shared_version: SequenceNumber,
     },
     /// Object is immutable, and hence ownership doesn't matter.
