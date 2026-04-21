@@ -3418,9 +3418,27 @@ impl AuthorityPerEpochStore {
         // in the quarantine. Both accepted and rejected transactions are
         // released: accepted ones now hold permanent locks, rejected ones need
         // their non-conflicting owned objects freed for new transactions.
-        if let Some(soft_locks) = self.soft_locks.get() {
-            for digest in &soft_lock_release_tx_digests {
-                soft_locks.release(digest);
+        //
+        // If the white-flag flow produced digests to release but the OnceCell
+        // was never wired, that's a startup bug — locks would leak until TTL
+        // expiry. Log at `error!` so alerts fire; tests that exercise the
+        // white-flag path without a validator service take this branch
+        // harmlessly.
+        if !soft_lock_release_tx_digests.is_empty() {
+            match self.soft_locks.get() {
+                Some(soft_locks) => {
+                    for digest in &soft_lock_release_tx_digests {
+                        soft_locks.release(digest);
+                    }
+                }
+                None => {
+                    error!(
+                        count = soft_lock_release_tx_digests.len(),
+                        "white-flag flow produced soft-lock release digests but \
+                         soft_locks OnceCell was never set — wiring bug in \
+                         start_epoch_specific_validator_components"
+                    );
+                }
             }
         }
 

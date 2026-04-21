@@ -30,17 +30,33 @@
 //! a transaction has time to be committed or garbage-collected before the soft
 //! lock expires.  4× provides a safety margin for network jitter.
 
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
-use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::IotaError,
 };
+use parking_lot::Mutex;
 use tracing::{debug, error, trace};
 
 /// Default soft-lock TTL: `gc_depth(60) × 4 / ~20 rounds/sec = 12 s`.
 const DEFAULT_SOFT_LOCK_TTL: Duration = Duration::from_secs(12);
+
+/// Mutex-guarded inner state. Holding the two indices behind a single lock
+/// makes their cross-consistency a structural invariant rather than a prose
+/// claim: `tx_to_objects[d]` and every `locks[obj].0 == d` are always updated
+/// atomically in the same critical section.
+#[derive(Debug, Default)]
+struct Inner {
+    /// Maps each owned `ObjectRef` to the `TransactionDigest` that soft-locked
+    /// it, together with the instant the lock was acquired.
+    locks: HashMap<ObjectRef, (TransactionDigest, Instant)>,
+    /// Reverse index: transaction → locked objects, for O(1) batch release.
+    tx_to_objects: HashMap<TransactionDigest, Vec<ObjectRef>>,
+}
 
 /// In-memory soft locks for pre-consensus owned-object conflict detection.
 ///
@@ -48,15 +64,15 @@ const DEFAULT_SOFT_LOCK_TTL: Duration = Duration::from_secs(12);
 /// Post-consensus validation is the authoritative conflict resolver.
 #[derive(Debug)]
 pub struct PreConsensusSoftLocks {
-    /// Maps each owned `ObjectRef` to the `TransactionDigest` that soft-locked
-    /// it, together with the instant the lock was acquired.
-    locks: DashMap<ObjectRef, (TransactionDigest, Instant)>,
-
-    /// Reverse index: transaction → locked objects, for O(1) batch release.
-    tx_to_objects: DashMap<TransactionDigest, Vec<ObjectRef>>,
-
+    inner: Mutex<Inner>,
     /// How long a lock remains valid before it is considered expired.
     lock_ttl: Duration,
+}
+
+impl Default for PreConsensusSoftLocks {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PreConsensusSoftLocks {
@@ -68,8 +84,7 @@ impl PreConsensusSoftLocks {
     /// Creates a new instance with a custom TTL (useful for tests).
     pub fn with_ttl(lock_ttl: Duration) -> Self {
         Self {
-            locks: DashMap::new(),
-            tx_to_objects: DashMap::new(),
+            inner: Mutex::new(Inner::default()),
             lock_ttl,
         }
     }
@@ -83,7 +98,8 @@ impl PreConsensusSoftLocks {
     /// - **Expired lock**: silently overwritten by the new transaction.
     ///
     /// On conflict, any locks acquired *within this call* are rolled back (same
-    /// pattern as `execution_cache/object_locks.rs`).
+    /// pattern as `execution_cache/object_locks.rs`). Both the forward and
+    /// reverse indices are updated atomically under a single mutex.
     pub fn try_acquire(
         &self,
         tx_digest: TransactionDigest,
@@ -94,14 +110,22 @@ impl PreConsensusSoftLocks {
         }
 
         let now = Instant::now();
+        let ttl = self.lock_ttl;
+        let mut inner = self.inner.lock();
         let mut acquired: Vec<ObjectRef> = Vec::with_capacity(owned_objects.len());
 
         for obj_ref in owned_objects {
-            match self.try_set_lock(obj_ref, tx_digest, now) {
+            match Self::try_set_lock(&mut inner.locks, obj_ref, tx_digest, now, ttl) {
                 Ok(()) => acquired.push(*obj_ref),
                 Err(e) => {
                     // Rollback locks we just acquired in this call.
-                    self.rollback(&tx_digest, &acquired);
+                    for rolled in &acquired {
+                        if let Some((d, _)) = inner.locks.get(rolled) {
+                            if *d == tx_digest {
+                                inner.locks.remove(rolled);
+                            }
+                        }
+                    }
                     return Err(e);
                 }
             }
@@ -109,22 +133,29 @@ impl PreConsensusSoftLocks {
 
         // Record the reverse mapping so `release()` can find these objects.
         // A digest uniquely determines its owned inputs, so on idempotent
-        // resubmission the set is identical. A mismatch would indicate a bug.
-        self.tx_to_objects
-            .entry(tx_digest)
-            .and_modify(|existing| {
-                if *existing != acquired {
-                    error!(
-                        ?tx_digest,
-                        ?existing,
-                        ?acquired,
-                        "soft-lock reverse index mismatch: \
-                         same digest appeared with different owned objects"
-                    );
-                    debug_assert_eq!(existing, &acquired);
-                }
-            })
-            .or_insert(acquired);
+        // resubmission the set is identical. A mismatch indicates a bug; we
+        // overwrite so the reverse index stays consistent with `locks`
+        // (avoiding split-brain where `release` can't find newly-held refs).
+        match inner.tx_to_objects.get(&tx_digest) {
+            Some(existing) if existing != &acquired => {
+                error!(
+                    ?tx_digest,
+                    ?existing,
+                    ?acquired,
+                    "soft-lock reverse index mismatch: \
+                     same digest appeared with different owned objects — \
+                     overwriting to preserve index consistency"
+                );
+                debug_assert_eq!(existing, &acquired);
+                inner.tx_to_objects.insert(tx_digest, acquired);
+            }
+            Some(_) => {
+                // Matches — nothing to do.
+            }
+            None => {
+                inner.tx_to_objects.insert(tx_digest, acquired);
+            }
+        }
 
         Ok(())
     }
@@ -134,13 +165,15 @@ impl PreConsensusSoftLocks {
     /// Called by active GC hooks (consensus processed / tx dropped) and on
     /// consensus submission failure.
     pub fn release(&self, tx_digest: &TransactionDigest) {
-        if let Some((_, obj_refs)) = self.tx_to_objects.remove(tx_digest) {
+        let mut inner = self.inner.lock();
+        if let Some(obj_refs) = inner.tx_to_objects.remove(tx_digest) {
             for obj_ref in &obj_refs {
-                // Only remove if still owned by this transaction.
-                if let DashMapEntry::Occupied(entry) = self.locks.entry(*obj_ref) {
-                    if entry.get().0 == *tx_digest {
+                // Only remove if still owned by this transaction (the lock may
+                // have been expired and overwritten by another digest).
+                if let Some((d, _)) = inner.locks.get(obj_ref) {
+                    if *d == *tx_digest {
                         trace!(?tx_digest, ?obj_ref, "soft-lock released");
-                        entry.remove();
+                        inner.locks.remove(obj_ref);
                     }
                 }
             }
@@ -151,8 +184,9 @@ impl PreConsensusSoftLocks {
     pub fn sweep_expired(&self) {
         let now = Instant::now();
         let ttl = self.lock_ttl;
+        let mut inner = self.inner.lock();
 
-        self.locks.retain(|_obj_ref, (tx_digest, acquired_at)| {
+        inner.locks.retain(|_obj_ref, (tx_digest, acquired_at)| {
             let keep = now.duration_since(*acquired_at) < ttl;
             if !keep {
                 debug!(?tx_digest, "soft-lock expired");
@@ -163,53 +197,55 @@ impl PreConsensusSoftLocks {
         // Clean up tx_to_objects entries whose locks have all been swept.
         // A digest has a unique set of owned objects, so if none of its
         // objects are still locked under that digest, the entry is stale.
-        self.tx_to_objects.retain(|tx_digest, obj_refs| {
-            obj_refs.iter().any(|obj_ref| {
-                self.locks
-                    .get(obj_ref)
-                    .is_some_and(|entry| entry.0 == *tx_digest)
-            })
+        let Inner {
+            locks,
+            tx_to_objects,
+        } = &mut *inner;
+        tx_to_objects.retain(|tx_digest, obj_refs| {
+            obj_refs
+                .iter()
+                .any(|obj_ref| locks.get(obj_ref).is_some_and(|(d, _)| d == tx_digest))
         });
     }
 
     /// Returns the current number of locked object refs (for metrics).
     pub fn lock_count(&self) -> usize {
-        self.locks.len()
+        self.inner.lock().locks.len()
     }
 
     /// Drops all entries.  Called at epoch boundary.
     pub fn clear(&self) {
-        self.locks.clear();
-        self.tx_to_objects.clear();
+        let mut inner = self.inner.lock();
+        inner.locks.clear();
+        inner.tx_to_objects.clear();
     }
 
     // -- private helpers -----------------------------------------------------
 
-    /// Atomically test-and-set a single object lock.
+    /// Test-and-set a single object lock in the forward index.
+    ///
+    /// Operates on a `&mut HashMap` already borrowed from the outer mutex,
+    /// so the caller's critical section is serial over the whole acquire.
     fn try_set_lock(
-        &self,
+        locks: &mut HashMap<ObjectRef, (TransactionDigest, Instant)>,
         obj_ref: &ObjectRef,
         new_digest: TransactionDigest,
         now: Instant,
+        lock_ttl: Duration,
     ) -> Result<(), IotaError> {
-        let entry = self.locks.entry(*obj_ref);
-
-        match entry {
-            DashMapEntry::Vacant(vacant) => {
-                vacant.insert((new_digest, now));
+        match locks.get(obj_ref).copied() {
+            None => {
+                locks.insert(*obj_ref, (new_digest, now));
                 Ok(())
             }
-            DashMapEntry::Occupied(mut occupied) => {
-                let (existing_digest, acquired_at) = *occupied.get();
-
+            Some((existing_digest, acquired_at)) => {
                 if existing_digest == new_digest {
                     // Same transaction — refresh timestamp, no conflict.
-                    occupied.insert((new_digest, now));
+                    locks.insert(*obj_ref, (new_digest, now));
                     return Ok(());
                 }
 
-                // Different transaction — check TTL.
-                if now.duration_since(acquired_at) >= self.lock_ttl {
+                if now.duration_since(acquired_at) >= lock_ttl {
                     // Expired — overwrite.
                     trace!(
                         ?obj_ref,
@@ -217,7 +253,7 @@ impl PreConsensusSoftLocks {
                         ?new_digest,
                         "soft-lock expired, overwriting"
                     );
-                    occupied.insert((new_digest, now));
+                    locks.insert(*obj_ref, (new_digest, now));
                     Ok(())
                 } else {
                     debug!(
@@ -230,20 +266,6 @@ impl PreConsensusSoftLocks {
                         obj_ref: *obj_ref,
                         pending_transaction: existing_digest,
                     })
-                }
-            }
-        }
-    }
-
-    /// Undo locks acquired during a partially-failed `try_acquire` call.
-    ///
-    /// Only removes the lock-map entries; does NOT touch `tx_to_objects`
-    /// because the caller has not inserted there yet.
-    fn rollback(&self, tx_digest: &TransactionDigest, acquired: &[ObjectRef]) {
-        for obj_ref in acquired {
-            if let DashMapEntry::Occupied(entry) = self.locks.entry(*obj_ref) {
-                if entry.get().0 == *tx_digest {
-                    entry.remove();
                 }
             }
         }
@@ -341,6 +363,89 @@ mod tests {
         // Z should be lockable by a third tx.
         let tx_c = digest(3);
         table.try_acquire(tx_c, &[obj_z]).unwrap();
+
+        // tx_b never fully acquired, so it must have no reverse-index entry
+        // (otherwise a later `release(&tx_b)` would wrongly free tx_c's lock).
+        assert!(
+            !table.inner.lock().tx_to_objects.contains_key(&tx_b),
+            "losing tx must not leave a stale reverse-index entry"
+        );
+    }
+
+    /// The idempotent same-digest path must refresh the lock's timestamp so a
+    /// legitimately-retrying client doesn't see its own lock expire mid-flight.
+    /// We inspect the stored `Instant` directly rather than race the wall
+    /// clock.
+    #[test]
+    fn test_same_digest_refreshes_timestamp() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let obj = obj_ref(1, 1);
+        let tx = digest(1);
+
+        table.try_acquire(tx, &[obj]).unwrap();
+        let first_ts = table.inner.lock().locks.get(&obj).unwrap().1;
+
+        // Busy-wait until `Instant::now()` strictly advances so the refresh is
+        // observable regardless of platform clock resolution.
+        while Instant::now() <= first_ts {
+            std::hint::spin_loop();
+        }
+
+        table.try_acquire(tx, &[obj]).unwrap();
+        let second_ts = table.inner.lock().locks.get(&obj).unwrap().1;
+
+        assert!(
+            second_ts > first_ts,
+            "same-digest re-acquire must refresh the timestamp (first={first_ts:?}, second={second_ts:?})",
+        );
+    }
+
+    /// Concurrent `try_acquire` calls for different digests on the same
+    /// object must produce exactly one winner and `N-1` `ObjectLockConflict`
+    /// errors — no lost locks, no duplicate wins.
+    #[test]
+    fn test_concurrent_acquire_exactly_one_winner() {
+        use std::{
+            sync::{
+                Arc, Barrier,
+                atomic::{AtomicUsize, Ordering},
+            },
+            thread,
+        };
+
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let obj = obj_ref(1, 1);
+        let n = 16;
+        let barrier = Arc::new(Barrier::new(n));
+        let wins = Arc::new(AtomicUsize::new(0));
+        let conflicts = Arc::new(AtomicUsize::new(0));
+
+        let handles: Vec<_> = (0..n)
+            .map(|i| {
+                let table = table.clone();
+                let barrier = barrier.clone();
+                let wins = wins.clone();
+                let conflicts = conflicts.clone();
+                thread::spawn(move || {
+                    barrier.wait();
+                    match table.try_acquire(digest(i as u8 + 1), &[obj]) {
+                        Ok(()) => wins.fetch_add(1, Ordering::Relaxed),
+                        Err(IotaError::ObjectLockConflict { .. }) => {
+                            conflicts.fetch_add(1, Ordering::Relaxed)
+                        }
+                        Err(e) => panic!("unexpected error: {e:?}"),
+                    };
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(wins.load(Ordering::Relaxed), 1, "exactly one winner");
+        assert_eq!(conflicts.load(Ordering::Relaxed), n - 1, "rest conflict");
+        assert_eq!(table.lock_count(), 1);
     }
 
     #[test]
@@ -355,7 +460,7 @@ mod tests {
         table.sweep_expired();
         assert_eq!(table.lock_count(), 0);
         // Reverse index should also be cleaned up.
-        assert!(!table.tx_to_objects.contains_key(&tx));
+        assert!(!table.inner.lock().tx_to_objects.contains_key(&tx));
     }
 
     #[test]
@@ -372,14 +477,15 @@ mod tests {
         table.try_acquire(tx_b, &[obj]).unwrap();
 
         // tx_a's tx_to_objects entry is stale (obj now belongs to tx_b).
-        assert!(table.tx_to_objects.contains_key(&tx_a));
+        assert!(table.inner.lock().tx_to_objects.contains_key(&tx_a));
 
         // Sweep should clean up both expired locks AND stale reverse index.
         // tx_b's lock is also expired (TTL=0), so everything should be cleaned.
         table.sweep_expired();
         assert_eq!(table.lock_count(), 0);
-        assert!(!table.tx_to_objects.contains_key(&tx_a));
-        assert!(!table.tx_to_objects.contains_key(&tx_b));
+        let inner = table.inner.lock();
+        assert!(!inner.tx_to_objects.contains_key(&tx_a));
+        assert!(!inner.tx_to_objects.contains_key(&tx_b));
     }
 
     #[test]
@@ -392,7 +498,7 @@ mod tests {
         table.clear();
 
         assert_eq!(table.lock_count(), 0);
-        assert!(table.tx_to_objects.is_empty());
+        assert!(table.inner.lock().tx_to_objects.is_empty());
     }
 
     #[test]
@@ -417,8 +523,9 @@ mod tests {
         // happen through `try_acquire` because `try_set_lock` would see
         // the same digest and succeed idempotently with the same objects.
         // We bypass that by inserting directly into `tx_to_objects`.
-        table.tx_to_objects.insert(tx, vec![obj_b]);
-        // Re-acquire — `and_modify` detects the mismatch.
+        table.inner.lock().tx_to_objects.insert(tx, vec![obj_b]);
+        // Re-acquire — the mismatch path detects it and `debug_assert_eq!`
+        // fires under test builds.
         table.try_acquire(tx, &[obj_a]).unwrap();
     }
 
