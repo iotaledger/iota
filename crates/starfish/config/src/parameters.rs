@@ -136,7 +136,7 @@ pub struct Parameters {
 
 impl Parameters {
     pub(crate) fn default_leader_timeout() -> Duration {
-        Duration::from_millis(250)
+        Duration::from_millis(200)
     }
 
     pub(crate) fn default_min_block_delay() -> Duration {
@@ -157,7 +157,7 @@ impl Parameters {
     }
 
     pub(crate) fn default_soft_leader_timeout() -> Duration {
-        Duration::from_millis(200)
+        Duration::from_millis(100)
     }
 
     pub(crate) fn default_max_forward_time_drift() -> Duration {
