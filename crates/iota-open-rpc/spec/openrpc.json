@@ -1235,7 +1235,7 @@
             "value": {
               "data": {
                 "objectId": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809",
-                "version": 1,
+                "version": "1",
                 "digest": "33K5ZXJ3RyubvYaHuEnQ1QXmmbhgtrFwp199dnEbL4n7",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -2526,7 +2526,7 @@
               {
                 "data": {
                   "objectId": "0x504d411325e3c7f89d412044fe99007efb0f94f1e64d2e8090c619a39299d87e",
-                  "version": 1,
+                  "version": "1",
                   "digest": "AibMqH69gKT5t7rVTsDZFy2X5iHtoNDobKaZ62mg3FCU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2549,7 +2549,7 @@
               {
                 "data": {
                   "objectId": "0x23618df6438d21a48040e6bb568cafc13246bd847c60448160e0358cac4a1134",
-                  "version": 1,
+                  "version": "1",
                   "digest": "D5W76mT1A3tqCmE1Z5MdV5obNzesMXLfLKpRDHSp1fyz",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2572,7 +2572,7 @@
               {
                 "data": {
                   "objectId": "0x8b95b4eaa9fd3b22b43f6b2c8e92090bd6d16522a6fd4fa83ec70a5f197ad656",
-                  "version": 1,
+                  "version": "1",
                   "digest": "H2o2pWgceQgTtYrMacR4xnCi4vqGiuozDA6k2rBc4m3q",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2595,7 +2595,7 @@
               {
                 "data": {
                   "objectId": "0x3fbbd3ebef7dbcc7b02346cdf05674452cc61f316af5d5d7c02b94b023242685",
-                  "version": 1,
+                  "version": "1",
                   "digest": "3ovR1s3bZt6AN1AQ7QhGUfX9BSwgjJPvL6XaczgeSKXU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2618,7 +2618,7 @@
               {
                 "data": {
                   "objectId": "0x9b5cd5df0df2a168259b7115a41ccc0a372b6fd0026e0c63043492ce4d0c19a6",
-                  "version": 1,
+                  "version": "1",
                   "digest": "25QdFqrh9FgxhGQyAxZsNEakYmHezqmU3FMPud7JGRB5",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3089,7 +3089,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumberString"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         },
         {
@@ -3138,7 +3138,7 @@
               "status": "VersionFound",
               "details": {
                 "objectId": "0x11af4b844ff94b3fbef6e36b518da3ad4c5856fa686464524a876b463d129760",
-                "version": 4,
+                "version": "4",
                 "digest": "5VPAwDXy3BL72ehFc7gSJoz27ahMd6spUg5YwYc4ibcv",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -3237,7 +3237,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf",
-                  "version": 4,
+                  "version": "4",
                   "digest": "5pCqw4G6F1hXcukW3XwhBzas9RqeFrUkvNon5jgX3ewg",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3261,7 +3261,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0x5cd6fa76ed1d18f05f15e35075252ddec4fb83621d55952d9172fcfcb72feae2",
-                  "version": 12,
+                  "version": "12",
                   "digest": "CE9bNT96Sa2BxQQH2id4PRxTgW5TW7zm6VVhDeRNBegW",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3446,7 +3446,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x91825debff541cf4e08b5c5f7296ff9840e6f0b185af93984cde8cf3870302c0",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "7dp5WtTmtGp83EXYYFMzjBJRFeSgR67AzqMETLrfgeFx",
                   "balance": "200000000",
                   "previousTransaction": "9WfFUVhjbbh4tWkyUse1QxzbKX952cyXScH7xJNPB2vQ"
@@ -3454,7 +3454,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x48a53f22e2e901ea2a5bf44fdd5bb94a1d83b6efc4dd779f0890ca3b1f6ba997",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "9xLdMXezY8d1yRA2TtN6pYjapyy2EVKHWNriGPFGCFvd",
                   "balance": "200000000",
                   "previousTransaction": "Byq9SyV7x6fvzaf88YRA9JM8vLbVLJAqUX8pESDmKcgw"
@@ -3462,7 +3462,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x6867fcc63161269c5c0c73b02229486bbaff319209dfb8299ced3b8609037997",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "5xexWFq6QpGHBQyC9P2cbAJXq9qm2EjzfuRM9NwS1uyG",
                   "balance": "200000000",
                   "previousTransaction": "CEjwHmo98nAiYhSMfKoSDvUMtfKJ6ge6Uj4wKotK4MPZ"
@@ -3725,7 +3725,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0xa5a8e30db5a798a7354340b6ea78a66f50921841ab5359ec7a3dc01f282420ae",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "tw5DzJTfdxTn4f3rekFrhN7dQTUezBgsEhycDobTBLb",
                   "balance": "200000000",
                   "previousTransaction": "HSein75AFXgdsnbABWLQ5mvjFmPFWrBFi9CMVsNn7gJr"
@@ -3733,7 +3733,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0x47dfa99496428c65b2054ad7db1872b87ff05b1047bb5e3adf5257cceb08ecb4",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "AfgFe7ZfjJ5dWV6VAy2LbtvBFhcABkvdvwEjLrRcFqtr",
                   "balance": "200000000",
                   "previousTransaction": "5WHnm9jUZEtDvSvsj7HBrP5BoxA3UY6R57qqumXJXboV"
@@ -3741,7 +3741,7 @@
                 {
                   "coinType": "0x2::iota::IOTA",
                   "coinObjectId": "0xd4f062dbcfc3bf73f5861945592222ff7b090ac21c8a3cf840abdc5b743da778",
-                  "version": 103626,
+                  "version": "103626",
                   "digest": "9er6jxigfuQEKsn9gtPV2oW1zGQRcFtKNijHVe88GUJD",
                   "balance": "200000000",
                   "previousTransaction": "H3gwoKE2FSLx3BwvNTTKqCsNHmg6ARzm345icHhXUAEW"
@@ -3885,7 +3885,7 @@
             "value": {
               "data": {
                 "objectId": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b",
-                "version": 1,
+                "version": "1",
                 "digest": "FnxePMX8y7AqX5mRL4nCcK4xecSrpHrd85c3sJDmh5uG",
                 "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                 "owner": {
@@ -4017,7 +4017,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x82b2fd67344691abd0efc771941b948ad35360b08e449fbbc28b0641175bf60b",
-                  "version": "1",
+                  "version": 1,
                   "digest": "P2fGrUFbsF576cFxXYXrp1PskZHo2XKvbEoxL14qtnr"
                 },
                 {
@@ -4030,7 +4030,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x21564fc5a68ace997461b098c1d1f3ccbde241d8fdf562db36bc1423ee10cecb",
-                  "version": "1",
+                  "version": 1,
                   "digest": "8Nmpatir33R88Xow2td3dpezMm1gsQJD19VThwR1Y8T5"
                 },
                 {
@@ -4043,7 +4043,7 @@
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x7e00acf5386662fa062483ba507b1e9e3039750f0a270f2e12441ad7f611a5f7",
-                  "version": "1",
+                  "version": 1,
                   "digest": "J2n2gEG8R9P9nMep8mRVLjttxcDXQnWSH9KmrRsnGSg2"
                 }
               ],
@@ -4301,7 +4301,7 @@
                       "AddressOwner": "0x0cd4bb4d4f520fe9bbf0cf1cebe3f2549412826c3c9261bff9786c240123749f"
                     },
                     {
-                      "Version": 13488
+                      "Version": "13488"
                     }
                   ]
                 },
@@ -4332,7 +4332,7 @@
                 {
                   "data": {
                     "objectId": "0xd87765d1aadec2db8cc24c312542c8359b6b5e3bfeab524e5edaad3a204b4053",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "8qCvxDHh5LtDfF95Ci9G7vvQN2P6y4v55S9xoKBYp7FM",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4345,7 +4345,7 @@
                 {
                   "data": {
                     "objectId": "0x26ed170e0427f9416a614d23284116375c16bd317738fd2c7a885362e04923f5",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "5Ka3vDaDy9h5UYk3Maz3vssWHrhbcGXQgwg8fL2ygyTi",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4358,7 +4358,7 @@
                 {
                   "data": {
                     "objectId": "0x2aea16d6fb49b7d1ae51f33b01ed8e1ac66916858610c124bb6fd73bb13e141c",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "D3hfhfecVcmRcqNEkxkoFMzbuXvBqWj1JkCNU9zbnYMo",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4465,17 +4465,17 @@
                 "stakes": [
                   {
                     "stakedIotaId": "0xf27ab513fc6ef8c344406c78da3d5ad3a5fcc295dc8803c15989a62d33ee8590",
-                    "stakeRequestEpoch": 62,
-                    "stakeActiveEpoch": 63,
-                    "principal": 200000000000,
+                    "stakeRequestEpoch": "62",
+                    "stakeActiveEpoch": "63",
+                    "principal": "200000000000",
                     "status": "Active",
-                    "estimatedReward": 520000000
+                    "estimatedReward": "520000000"
                   },
                   {
                     "stakedIotaId": "0x14cfd5e91c13a481370240e392464c329a203fb9f0a8158aaab9b2a90044b26e",
-                    "stakeRequestEpoch": 142,
-                    "stakeActiveEpoch": 143,
-                    "principal": 200000000000,
+                    "stakeRequestEpoch": "142",
+                    "stakeActiveEpoch": "143",
+                    "principal": "200000000000",
                     "status": "Pending"
                   }
                 ]
@@ -4486,9 +4486,9 @@
                 "stakes": [
                   {
                     "stakedIotaId": "0x378423de90ed03b694cecf443c72b5387b29a731d26d98108d7abc4902107d7d",
-                    "stakeRequestEpoch": 244,
-                    "stakeActiveEpoch": 245,
-                    "principal": 200000000000,
+                    "stakeRequestEpoch": "244",
+                    "stakeActiveEpoch": "245",
+                    "principal": "200000000000",
                     "status": "Unstaked"
                   }
                 ]
@@ -4548,17 +4548,17 @@
               "stakes": [
                 {
                   "stakedIotaId": "0x6a8e0f8fea6fda5488462e58724c034462b6064a08845e2ae2942fe7c4ee816d",
-                  "stakeRequestEpoch": 62,
-                  "stakeActiveEpoch": 63,
-                  "principal": 200000000000,
+                  "stakeRequestEpoch": "62",
+                  "stakeActiveEpoch": "63",
+                  "principal": "200000000000",
                   "status": "Active",
-                  "estimatedReward": 520000000
+                  "estimatedReward": "520000000"
                 },
                 {
                   "stakedIotaId": "0x754eb2eed23e6c6bb32c89fe1f21ab588374445e72e0402aea014b2956105799",
-                  "stakeRequestEpoch": 244,
-                  "stakeActiveEpoch": 245,
-                  "principal": 200000000000,
+                  "stakeRequestEpoch": "244",
+                  "stakeActiveEpoch": "245",
+                  "principal": "200000000000",
                   "status": "Unstaked"
                 }
               ]
@@ -4723,7 +4723,7 @@
                   "apy": 0.05
                 }
               ],
-              "epoch": 420
+              "epoch": "420"
             }
           }
         }
@@ -6312,7 +6312,7 @@
             "format": "base58"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumberU64"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         }
       },
@@ -7862,7 +7862,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumberString"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         }
       },
@@ -10329,7 +10329,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumberU64"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }

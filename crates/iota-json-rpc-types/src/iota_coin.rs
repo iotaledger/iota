@@ -17,7 +17,7 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use crate::{
     Page,
     serde_utils::{
-        Base58, ObjectID as ObjectIDSchema, SequenceNumberU64 as SequenceNumberU64Schema,
+        Base58, ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
     },
 };
 
@@ -94,7 +94,8 @@ pub struct Coin {
     pub coin_type: String,
     #[schemars(with = "ObjectIDSchema")]
     pub coin_object_id: ObjectID,
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub version: SequenceNumber,
     #[schemars(with = "Base58")]
     pub digest: ObjectDigest,

@@ -32,7 +32,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_utils::{
     Base58 as Base58Schema, ObjectID as ObjectIDSchema,
-    SequenceNumberString as SequenceNumberSchema, TypeTag as TypeTagSchema,
+    SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
 };
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
@@ -193,8 +193,7 @@ pub struct IotaDynamicFieldInfo {
     pub object_type: String,
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: iota_types::base_types::SequenceNumber,
     #[schemars(with = "Base58Schema")]
     pub digest: iota_types::digests::ObjectDigest,

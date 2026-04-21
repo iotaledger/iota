@@ -77,6 +77,7 @@ pub enum StakeStatus {
     Pending,
     #[serde(rename_all = "camelCase")]
     Active {
+        #[serde_as(as = "DisplayFromStr")]
         #[schemars(with = "String")]
         estimated_reward: u64,
     },
@@ -90,10 +91,13 @@ pub struct Stake {
     /// ID of the StakedIota receipt object.
     #[schemars(with = "ObjectIDSchema")]
     pub staked_iota_id: ObjectID,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_request_epoch: EpochId,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_active_epoch: EpochId,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub principal: u64,
     #[serde(flatten)]
@@ -123,6 +127,7 @@ pub struct TimelockedStake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApys {
     pub apys: Vec<ValidatorApy>,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub epoch: EpochId,
 }

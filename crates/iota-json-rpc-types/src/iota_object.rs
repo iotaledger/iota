@@ -211,7 +211,8 @@ pub struct IotaObjectData {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58")]
@@ -1295,7 +1296,11 @@ pub enum IotaObjectDataFilter {
         #[serde_as(as = "Vec<ObjectIDSchema>")]
         Vec<ObjectID>,
     ),
-    Version(#[schemars(with = "String")] u64),
+    Version(
+        #[serde_as(as = "DisplayFromStr")]
+        #[schemars(with = "String")]
+        u64,
+    ),
 }
 
 impl IotaObjectDataFilter {
