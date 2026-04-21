@@ -784,9 +784,7 @@ impl Core {
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
         if !reason.is_forced() {
-            if leader_header.is_none() {
-                return None;
-            }
+            leader_header.as_ref()?;
 
             // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
             // soft-timeout): 2f+1 strong votes at clock_round-1 for the leader
