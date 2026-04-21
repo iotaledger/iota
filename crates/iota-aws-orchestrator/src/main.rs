@@ -371,8 +371,6 @@ pub enum LatencyTopology {
 #[derive(ValueEnum, Clone, Debug, Deserialize, Serialize)]
 pub enum ConsensusProtocol {
     Starfish,
-    Mysticeti,
-    SwapEachEpoch,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
