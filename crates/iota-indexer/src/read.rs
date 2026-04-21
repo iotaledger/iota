@@ -849,7 +849,7 @@ impl IndexerReader {
 
         Ok(fetched_transactions
             .into_iter()
-            .chain(historical_transactions.into_iter())
+            .chain(historical_transactions)
             .collect())
     }
 

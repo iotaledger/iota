@@ -885,7 +885,7 @@ impl DagState {
             .with_label_values(&["get_verified_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             transactions[index] = result;
         }
 
@@ -962,7 +962,7 @@ impl DagState {
             .with_label_values(&["get_serialized_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             transactions[index] = result;
         }
 
@@ -1091,7 +1091,7 @@ impl DagState {
             .with_label_values(&["get_verified_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             block_headers[index] = result;
         }
 
@@ -1134,7 +1134,7 @@ impl DagState {
             .read_verified_block_headers(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             if let Some(header) = result {
                 commitments[index] = Some(header.transactions_commitment());
             }
@@ -1186,7 +1186,7 @@ impl DagState {
             .with_label_values(&["get_serialized_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results) {
             block_headers[index] = result;
         }
 
@@ -1705,7 +1705,7 @@ impl DagState {
             .with_label_values(&["contains_block_headers"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             exist[index] = result;
         }
 
@@ -1759,7 +1759,7 @@ impl DagState {
             .with_label_values(&["contains_transactions"])
             .inc();
 
-        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+        for ((index, _), result) in missing.into_iter().zip(store_results) {
             exist[index] = result;
         }
 

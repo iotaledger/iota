@@ -863,7 +863,7 @@ impl KeyToolCommand {
                     threshold,
                 };
 
-                for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
+                for (pk, w) in pks.into_iter().zip(weights) {
                     output.multisig.push(MultiSigOutput {
                         address: Into::<IotaAddress>::into(&pk),
                         public_base64_key_with_flag: pk.encode_base64(),

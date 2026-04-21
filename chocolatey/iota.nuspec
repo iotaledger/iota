@@ -24,7 +24,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 	</metadata>
 	<files>
 		<file src="../tmp/release/iota.exe" target="bin/iota.exe" />
-		<file src="../LICENSE" target="tools/LICENSE" />
+		<file src="../tmp/LICENSE.txt" target="tools/LICENSE.txt" />
 		<file src="./VERIFICATION.txt" target="bin/VERIFICATION.txt" />
 	</files>
 </package>

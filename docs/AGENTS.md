@@ -49,7 +49,7 @@ A how-to guide directs an **already capable user** through achieving a specific 
 
 Never copy code inline. Always reference the source so docs stay in sync with the implementation. There are two patterns depending on where the code lives:
 
-**Monorepo sources** — use `file=<rootDir>/...` with optional line range:
+**Monorepo sources** — use `file=<rootDir>/...` with optional line range. `<rootDir>` resolves to the `docs/` directory:
 
 ````mdx
 ```move file=<rootDir>/examples/move/my-module/sources/foo.move#L10-L25
@@ -136,6 +136,17 @@ Explanation provides context, design decisions, and deeper understanding. It is 
 
 **Frontmatter tags:** `explanation`
 
+## Before You Write
+
+1. **Search for duplicates** — `grep -r "your topic" content/` before creating a new page.
+2. **Check `_snippets/`** — reusable MDX for common warnings, install steps, faucet info, network resets, and more. Import with a relative path and use as a JSX component:
+   ```mdx
+   import NetworkReset from '../../../_snippets/network-reset.mdx';
+   <NetworkReset />
+   ```
+3. **Pick the Diátaxis type** — if unsure, re-read the type rules above; choose based on the user's _state_, not the content's subject.
+4. **Locate the sidebar file** — find `content/sidebars/<section>.js` before writing so you know where to register the page.
+
 ## File Organization
 
 ```
@@ -164,6 +175,115 @@ tags:
 ---
 ```
 
+## Navigation / Sidebar Config
+
+New pages are **not** auto-discovered — you must register them in the correct sidebar file under `content/sidebars/`. Choose the file that matches the section (`developer.js`, `operator.js`, `users.js`, etc.).
+
+Sidebar files are deeply nested `type: 'category'` trees. Find the right category and add the page's path (relative to `content/`, no extension) inside its `items` array:
+
+```js
+{
+    type: 'category',
+    label: 'How-tos',
+    items: [
+        'developer/move/how-tos/existing-page',
+        'developer/move/how-tos/create-authenticator', // ← add here
+    ],
+},
+```
+
+Never append a bare string to the top of the file — it will build but not appear in the navigation. `site/sidebars.js` is the top-level entry point that imports all section files; check it only when adding an entirely new section.
+
+## Valid Tags
+
+Tags must exist in `content/tags.yml` — never invent a tag. If you need a new one, add it to `tags.yml` first.
+
+**Diátaxis (required — exactly one per page):** `tutorial`, `how-to`, `reference`, `explanation`
+
+**Languages:** `move-sc`, `typescript`, `rust`, `python`, `solidity`, `go`, `wasm`, `kotlin`, `swift`
+
+**VMs:** `move-vm`, `evm`
+
+**Tooling:** `sdk`, `ts-sdk`, `rust-sdk`, `cli`, `iota-cli`, `dapp-kit`, `crates`
+
+**Networks:** `devnet`, `testnet`, `mainnet`, `localnet`
+
+**Concepts:** `transaction`, `nft`, `native-token`, `address`, `consensus`, `randomness`, `faucet`
+
+See `content/tags.yml` for the full list grouped by category.
+
+## Build Pipeline
+
+Both `dev` and `build` run the same preparation steps before starting Docusaurus:
+
+```
+download-rpc-specs          # JSON-RPC / OpenRPC specs
+download-iota-references    # Move framework refs  ──┐
+download-iota-sdk-references # Rust SDK refs         │  pre-built tarballs
+download-external-references # EVM / Identity /      │  from AWS S3
+                             # Notarization /         │  (files.iota.org)
+                             # Hierarchies refs      ─┘
+generate-ts-docs            # TypeDoc from TS SDK source (local)
+generate-graphql-docs       # GraphQL schema → docs, per network (local)
+gen-api                     # OpenAPI / REST API docs (local)
+```
+
+**Do not hand-edit files under these paths** — they are overwritten on every build:
+
+- `content/developer/references/framework/`
+- `content/developer/ts-sdk/`
+- `content/developer/iota-sdk/references/`
+- `content/developer/iota-evm/references/`
+- `content/developer/iota-identity/references/`
+- `content/developer/iota-notarization/references/`
+- `content/developer/iota-hierarchies/references/`
+
+If a generated reference is wrong, fix the source (the relevant SDK repo or script in `site/scripts/`) rather than the output file.
+
+## Running the Docs
+
+Always run from the **repo root** after `pnpm i`:
+
+```sh
+pnpm iota-docs dev    # start dev server (hot-reload, localhost:3000)
+pnpm iota-docs build  # production build — use this to validate before merging
+```
+
+Both commands run the full preparation pipeline (downloads + code generation) before starting Docusaurus.
+
+To run a specific docs script without the full build, use the pnpm workspace filter:
+
+```sh
+pnpm --filter iota-docs run generate-ts-docs
+pnpm --filter iota-docs run download-iota-references
+```
+
+`onBrokenLinks`, `onBrokenMarkdownLinks`, and `onBrokenAnchors` are all set to `throw`, so any broken reference fails the build.
+
+## Notable Plugins
+
+Three plugins directly affect how you write content:
+
+### rehype-jargon
+
+Domain terms defined in `site/config/jargon.js` are automatically highlighted in rendered pages with a tooltip showing the definition. To trigger a tooltip, wrap the term in underscores in your MDX: `_gas_`, `_epoch_`, `_finality_`. To add a new term, add an entry to `jargon.js` — keys are lowercase, values are HTML strings.
+
+### plugin-client-redirects
+
+When you rename or move a page, add a redirect so external links and search engine results don't break. Redirects live in `docusaurus.config.js` inside the `@docusaurus/plugin-client-redirects` config:
+
+```js
+{ from: '/old/path', to: '/new/path' },
+```
+
+The redirect logic derives child paths automatically, so a single entry covers `/old/path/sub-page` → `/new/path/sub-page`.
+
+Redirects are a grace period, not permanent. Once external links and search indexes have had reasonable time to update (a few months), remove the entry to keep the config clean.
+
+### docusaurus-plugin-llms
+
+Generates `llms-full-*.txt` files consumed by AI tools and agents. Each file covers a topic area via `includePatterns`. When adding a significant new content section, add it to the relevant pattern in `docusaurus.config.js`, or create a new `customLLMFiles` entry if it forms a distinct topic. Snippets (`_snippets/`) and files starting with `_` are excluded automatically.
+
 ## Common Mistakes to Avoid
 
 - **Mixing types:** A how-to that explains "why" is diluted; move the explanation to a dedicated explanation page and link to it.
@@ -171,3 +291,5 @@ tags:
 - **Orphaned reference:** Auto-generated API docs alone are not enough. Every reference page benefits from how-to guides and explanation pages that give it context.
 - **Explanation scope creep:** Explanation pages are the most likely to absorb stray instructions or reference tables. Keep them discursive and conceptual.
 - **Inline code:** Never copy code into the page. Use `file=<rootDir>/...` for monorepo sources or the `reference` keyword with a GitHub URL for external repos. Both accept an `#L1-L10` line-range anchor.
+- **Unregistered page:** A new page not added to its sidebar file will build but never appear in the navigation.
+- **Missing redirect:** Renaming or moving a page without a redirect entry in `docusaurus.config.js` breaks existing links silently — the build will succeed but users will hit 404s.
