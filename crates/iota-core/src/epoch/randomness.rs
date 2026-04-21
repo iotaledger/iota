@@ -905,7 +905,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50_000,
-                95,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
@@ -1057,7 +1057,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50_000,
-                95,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
