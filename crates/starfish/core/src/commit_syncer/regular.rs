@@ -871,7 +871,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        sync::{Arc, atomic::AtomicBool},
+        time::Duration,
+    };
 
     use bytes::Bytes;
     use parking_lot::RwLock;
@@ -1072,5 +1075,103 @@ mod tests {
             assert_eq!(range.start(), start);
             assert_eq!(range.end(), start + 4);
         }
+    }
+
+    /// Exercises both branches of the `fast_sync_active` gate on
+    /// `try_schedule_once`: when the gate is `None` (fast sync disabled at
+    /// this deployment) scheduling proceeds normally; when the gate is
+    /// `Some(true)` (fast sync currently active) scheduling is skipped and
+    /// the `syncer_paused_by_fast_sync{source="regular_schedule"}` counter
+    /// is bumped.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn try_schedule_once_gated_by_fast_sync_active() {
+        async fn run_scenario(fast_sync_active: Option<Arc<AtomicBool>>) -> (usize, u64) {
+            let (context, _) = Context::new_for_test(4);
+            let context = Context {
+                own_index: AuthorityIndex::new_for_test(3),
+                parameters: Parameters {
+                    commit_sync_batch_size: 5,
+                    commit_sync_batches_ahead: 5,
+                    commit_sync_parallel_fetches: 5,
+                    max_headers_per_commit_sync_fetch: 5,
+                    ..context.parameters
+                },
+                ..context
+            };
+            let context = Arc::new(context);
+            let block_verifier = Arc::new(NoopBlockVerifier {});
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let store: Arc<dyn Store> = Arc::new(MemStore::new(context.clone()));
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+            let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+            let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
+
+            let transactions_synchronizer =
+                crate::transactions_synchronizer::TransactionsSynchronizer::start(
+                    network_client.clone(),
+                    context.clone(),
+                    core_thread_dispatcher.clone(),
+                    dag_state.clone(),
+                );
+            let header_synchronizer = HeaderSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                transactions_synchronizer,
+                block_verifier.clone(),
+                dag_state.clone(),
+                false,
+                None,
+            );
+
+            let mut commit_syncer = RegularCommitSyncer::new(
+                context.clone(),
+                core_thread_dispatcher,
+                commit_vote_monitor.clone(),
+                commit_consumer_monitor,
+                network_client,
+                block_verifier,
+                dag_state,
+                header_synchronizer,
+                fast_sync_active,
+            );
+
+            // Push quorum_commit_index to 10 so scheduling has a non-empty gap.
+            for i in 0..3 {
+                let test_block = TestBlockHeader::new(15, i)
+                    .set_commit_votes(vec![CommitRef::new(10, CommitDigest::MIN)])
+                    .build();
+                let block = VerifiedBlockHeader::new_for_test(test_block);
+                commit_vote_monitor.observe_block(&block);
+            }
+
+            commit_syncer.try_schedule_once();
+
+            let paused = context
+                .metrics
+                .node_metrics
+                .syncer_paused_by_fast_sync
+                .with_label_values(&["regular_schedule"])
+                .get();
+            (commit_syncer.pending_fetches().len(), paused)
+        }
+
+        // Flag off (mainnet-style): scheduling proceeds, gate never fires.
+        let (pending, paused) = run_scenario(None).await;
+        assert!(
+            pending > 0,
+            "expected regular sync to schedule ranges when fast_sync_active is None"
+        );
+        assert_eq!(paused, 0);
+
+        // Fast sync active: scheduling is skipped, metric bumped exactly once.
+        let (pending, paused) = run_scenario(Some(Arc::new(AtomicBool::new(true)))).await;
+        assert_eq!(
+            pending, 0,
+            "expected no ranges scheduled while fast sync is active"
+        );
+        assert_eq!(paused, 1);
     }
 }

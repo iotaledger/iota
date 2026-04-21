@@ -281,11 +281,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 );
             }
 
-            // TODO(user contribution): review this `active` expression and
-            // simplify if any term is implied by the others. See plan
-            // §"Activity definition". Conservative form is used here — any
-            // of these being true means fast sync still has work that
-            // regular sync must not overlap with.
+            // Any of these being true means fast sync still has work; regular
+            // sync and the header synchronizer must stay paused.
             let active = self.has_fetched_data
                 || self.close_to_quorum_mode
                 || !self.inflight_fetches.is_empty()
