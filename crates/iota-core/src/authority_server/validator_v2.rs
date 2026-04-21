@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use futures::{future::Either, stream, StreamExt};
+use futures::{StreamExt, future::Either, stream};
 use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
@@ -52,10 +52,10 @@ type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic:
 use iota_metrics::spawn_monitored_task;
 
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     authority_server::{
-        normalize, soft_lock::PreConsensusSoftLocks, StreamResponse, ValidatorService,
-        ValidatorServiceMetrics,
+        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
+        soft_lock::PreConsensusSoftLocks,
     },
     consensus_adapter::ConsensusAdapter,
 };
@@ -92,6 +92,7 @@ impl ValidatorService {
         let (tx_sender, rx) = tokio::sync::mpsc::channel(transactions.len().max(1));
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
+        let soft_locks = self.soft_locks.clone();
 
         // Run per-tx tasks concurrently, capped by `MAX_CONCURRENT_SUBMIT_TASKS`.
         // Spawning lets CPU-heavy work run across worker threads; `buffer_unordered`
@@ -103,7 +104,7 @@ impl ValidatorService {
                     let epoch_store = epoch_store.clone();
                     let consensus_adapter = consensus_adapter.clone();
                     let metrics = metrics.clone();
-                    let soft_locks = self.soft_locks.clone();
+                    let soft_locks = soft_locks.clone();
                     spawn_monitored_task!(async move {
                         let tx_digest = *transaction.digest();
                         let (update, weight) = Self::submit_single_tx(
@@ -247,12 +248,23 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
+        // Reconfig check.
+        let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+        if !reconfiguration_lock.should_accept_user_certs() {
+            metrics.num_rejected_tx_in_epoch_boundary.inc();
+            let error = IotaError::ValidatorHaltedAtEpochEnd;
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
         // Soft-lock owned objects to prevent conflicting transactions.
         // Same-digest resubmission passes through (idempotent).
         // Different-digest conflict on same objects → rejected.
-        if let Err(e) = soft_locks.try_acquire(tx_digest, &owned_objects) {
+        // Placed after the reconfig check so we never acquire locks that would
+        // need releasing on the epoch-halt path.
+        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
             metrics.num_rejected_tx_soft_lock_conflict.inc();
-            let weight = normalize(&e);
+            let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
         }
         metrics
@@ -276,6 +288,9 @@ impl ValidatorService {
         ) {
             let weight = normalize(&e);
             soft_locks.release(&tx_digest);
+            metrics
+                .soft_lock_table_size
+                .set(soft_locks.lock_count() as i64);
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 

@@ -13,7 +13,7 @@ mod test_server;
 
 use std::{
     net::{IpAddr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, Weak},
     time::SystemTime,
 };
 
@@ -25,7 +25,7 @@ pub use metrics::ValidatorServiceMetrics;
 #[cfg(test)]
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tokio_stream::StreamExt;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     authority::AuthorityState,
@@ -76,6 +76,35 @@ impl ValidatorService {
             client_id_source: policy_config.map(|policy| policy.client_id_source),
             soft_locks,
         }
+    }
+
+    /// Spawns a background task that periodically sweeps expired soft locks
+    /// and refreshes the `soft_lock_table_size` gauge, so Prometheus scrapes
+    /// see a fresh value even under low transaction load.
+    ///
+    /// The task holds only a `Weak` reference to the lock table and exits
+    /// automatically once all strong `Arc` owners have been dropped (e.g. when
+    /// the node stops being a validator). No explicit `abort()` is needed.
+    pub fn spawn_soft_lock_sweep(
+        soft_locks: Weak<PreConsensusSoftLocks>,
+        metrics: Arc<ValidatorServiceMetrics>,
+    ) -> tokio::task::JoinHandle<()> {
+        iota_metrics::spawn_monitored_task!(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+                let Some(soft_locks) = soft_locks.upgrade() else {
+                    // All strong references have been dropped; the validator is
+                    // shutting down or has left the committee.
+                    info!("Soft-lock sweep task shutting down: validator is no longer active.");
+                    break;
+                };
+                soft_locks.sweep_expired();
+                metrics
+                    .soft_lock_table_size
+                    .set(soft_locks.lock_count() as i64);
+            }
+        })
     }
 
     pub fn new_for_tests(

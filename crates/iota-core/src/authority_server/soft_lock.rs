@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Pre-consensus soft locking for the pcool (white-flag) transaction flow.
@@ -20,7 +20,7 @@
 //! | Tx forgotten by consensus        | TTL expiry releases locks via background sweep                        |
 //! | Consensus submission fails       | Locks released immediately in error path                              |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
-//! | Epoch boundary                   | New `ValidatorService` = new `PreConsensusSoftLocks` = empty          |
+//! | Epoch boundary                   | Same instance is `clear()`-ed; all locks dropped                      |
 //! | Object version mismatch          | Keyed on full `ObjectRef`; different versions don't conflict          |
 //!
 //! # TTL derivation

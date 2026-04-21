@@ -75,12 +75,15 @@ use crate::{
 ///
 /// # Returns
 ///
-/// `Ok((dropped, locks))` where:
+/// `Ok((dropped, locks, all_user_tx_digests))` where:
 /// - `dropped` — `(digest, error)` for every semantically-invalid or
 ///   lock-conflicting transaction. Silent drops (duplicates, already-executed)
 ///   are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
+/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
+///   (both kept and dropped). Used by the caller to release pre-consensus soft
+///   locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
