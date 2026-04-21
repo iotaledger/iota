@@ -913,16 +913,27 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            if epoch_store
-                .within_alive_epoch(self.submit_end_of_publish_with_retry(epoch_store))
-                .await
-                .is_err()
-            {
-                warn!(
-                    epoch = ?epoch_store.epoch(),
-                    "EndOfPublish submission cancelled: epoch has ended",
-                );
-            }
+            // Spawn a separate task for EndOfPublish so that
+            // submit_and_wait_inner returns promptly after the original
+            // transaction is processed. Awaiting the retry loop inline
+            // would hold the InflightDropGuard and inflate in-flight
+            // metrics for the duration of retries.
+            let adapter = self.clone();
+            let epoch_store = epoch_store.clone();
+            spawn_monitored_task!(async move {
+                if epoch_store
+                    .within_alive_epoch(
+                        adapter.submit_end_of_publish_with_retry(&epoch_store),
+                    )
+                    .await
+                    .is_err()
+                {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        "EndOfPublish submission cancelled: epoch has ended",
+                    );
+                }
+            });
         }
         self.metrics
             .sequencing_certificate_success
@@ -1068,12 +1079,15 @@ impl ConsensusAdapter {
     }
 
     /// Submits an `EndOfPublish` message to consensus with exponential
-    /// backoff (capped at `MAX_BACKOFF`). On transient failures (e.g. DB
-    /// write errors in `insert_pending_consensus_transactions`), retries
-    /// until success since a missing `EndOfPublish` would stall the epoch.
+    /// backoff (capped at `MAX_BACKOFF`). Retries indefinitely on any
+    /// error — both transient failures (e.g. DB write errors in
+    /// `insert_pending_consensus_transactions`) and permanent ones (e.g.
+    /// `EpochEnded` from `tables()`). A missing `EndOfPublish` would
+    /// stall the epoch, so the loop never gives up on its own.
     ///
-    /// Callers should wrap this with `epoch_store.within_alive_epoch()` to
-    /// cancel retries when the epoch terminates.
+    /// Callers **must** wrap this with `epoch_store.within_alive_epoch()`
+    /// to cancel retries when the epoch terminates — this is the
+    /// mechanism that stops the loop on permanent `EpochEnded` errors.
     async fn submit_end_of_publish_with_retry(
         self: &Arc<Self>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1095,6 +1109,14 @@ impl ConsensusAdapter {
                 epoch_store,
             ) {
                 Ok(_) => return,
+                Err(IotaError::EpochEnded(_)) => {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        authority = ?self.authority,
+                        "EndOfPublish submission stopped: epoch has ended",
+                    );
+                    return;
+                }
                 Err(err) => {
                     let backoff = (INITIAL_BACKOFF * 2u32.pow(attempt.min(10))).min(MAX_BACKOFF);
                     warn!(
@@ -1184,8 +1206,9 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
     /// This method is called externally to begin reconfiguration.
     /// It transitions the reconfig state to reject new user transactions.
     /// `ConsensusAdapter` will send `EndOfPublish` once all pending
-    /// transactions are drained (in the certificate mode) or immediately
-    /// (in the certificate-less mode).
+    /// transactions are drained (in the certificate mode) or right away
+    /// (in the certificate-less mode). Submission is asynchronous —
+    /// a background task handles retries so this method returns promptly.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
             let reconfig_guard = epoch_store.get_reconfig_state_write_lock_guard();
@@ -1216,6 +1239,12 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         };
 
         if send_end_of_publish {
+            // Spawned because ReconfigurationInitiator::close_epoch is
+            // sync — it cannot await. This is safe: by this point
+            // close_user_certs() has already set the reconfig state to
+            // reject new transactions, so no further user work depends
+            // on this method returning. The background task retries
+            // until the message is delivered or the epoch terminates.
             let adapter = self.clone();
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(async move {
