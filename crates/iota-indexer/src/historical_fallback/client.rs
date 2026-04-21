@@ -222,7 +222,7 @@ impl HttpRestKVClient {
         // that has non empty bytes, update the cache with the new data and
         // populate the corresponding slot in results at original index
         // position.
-        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing.into_iter()) {
+        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing) {
             if let Some(bytes) = fetch_result.filter(|b| !b.is_empty()) {
                 self.cache.insert(key, bytes.clone());
                 results[index] = Some(bytes);

@@ -279,7 +279,7 @@ impl Store for MemStore {
         }
         let results = self.read_blocks(refs.as_slice())?;
         let mut blocks = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
@@ -314,7 +314,7 @@ impl Store for MemStore {
         // Read and combine transactions and headers
         let results = self.read_blocks(refs.as_slices().0)?;
         let mut blocks = vec![];
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
