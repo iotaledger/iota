@@ -913,7 +913,16 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            self.submit_end_of_publish_with_retry(epoch_store).await;
+            if epoch_store
+                .within_alive_epoch(self.submit_end_of_publish_with_retry(epoch_store))
+                .await
+                .is_err()
+            {
+                warn!(
+                    epoch = ?epoch_store.epoch(),
+                    "EndOfPublish submission cancelled: epoch has ended",
+                );
+            }
         }
         self.metrics
             .sequencing_certificate_success
@@ -1058,11 +1067,13 @@ impl ConsensusAdapter {
         ProcessedMethod::Consensus
     }
 
-    /// Submits an `EndOfPublish` message to consensus with indefinite retry
-    /// and exponential backoff (capped at `MAX_BACKOFF`). On transient
-    /// failures (e.g. DB write errors in
-    /// `insert_pending_consensus_transactions`), retries until success since
-    /// a missing `EndOfPublish` would stall the epoch.
+    /// Submits an `EndOfPublish` message to consensus with exponential
+    /// backoff (capped at `MAX_BACKOFF`). On transient failures (e.g. DB
+    /// write errors in `insert_pending_consensus_transactions`), retries
+    /// until success since a missing `EndOfPublish` would stall the epoch.
+    ///
+    /// Callers should wrap this with `epoch_store.within_alive_epoch()` to
+    /// cancel retries when the epoch terminates.
     async fn submit_end_of_publish_with_retry(
         self: &Arc<Self>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1207,7 +1218,20 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         if send_end_of_publish {
             let adapter = self.clone();
             let epoch_store = epoch_store.clone();
-            spawn_monitored_task!(adapter.submit_end_of_publish_with_retry(&epoch_store));
+            spawn_monitored_task!(async move {
+                if epoch_store
+                    .within_alive_epoch(
+                        adapter.submit_end_of_publish_with_retry(&epoch_store),
+                    )
+                    .await
+                    .is_err()
+                {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        "EndOfPublish submission cancelled: epoch has ended",
+                    );
+                }
+            });
         }
     }
 }
