@@ -808,19 +808,21 @@ impl NodeConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    // Base consensus DB path for all epochs.
+    /// Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
-    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    /// The number of epochs for which to retain the consensus DBs.
+    /// Setting it to 0 will make a consensus DB getting dropped
+    /// as soon as system is switched to a new epoch.
     pub db_retention_epochs: Option<u64>,
 
-    // Pruner will run on every epoch change but it will also check periodically on every
-    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    /// Pruner will run on every epoch change but it will also check
+    /// periodically on every `db_pruner_period_secs` seconds to see
+    /// if there are any epoch DBs to remove.
     pub db_pruner_period_secs: Option<u64>,
 
-    /// Maximum number of pending transactions to submit to consensus, including
-    /// those in submission wait.
+    /// Maximum number of pending transactions to submit to consensus,
+    /// including those in submission wait.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
@@ -860,6 +862,9 @@ impl ConsensusConfig {
         &self.db_path
     }
 
+    /// Returns the maximum number of pending transactions to submit to
+    /// consensus, including those in submission wait. Defaults to 20_000
+    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
     }
