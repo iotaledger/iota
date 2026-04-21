@@ -111,54 +111,16 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
                 () = &mut min_block_delay_timeout, if !min_block_delay_timed_out && last_own_block_round.is_some() => {
                     let next_round: Round = last_own_block_round.expect("We should expect some last own round") + 1;
-                    match self.dispatcher.new_block(next_round, ReasonToCreateBlock::MinBlockDelayTimeout).await {
-                        Ok(missing_committed_txns) => {
-                            if !missing_committed_txns.is_empty() {
-                                debug!(
-                                    "Missing committed transactions after creating new block: {:?}",
-                                    missing_committed_txns
-                                );
-                                if let Err(err) = self.transactions_synchronizer
-                                    .fetch_transactions(missing_committed_txns)
-                                    .await
-                                {
-                                    warn!(
-                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-                                    );
-                                }
-                            }
-                        },
-                        Err(err) => {
-                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                            return;
-                        }
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, next_round, ReasonToCreateBlock::MinBlockDelayTimeout).await {
+                        return;
                     }
                     min_block_delay_timed_out = true;
                 },
                 // When the soft leader timeout expires, attempt block creation without requiring
                 // a strong-vote quorum. Only active when starfish speed is enabled.
                 () = &mut soft_timeout, if !soft_timed_out && self.starfish_speed_enabled => {
-                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::SoftTimeout).await {
-                        Ok(missing_committed_txns) => {
-                            if !missing_committed_txns.is_empty() {
-                                debug!(
-                                    "Missing committed transactions after creating new block: {:?}",
-                                    missing_committed_txns
-                                );
-                                if let Err(err) = self.transactions_synchronizer
-                                    .fetch_transactions(missing_committed_txns)
-                                    .await
-                                {
-                                    warn!(
-                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-                                    );
-                                }
-                            }
-                        },
-                        Err(err) => {
-                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                            return;
-                        }
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, clock_round, ReasonToCreateBlock::SoftTimeout).await {
+                        return;
                     }
                     soft_timed_out = true;
                 },
@@ -166,27 +128,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // call is made with reason MaxLeaderTimeout to bypass any checks that allow to propose immediately if block
                 // not already produced.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
-                        Ok(missing_committed_txns) => {
-                            if !missing_committed_txns.is_empty() {
-                                debug!(
-                                    "Missing committed transactions after creating new block: {:?}",
-                                    missing_committed_txns
-                                );
-                                if let Err(err) = self.transactions_synchronizer
-                                    .fetch_transactions(missing_committed_txns)
-                                    .await
-                                {
-                                    warn!(
-                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-                                    );
-                                }
-                            }
-                        }
-                        Err(err) =>  {
-                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                            return;
-                        }
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, clock_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
+                        return;
                     }
                     max_leader_round_timed_out = true;
                 }
@@ -225,6 +168,40 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     debug!("Stop signal has been received, now shutting down");
                     return;
                 }
+            }
+        }
+    }
+
+    /// Request a new block and fetch any missing committed transactions.
+    /// Returns `true` if the dispatcher is shutting down.
+    async fn dispatch_new_block(
+        dispatcher: &D,
+        transactions_synchronizer: &TransactionsSynchronizerHandle,
+        round: Round,
+        reason: ReasonToCreateBlock,
+    ) -> bool {
+        match dispatcher.new_block(round, reason).await {
+            Ok(missing_committed_txns) => {
+                if !missing_committed_txns.is_empty() {
+                    debug!(
+                        "Missing committed transactions after creating new block: {missing_committed_txns:?}"
+                    );
+                    if let Err(err) = transactions_synchronizer
+                        .fetch_transactions(missing_committed_txns)
+                        .await
+                    {
+                        warn!(
+                            "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                        );
+                    }
+                }
+                false
+            }
+            Err(err) => {
+                warn!(
+                    "Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}"
+                );
+                true
             }
         }
     }
