@@ -331,7 +331,7 @@ impl ConsensusAdapter {
     /// Test-only: creates a consensus adapter with a `MockConsensusClient`,
     /// default values for all parameters, and the given authority name.
     #[cfg(test)]
-    pub fn with_authority_name_for_testing(authority_name: AuthorityName) -> Self {
+    pub fn new_for_testing_with_authority_name(authority_name: AuthorityName) -> Self {
         Self::new(
             Arc::new(MockConsensusClient::new()),
             CheckpointStore::new_for_tests(),

@@ -741,7 +741,7 @@ async fn test_authority_txn_signing_pushback() {
 
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
-    let consensus_adapter = Arc::new(ConsensusAdapter::with_authority_name_for_testing(
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -864,7 +864,7 @@ async fn test_authority_txn_execution_pushback() {
         .await;
 
     // Create a validator service around the `authority_state`.
-    let consensus_adapter = Arc::new(ConsensusAdapter::with_authority_name_for_testing(
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
