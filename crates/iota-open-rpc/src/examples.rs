@@ -39,6 +39,7 @@ use iota_types::{
     event::EventID,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
     object::{MoveObject, MoveObjectExt, Owner},
@@ -50,7 +51,10 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
-    annotated_value::MoveStructLayout, language_storage::ModuleId, resolver::ModuleResolver,
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+    language_storage::ModuleId,
+    resolver::ModuleResolver,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde_json::json;
@@ -1198,6 +1202,7 @@ impl RpcExampleProvider {
         };
 
         let struct_tag = parse_iota_struct_tag("0x9::test::TestField").unwrap();
+        let contents = UID::new(parent_object_id).to_bcs_bytes();
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
@@ -1205,14 +1210,17 @@ impl RpcExampleProvider {
                         MoveObject::new_from_execution_with_limit(
                             struct_tag.clone(),
                             SequenceNumber::from_u64(1),
-                            Vec::new(),
-                            5,
+                            contents,
+                            100,
                         )
                         .unwrap()
                     },
                     MoveStructLayout {
                         type_: struct_tag_sdk_to_core(&struct_tag),
-                        fields: Vec::new(),
+                        fields: vec![MoveFieldLayout::new(
+                            ident_str!("id").to_owned(),
+                            MoveTypeLayout::Struct(Box::new(UID::layout())),
+                        )],
                     },
                 )
                 .unwrap(),
