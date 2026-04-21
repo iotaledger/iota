@@ -1359,9 +1359,8 @@ impl CheckpointBuilder {
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
         let mut chunk_size: usize = 0;
-        for ((effects, transaction_size), signatures) in effects_and_transaction_sizes
-            .into_iter()
-            .zip(signatures.into_iter())
+        for ((effects, transaction_size), signatures) in
+            effects_and_transaction_sizes.into_iter().zip(signatures)
         {
             // Roll over to a new chunk after either max count or max size is reached.
             // The size calculation here is intended to estimate the size of the

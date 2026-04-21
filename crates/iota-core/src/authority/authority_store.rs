@@ -1693,10 +1693,7 @@ impl AuthorityStore {
             }
         }
 
-        wb.delete_batch(
-            &self.perpetual_tables.objects,
-            object_keys_to_prune.into_iter(),
-        )?;
+        wb.delete_batch(&self.perpetual_tables.objects, object_keys_to_prune)?;
         wb.write()?;
         Ok(())
     }

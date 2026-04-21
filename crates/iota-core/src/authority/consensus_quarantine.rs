@@ -247,10 +247,7 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(next_versions) = self.next_shared_object_versions {
-            batch.insert_batch(
-                &tables.next_shared_object_versions,
-                next_versions.into_iter(),
-            )?;
+            batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
         }
 
         if epoch_store

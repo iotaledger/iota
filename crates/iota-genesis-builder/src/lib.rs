@@ -1385,7 +1385,7 @@ fn create_genesis_objects(
         )
         .expect("Processing a package should not fail here");
 
-        events.extend(tx_events.data.into_iter());
+        events.extend(tx_events.data);
     }
 
     for object in input_objects {

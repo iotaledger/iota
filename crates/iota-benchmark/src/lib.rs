@@ -420,7 +420,7 @@ impl FullNodeProxy {
             .await?;
         let epoch = resp.epoch;
         let committee_vec = resp.validators;
-        let committee_map = BTreeMap::from_iter(committee_vec.into_iter());
+        let committee_map = BTreeMap::from_iter(committee_vec);
         let committee =
             Committee::new_for_testing_with_normalized_voting_power(epoch, committee_map);
 

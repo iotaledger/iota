@@ -347,9 +347,7 @@ impl BlockManager {
                 let ancestors = self.dag_state.read().get_blocks(b.ancestors());
                 assert_eq!(b.ancestors().len(), ancestors.len());
                 let mut ancestor_blocks = vec![];
-                'ancestor: for (ancestor_ref, found) in
-                    b.ancestors().iter().zip(ancestors.into_iter())
-                {
+                'ancestor: for (ancestor_ref, found) in b.ancestors().iter().zip(ancestors) {
                     if let Some(found_block) = found {
                         // This invariant should be guaranteed by DagState.
                         assert_eq!(ancestor_ref, &found_block.reference());

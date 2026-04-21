@@ -654,8 +654,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     let mut blocks = Vec::new();
                     for ((requested_block_ref, signed_block), serialized) in request_block_refs
                         .iter()
-                        .zip(signed_blocks.into_iter())
-                        .zip(serialized_blocks.into_iter())
+                        .zip(signed_blocks)
+                        .zip(serialized_blocks)
                     {
                         let signed_block_digest = VerifiedBlock::compute_digest(&serialized);
                         let received_block_ref = BlockRef::new(
