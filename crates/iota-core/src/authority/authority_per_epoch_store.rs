@@ -4273,6 +4273,7 @@ impl AuthorityPerEpochStore {
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         authority.concise()
                     );
+                    return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
                 if self
                     .get_reconfig_state_read_lock_guard()
