@@ -31,8 +31,8 @@ pub use object_changes::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_utils::{
-    Base58 as Base58Schema, ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
-    TypeTag as TypeTagSchema,
+    Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+    SequenceNumberString as SequenceNumberSchema, TypeTag as TypeTagSchema,
 };
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
