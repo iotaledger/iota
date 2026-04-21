@@ -18,7 +18,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
+use serde_with::{DisplayFromStr, serde_as};
 use tabled::settings::Style as TableStyle;
 
 use crate::{
@@ -43,26 +43,6 @@ pub struct IotaEventID {
 
     #[schemars(with = "String")]
     pub event_seq: u64,
-}
-
-impl SerializeAs<EventID> for IotaEventID {
-    fn serialize_as<S>(source: &EventID, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let iota_event_id: IotaEventID = (*source).into();
-        iota_event_id.serialize(serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, EventID> for IotaEventID {
-    fn deserialize_as<D>(deserializer: D) -> Result<EventID, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let iota_event_id = IotaEventID::deserialize(deserializer)?;
-        Ok(iota_event_id.into())
-    }
 }
 
 impl From<EventID> for IotaEventID {
@@ -399,9 +379,11 @@ pub enum EventFilter {
     #[serde(rename_all = "camelCase")]
     TimeRange {
         /// left endpoint of time interval, milliseconds since epoch, inclusive
+        #[serde_as(as = "DisplayFromStr")]
         #[schemars(with = "String")]
         start_time: u64,
         /// right endpoint of time interval, milliseconds since epoch, exclusive
+        #[serde_as(as = "DisplayFromStr")]
         #[schemars(with = "String")]
         end_time: u64,
     },

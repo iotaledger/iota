@@ -115,32 +115,32 @@
                     "owner": {
                       "AddressOwner": "0xc2b03126223921c083e680c9d205015ea0616b8e5c49e23ff39195d0058a1782"
                     },
-                    "reference": [
-                      "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                      2,
-                      "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
-                    ]
+                    "reference": {
+                      "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
+                      "version": "2",
+                      "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
+                    }
                   },
                   {
                     "owner": {
                       "AddressOwner": "0x67c6d31c6c970e567f03ef67d811a4f843665b8de3f282fa48b3e0103ba9bbed"
                     },
-                    "reference": [
-                      "0x6a06153b9fc486e101f0e9e2703ac8666d06aecc4ddf7e7926a361970c65a5b1",
-                      2,
-                      "GdfET1avZReDftpJNB8LSuHJ2cKUheSbEaLMzuPVXHsM"
-                    ]
+                    "reference": {
+                      "objectId": "0x6a06153b9fc486e101f0e9e2703ac8666d06aecc4ddf7e7926a361970c65a5b1",
+                      "version": "2",
+                      "digest": "GdfET1avZReDftpJNB8LSuHJ2cKUheSbEaLMzuPVXHsM"
+                    }
                   }
                 ],
                 "gasObject": {
                   "owner": {
                     "ObjectOwner": "0xc2b03126223921c083e680c9d205015ea0616b8e5c49e23ff39195d0058a1782"
                   },
-                  "reference": [
-                    "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
-                    2,
-                    "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
-                  ]
+                  "reference": {
+                    "objectId": "0x2c43805d0d6f5402a7ad0da5bdec549c7cdea06bc4a1d339a22521eea933b889",
+                    "version": "2",
+                    "digest": "BhbWpBeESxuRWvmvLMyb2JNUuFa6j4aG1T4WUiPgKAHm"
+                  }
                 },
                 "eventsDigest": "6kerMphN4S5QTfd9TAhwMiFq1q9c2YwfpheBfWm85vUq"
               },
@@ -224,11 +224,11 @@
                   "sender": "0x4f574dd97a63805aa5d3dc999c80c9c7198702195730d021c66b469aaab04438",
                   "gasData": {
                     "payment": [
-                      [
-                        "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                        2,
-                        "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
-                      ]
+                      {
+                        "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
+                        "version": "2",
+                        "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
+                      }
                     ],
                     "owner": "0x4f574dd97a63805aa5d3dc999c80c9c7198702195730d021c66b469aaab04438",
                     "price": "10",
@@ -259,32 +259,32 @@
                     "owner": {
                       "AddressOwner": "0x4f574dd97a63805aa5d3dc999c80c9c7198702195730d021c66b469aaab04438"
                     },
-                    "reference": [
-                      "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                      2,
-                      "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
-                    ]
+                    "reference": {
+                      "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
+                      "version": "2",
+                      "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
+                    }
                   },
                   {
                     "owner": {
                       "AddressOwner": "0x7ba91ddc7e717cf708c937060f04048736ec33fb1746d999a5e58cd5c677ed80"
                     },
-                    "reference": [
-                      "0x4f82f1c8587b98d64c00bfb46c3843bd8bf6ccfa7c65a86138698cd1fdcac3dc",
-                      2,
-                      "Cv7n2YaM7Am1ssZGu4khsFkcKHnpgVhwFCSs4kLjrtLW"
-                    ]
+                    "reference": {
+                      "objectId": "0x4f82f1c8587b98d64c00bfb46c3843bd8bf6ccfa7c65a86138698cd1fdcac3dc",
+                      "version": "2",
+                      "digest": "Cv7n2YaM7Am1ssZGu4khsFkcKHnpgVhwFCSs4kLjrtLW"
+                    }
                   }
                 ],
                 "gasObject": {
                   "owner": {
                     "ObjectOwner": "0x4f574dd97a63805aa5d3dc999c80c9c7198702195730d021c66b469aaab04438"
                   },
-                  "reference": [
-                    "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
-                    2,
-                    "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
-                  ]
+                  "reference": {
+                    "objectId": "0xe8d8c7ce863f313da3dbd92a83ef26d128b88fe66bf26e0e0d09cdaf727d1d84",
+                    "version": "2",
+                    "digest": "EnRQXe1hDGAJCFyF2ds2GmPHdvf9V6yxf24LisEsDkYt"
+                  }
                 },
                 "eventsDigest": "55TNn3v5vpuXjQfjqamw76P9GZD522pumo4NuT7RYeFB"
               },
@@ -428,11 +428,11 @@
                   "sender": "0xbe4defbcae2916f883fd9e8cfc58bcba636764b05c7eb0b17e7e09a6e645db64",
                   "gasData": {
                     "payment": [
-                      [
-                        "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                        2,
-                        "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
-                      ]
+                      {
+                        "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
+                        "version": "2",
+                        "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
+                      }
                     ],
                     "owner": "0xbe4defbcae2916f883fd9e8cfc58bcba636764b05c7eb0b17e7e09a6e645db64",
                     "price": "10",
@@ -463,32 +463,32 @@
                     "owner": {
                       "AddressOwner": "0xbe4defbcae2916f883fd9e8cfc58bcba636764b05c7eb0b17e7e09a6e645db64"
                     },
-                    "reference": [
-                      "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                      2,
-                      "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
-                    ]
+                    "reference": {
+                      "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
+                      "version": "2",
+                      "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
+                    }
                   },
                   {
                     "owner": {
                       "AddressOwner": "0x6a101e9a3af5c8070112f808648b36efbf8dee8a1a82de46d9504e96a1108a17"
                     },
-                    "reference": [
-                      "0x8ef76f56c399633a2eb310bca9124e5f2f38ce739eaacbb6600688804e078448",
-                      2,
-                      "9Tvs1pGrMbNv7kkr1PoKLsWamyQpaFz5UWbL2AQ1ezk2"
-                    ]
+                    "reference": {
+                      "objectId": "0x8ef76f56c399633a2eb310bca9124e5f2f38ce739eaacbb6600688804e078448",
+                      "version": "2",
+                      "digest": "9Tvs1pGrMbNv7kkr1PoKLsWamyQpaFz5UWbL2AQ1ezk2"
+                    }
                   }
                 ],
                 "gasObject": {
                   "owner": {
                     "ObjectOwner": "0xbe4defbcae2916f883fd9e8cfc58bcba636764b05c7eb0b17e7e09a6e645db64"
                   },
-                  "reference": [
-                    "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
-                    2,
-                    "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
-                  ]
+                  "reference": {
+                    "objectId": "0x9f90f7f866cc29dfb1da6373ce94f9d95dca5a40f4e1769918eebf9fbae00bd3",
+                    "version": "2",
+                    "digest": "AaeJbTYkUuyromsivxzkoxSkHt7pCESTyQG7xz6nbQ2G"
+                  }
                 },
                 "eventsDigest": "816hEv4WAW2reK9xkf11PeHiaZJrp7PQT9oGJZhdf9TN"
               },
@@ -2330,11 +2330,11 @@
                   "sender": "0xeb126769c0e4c365a80a2a9332872d7ed1f0b66d31a7eae33ee136996c1f3638",
                   "gasData": {
                     "payment": [
-                      [
-                        "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                        2,
-                        "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
-                      ]
+                      {
+                        "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
+                        "version": "2",
+                        "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
+                      }
                     ],
                     "owner": "0xeb126769c0e4c365a80a2a9332872d7ed1f0b66d31a7eae33ee136996c1f3638",
                     "price": "10",
@@ -2365,32 +2365,32 @@
                     "owner": {
                       "AddressOwner": "0xeb126769c0e4c365a80a2a9332872d7ed1f0b66d31a7eae33ee136996c1f3638"
                     },
-                    "reference": [
-                      "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                      2,
-                      "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
-                    ]
+                    "reference": {
+                      "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
+                      "version": "2",
+                      "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
+                    }
                   },
                   {
                     "owner": {
                       "AddressOwner": "0x8196d048b7a6d04c8edc89579d86fd3fc90c52f9a14c6b812b94fe613c5bcebb"
                     },
-                    "reference": [
-                      "0x5eeb1d449e2516166d57d71fdeb154d0dc9ecdb7b30057d0a932684cac352cdc",
-                      2,
-                      "GK4NxEKSrK88XkPNeuBqtJYPmU9yMTWMD7K9TdU4ybKN"
-                    ]
+                    "reference": {
+                      "objectId": "0x5eeb1d449e2516166d57d71fdeb154d0dc9ecdb7b30057d0a932684cac352cdc",
+                      "version": "2",
+                      "digest": "GK4NxEKSrK88XkPNeuBqtJYPmU9yMTWMD7K9TdU4ybKN"
+                    }
                   }
                 ],
                 "gasObject": {
                   "owner": {
                     "ObjectOwner": "0xeb126769c0e4c365a80a2a9332872d7ed1f0b66d31a7eae33ee136996c1f3638"
                   },
-                  "reference": [
-                    "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
-                    2,
-                    "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
-                  ]
+                  "reference": {
+                    "objectId": "0x1a3e898029d024eec1d44c6af5e2facded84d03b5373514f16e3d66e00081051",
+                    "version": "2",
+                    "digest": "7nDZ5J4VyvYGUbX2f6mQdhkr3RFrb3vZqui1ogoyApD9"
+                  }
                 },
                 "eventsDigest": "9BQobwxQvJ1JxSXNn8v8htZPTu8FEzJJGgcD4kgLUuMd"
               },
@@ -2750,11 +2750,11 @@
                     "sender": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905",
                     "gasData": {
                       "payment": [
-                        [
-                          "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                          2,
-                          "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
-                        ]
+                        {
+                          "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
+                          "version": "2",
+                          "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
+                        }
                       ],
                       "owner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905",
                       "price": "10",
@@ -2785,32 +2785,32 @@
                       "owner": {
                         "AddressOwner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905"
                       },
-                      "reference": [
-                        "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                        2,
-                        "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
-                      ]
+                      "reference": {
+                        "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
+                        "version": "2",
+                        "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
+                      }
                     },
                     {
                       "owner": {
                         "AddressOwner": "0x7a8e9a0d074f90fddb42cd928f74b986c6f539a734f3d7c9a75a9cb227ec3157"
                       },
-                      "reference": [
-                        "0x24962ee4193c8c0d2fb28bbe0eb4ba5fc87a2c6d1a7c12c9454872c5ea06d5e1",
-                        2,
-                        "3gmeyj5oEdE8A4PvjWsDSHchC6tb6YQj18gnD7xnDqGz"
-                      ]
+                      "reference": {
+                        "objectId": "0x24962ee4193c8c0d2fb28bbe0eb4ba5fc87a2c6d1a7c12c9454872c5ea06d5e1",
+                        "version": "2",
+                        "digest": "3gmeyj5oEdE8A4PvjWsDSHchC6tb6YQj18gnD7xnDqGz"
+                      }
                     }
                   ],
                   "gasObject": {
                     "owner": {
                       "ObjectOwner": "0x235c77b62592fd410cb9eb3c6a77aebddd1ff931aee26094b6702dfc1f65a905"
                     },
-                    "reference": [
-                      "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
-                      2,
-                      "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
-                    ]
+                    "reference": {
+                      "objectId": "0x9585d5591521bfd12dec3a372efd539108ba807a0dabed6e5da0f174efc3f58e",
+                      "version": "2",
+                      "digest": "JAgYeYMPm5VLzBYcYxxQUEatfG9gHdFqSNwmBBS41Bri"
+                    }
                   },
                   "eventsDigest": "DkaTtjSfULiQ7FT48kzuS7yKj2JUAWGgjDBXddqn1z9o"
                 },
@@ -2867,11 +2867,11 @@
                     "sender": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c",
                     "gasData": {
                       "payment": [
-                        [
-                          "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                          2,
-                          "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
-                        ]
+                        {
+                          "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
+                          "version": "2",
+                          "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
+                        }
                       ],
                       "owner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c",
                       "price": "10",
@@ -2902,32 +2902,32 @@
                       "owner": {
                         "AddressOwner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c"
                       },
-                      "reference": [
-                        "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                        2,
-                        "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
-                      ]
+                      "reference": {
+                        "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
+                        "version": "2",
+                        "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
+                      }
                     },
                     {
                       "owner": {
                         "AddressOwner": "0xc3e4f846a282754946e181e00f4341a53b5e895ef8ec3c73d2378a0a11825e23"
                       },
-                      "reference": [
-                        "0x2fac1a70e20e146fb1303bd60eb4bea9bd453e50690b423241f0e2e9beabd601",
-                        2,
-                        "HyJbrm9Th6ox4oU9vrrRzgZSaCu1n3omMJ1fAcHswvvo"
-                      ]
+                      "reference": {
+                        "objectId": "0x2fac1a70e20e146fb1303bd60eb4bea9bd453e50690b423241f0e2e9beabd601",
+                        "version": "2",
+                        "digest": "HyJbrm9Th6ox4oU9vrrRzgZSaCu1n3omMJ1fAcHswvvo"
+                      }
                     }
                   ],
                   "gasObject": {
                     "owner": {
                       "ObjectOwner": "0xf528c54e5aa9397aa10a66ec4455fd4b49735ac19e5a0deed050c755ca98d29c"
                     },
-                    "reference": [
-                      "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
-                      2,
-                      "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
-                    ]
+                    "reference": {
+                      "objectId": "0xbbdabf2828ee9ca7e4227a61cff851fef9fb6a08ae444c96f9810275d6af973c",
+                      "version": "2",
+                      "digest": "snEA8RNnDvsYjKJx2NMUP49TMjoAuQXx3LJgwe4qo9B"
+                    }
                   },
                   "eventsDigest": "4Vh6HmG6PwdbZbMiMwj9YnKvsMnP3gfhLmAd288eujv4"
                 },
@@ -2984,11 +2984,11 @@
                     "sender": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb",
                     "gasData": {
                       "payment": [
-                        [
-                          "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                          2,
-                          "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
-                        ]
+                        {
+                          "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
+                          "version": "2",
+                          "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
+                        }
                       ],
                       "owner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb",
                       "price": "10",
@@ -3019,32 +3019,32 @@
                       "owner": {
                         "AddressOwner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb"
                       },
-                      "reference": [
-                        "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                        2,
-                        "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
-                      ]
+                      "reference": {
+                        "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
+                        "version": "2",
+                        "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
+                      }
                     },
                     {
                       "owner": {
                         "AddressOwner": "0x0388c28ddd5977a58e206acd19639c875a4fbecf3342b825c8384300ac7e3bad"
                       },
-                      "reference": [
-                        "0xc820a75b574224b920aa9b005093b820df24ef8b43715499f4fff4e056c0cd5c",
-                        2,
-                        "6jsxetsBSZJ5ozgZuDmHXJzn9ZBp8emivfYHe6tnHg7C"
-                      ]
+                      "reference": {
+                        "objectId": "0xc820a75b574224b920aa9b005093b820df24ef8b43715499f4fff4e056c0cd5c",
+                        "version": "2",
+                        "digest": "6jsxetsBSZJ5ozgZuDmHXJzn9ZBp8emivfYHe6tnHg7C"
+                      }
                     }
                   ],
                   "gasObject": {
                     "owner": {
                       "ObjectOwner": "0xc14b8463f3b1bc524043bd03c25f673ec576debde0096727f95524f0f555f6bb"
                     },
-                    "reference": [
-                      "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
-                      2,
-                      "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
-                    ]
+                    "reference": {
+                      "objectId": "0xd8024b4b39a7fed27134b073da8638454111396519379e888c83abaf0e600504",
+                      "version": "2",
+                      "digest": "9CpH2aW4XPVxaZBGHRwHueXEQUvN3Pf7JQpASHiEsNCw"
+                    }
                   },
                   "eventsDigest": "Bbh3U8fCxVzdX6uZUNWRzZrUktcUfWcydhWCMyWJSPpt"
                 },
@@ -8721,7 +8721,7 @@
         ]
       },
       "IotaSystemStateSummaryV1": {
-        "description": "This is the JSON-RPC type for the [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateSummaryV1`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV1) object.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -8954,7 +8954,7 @@
         }
       },
       "IotaSystemStateSummaryV2": {
-        "description": "This is the JSON-RPC type for the [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateSummaryV2`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2) object.",
         "type": "object",
         "required": [
           "activeValidators",
