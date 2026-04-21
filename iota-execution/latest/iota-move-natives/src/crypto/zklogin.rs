@@ -22,15 +22,8 @@ use move_vm_types::{
 )]
 #[derive(Clone)]
 pub struct CheckZkloginIdCostParams {
+    /// Base cost for invoking the `check_zklogin_id` function
     pub check_zklogin_id_cost_base: Option<InternalGas>,
-}
-
-#[deprecated(
-    note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
-)]
-#[derive(Clone)]
-pub struct CheckZkloginIssuerCostParams {
-    pub check_zklogin_issuer_cost_base: Option<InternalGas>,
 }
 
 #[deprecated(
@@ -42,6 +35,15 @@ pub fn check_zklogin_id_internal(
     _args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     Ok(NativeResult::err(context.gas_used(), 0))
+}
+
+#[deprecated(
+    note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
+)]
+#[derive(Clone)]
+pub struct CheckZkloginIssuerCostParams {
+    /// Base cost for invoking the `check_zklogin_issuer` function
+    pub check_zklogin_issuer_cost_base: Option<InternalGas>,
 }
 
 #[deprecated(

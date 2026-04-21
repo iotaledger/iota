@@ -692,6 +692,14 @@ impl NativesCostTable {
                     .unwrap_or(0)
                     .into(),
             },
+            #[allow(deprecated)]
+            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
+                check_zklogin_id_cost_base: Some(0.into()),
+            },
+            #[allow(deprecated)]
+            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
+                check_zklogin_issuer_cost_base: Some(0.into()),
+            },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config
                     .poseidon_bn254_cost_base_as_option()
@@ -811,14 +819,6 @@ impl NativesCostTable {
                 hash_to_input_cost: protocol_config
                     .vdf_hash_to_input_cost_as_option()
                     .map(Into::into),
-            },
-            #[allow(deprecated)]
-            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: Some(200.into()),
-            },
-            #[allow(deprecated)]
-            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: Some(200.into()),
             },
         }
     }
@@ -1285,6 +1285,19 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "generate_rand_seed_for_testing",
             make_native!(random::generate_rand_seed_for_testing),
         ),
+        // Deprecated stubs for old bytecode snapshot compatibility.
+        #[allow(deprecated)]
+        (
+            "zklogin_verified_id",
+            "check_zklogin_id_internal",
+            make_native!(zklogin::check_zklogin_id_internal),
+        ),
+        #[allow(deprecated)]
+        (
+            "zklogin_verified_issuer",
+            "check_zklogin_issuer_internal",
+            make_native!(zklogin::check_zklogin_issuer_internal),
+        ),
         (
             "poseidon",
             "poseidon_bn254_internal",
@@ -1299,19 +1312,6 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "vdf",
             "hash_to_input_internal",
             make_native!(vdf::hash_to_input_internal),
-        ),
-        // Deprecated stubs for old bytecode snapshot compatibility.
-        #[allow(deprecated)]
-        (
-            "zklogin_verified_id",
-            "check_zklogin_id_internal",
-            make_native!(zklogin::check_zklogin_id_internal),
-        ),
-        #[allow(deprecated)]
-        (
-            "zklogin_verified_issuer",
-            "check_zklogin_issuer_internal",
-            make_native!(zklogin::check_zklogin_issuer_internal),
         ),
         (
             "ecdsa_k1",
