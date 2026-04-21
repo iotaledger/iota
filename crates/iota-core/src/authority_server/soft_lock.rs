@@ -3,11 +3,11 @@
 
 //! Pre-consensus soft locking for the pcool (white-flag) transaction flow.
 //!
-//! This module provides an in-memory, defense-in-depth mechanism that prevents a
-//! validator from accepting two transactions that conflict on the same owned
-//! objects at pre-submission time. The authoritative conflict resolution remains
-//! in post-consensus validation (`post_consensus_validation.rs`); this layer
-//! merely reduces wasted consensus bandwidth and client-visible latency.
+//! This module provides an in-memory, defense-in-depth mechanism that prevents
+//! a validator from accepting two transactions that conflict on the same owned
+//! objects at pre-submission time. The authoritative conflict resolution
+//! remains in post-consensus validation (`post_consensus_validation.rs`); this
+//! layer merely reduces wasted consensus bandwidth and client-visible latency.
 //!
 //! # Edge cases
 //!
