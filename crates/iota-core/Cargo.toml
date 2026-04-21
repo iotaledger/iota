@@ -60,8 +60,6 @@ tracing.workspace = true
 twox-hash = "1.6"
 
 # internal dependencies
-consensus-config.workspace = true
-consensus-core.workspace = true
 iota-archival.workspace = true
 iota-authority-aggregation.workspace = true
 iota-common.workspace = true

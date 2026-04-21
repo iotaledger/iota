@@ -7,7 +7,7 @@ use std::{
     ops::Deref,
 };
 
-use consensus_core::{BlockRef, BlockStatus};
+use starfish_core::{BlockRef, BlockStatus};
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
 use iota_macros::sim_test;
@@ -1702,7 +1702,7 @@ async fn test_handle_soft_bundle_certificates() {
         authority.clone(),
         HashSet::new(),
         true,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN)))],
     );
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
     let _metrics = server.metrics.clone();

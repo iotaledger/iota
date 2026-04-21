@@ -8,11 +8,11 @@ use anemo::{
     PeerId,
     types::{PeerAffinity, PeerInfo},
 };
-use consensus_config::{Authority, Committee as ConsensusCommittee};
+
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::ProtocolVersion;
 use serde::{Deserialize, Serialize};
-use starfish_config::{Authority as StarfishAuthority, Committee as StarfishCommittee};
+use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::{error, warn};
 
 use crate::{
@@ -35,7 +35,6 @@ pub trait EpochStartSystemStateTrait {
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
     fn get_consensus_committee(&self) -> ConsensusCommittee;
-    fn get_starfish_committee(&self) -> StarfishCommittee;
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
@@ -282,13 +281,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     impl_get_committee!(
         fn get_consensus_committee -> ConsensusCommittee,
         authority = Authority,
-        cfg = consensus_config,
-        label = "Mysticeti"
-    );
-
-    impl_get_committee!(
-        fn get_starfish_committee -> StarfishCommittee,
-        authority = StarfishAuthority,
         cfg = starfish_config,
         label = "Starfish"
     );
@@ -411,10 +403,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
 
     fn get_consensus_committee(&self) -> ConsensusCommittee {
         self.v1.get_consensus_committee()
-    }
-
-    fn get_starfish_committee(&self) -> StarfishCommittee {
-        self.v1.get_starfish_committee()
     }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {

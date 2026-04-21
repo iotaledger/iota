@@ -267,9 +267,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "PerObjectCongestionControlMode::is_none")]
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
-    // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
-    consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
     #[serde(skip_serializing_if = "ConsensusNetwork::is_tonic")]
@@ -515,23 +512,6 @@ pub enum PerObjectCongestionControlMode {
 impl PerObjectCongestionControlMode {
     pub fn is_none(&self) -> bool {
         matches!(self, PerObjectCongestionControlMode::None)
-    }
-}
-
-// Configuration options for consensus algorithm.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub enum ConsensusChoice {
-    #[default]
-    Mysticeti,
-    Starfish,
-}
-
-impl ConsensusChoice {
-    pub fn is_mysticeti(&self) -> bool {
-        matches!(self, ConsensusChoice::Mysticeti)
-    }
-    pub fn is_starfish(&self) -> bool {
-        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -1388,10 +1368,6 @@ impl ProtocolConfig {
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
         self.feature_flags.per_object_congestion_control_mode
-    }
-
-    pub fn consensus_choice(&self) -> ConsensusChoice {
-        self.feature_flags.consensus_choice
     }
 
     pub fn consensus_network(&self) -> ConsensusNetwork {
@@ -2283,7 +2259,6 @@ impl ProtocolConfig {
         }
 
         // Enable Mysticeti on mainnet.
-        cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
         // Use tonic networking for Mysticeti.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
 
@@ -2552,7 +2527,6 @@ impl ProtocolConfig {
                     }
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in devnet
-                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
                 }
                 15 => {
@@ -2609,7 +2583,6 @@ impl ProtocolConfig {
 
                     if chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in testnet.
-                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
 
                         // Enable validator score calculation on testnet
                         cfg.feature_flags.calculate_validator_scores = true;
@@ -2714,7 +2687,6 @@ impl ProtocolConfig {
                 }
                 24 => {
                     // Switch consensus protocol to Starfish in all networks.
-                    cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
 
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable Move-based sponsor account authentication in devnet.
@@ -2843,10 +2815,6 @@ impl ProtocolConfig {
         val: PerObjectCongestionControlMode,
     ) {
         self.feature_flags.per_object_congestion_control_mode = val;
-    }
-
-    pub fn set_consensus_choice_for_testing(&mut self, val: ConsensusChoice) {
-        self.feature_flags.consensus_choice = val;
     }
 
     pub fn set_consensus_network_for_testing(&mut self, val: ConsensusNetwork) {

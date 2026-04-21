@@ -10,11 +10,10 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use consensus_config::Committee as ConsensusCommittee;
-use consensus_core::{CommitConsumerMonitor, CommitIndex};
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
+use starfish_config::Committee as ConsensusCommittee;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
@@ -208,7 +207,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let round = consensus_output.leader_round();
 
-        // TODO: Is this check necessary? For now mysticeti will not
+        // TODO: Is this check necessary? For now consensus will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
         assert!(
@@ -460,57 +459,6 @@ impl AsyncTransactionScheduler {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
             transaction_manager.enqueue(transactions, &epoch_store);
-        }
-    }
-}
-
-/// Consensus handler used by Mysticeti. Since Mysticeti repo is not yet
-/// integrated, we use a channel to receive the consensus output from Mysticeti.
-/// During initialization, the sender is passed into Mysticeti which can send
-/// consensus output to the channel.
-pub struct MysticetiConsensusHandler {
-    handle: Option<tokio::task::JoinHandle<()>>,
-}
-
-impl MysticetiConsensusHandler {
-    pub fn new(
-        last_processed_commit_at_startup: CommitIndex,
-        mut consensus_handler: ConsensusHandler<CheckpointService>,
-        mut receiver: UnboundedReceiver<consensus_core::CommittedSubDag>,
-        commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-    ) -> Self {
-        let handle = spawn_monitored_task!(async move {
-            // TODO: pause when execution is overloaded, so consensus can detect the
-            // backpressure.
-            while let Some(consensus_output) = receiver.recv().await {
-                let commit_index = consensus_output.commit_ref.index;
-                if commit_index <= last_processed_commit_at_startup {
-                    consensus_handler.handle_prior_consensus_output(consensus_output);
-                } else {
-                    consensus_handler
-                        .handle_consensus_output(consensus_output)
-                        .await;
-                }
-                commit_consumer_monitor.set_highest_handled_commit(commit_index);
-            }
-        });
-        Self {
-            handle: Some(handle),
-        }
-    }
-
-    pub async fn abort(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-    }
-}
-
-impl Drop for MysticetiConsensusHandler {
-    fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
         }
     }
 }
@@ -868,10 +816,6 @@ impl ConsensusCommitInfo {
 
 #[cfg(test)]
 mod tests {
-    use consensus_core::{
-        BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
-    };
-    use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
@@ -879,7 +823,6 @@ mod tests {
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
-        object::Object,
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
@@ -887,141 +830,9 @@ mod tests {
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
     };
-    use prometheus::Registry;
 
     use super::*;
-    use crate::{
-        authority::{
-            authority_per_epoch_store::ConsensusStatsAPI,
-            test_authority_builder::TestAuthorityBuilder,
-        },
-        checkpoints::CheckpointServiceNoop,
-        consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
-        post_consensus_tx_reorder::PostConsensusTxReorder,
-    };
-
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_consensus_handler() {
-        // GIVEN
-        let mut objects = test_gas_objects();
-        let shared_object = Object::shared_for_testing();
-        objects.push(shared_object.clone());
-
-        let network_config =
-            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
-                .with_objects(objects.clone())
-                .build();
-
-        let state = TestAuthorityBuilder::new()
-            .with_network_config(&network_config, 0)
-            .build()
-            .await;
-
-        let epoch_store = state.epoch_store_for_testing().clone();
-        let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
-
-        let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
-
-        let backpressure_manager = BackpressureManager::new_for_tests();
-
-        let mut consensus_handler = ConsensusHandler::new(
-            epoch_store,
-            Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
-            state.get_object_cache_reader().clone(),
-            state.get_transaction_cache_reader().clone(),
-            Arc::new(ArcSwap::default()),
-            consensus_committee.clone(),
-            metrics,
-            backpressure_manager.subscribe(),
-        );
-
-        // AND
-        // Create test transactions
-        let transactions = test_certificates(&state, shared_object).await;
-        let mut blocks = Vec::new();
-
-        for (i, transaction) in transactions.iter().enumerate() {
-            let transaction_bytes: Vec<u8> = bcs::to_bytes(
-                &ConsensusTransaction::new_certificate_message(&state.name, transaction.clone()),
-            )
-            .unwrap();
-
-            // AND create block for each transaction
-            let block = VerifiedBlock::new_for_test(
-                TestBlock::new(100 + i as u32, (i % consensus_committee.size()) as u32)
-                    .set_transactions(vec![Transaction::new(transaction_bytes)])
-                    .build(),
-            );
-
-            blocks.push(block);
-        }
-
-        // AND create the consensus output
-        let leader_block = blocks[0].clone();
-        let committed_sub_dag = CommittedSubDag::new(
-            leader_block.reference(),
-            blocks.clone(),
-            leader_block.timestamp_ms(),
-            CommitRef::new(10, CommitDigest::MIN),
-            vec![],
-        );
-
-        // Test that the consensus handler respects backpressure.
-        backpressure_manager.set_backpressure(true);
-        // Default watermarks are 0,0 which will suppress the backpressure.
-        backpressure_manager.update_highest_certified_checkpoint(1);
-
-        // AND processing the consensus output once
-        {
-            let waiter = consensus_handler.handle_consensus_output(committed_sub_dag.clone());
-            pin_mut!(waiter);
-
-            // waiter should not complete within 5 seconds
-            tokio::time::timeout(std::time::Duration::from_secs(5), &mut waiter)
-                .await
-                .unwrap_err();
-
-            // lift backpressure
-            backpressure_manager.set_backpressure(false);
-
-            // waiter completes now.
-            tokio::time::timeout(std::time::Duration::from_secs(100), waiter)
-                .await
-                .unwrap();
-        }
-
-        // AND capturing the consensus stats
-        let num_blocks = blocks.len();
-        let num_transactions = transactions.len();
-        let last_consensus_stats_1 = consensus_handler.last_consensus_stats.clone();
-        assert_eq!(
-            last_consensus_stats_1.index.transaction_index,
-            num_transactions as u64
-        );
-        assert_eq!(last_consensus_stats_1.index.sub_dag_index, 10_u64);
-        assert_eq!(last_consensus_stats_1.index.last_committed_round, 100_u64);
-        assert_eq!(last_consensus_stats_1.hash, 0);
-        assert_eq!(
-            last_consensus_stats_1.stats.get_num_messages(0),
-            num_blocks as u64
-        );
-        assert_eq!(
-            last_consensus_stats_1.stats.get_num_user_transactions(0),
-            num_transactions as u64
-        );
-
-        // WHEN processing the same output multiple times
-        // THEN the consensus stats do not update
-        for _ in 0..2 {
-            consensus_handler
-                .handle_consensus_output(committed_sub_dag.clone())
-                .await;
-            let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
-            assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
-        }
-    }
+    use crate::post_consensus_tx_reorder::PostConsensusTxReorder;
 
     #[test]
     fn test_order_by_gas_price() {

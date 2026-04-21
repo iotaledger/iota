@@ -4,7 +4,7 @@
 
 use std::{fs, path::PathBuf, time::Duration};
 
-use consensus_config::Epoch;
+use starfish_config::Epoch;
 use iota_metrics::spawn_logged_monitored_task;
 use prometheus::{
     IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,

@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use consensus_core::BlockAPI;
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 
 use crate::consensus_types::AuthorityIndex;
@@ -131,22 +130,6 @@ macro_rules! impl_consensus_output_api {
             }
         }
     };
-}
-
-// ===== Use the macro for the two concrete types =====
-
-// consensus_core::CommittedSubDag:
-// - iterate over `self.blocks`
-// - per-item accessors: round()/author().value()/transactions()
-// - committed_header_refs: map blocks to BlockRef
-impl_consensus_output_api! {
-    type = consensus_core::CommittedSubDag,
-    commit_digest = consensus_core::CommitDigest,
-    iterate = |self_, block| self_.blocks.iter(),
-    round   = |block| block.round(),
-    author  = |block| block.author().value(),
-    txs     = |block| block.transactions(),
-    committed_header_refs = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>()
 }
 
 // starfish_core::CommittedSubDag:

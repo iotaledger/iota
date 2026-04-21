@@ -57,7 +57,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
-    mysticeti_adapter::LazyMysticetiClient,
+    starfish_adapter::LazyStarfishClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
     },
@@ -119,7 +119,7 @@ impl AuthorityServer {
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),

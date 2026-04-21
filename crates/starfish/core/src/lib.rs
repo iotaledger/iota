@@ -37,7 +37,7 @@ mod threshold_clock;
 mod transaction;
 #[cfg(msim)]
 pub mod transaction;
-mod transaction_ref;
+pub(crate) mod transaction_ref;
 mod transactions_synchronizer;
 
 mod universal_committer;
@@ -74,3 +74,4 @@ pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
     BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,
 };
+pub use transaction_ref::GenericTransactionRef;

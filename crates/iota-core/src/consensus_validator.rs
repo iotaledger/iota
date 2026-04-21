@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use consensus_core;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
@@ -175,12 +174,6 @@ macro_rules! impl_tx_verifier_for {
         }
     };
 }
-// Use it for both traits:
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = consensus_core::TransactionVerifier,
-    error = consensus_core::ValidationError,
-);
 impl_tx_verifier_for!(
     type = IotaTxValidator,
     trait = starfish_core::TransactionVerifier,
@@ -222,7 +215,7 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use consensus_core::TransactionVerifier as _;
+    use starfish_core::TransactionVerifier as _;
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
     use iota_types::{

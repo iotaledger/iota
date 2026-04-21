@@ -62,9 +62,6 @@ exclude = [
   "sdk/move-bytecode-template",
 ]
 members = [
-  "consensus/config",
-  "consensus/core",
-  "consensus/simtests",
   "crates/bin-version",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
@@ -391,9 +388,6 @@ uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
 bin-version = { path = "crates/bin-version" }
-consensus-config = { path = "consensus/config" }
-consensus-core = { path = "consensus/core" }
-consensus-simtests = { path = "consensus/simtests" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }

@@ -163,7 +163,6 @@ impl ValidatorConfigBuilder {
             max_pending_transactions: None,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            parameters: Default::default(),
             starfish_parameters: Default::default(),
         };
 
