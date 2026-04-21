@@ -25,7 +25,7 @@ pub use metrics::ValidatorServiceMetrics;
 #[cfg(test)]
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::{
     authority::AuthorityState,
@@ -94,9 +94,19 @@ impl ValidatorService {
             loop {
                 interval.tick().await;
                 let Some(soft_locks) = soft_locks.upgrade() else {
-                    // All strong references have been dropped; the validator is
-                    // shutting down or has left the committee.
-                    info!("Soft-lock sweep task shutting down: validator is no longer active.");
+                    // All strong references have been dropped. The intended
+                    // cause is that the validator stopped being active (node
+                    // shutdown or left the committee). If the node is still
+                    // serving, this indicates a leaked `Weak` from a refactor
+                    // that accidentally dropped every strong `Arc`, in which
+                    // case the `soft_lock_table_size` gauge will freeze and
+                    // memory will grow unbounded — hence `warn!` so log-based
+                    // alerts can fire.
+                    tracing::warn!(
+                        "soft-lock sweep task exiting: no strong \
+                         `PreConsensusSoftLocks` references remain (expected \
+                         during validator shutdown; unexpected otherwise)"
+                    );
                     break;
                 };
                 soft_locks.sweep_expired();

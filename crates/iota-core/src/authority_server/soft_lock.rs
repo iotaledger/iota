@@ -45,15 +45,22 @@ use tracing::{debug, error, trace};
 /// Default soft-lock TTL: `gc_depth(60) × 4 / ~20 rounds/sec = 12 s`.
 const DEFAULT_SOFT_LOCK_TTL: Duration = Duration::from_secs(12);
 
+/// Holder of the owning digest and acquisition time for a single lock.
+#[derive(Debug, Clone, Copy)]
+struct LockRecord {
+    digest: TransactionDigest,
+    acquired_at: Instant,
+}
+
 /// Mutex-guarded inner state. Holding the two indices behind a single lock
 /// makes their cross-consistency a structural invariant rather than a prose
-/// claim: `tx_to_objects[d]` and every `locks[obj].0 == d` are always updated
-/// atomically in the same critical section.
+/// claim: `tx_to_objects[d]` and every `locks[obj].digest == d` are always
+/// updated atomically in the same critical section.
 #[derive(Debug, Default)]
 struct Inner {
-    /// Maps each owned `ObjectRef` to the `TransactionDigest` that soft-locked
-    /// it, together with the instant the lock was acquired.
-    locks: HashMap<ObjectRef, (TransactionDigest, Instant)>,
+    /// Maps each owned `ObjectRef` to the record of the transaction that
+    /// soft-locked it.
+    locks: HashMap<ObjectRef, LockRecord>,
     /// Reverse index: transaction → locked objects, for O(1) batch release.
     tx_to_objects: HashMap<TransactionDigest, Vec<ObjectRef>>,
 }
@@ -120,8 +127,8 @@ impl PreConsensusSoftLocks {
                 Err(e) => {
                     // Rollback locks we just acquired in this call.
                     for rolled in &acquired {
-                        if let Some((d, _)) = inner.locks.get(rolled) {
-                            if *d == tx_digest {
+                        if let Some(record) = inner.locks.get(rolled) {
+                            if record.digest == tx_digest {
                                 inner.locks.remove(rolled);
                             }
                         }
@@ -170,8 +177,8 @@ impl PreConsensusSoftLocks {
             for obj_ref in &obj_refs {
                 // Only remove if still owned by this transaction (the lock may
                 // have been expired and overwritten by another digest).
-                if let Some((d, _)) = inner.locks.get(obj_ref) {
-                    if *d == *tx_digest {
+                if let Some(record) = inner.locks.get(obj_ref) {
+                    if record.digest == *tx_digest {
                         trace!(?tx_digest, ?obj_ref, "soft-lock released");
                         inner.locks.remove(obj_ref);
                     }
@@ -186,10 +193,10 @@ impl PreConsensusSoftLocks {
         let ttl = self.lock_ttl;
         let mut inner = self.inner.lock();
 
-        inner.locks.retain(|_obj_ref, (tx_digest, acquired_at)| {
-            let keep = now.duration_since(*acquired_at) < ttl;
+        inner.locks.retain(|_obj_ref, record| {
+            let keep = now.duration_since(record.acquired_at) < ttl;
             if !keep {
-                debug!(?tx_digest, "soft-lock expired");
+                debug!(tx_digest = ?record.digest, "soft-lock expired");
             }
             keep
         });
@@ -204,7 +211,7 @@ impl PreConsensusSoftLocks {
         tx_to_objects.retain(|tx_digest, obj_refs| {
             obj_refs
                 .iter()
-                .any(|obj_ref| locks.get(obj_ref).is_some_and(|(d, _)| d == tx_digest))
+                .any(|obj_ref| locks.get(obj_ref).is_some_and(|r| r.digest == *tx_digest))
         });
     }
 
@@ -227,44 +234,48 @@ impl PreConsensusSoftLocks {
     /// Operates on a `&mut HashMap` already borrowed from the outer mutex,
     /// so the caller's critical section is serial over the whole acquire.
     fn try_set_lock(
-        locks: &mut HashMap<ObjectRef, (TransactionDigest, Instant)>,
+        locks: &mut HashMap<ObjectRef, LockRecord>,
         obj_ref: &ObjectRef,
         new_digest: TransactionDigest,
         now: Instant,
         lock_ttl: Duration,
     ) -> Result<(), IotaError> {
+        let new_record = LockRecord {
+            digest: new_digest,
+            acquired_at: now,
+        };
         match locks.get(obj_ref).copied() {
             None => {
-                locks.insert(*obj_ref, (new_digest, now));
+                locks.insert(*obj_ref, new_record);
                 Ok(())
             }
-            Some((existing_digest, acquired_at)) => {
-                if existing_digest == new_digest {
+            Some(existing) => {
+                if existing.digest == new_digest {
                     // Same transaction — refresh timestamp, no conflict.
-                    locks.insert(*obj_ref, (new_digest, now));
+                    locks.insert(*obj_ref, new_record);
                     return Ok(());
                 }
 
-                if now.duration_since(acquired_at) >= lock_ttl {
+                if now.duration_since(existing.acquired_at) >= lock_ttl {
                     // Expired — overwrite.
                     trace!(
                         ?obj_ref,
-                        ?existing_digest,
+                        existing_digest = ?existing.digest,
                         ?new_digest,
                         "soft-lock expired, overwriting"
                     );
-                    locks.insert(*obj_ref, (new_digest, now));
+                    locks.insert(*obj_ref, new_record);
                     Ok(())
                 } else {
                     debug!(
                         ?obj_ref,
-                        ?existing_digest,
+                        existing_digest = ?existing.digest,
                         ?new_digest,
                         "soft-lock conflict"
                     );
                     Err(IotaError::ObjectLockConflict {
                         obj_ref: *obj_ref,
-                        pending_transaction: existing_digest,
+                        pending_transaction: existing.digest,
                     })
                 }
             }
@@ -383,7 +394,7 @@ mod tests {
         let tx = digest(1);
 
         table.try_acquire(tx, &[obj]).unwrap();
-        let first_ts = table.inner.lock().locks.get(&obj).unwrap().1;
+        let first_ts = table.inner.lock().locks.get(&obj).unwrap().acquired_at;
 
         // Busy-wait until `Instant::now()` strictly advances so the refresh is
         // observable regardless of platform clock resolution.
@@ -392,7 +403,7 @@ mod tests {
         }
 
         table.try_acquire(tx, &[obj]).unwrap();
-        let second_ts = table.inner.lock().locks.get(&obj).unwrap().1;
+        let second_ts = table.inner.lock().locks.get(&obj).unwrap().acquired_at;
 
         assert!(
             second_ts > first_ts,

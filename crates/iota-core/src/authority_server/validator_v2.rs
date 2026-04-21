@@ -287,6 +287,12 @@ impl ValidatorService {
             epoch_store,
         ) {
             let weight = normalize(&e);
+            // Release soft locks so the transaction can be retried.
+            tracing::debug!(
+                ?tx_digest,
+                error = ?e,
+                "releasing soft lock after consensus submit failure",
+            );
             soft_locks.release(&tx_digest);
             metrics
                 .soft_lock_table_size
