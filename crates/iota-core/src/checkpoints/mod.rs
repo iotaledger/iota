@@ -1485,7 +1485,7 @@ impl CheckpointBuilder {
                         // processed before we reach here.
                         //
                         // Deprecated: Authenticator state (JWK) is deprecated
-                        // and and was never enabled.
+                        // and was never enabled.
                         // These transaction kinds are retained
                         // only for BCS enum variant compatibility.
                     }

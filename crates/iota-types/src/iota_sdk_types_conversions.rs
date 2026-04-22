@@ -482,7 +482,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             }
             InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
+                // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
@@ -593,7 +593,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             }
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
+                // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 Self::AuthenticatorStateUpdateV1Deprecated
             }

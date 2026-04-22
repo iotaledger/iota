@@ -2845,7 +2845,7 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These consensus transaction kinds are retained
+                // was never enabled. These consensus transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 return None;
             }
@@ -4220,7 +4220,7 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These consensus transaction kinds are retained
+                // was never enabled. These consensus transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 debug!("Ignoring NewJWKFetchedDeprecated transaction");
                 Ok(ConsensusCertificateResult::ConsensusMessage)

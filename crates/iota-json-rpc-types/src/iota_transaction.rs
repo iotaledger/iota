@@ -523,7 +523,7 @@ impl IotaTransactionBlockKind {
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
+                // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 Err(anyhow::anyhow!(
                     "AuthenticatorStateUpdateV1 transactions are deprecated and were never created on IOTA"

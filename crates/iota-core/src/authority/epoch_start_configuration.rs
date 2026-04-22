@@ -136,6 +136,8 @@ impl EpochStartConfiguration {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
+            // Field retained for serialization compatibility; always None because
+            // authenticator state (JWK/zkLogin) was never enabled on IOTA.
             authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,

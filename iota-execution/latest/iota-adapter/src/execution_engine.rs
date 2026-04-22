@@ -1319,7 +1319,7 @@ mod checked {
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
-                // and was never enabled. These transaction kinds are retained
+                // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 unreachable!(
                     "AuthenticatorState transactions are deprecated and were never created on IOTA"
