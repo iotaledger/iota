@@ -482,24 +482,17 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_checkpointed_objects_mutations(
+    fn persist_checkpointed_objects_chunk(
         &self,
-        objects: Vec<LiveObject>,
+        objects: Vec<StoredCheckpointedObject>,
     ) -> Result<(), IndexerError> {
         use diesel::upsert::excluded;
 
-        let stored: Vec<StoredCheckpointedObject> = objects
-            .into_iter()
-            .map(|lo| {
-                let (indexed, _tx_digest) = lo.split();
-                StoredCheckpointedObject::from(&StoredObject::from(indexed))
-            })
-            .collect();
-        let len = stored.len();
+        let len = objects.len();
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                for chunk in stored.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                for chunk in objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
                     on_conflict_do_update!(
                         checkpointed_objects::table,
                         chunk,
@@ -507,8 +500,12 @@ impl PgIndexerStore {
                         (
                             checkpointed_objects::object_version
                                 .eq(excluded(checkpointed_objects::object_version)),
+                            checkpointed_objects::object_status
+                                .eq(excluded(checkpointed_objects::object_status)),
                             checkpointed_objects::object_digest
                                 .eq(excluded(checkpointed_objects::object_digest)),
+                            checkpointed_objects::checkpoint_sequence_number
+                                .eq(excluded(checkpointed_objects::checkpoint_sequence_number)),
                             checkpointed_objects::owner_type
                                 .eq(excluded(checkpointed_objects::owner_type)),
                             checkpointed_objects::owner_id
@@ -538,34 +535,10 @@ impl PgIndexerStore {
             PG_DB_COMMIT_SLEEP_DURATION
         )
         .tap_ok(|_| {
-            info!("Persisted {len} checkpointed object mutations");
+            info!("Persisted {len} checkpointed objects");
         })
         .tap_err(|e| {
             tracing::error!("failed to persist checkpointed objects: {e}");
-        })
-    }
-
-    fn persist_checkpointed_objects_deletions(
-        &self,
-        objects: Vec<RemovedObject>,
-    ) -> Result<(), IndexerError> {
-        let object_ids: Vec<Vec<u8>> = objects.iter().map(|o| o.object_id().to_vec()).collect();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                for chunk in object_ids.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    diesel::delete(
-                        checkpointed_objects::table
-                            .filter(checkpointed_objects::object_id.eq_any(chunk)),
-                    )
-                    .execute(conn)?;
-                }
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_err(|e| {
-            tracing::error!("failed to delete checkpointed objects: {e}");
         })
     }
 
@@ -2494,15 +2467,29 @@ impl IndexerStore for PgIndexerStore {
         let mutation_len = mutations.len();
         let deletion_len = deletions.len();
 
-        let mutation_chunks = chunk!(mutations, self.config.parallel_objects_chunk_size);
-        let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
-        let mutation_futures = mutation_chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_mutations(c))
+        let checkpointed_objects: Vec<StoredCheckpointedObject> = mutations
+            .into_iter()
+            .map(|live| {
+                let (indexed, _tx_digest) = live.split();
+                StoredObjectSnapshot::try_from(indexed)
+            })
+            .chain(
+                deletions
+                    .into_iter()
+                    .map(|removed| Ok(StoredObjectSnapshot::from(removed.indexed_object))),
+            )
+            .map(|snap| Ok(StoredCheckpointedObject::from(&snap?)))
+            .collect::<Result<Vec<_>, IndexerError>>()?;
+
+        let len = checkpointed_objects.len();
+        let chunks = chunk!(
+            checkpointed_objects,
+            self.config.parallel_objects_chunk_size
+        );
+        let futures = chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_chunk(c))
         });
-        let deletion_futures = deletion_chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_deletions(c))
-        });
-        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
+        futures::future::try_join_all(futures)
             .await
             .map_err(|e| {
                 tracing::error!("failed to join futures for persisting checkpointed objects: {e}");
@@ -2517,7 +2504,7 @@ impl IndexerStore for PgIndexerStore {
             })?;
 
         info!(
-            "Persisted checkpointed objects with {mutation_len} mutations and {deletion_len} deletions",
+            "Persisted {len} checkpointed objects ({mutation_len} mutations, {deletion_len} deletions)",
         );
         Ok(())
     }
