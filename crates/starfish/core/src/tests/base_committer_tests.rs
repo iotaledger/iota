@@ -55,7 +55,7 @@ async fn try_direct_commit() {
         tracing::info!("Leader commit status: {leader_status}");
 
         if round < incomplete_wave_leader_round {
-            if let LeaderStatus::Commit(ref committed_block) = leader_status {
+            if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
                 assert_eq!(committed_block.author(), leader.authority)
             } else {
                 panic!("Expected a committed leader at round {round}")
@@ -99,7 +99,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref block) = leader_status {
+    if let LeaderStatus::Commit(ref block, _) = leader_status {
         assert_eq!(block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -110,7 +110,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -150,7 +150,7 @@ async fn multiple_direct_commit() {
         let leader_status = committer.try_direct_decide(leader);
         tracing::info!("Leader commit status: {leader_status}");
 
-        if let LeaderStatus::Commit(ref committed_block) = leader_status {
+        if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
             assert_eq!(committed_block.author(), leader.authority)
         } else {
             panic!("Expected a committed leader")
@@ -314,7 +314,7 @@ async fn indirect_commit() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_2.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -347,7 +347,7 @@ async fn indirect_commit() {
     let leader_status = committer.try_indirect_decide(leader_wave_1, decided_leaders.iter());
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority)
     } else {
         panic!("Expected a committed leader")
@@ -433,7 +433,7 @@ async fn indirect_skip() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -477,7 +477,7 @@ async fn indirect_skip() {
     let leader_status = committer.try_direct_decide(leader_wave_1);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority);
     } else {
         panic!("Expected a committed leader")
@@ -729,7 +729,7 @@ async fn test_byzantine_direct_commit() {
     let leader_status = committer.try_direct_decide(leader_wave_4);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_4.authority);
     } else {
         panic!("Expected a committed leader")

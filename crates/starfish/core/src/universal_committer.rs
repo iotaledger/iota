@@ -139,7 +139,10 @@ impl UniversalCommitter {
             Decision::Indirect => "indirect",
         };
         let status = match decided_leader {
-            DecidedLeader::Commit(..) => format!("{decision_str}-commit"),
+            DecidedLeader::Commit(_, None) => format!("{decision_str}-commit"),
+            DecidedLeader::Commit(_, Some(metastate)) => {
+                format!("{decision_str}-commit-{metastate}")
+            }
             DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
         };
         let leader_host = &context
