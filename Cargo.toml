@@ -59,7 +59,6 @@ exclude = [
   "external-crates/move/crates/move-vm-types",
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
-  "sdk/move-bytecode-template",
 ]
 members = [
   "consensus/config",
