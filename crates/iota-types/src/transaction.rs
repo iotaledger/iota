@@ -5,7 +5,6 @@
 
 // Allow deprecated zkLogin/JWK types — this module defines and must handle them
 // for BCS serialization compatibility.
-#![allow(deprecated)]
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -344,6 +343,7 @@ impl RandomnessStateUpdate {
     }
 }
 
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
 pub enum TransactionKind {
     /// A transaction that allows the interleaving of native commands and Move
@@ -1351,6 +1351,7 @@ impl TransactionKind {
     pub fn is_system_tx(&self) -> bool {
         // Keep this as an exhaustive match so that we can't forget to update it.
         match self {
+            #[allow(deprecated)]
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
@@ -1408,6 +1409,7 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
+            #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
@@ -1440,6 +1442,7 @@ impl TransactionKind {
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match &self {
+            #[allow(deprecated)]
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
@@ -1466,6 +1469,7 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
+            #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
@@ -1521,6 +1525,7 @@ impl TransactionKind {
                 }
             }
 
+            #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
@@ -1563,6 +1568,7 @@ impl TransactionKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
+            #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
@@ -1591,6 +1597,7 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : Programmable")?;
                 write!(writer, "{p}")?;
             }
+            #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 writeln!(
                     writer,
@@ -2432,6 +2439,7 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
+                #[allow(deprecated)]
                 GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                     return Err(IotaError::UserInput {
                         error: UserInputError::Unsupported("zkLogin is not supported".to_string()),

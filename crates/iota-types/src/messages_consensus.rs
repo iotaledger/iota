@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(deprecated)]
-
 use std::{
     collections::hash_map::DefaultHasher,
     fmt::{Debug, Formatter},
@@ -106,6 +104,7 @@ impl Debug for ConsensusTransactionKey {
                 name.concise(),
                 generation
             ),
+            #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => {
                 write!(
                     f,
@@ -641,6 +640,7 @@ impl ConsensusTransaction {
                 )
             }
 
+            #[allow(deprecated)]
             ConsensusTransactionKind::NewJWKFetchedDeprecated => {
                 ConsensusTransactionKey::NewJWKFetchedDeprecated
             }

@@ -8385,6 +8385,7 @@ dependencies = [
  "iota-enum-compat-util",
  "iota-macros",
  "iota-network-stack",
+ "iota-proc-macros",
  "iota-protocol-config",
  "iota-sdk-types",
  "itertools 0.13.0",

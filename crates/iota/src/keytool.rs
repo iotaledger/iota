@@ -539,6 +539,7 @@ impl KeyToolCommand {
                             participating_signatures,
                         }
                     }
+                    #[allow(deprecated)]
                     GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                         anyhow::bail!("zkLogin is not supported");
                     }

@@ -7693,6 +7693,7 @@
             "additionalProperties": false
           },
           {
+            "deprecated": true,
             "type": "object",
             "required": [
               "ZkLoginAuthenticatorDeprecated"
@@ -13184,7 +13185,6 @@
       },
       "ZkLoginAuthenticatorDeprecated": {
         "description": "Deprecated zkLogin authenticator — empty stub retained only so the [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles. Instances are never constructed; deserialization rejects the flag byte.",
-        "deprecated": true,
         "type": "null"
       }
     }

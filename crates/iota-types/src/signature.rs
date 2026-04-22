@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(deprecated)]
-
 use std::hash::Hash;
 
 pub use enum_dispatch::enum_dispatch;
@@ -61,10 +59,12 @@ pub trait AuthenticatorTrait {
 /// Deprecated zkLogin authenticator — empty stub retained only so the
 /// [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles.
 /// Instances are never constructed; deserialization rejects the flag byte.
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct ZkLoginAuthenticatorDeprecated;
 
+#[allow(deprecated)]
 impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
     fn verify_claims<T>(
         &self,
@@ -81,6 +81,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
     }
 }
 
+#[allow(deprecated)]
 impl AsRef<[u8]> for ZkLoginAuthenticatorDeprecated {
     fn as_ref(&self) -> &[u8] {
         &[]
@@ -92,12 +93,14 @@ impl AsRef<[u8]> for ZkLoginAuthenticatorDeprecated {
 /// wrapper enum where member can just implement a lightweight [trait
 /// AuthenticatorTrait]. This way MultiSig (and future Authenticators) can
 /// implement its own `verify`.
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[enum_dispatch(AuthenticatorTrait)]
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
 #[allow(clippy::large_enum_variant)]
 pub enum GenericSignature {
     MultiSig,
     Signature,
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
     ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
@@ -167,6 +170,7 @@ impl GenericSignature {
                     }),
                 }
             }
+            #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                 Err(IotaError::UnsupportedFeature {
                     error: "zkLogin is not supported".to_string(),
@@ -212,6 +216,7 @@ impl GenericSignature {
                     }),
                 }
             }
+            #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                 Err(IotaError::UnsupportedFeature {
                     error: "zkLogin is not supported".to_string(),
@@ -246,6 +251,7 @@ impl ToFromBytes for GenericSignature {
                 SignatureScheme::MultiSig => {
                     Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
                 }
+                #[allow(deprecated)]
                 SignatureScheme::ZkLoginAuthenticatorDeprecated => {
                     // zkLogin is deprecated and was never enabled on IOTA — reject at
                     // deserialization.
@@ -274,6 +280,7 @@ impl AsRef<[u8]> for GenericSignature {
         match self {
             GenericSignature::MultiSig(s) => s.as_ref(),
             GenericSignature::Signature(s) => s.as_ref(),
+            #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref(),
             GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
             GenericSignature::MoveAuthenticator(s) => s.as_ref(),

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(deprecated)]
-
 //! Module for conversions between iota-core types and iota-sdk types
 //!
 //! For now this module makes heavy use of the `bcs_convert_impl` macro to
@@ -480,6 +478,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
+            #[allow(deprecated)]
             InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
@@ -591,6 +590,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     },
                 )
             }
+            #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained

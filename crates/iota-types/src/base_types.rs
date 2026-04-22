@@ -782,6 +782,7 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
+            #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                 Err(IotaError::UnsupportedFeature {
                     error: "zkLogin is not supported".to_string(),

@@ -4,7 +4,6 @@
 
 // Allow deprecated zkLogin types — this module defines and must handle them
 // for serialization compatibility.
-#![allow(deprecated)]
 
 use std::{
     collections::BTreeMap,
@@ -1680,6 +1679,7 @@ pub mod bcs_signable_test {
     }
 }
 
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[derive(
     Clone,
     Copy,
@@ -1714,6 +1714,7 @@ impl SignatureScheme {
             SignatureScheme::MultiSig => 0x03,
             SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota
             // Address.
+            #[allow(deprecated)]
             SignatureScheme::ZkLoginAuthenticatorDeprecated => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
             SignatureScheme::MoveAuthenticator => 0x07,
@@ -1743,6 +1744,7 @@ impl SignatureScheme {
             0x02 => Ok(SignatureScheme::Secp256r1),
             0x03 => Ok(SignatureScheme::MultiSig),
             0x04 => Ok(SignatureScheme::BLS12381),
+            #[allow(deprecated)]
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticatorDeprecated),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
             0x07 => Ok(SignatureScheme::MoveAuthenticator),
@@ -1775,6 +1777,7 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Ed25519(sig) => &sig.0,
             CompressedSignature::Secp256k1(sig) => &sig.0,
             CompressedSignature::Secp256r1(sig) => &sig.0,
+            #[allow(deprecated)]
             CompressedSignature::ZkLoginDeprecated => &[],
             CompressedSignature::Passkey(sig) => &sig.0,
             CompressedSignature::Move(sig) => &sig.0,
