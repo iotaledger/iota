@@ -1235,7 +1235,7 @@
             "value": {
               "data": {
                 "objectId": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809",
-                "version": 1,
+                "version": "1",
                 "digest": "33K5ZXJ3RyubvYaHuEnQ1QXmmbhgtrFwp199dnEbL4n7",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -2526,7 +2526,7 @@
               {
                 "data": {
                   "objectId": "0x504d411325e3c7f89d412044fe99007efb0f94f1e64d2e8090c619a39299d87e",
-                  "version": 1,
+                  "version": "1",
                   "digest": "AibMqH69gKT5t7rVTsDZFy2X5iHtoNDobKaZ62mg3FCU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2549,7 +2549,7 @@
               {
                 "data": {
                   "objectId": "0x23618df6438d21a48040e6bb568cafc13246bd847c60448160e0358cac4a1134",
-                  "version": 1,
+                  "version": "1",
                   "digest": "D5W76mT1A3tqCmE1Z5MdV5obNzesMXLfLKpRDHSp1fyz",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2572,7 +2572,7 @@
               {
                 "data": {
                   "objectId": "0x8b95b4eaa9fd3b22b43f6b2c8e92090bd6d16522a6fd4fa83ec70a5f197ad656",
-                  "version": 1,
+                  "version": "1",
                   "digest": "H2o2pWgceQgTtYrMacR4xnCi4vqGiuozDA6k2rBc4m3q",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2595,7 +2595,7 @@
               {
                 "data": {
                   "objectId": "0x3fbbd3ebef7dbcc7b02346cdf05674452cc61f316af5d5d7c02b94b023242685",
-                  "version": 1,
+                  "version": "1",
                   "digest": "3ovR1s3bZt6AN1AQ7QhGUfX9BSwgjJPvL6XaczgeSKXU",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -2618,7 +2618,7 @@
               {
                 "data": {
                   "objectId": "0x9b5cd5df0df2a168259b7115a41ccc0a372b6fd0026e0c63043492ce4d0c19a6",
-                  "version": 1,
+                  "version": "1",
                   "digest": "25QdFqrh9FgxhGQyAxZsNEakYmHezqmU3FMPud7JGRB5",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3138,7 +3138,7 @@
               "status": "VersionFound",
               "details": {
                 "objectId": "0x11af4b844ff94b3fbef6e36b518da3ad4c5856fa686464524a876b463d129760",
-                "version": 4,
+                "version": "4",
                 "digest": "5VPAwDXy3BL72ehFc7gSJoz27ahMd6spUg5YwYc4ibcv",
                 "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                 "owner": {
@@ -3237,7 +3237,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0xd22bbb46f892c42d9ec0ae4de93e02c75973a51c17180798237326a58694a2cf",
-                  "version": 4,
+                  "version": "4",
                   "digest": "5pCqw4G6F1hXcukW3XwhBzas9RqeFrUkvNon5jgX3ewg",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3261,7 +3261,7 @@
                 "status": "VersionFound",
                 "details": {
                   "objectId": "0x5cd6fa76ed1d18f05f15e35075252ddec4fb83621d55952d9172fcfcb72feae2",
-                  "version": 12,
+                  "version": "12",
                   "digest": "CE9bNT96Sa2BxQQH2id4PRxTgW5TW7zm6VVhDeRNBegW",
                   "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                   "owner": {
@@ -3885,7 +3885,7 @@
             "value": {
               "data": {
                 "objectId": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b",
-                "version": 1,
+                "version": "1",
                 "digest": "FnxePMX8y7AqX5mRL4nCcK4xecSrpHrd85c3sJDmh5uG",
                 "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                 "owner": {
@@ -4332,7 +4332,7 @@
                 {
                   "data": {
                     "objectId": "0xd87765d1aadec2db8cc24c312542c8359b6b5e3bfeab524e5edaad3a204b4053",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "8qCvxDHh5LtDfF95Ci9G7vvQN2P6y4v55S9xoKBYp7FM",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4345,7 +4345,7 @@
                 {
                   "data": {
                     "objectId": "0x26ed170e0427f9416a614d23284116375c16bd317738fd2c7a885362e04923f5",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "5Ka3vDaDy9h5UYk3Maz3vssWHrhbcGXQgwg8fL2ygyTi",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -4358,7 +4358,7 @@
                 {
                   "data": {
                     "objectId": "0x2aea16d6fb49b7d1ae51f33b01ed8e1ac66916858610c124bb6fd73bb13e141c",
-                    "version": 13488,
+                    "version": "13488",
                     "digest": "D3hfhfecVcmRcqNEkxkoFMzbuXvBqWj1JkCNU9zbnYMo",
                     "type": "0x2::coin::Coin<0x2::iota::IOTA>",
                     "owner": {
@@ -10329,7 +10329,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumberU64"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }
@@ -10599,7 +10599,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumberString"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ]
               }
