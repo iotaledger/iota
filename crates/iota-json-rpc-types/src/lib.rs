@@ -181,6 +181,7 @@ impl From<DynamicFieldTypeSchema> for DynamicFieldType {
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "camelCase")]
+#[schemars(rename = "DynamicFieldInfo")]
 pub struct IotaDynamicFieldInfo {
     #[schemars(with = "DynamicFieldNameSchema")]
     #[serde_as(as = "DynamicFieldNameSchema")]
@@ -335,6 +336,7 @@ impl From<MaybeTaggedBcsName> for BcsName {
 #[derive(
     Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
+#[schemars(rename = "AuthorityPublicKeyBytes")]
 pub struct IotaAuthorityPublicKeyBytes(
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]

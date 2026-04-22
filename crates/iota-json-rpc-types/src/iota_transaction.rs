@@ -1883,6 +1883,7 @@ pub struct IotaConsensusCommitPrologueV1 {
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "ConsensusDeterminedVersionAssignments")]
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(

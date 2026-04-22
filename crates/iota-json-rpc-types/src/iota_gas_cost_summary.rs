@@ -45,6 +45,7 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(rename = "GasCostSummary")]
 pub struct IotaGasCostSummary {
     /// Cost of computation/execution
     #[schemars(with = "String")]

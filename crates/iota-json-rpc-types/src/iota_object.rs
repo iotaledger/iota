@@ -1027,6 +1027,7 @@ impl IotaRawMoveObject {
 /// public for read-only access.
 #[serde_as]
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, JsonSchema)]
+#[schemars(rename = "TypeOrigin")]
 pub struct IotaTypeOrigin {
     /// The name of the module the data type resides in.
     #[schemars(with = "String")]
@@ -1071,6 +1072,7 @@ impl From<IotaTypeOrigin> for TypeOrigin {
 /// public for read-only access.
 #[serde_as]
 #[derive(JsonSchema)]
+#[schemars(rename = "UpgradeInfo")]
 pub struct IotaUpgradeInfo {
     /// `Storage ID`/`Package ID` of the referred package.
     #[schemars(with = "ObjectIDSchema")]

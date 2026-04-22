@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetDynamicFields, useOnScreen } from '@iota/core';
-import { type IotaDynamicFieldInfo } from '@iota/iota-sdk/client';
+import { type DynamicFieldInfo } from '@iota/iota-sdk/client';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { UnderlyingObjectCard } from './UnderlyingObjectCard';
 import { ObjectLink } from '~/components/ui';
@@ -17,7 +17,7 @@ import {
 
 interface DynamicFieldRowProps {
     id: string;
-    result: IotaDynamicFieldInfo;
+    result: DynamicFieldInfo;
     defaultOpen: boolean;
 }
 

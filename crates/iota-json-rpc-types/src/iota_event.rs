@@ -37,6 +37,7 @@ pub type EventPage = Page<IotaEvent, EventID>;
 #[serde_as]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(rename = "EventID")]
 pub struct IotaEventID {
     #[schemars(with = "Base58")]
     pub tx_digest: TransactionDigest,

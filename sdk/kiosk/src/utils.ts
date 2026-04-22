@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
-    IotaDynamicFieldInfo,
+    DynamicFieldInfo,
     PaginationArguments,
     IotaClient,
     IotaObjectData,
@@ -40,13 +40,13 @@ export async function getKioskObject(client: IotaClient, id: string): Promise<Ki
 
 // helper to extract kiosk data from dynamic fields.
 export function extractKioskData(
-    data: IotaDynamicFieldInfo[],
+    data: DynamicFieldInfo[],
     listings: KioskListing[],
     lockedItemIds: string[],
     kioskId: string,
 ): KioskData {
     return data.reduce<KioskData>(
-        (acc: KioskData, val: IotaDynamicFieldInfo) => {
+        (acc: KioskData, val: DynamicFieldInfo) => {
             const type = val.name.type;
 
             if (type.startsWith('0x2::kiosk::Item')) {
@@ -165,7 +165,7 @@ export async function getAllDynamicFields(
 ) {
     let hasNextPage = true;
     let cursor = undefined;
-    const data: IotaDynamicFieldInfo[] = [];
+    const data: DynamicFieldInfo[] = [];
 
     while (hasNextPage) {
         const result = await client.getDynamicFields({

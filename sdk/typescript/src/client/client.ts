@@ -22,6 +22,7 @@ import type {
     CheckpointPage,
     CoinBalance,
     CoinMetadata,
+    CoinSupply,
     CommitteeInfo,
     DelegatedStake,
     DevInspectResults,
@@ -101,7 +102,6 @@ import type {
     IotaMoveViewCallResults,
     ViewParams,
     IotaValidatorSummary,
-    IotaSupply,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -261,7 +261,7 @@ export class IotaClient {
     /**
      *  Fetch total supply for a coin
      */
-    async getTotalSupply(input: GetTotalSupplyParams): Promise<IotaSupply> {
+    async getTotalSupply(input: GetTotalSupplyParams): Promise<CoinSupply> {
         return await this.transport.request({
             method: 'iotax_getTotalSupply',
             params: [input.coinType],

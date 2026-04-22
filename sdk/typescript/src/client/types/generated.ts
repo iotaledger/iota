@@ -54,7 +54,7 @@ export interface Checkpoint {
      * The running total gas costs of all transactions included in the current epoch so far until this
      * checkpoint.
      */
-    epochRollingGasCostSummary: IotaGasCostSummary;
+    epochRollingGasCostSummary: GasCostSummary;
     /** Total number of transactions committed since genesis, including those in this checkpoint. */
     networkTotalTransactions: string;
     /** Digest of the previous checkpoint */
@@ -91,6 +91,10 @@ export interface CommitteeInfo {
     epoch: string;
     validators: [string, string][];
 }
+/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
+export type ConsensusDeterminedVersionAssignments = {
+    CancelledTransactions: [string, [string, string][]][];
+};
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
@@ -163,6 +167,29 @@ export interface DryRunTransactionBlockResponse {
     /** If an input object is congested, suggest a gas price to use. */
     suggestedGasPrice?: string | null;
 }
+export type DynamicFieldInfo =
+    | {
+          /** Base58 encoded data */
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base64';
+          bcsName: string;
+      }
+    | {
+          /** Base58 encoded data */
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base58';
+          bcsName: string;
+      };
 export interface DynamicFieldName {
     type: string;
     value: unknown;
@@ -245,7 +272,7 @@ export type IotaEvent =
            * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
            * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
            */
-          id: IotaEventID;
+          id: EventId;
           /** Move package where this event was emitted. */
           packageId: string;
           /** Parsed json value of the event */
@@ -267,7 +294,7 @@ export type IotaEvent =
            * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
            * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
            */
-          id: IotaEventID;
+          id: EventId;
           /** Move package where this event was emitted. */
           packageId: string;
           /** Parsed json value of the event */
@@ -351,11 +378,58 @@ export type IotaEventFilter =
     | {
           Or: [IotaEventFilter, IotaEventFilter];
       };
+/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
+export interface EventId {
+    eventSeq: string;
+    txDigest: string;
+}
 export type ExecuteTransactionRequestType = 'WaitForEffectsCert' | 'WaitForLocalExecution';
 export type ExecutionStatus = {
     status: 'success' | 'failure';
     error?: string;
 };
+/**
+ * Summary of gas charges.
+ *
+ * Storage is charged independently of computation. There are 3 parts to the storage charges:
+ * `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of
+ * storage is the number of bytes of the objects being mutated multiplied by a variable storage cost
+ * per byte `storage_rebate`: this is the amount a user gets back when manipulating an object. The
+ * `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not
+ * all the value of the object storage cost is given back to user and there is a small fraction that is
+ * kept by the system. This value tracks that charge.
+ *
+ * When looking at a gas cost summary the amount charged to the user is
+ * `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the
+ * gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it
+ * is tracked by the system in storage funds.
+ *
+ * Objects deleted, including the older versions of objects mutated, have the storage field on the
+ * objects added up to a pool of "potential rebate". This rebate then is reduced by the "nonrefundable
+ * rate" such that:
+ * `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`
+ *
+ * # BCS
+ *
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * `text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee `
+ */
+export interface GasCostSummary {
+    /** Cost of computation/execution */
+    computationCost: string;
+    /** The burned component of the computation/execution costs */
+    computationCostBurned: string;
+    /** The fee for the rebate. The portion of the storage rebate kept by the system. */
+    nonRefundableStorageFee: string;
+    /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
+    storageCost: string;
+    /**
+     * The amount of storage cost refunded to the user for all objects deleted or mutated in the
+     * transaction.
+     */
+    storageRebate: string;
+}
 export interface IotaGasData {
     budget: string;
     owner: string;
@@ -474,33 +548,6 @@ export interface CoinMetadata {
     /** Symbol for the token */
     symbol: string;
 }
-/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
-export type IotaConsensusDeterminedVersionAssignments = {
-    CancelledTransactions: [string, [string, string][]][];
-};
-export type IotaDynamicFieldInfo =
-    | {
-          /** Base58 encoded data */
-          digest: string;
-          name: DynamicFieldName;
-          objectId: string;
-          objectType: string;
-          type: DynamicFieldType;
-          version: string;
-          bcsEncoding: 'base64';
-          bcsName: string;
-      }
-    | {
-          /** Base58 encoded data */
-          digest: string;
-          name: DynamicFieldName;
-          objectId: string;
-          objectType: string;
-          type: DynamicFieldType;
-          version: string;
-          bcsEncoding: 'base58';
-          bcsName: string;
-      };
 export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
     | {
@@ -512,58 +559,11 @@ export type IotaEndOfEpochTransactionKind =
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
       };
-/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
-export interface IotaEventID {
-    eventSeq: string;
-    txDigest: string;
-}
 export interface IotaExecutionResult {
     /** The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included */
     mutableReferenceOutputs?: [IotaArgument, number[], string][];
     /** The return values from the transaction */
     returnValues?: [number[], string][];
-}
-/**
- * Summary of gas charges.
- *
- * Storage is charged independently of computation. There are 3 parts to the storage charges:
- * `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of
- * storage is the number of bytes of the objects being mutated multiplied by a variable storage cost
- * per byte `storage_rebate`: this is the amount a user gets back when manipulating an object. The
- * `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not
- * all the value of the object storage cost is given back to user and there is a small fraction that is
- * kept by the system. This value tracks that charge.
- *
- * When looking at a gas cost summary the amount charged to the user is
- * `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the
- * gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it
- * is tracked by the system in storage funds.
- *
- * Objects deleted, including the older versions of objects mutated, have the storage field on the
- * objects added up to a pool of "potential rebate". This rebate then is reduced by the "nonrefundable
- * rate" such that:
- * `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`
- *
- * # BCS
- *
- * The BCS serialized form for this type is defined by the following ABNF:
- *
- * `text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee `
- */
-export interface IotaGasCostSummary {
-    /** Cost of computation/execution */
-    computationCost: string;
-    /** The burned component of the computation/execution costs */
-    computationCostBurned: string;
-    /** The fee for the rebate. The portion of the storage rebate kept by the system. */
-    nonRefundableStorageFee: string;
-    /** Storage cost, it's the sum of all storage cost for all objects created or mutated. */
-    storageCost: string;
-    /**
-     * The amount of storage cost refunded to the user for all objects deleted or mutated in the
-     * transaction.
-     */
-    storageRebate: string;
 }
 export interface IotaJWK {
     alg: string;
@@ -743,9 +743,6 @@ export interface MoveCallIotaTransaction {
     package: string;
     /** The type arguments to the function. */
     type_arguments?: string[];
-}
-export interface IotaSupply {
-    value: string;
 }
 /**
  * This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent
@@ -1023,40 +1020,6 @@ export type IotaTransactionKind =
     | 'RandomnessStateUpdate'
     | 'EndOfEpochTransaction'
     | 'SystemTransaction';
-/**
- * Store the origin of a data type where it first appeared in the version chain.
- *
- * A data type is identified by the name of the module and the name of the struct/enum in combination.
- *
- * # Undefined behavior
- *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
- */
-export interface IotaTypeOrigin {
-    /**
-     * The name of the data type.
-     *
-     * Here this either refers to an enum or a struct identifier.
-     */
-    datatype_name: string;
-    /** The name of the module the data type resides in. */
-    module_name: string;
-    /** `Storage ID` of the package, where the given type first appeared. */
-    package: string;
-}
-/**
- * Value for the [MovePackage]'s linkage_table.
- *
- * # Undefined behavior
- *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
- */
-export interface IotaUpgradeInfo {
-    /** `Storage ID`/`Package ID` of the referred package. */
-    upgraded_id: string;
-    /** The version of the package at `upgraded_id`. */
-    upgraded_version: string;
-}
 /**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
  * fields so that they are decoupled from the internal definitions.
@@ -1436,6 +1399,16 @@ export interface PaginatedCoins {
  * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
  * item.
  */
+export interface PaginatedDynamicFieldInfos {
+    data: DynamicFieldInfo[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
 export interface PaginatedEpochInfos {
     data: EpochInfo[];
     hasNextPage: boolean;
@@ -1459,17 +1432,7 @@ export interface PaginatedEpochMetricss {
 export interface PaginatedEvents {
     data: IotaEvent[];
     hasNextPage: boolean;
-    nextCursor?: IotaEventID | null;
-}
-/**
- * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
- * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
- * item.
- */
-export interface PaginatedIotaDynamicFieldInfos {
-    data: IotaDynamicFieldInfo[];
-    hasNextPage: boolean;
-    nextCursor?: string | null;
+    nextCursor?: EventId | null;
 }
 /**
  * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
@@ -1543,12 +1506,12 @@ export type RawData =
           dataType: 'package';
           id: string;
           linkageTable: {
-              [key: string]: IotaUpgradeInfo;
+              [key: string]: UpgradeInfo;
           };
           moduleMap: {
               [key: string]: string;
           };
-          typeOriginTable: IotaTypeOrigin[];
+          typeOriginTable: TypeOrigin[];
           version: string;
       };
 export type StakeObject =
@@ -1577,6 +1540,9 @@ export type StakeObject =
           stakedIotaId: string;
           status: 'Unstaked';
       };
+export interface CoinSupply {
+    value: string;
+}
 export type TimelockedStake =
     | {
           expirationTimestampMs: string;
@@ -1645,7 +1611,7 @@ export type TransactionEffects =
          * in mutated.
          */
         gasObject: OwnedObjectRef;
-        gasUsed: IotaGasCostSummary;
+        gasUsed: GasCostSummary;
         messageVersion: 'v1';
         /**
          * The version that every modified (mutated or deleted) object had before it was modified by this
@@ -1680,7 +1646,7 @@ export interface TransactionBlockEffectsModifiedAtVersions {
 export type IotaTransactionBlockKind =
     /** A system transaction used for initializing the initial state of the chain. */
     | {
-          events: IotaEventID[];
+          events: EventId[];
           kind: 'Genesis';
           objects: string[];
       } /** A system transaction marking the start of a series of transactions scheduled as part of a checkpoint */
@@ -1688,7 +1654,7 @@ export type IotaTransactionBlockKind =
           commit_timestamp_ms: string;
           /** Base58 encoded data */
           consensus_commit_digest: string;
-          consensus_determined_version_assignments: IotaConsensusDeterminedVersionAssignments;
+          consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments;
           epoch: string;
           kind: 'ConsensusCommitPrologueV1';
           round: string;
@@ -1857,6 +1823,40 @@ export type TransactionFilterV2 =
 export interface TransferObjectParams {
     objectId: string;
     recipient: string;
+}
+/**
+ * Store the origin of a data type where it first appeared in the version chain.
+ *
+ * A data type is identified by the name of the module and the name of the struct/enum in combination.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
+export interface TypeOrigin {
+    /**
+     * The name of the data type.
+     *
+     * Here this either refers to an enum or a struct identifier.
+     */
+    datatype_name: string;
+    /** The name of the module the data type resides in. */
+    module_name: string;
+    /** `Storage ID` of the package, where the given type first appeared. */
+    package: string;
+}
+/**
+ * Value for the [MovePackage]'s linkage_table.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
+export interface UpgradeInfo {
+    /** `Storage ID`/`Package ID` of the referred package. */
+    upgraded_id: string;
+    /** The version of the package at `upgraded_id`. */
+    upgraded_version: string;
 }
 export interface ValidatorApy {
     address: string;

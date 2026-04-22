@@ -462,7 +462,7 @@ export interface QueryEventsParams {
      */
     query: RpcTypes.IotaEventFilter;
     /** optional paging cursor */
-    cursor?: RpcTypes.IotaEventID | null | undefined;
+    cursor?: RpcTypes.EventId | null | undefined;
     /** maximum number of items per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */

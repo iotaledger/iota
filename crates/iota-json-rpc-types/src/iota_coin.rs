@@ -25,6 +25,7 @@ pub type CoinPage = Page<Coin, ObjectID>;
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "Supply")]
 pub struct IotaSupply {
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]

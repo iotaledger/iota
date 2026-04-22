@@ -3983,7 +3983,7 @@
         "name": "Page<IotaDynamicFieldInfo,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaDynamicFieldInfo_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
         }
       },
       "examples": [
@@ -4648,7 +4648,7 @@
         "name": "IotaSupply",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaSupply"
+          "$ref": "#/components/schemas/Supply"
         }
       },
       "examples": [
@@ -4845,7 +4845,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/IotaEventID"
+            "$ref": "#/components/schemas/EventID"
           }
         },
         {
@@ -4869,7 +4869,7 @@
         "name": "Page<IotaEvent,IotaEventID>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Event_and_IotaEventID"
+          "$ref": "#/components/schemas/Page_for_Event_and_EventID"
         }
       },
       "examples": [
@@ -6112,6 +6112,14 @@
           }
         }
       },
+      "AuthorityPublicKeyBytes": {
+        "description": "Defines the compressed version of the public key that we pass around in IOTA.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Base64"
+          }
+        ]
+      },
       "Balance": {
         "type": "object",
         "required": [
@@ -6210,7 +6218,7 @@
             "description": "The running total gas costs of all transactions included in the current epoch so far until this checkpoint.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/IotaGasCostSummary"
+                "$ref": "#/components/schemas/GasCostSummary"
               }
             ]
           },
@@ -6333,7 +6341,7 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAuthorityPublicKeyBytes"
+                  "$ref": "#/components/schemas/AuthorityPublicKeyBytes"
                 },
                 {
                   "type": "string"
@@ -6344,6 +6352,51 @@
             }
           }
         }
+      },
+      "ConsensusDeterminedVersionAssignments": {
+        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "CancelledTransactions"
+            ],
+            "properties": {
+              "CancelledTransactions": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": [
+                    {
+                      "description": "Base58 encoded data",
+                      "type": "string",
+                      "format": "base58"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": [
+                          {
+                            "$ref": "#/components/schemas/ObjectID"
+                          },
+                          {
+                            "$ref": "#/components/schemas/SequenceNumberU64"
+                          }
+                        ],
+                        "maxItems": 2,
+                        "minItems": 2
+                      }
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "Data": {
         "oneOf": [
@@ -6628,6 +6681,77 @@
           }
         }
       },
+      "DynamicFieldInfo": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base64"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base58"
+              }
+            }
+          }
+        ],
+        "required": [
+          "digest",
+          "name",
+          "objectId",
+          "objectType",
+          "type",
+          "version"
+        ],
+        "properties": {
+          "digest": {
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
+          },
+          "name": {
+            "$ref": "#/components/schemas/DynamicFieldName"
+          },
+          "objectId": {
+            "$ref": "#/components/schemas/ObjectID"
+          },
+          "objectType": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DynamicFieldType"
+          },
+          "version": {
+            "$ref": "#/components/schemas/SequenceNumberU64"
+          }
+        }
+      },
       "DynamicFieldName": {
         "type": "object",
         "required": [
@@ -6695,7 +6819,7 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAuthorityPublicKeyBytes"
+                  "$ref": "#/components/schemas/AuthorityPublicKeyBytes"
                 },
                 {
                   "type": "string"
@@ -6925,7 +7049,7 @@
             "description": "Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A higher id is an event seen later by that fullnode. This ID is the \"cursor\" for event querying.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/IotaEventID"
+                "$ref": "#/components/schemas/EventID"
               }
             ]
           },
@@ -7208,6 +7332,22 @@
           }
         ]
       },
+      "EventID": {
+        "description": "Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number.",
+        "type": "object",
+        "required": [
+          "eventSeq",
+          "txDigest"
+        ],
+        "properties": {
+          "eventSeq": {
+            "type": "string"
+          },
+          "txDigest": {
+            "$ref": "#/components/schemas/Base58"
+          }
+        }
+      },
       "ExecuteTransactionRequestType": {
         "type": "string",
         "enum": [
@@ -7250,6 +7390,39 @@
             }
           }
         ]
+      },
+      "GasCostSummary": {
+        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee ```",
+        "type": "object",
+        "required": [
+          "computationCost",
+          "computationCostBurned",
+          "nonRefundableStorageFee",
+          "storageCost",
+          "storageRebate"
+        ],
+        "properties": {
+          "computationCost": {
+            "description": "Cost of computation/execution",
+            "type": "string"
+          },
+          "computationCostBurned": {
+            "description": "The burned component of the computation/execution costs",
+            "type": "string"
+          },
+          "nonRefundableStorageFee": {
+            "description": "The fee for the rebate. The portion of the storage rebate kept by the system.",
+            "type": "string"
+          },
+          "storageCost": {
+            "description": "Storage cost, it's the sum of all storage cost for all objects created or mutated.",
+            "type": "string"
+          },
+          "storageRebate": {
+            "description": "The amount of storage cost refunded to the user for all objects deleted or mutated in the transaction.",
+            "type": "string"
+          }
+        }
       },
       "GasData": {
         "type": "object",
@@ -7462,14 +7635,6 @@
             "type": "string"
           }
         }
-      },
-      "IotaAuthorityPublicKeyBytes": {
-        "description": "Defines the compressed version of the public key that we pass around in IOTA.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
       },
       "IotaCallArg": {
         "oneOf": [
@@ -7750,122 +7915,6 @@
           }
         }
       },
-      "IotaConsensusDeterminedVersionAssignments": {
-        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "CancelledTransactions"
-            ],
-            "properties": {
-              "CancelledTransactions": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": [
-                    {
-                      "description": "Base58 encoded data",
-                      "type": "string",
-                      "format": "base58"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "array",
-                        "items": [
-                          {
-                            "$ref": "#/components/schemas/ObjectID"
-                          },
-                          {
-                            "$ref": "#/components/schemas/SequenceNumberU64"
-                          }
-                        ],
-                        "maxItems": 2,
-                        "minItems": 2
-                      }
-                    }
-                  ],
-                  "maxItems": 2,
-                  "minItems": 2
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "IotaDynamicFieldInfo": {
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "bcsEncoding",
-              "bcsName"
-            ],
-            "properties": {
-              "bcsEncoding": {
-                "type": "string",
-                "enum": [
-                  "base64"
-                ]
-              },
-              "bcsName": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "bcsEncoding",
-              "bcsName"
-            ],
-            "properties": {
-              "bcsEncoding": {
-                "type": "string",
-                "enum": [
-                  "base58"
-                ]
-              },
-              "bcsName": {
-                "$ref": "#/components/schemas/Base58"
-              }
-            }
-          }
-        ],
-        "required": [
-          "digest",
-          "name",
-          "objectId",
-          "objectType",
-          "type",
-          "version"
-        ],
-        "properties": {
-          "digest": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
-          },
-          "name": {
-            "$ref": "#/components/schemas/DynamicFieldName"
-          },
-          "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
-          },
-          "objectType": {
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/DynamicFieldType"
-          },
-          "version": {
-            "$ref": "#/components/schemas/SequenceNumberU64"
-          }
-        }
-      },
       "IotaEndOfEpochTransactionKind": {
         "oneOf": [
           {
@@ -7911,22 +7960,6 @@
             "additionalProperties": false
           }
         ]
-      },
-      "IotaEventID": {
-        "description": "Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number.",
-        "type": "object",
-        "required": [
-          "eventSeq",
-          "txDigest"
-        ],
-        "properties": {
-          "eventSeq": {
-            "type": "string"
-          },
-          "txDigest": {
-            "$ref": "#/components/schemas/Base58"
-          }
-        }
       },
       "IotaExecutionResult": {
         "type": "object",
@@ -7977,39 +8010,6 @@
               "maxItems": 2,
               "minItems": 2
             }
-          }
-        }
-      },
-      "IotaGasCostSummary": {
-        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee ```",
-        "type": "object",
-        "required": [
-          "computationCost",
-          "computationCostBurned",
-          "nonRefundableStorageFee",
-          "storageCost",
-          "storageRebate"
-        ],
-        "properties": {
-          "computationCost": {
-            "description": "Cost of computation/execution",
-            "type": "string"
-          },
-          "computationCostBurned": {
-            "description": "The burned component of the computation/execution costs",
-            "type": "string"
-          },
-          "nonRefundableStorageFee": {
-            "description": "The fee for the rebate. The portion of the storage rebate kept by the system.",
-            "type": "string"
-          },
-          "storageCost": {
-            "description": "Storage cost, it's the sum of all storage cost for all objects created or mutated.",
-            "type": "string"
-          },
-          "storageRebate": {
-            "description": "The amount of storage cost refunded to the user for all objects deleted or mutated in the transaction.",
-            "type": "string"
           }
         }
       },
@@ -8677,17 +8677,6 @@
             "items": {
               "type": "string"
             }
-          }
-        }
-      },
-      "IotaSupply": {
-        "type": "object",
-        "required": [
-          "value"
-        ],
-        "properties": {
-          "value": {
-            "type": "string"
           }
         }
       },
@@ -9409,59 +9398,6 @@
             ]
           }
         ]
-      },
-      "IotaTypeOrigin": {
-        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
-        "type": "object",
-        "required": [
-          "datatype_name",
-          "module_name",
-          "package"
-        ],
-        "properties": {
-          "datatype_name": {
-            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "type": "string"
-          },
-          "module_name": {
-            "description": "The name of the module the data type resides in.",
-            "type": "string"
-          },
-          "package": {
-            "description": "`Storage ID` of the package, where the given type first appeared.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            ]
-          }
-        }
-      },
-      "IotaUpgradeInfo": {
-        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
-        "type": "object",
-        "required": [
-          "upgraded_id",
-          "upgraded_version"
-        ],
-        "properties": {
-          "upgraded_id": {
-            "description": "`Storage ID`/`Package ID` of the referred package.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
-              }
-            ]
-          },
-          "upgraded_version": {
-            "description": "The version of the package at `upgraded_id`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SequenceNumberString"
-              }
-            ]
-          }
-        }
       },
       "IotaValidatorSummary": {
         "description": "This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level fields so that they are decoupled from the internal definitions.",
@@ -10809,6 +10745,35 @@
           }
         }
       },
+      "Page_for_DynamicFieldInfo_and_ObjectID": {
+        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
+        "type": "object",
+        "required": [
+          "data",
+          "hasNextPage"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DynamicFieldInfo"
+            }
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "Page_for_EpochInfo_and_String": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
@@ -10859,7 +10824,7 @@
           }
         }
       },
-      "Page_for_Event_and_IotaEventID": {
+      "Page_for_Event_and_EventID": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -10879,36 +10844,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/IotaEventID"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "Page_for_IotaDynamicFieldInfo_and_ObjectID": {
-        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
-        "type": "object",
-        "required": [
-          "data",
-          "hasNextPage"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/IotaDynamicFieldInfo"
-            }
-          },
-          "hasNextPage": {
-            "type": "boolean"
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/EventID"
               },
               {
                 "type": "null"
@@ -11184,7 +11120,7 @@
               "linkageTable": {
                 "type": "object",
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/IotaUpgradeInfo"
+                  "$ref": "#/components/schemas/UpgradeInfo"
                 }
               },
               "moduleMap": {
@@ -11196,7 +11132,7 @@
               "typeOriginTable": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/IotaTypeOrigin"
+                  "$ref": "#/components/schemas/TypeOrigin"
                 }
               },
               "version": {
@@ -11287,6 +11223,17 @@
                 "$ref": "#/components/schemas/ObjectID"
               }
             ]
+          }
+        }
+      },
+      "Supply": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
           }
         }
       },
@@ -11509,7 +11456,7 @@
                 ]
               },
               "gasUsed": {
-                "$ref": "#/components/schemas/IotaGasCostSummary"
+                "$ref": "#/components/schemas/GasCostSummary"
               },
               "messageVersion": {
                 "type": "string",
@@ -11605,7 +11552,7 @@
               "events": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/IotaEventID"
+                  "$ref": "#/components/schemas/EventID"
                 }
               },
               "kind": {
@@ -11643,7 +11590,7 @@
                 "format": "base58"
               },
               "consensus_determined_version_assignments": {
-                "$ref": "#/components/schemas/IotaConsensusDeterminedVersionAssignments"
+                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
               },
               "epoch": {
                 "type": "string"
@@ -12336,8 +12283,61 @@
           }
         }
       },
+      "TypeOrigin": {
+        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
+        "type": "object",
+        "required": [
+          "datatype_name",
+          "module_name",
+          "package"
+        ],
+        "properties": {
+          "datatype_name": {
+            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
+            "type": "string"
+          },
+          "module_name": {
+            "description": "The name of the module the data type resides in.",
+            "type": "string"
+          },
+          "package": {
+            "description": "`Storage ID` of the package, where the given type first appeared.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          }
+        }
+      },
       "TypeTag": {
         "type": "string"
+      },
+      "UpgradeInfo": {
+        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
+        "type": "object",
+        "required": [
+          "upgraded_id",
+          "upgraded_version"
+        ],
+        "properties": {
+          "upgraded_id": {
+            "description": "`Storage ID`/`Package ID` of the referred package.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "upgraded_version": {
+            "description": "The version of the package at `upgraded_id`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SequenceNumberString"
+              }
+            ]
+          }
+        }
       },
       "ValidatorApy": {
         "type": "object",
