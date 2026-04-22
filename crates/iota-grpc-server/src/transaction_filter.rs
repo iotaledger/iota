@@ -27,7 +27,6 @@ pub enum TransactionKind {
     ProgrammableTransaction = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdateV1Deprecated = 4,
     EndOfEpochTransaction = 5,
     RandomnessStateUpdate = 6,
 }
@@ -44,7 +43,7 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             }
             #[allow(deprecated)]
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                TransactionKind::AuthenticatorStateUpdateV1Deprecated
+                TransactionKind::SystemTransaction
             }
             iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
                 TransactionKind::EndOfEpochTransaction
@@ -70,9 +69,6 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
             proto_filter::TransactionKind::Genesis => Ok(TransactionKind::Genesis),
             proto_filter::TransactionKind::ConsensusCommitPrologueV1 => {
                 Ok(TransactionKind::ConsensusCommitPrologueV1)
-            }
-            proto_filter::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                Ok(TransactionKind::AuthenticatorStateUpdateV1Deprecated)
             }
             proto_filter::TransactionKind::EndOfEpochTransaction => {
                 Ok(TransactionKind::EndOfEpochTransaction)
@@ -333,7 +329,6 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
         TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
-        | TransactionKind::AuthenticatorStateUpdateV1Deprecated
         | TransactionKind::EndOfEpochTransaction
         | TransactionKind::RandomnessStateUpdate => true,
         TransactionKind::ProgrammableTransaction => false,
