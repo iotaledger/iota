@@ -30,7 +30,7 @@ use crate::{
 
 /// Helper to call a function from the backward_history_test package, wait for
 /// indexer to catch up, and return the response (with checkpoint populated).
-async fn call_test_fn(
+pub async fn call_test_fn(
     client: &HttpClient,
     store: &PgIndexerStore,
     sender: iota_types::base_types::IotaAddress,
@@ -77,7 +77,7 @@ async fn call_test_fn(
 }
 
 /// Extract the first created object ID from a transaction response.
-fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> ObjectID {
+pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> ObjectID {
     resp.object_changes
         .as_ref()
         .unwrap()
