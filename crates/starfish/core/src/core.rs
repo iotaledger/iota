@@ -611,6 +611,14 @@ impl Core {
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::reinitialize_components");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::reinitialize_components"])
+            .start_timer();
         info!(
             "Reinitializing components with {} block headers",
             block_headers.len(),
