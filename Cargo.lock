@@ -259,7 +259,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -270,7 +270,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2617,7 +2617,7 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "rand 0.8.6",
  "serde",
  "tracing",
@@ -2643,7 +2643,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -3450,7 +3450,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccc2776f0c61eca1ca32528f85548abd1a4be8fb53d1b21c013e4f18da1e7090"
 dependencies = [
  "data-encoding",
- "syn 2.0.117",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -3855,7 +3855,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4141,7 +4141,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5369,7 +5369,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -5819,7 +5819,7 @@ dependencies = [
  "iota-package-management",
  "iota-protocol-config",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm-config",
@@ -6137,7 +6137,7 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6249,7 +6249,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -6442,7 +6442,7 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -6532,7 +6532,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "parking_lot 0.12.5",
  "prometheus",
@@ -6642,7 +6642,7 @@ dependencies = [
  "iota-move-natives-latest",
  "iota-protocol-config",
  "iota-sdk-crypto",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-stardust-types",
  "iota-swarm-config",
@@ -6752,7 +6752,7 @@ dependencies = [
  "iota-node-storage",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6812,7 +6812,7 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "iota-grpc-types",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "prost 0.14.3",
  "serde",
  "thiserror 1.0.69",
@@ -6835,7 +6835,7 @@ dependencies = [
  "iota-metrics",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
@@ -6860,7 +6860,7 @@ name = "iota-grpc-types"
 version = "1.23.0-alpha"
 dependencies = [
  "bcs",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "prost 0.14.3",
  "prost-types 0.14.3",
  "serde",
@@ -7052,7 +7052,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -7153,7 +7153,7 @@ dependencies = [
  "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "itertools 0.13.0",
  "json_to_table",
@@ -7179,7 +7179,7 @@ dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "rand 0.8.6",
  "regex",
@@ -7223,7 +7223,7 @@ dependencies = [
  "fastcrypto",
  "hex",
  "hidapi",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
@@ -7243,7 +7243,7 @@ dependencies = [
  "clap",
  "iota-ledger",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -7531,7 +7531,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -7611,7 +7611,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -7929,7 +7929,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -7962,7 +7962,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -8024,7 +8024,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85#302cbb0851a04c3044cb4b30661cc81980425c85"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a#2eb33304100fd3137a13e5d2109424a4b7eff10a"
 dependencies = [
  "base64ct",
  "bcs",
@@ -8343,7 +8343,7 @@ dependencies = [
  "iota-genesis-builder",
  "iota-names",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -8380,7 +8380,7 @@ dependencies = [
  "iota-genesis-builder",
  "iota-move-build",
  "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-types",
  "move-core-types",
 ]
@@ -8568,7 +8568,7 @@ dependencies = [
  "iota-network-stack",
  "iota-proc-macros",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "itertools 0.13.0",
  "lru 0.12.5",
  "move-binary-format",
@@ -8670,7 +8670,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -10616,7 +10616,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12438,7 +12438,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -13292,7 +13292,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -14255,7 +14255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -14384,7 +14384,7 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "rand 0.8.6",
  "rs_merkle",
  "serde",
@@ -14412,7 +14412,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=302cbb0851a04c3044cb4b30661cc81980425c85)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eb33304100fd3137a13e5d2109424a4b7eff10a)",
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -14834,7 +14834,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -14864,7 +14864,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -15154,9 +15154,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.1"
+version = "1.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
+checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "bytes",
  "libc",
@@ -15165,7 +15165,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.3",
- "tokio-macros 2.7.0",
+ "tokio-macros 2.6.1",
  "tracing",
  "windows-sys 0.61.2",
 ]
@@ -15182,9 +15182,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.7.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
+checksum = "5c55a2eff8b69ce66c84f85e1da1c233edc36ceb85a2058d11b0d6a3c7e7569c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -16499,7 +16499,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

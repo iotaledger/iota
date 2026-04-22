@@ -3885,7 +3885,11 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
-                  "fields": {}
+                  "fields": {
+                    "id": {
+                      "id": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b"
+                    }
+                  }
                 }
               }
             }
