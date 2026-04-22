@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::serde_utils::{
-    Base58, ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberStringSchema,
+    Base58, ObjectID as ObjectIDSchema, SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
 #[serde_as]
@@ -30,8 +30,7 @@ pub enum IotaObjectResponseError {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
         /// Object version.
-        #[schemars(with = "SequenceNumberStringSchema")]
-        #[serde_as(as = "SequenceNumberStringSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         version: SequenceNumber,
         /// Base64 string representing the object digest
         #[schemars(with = "Base58")]

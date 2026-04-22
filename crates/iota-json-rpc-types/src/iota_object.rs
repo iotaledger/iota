@@ -211,7 +211,8 @@ pub struct IotaObjectData {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58")]
