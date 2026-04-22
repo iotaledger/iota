@@ -44,9 +44,9 @@ const auditTrail = [
                     'developer/iota-audit-trail/how-tos/real-world/digital-product-passport',
                     'developer/iota-audit-trail/how-tos/real-world/customs-clearance',
                     'developer/iota-audit-trail/how-tos/real-world/clinical-trial',
-                    'developer/iota-audit-trail/how-tos/real-world/utility-functions',
                 ],
             },
+            'developer/iota-audit-trail/how-tos/utility-functions',
         ],
     },
     {
