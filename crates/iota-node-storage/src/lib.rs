@@ -18,8 +18,8 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
-        CoinInfoV2, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectV2Cursor,
-        OwnedObjectV2IteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectCursor,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
 };
@@ -82,14 +82,14 @@ pub trait GrpcIndexes: Send + Sync {
     /// Iterate over objects owned by `owner`, optionally filtered by
     /// `object_type`.
     ///
-    /// Each item includes an [`OwnedObjectV2Cursor`] for seek-based pagination.
+    /// Each item includes an [`OwnedObjectCursor`] for seek-based pagination.
     /// The `cursor` bound is **inclusive**.
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>;
 
     /// Iterate over the dynamic fields of `parent`.
     ///
@@ -102,7 +102,7 @@ pub trait GrpcIndexes: Send + Sync {
     ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
     /// Get unified coin info.
-    fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+    fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 
     /// Iterate over all versions of a package by its original package ID.
     fn package_versions_iter(

@@ -20,14 +20,14 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectV2Cursor,
-        OwnedObjectV2IteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
-        PackageVersionKey, TransactionInfo, error::Error as StorageError,
+        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectCursor,
+        OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
+        TransactionInfo, error::Error as StorageError,
     },
 };
 use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
@@ -45,12 +45,6 @@ use crate::{
 /// Bump this when changing the serialization format of an existing table.
 /// A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
-///
-/// NOTE: Adding a *new* table does NOT require a version bump.  New tables
-/// start empty and are populated by a background backfill task tracked via
-/// dedicated `Watermark` variants (`PackageVersionBackfilled`,
-/// `CoinV2Backfilled`, `OwnerV2Backfilled`).  While the backfill runs, affected
-/// endpoints return `Code::Unavailable` with a `RetryInfo` hint.
 const CURRENT_DB_VERSION: u64 = 1;
 
 /// On-disk directory name for the gRPC indexes store.
@@ -82,7 +76,7 @@ pub struct CoinIndexInfo {
     pub regulated_coin_metadata_object_id: Option<ObjectID>,
 }
 
-impl From<CoinIndexInfo> for iota_types::storage::CoinInfoV2 {
+impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
     fn from(info: CoinIndexInfo) -> Self {
         Self {
             coin_metadata_object_id: info.coin_metadata_object_id,
@@ -233,7 +227,7 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// position (inclusive) so that RocksDB can seek directly.
 fn owner_bounds(
     owner: IotaAddress,
-    cursor: Option<&OwnedObjectV2Cursor>,
+    cursor: Option<&OwnedObjectCursor>,
     filter: &OwnerTypeFilter,
 ) -> (OwnerIndexKey, OwnerIndexKey) {
     let lower_bound = if let Some(c) = cursor {
@@ -421,27 +415,43 @@ struct IndexStoreTables {
 // have migrated.
 // ---------------------------------------------------------------------------
 
-/// Migration: copy entries from the deprecated `owner_v2` CF into `owner`.
-fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
-    let old = DBMap::<OwnerIndexKey, OwnerIndexInfo>::reopen(
+/// Copy all entries from the `old_cf` column family into `new_cf`, applying
+/// `map_fn` to each `(key, value)` pair along the way. Writes are flushed in
+/// chunks of 10,000 entries.
+///
+/// Returns the number of entries copied.
+fn migrate_cf<K1, V1, K2, V2, F>(
+    db: &std::sync::Arc<Database>,
+    old_cf: &str,
+    new_cf: &str,
+    mut map_fn: F,
+) -> Result<usize, TypedStoreError>
+where
+    K1: Serialize + DeserializeOwned,
+    V1: Serialize + DeserializeOwned,
+    K2: Serialize,
+    V2: Serialize,
+    F: FnMut((K1, V1)) -> (K2, V2),
+{
+    const BATCH_SIZE: usize = 10_000;
+    let old = DBMap::<K1, V1>::reopen(
         db,
-        Some("owner_v2"),
+        Some(old_cf),
         &typed_store::rocks::ReadWriteOptions::default(),
         true,
     )?;
-    let new = DBMap::<OwnerIndexKey, OwnerIndexInfo>::reopen(
+    let new = DBMap::<K2, V2>::reopen(
         db,
-        Some("owner"),
+        Some(new_cf),
         &typed_store::rocks::ReadWriteOptions::default(),
         false,
     )?;
 
-    const BATCH_SIZE: usize = 10_000;
     let mut batch = new.batch();
     let mut count = 0usize;
     for item in old.safe_iter() {
-        let (key, value) = item?;
-        batch.insert_batch(&new, std::iter::once((key, value)))?;
+        let mapped = map_fn(item?);
+        batch.insert_batch(&new, std::iter::once(mapped))?;
         count += 1;
         if count.is_multiple_of(BATCH_SIZE) {
             batch.write()?;
@@ -451,7 +461,17 @@ fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedS
     if !count.is_multiple_of(BATCH_SIZE) {
         batch.write()?;
     }
+    Ok(count)
+}
 
+/// Migration: copy entries from the deprecated `owner_v2` CF into `owner`.
+fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
+    let count = migrate_cf::<OwnerIndexKey, OwnerIndexInfo, _, _, _>(
+        db,
+        "owner_v2",
+        "owner",
+        std::convert::identity,
+    )?;
     info!("migrated owner_v2 -> owner ({count} entries)");
     Ok(())
 }
@@ -461,70 +481,24 @@ fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedS
 fn migrate_dynamic_field_v2_to_dynamic_field(
     db: &std::sync::Arc<Database>,
 ) -> Result<(), TypedStoreError> {
-    let old = DBMap::<DynamicFieldKey, ()>::reopen(
+    let count = migrate_cf::<DynamicFieldKey, (), _, _, _>(
         db,
-        Some("dynamic_field_v2"),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        true,
+        "dynamic_field_v2",
+        "dynamic_field",
+        std::convert::identity,
     )?;
-    let new = DBMap::<DynamicFieldKey, ()>::reopen(
-        db,
-        Some("dynamic_field"),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        false,
-    )?;
-
-    const BATCH_SIZE: usize = 10_000;
-    let mut batch = new.batch();
-    let mut count = 0usize;
-    for item in old.safe_iter() {
-        let (key, ()) = item?;
-        batch.insert_batch(&new, std::iter::once((key, ())))?;
-        count += 1;
-        if count.is_multiple_of(BATCH_SIZE) {
-            batch.write()?;
-            batch = new.batch();
-        }
-    }
-    if !count.is_multiple_of(BATCH_SIZE) {
-        batch.write()?;
-    }
-
     info!("migrated dynamic_field_v2 -> dynamic_field ({count} entries)");
     Ok(())
 }
 
 /// Migration: copy entries from the deprecated `coin_v2` CF into `coin`.
 fn migrate_coin_v2_to_coin(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
-    let old = DBMap::<CoinIndexKey, CoinIndexInfo>::reopen(
+    let count = migrate_cf::<CoinIndexKey, CoinIndexInfo, _, _, _>(
         db,
-        Some("coin_v2"),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        true,
+        "coin_v2",
+        "coin",
+        std::convert::identity,
     )?;
-    let new = DBMap::<CoinIndexKey, CoinIndexInfo>::reopen(
-        db,
-        Some("coin"),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        false,
-    )?;
-
-    const BATCH_SIZE: usize = 10_000;
-    let mut batch = new.batch();
-    let mut count = 0usize;
-    for item in old.safe_iter() {
-        let (key, value) = item?;
-        batch.insert_batch(&new, std::iter::once((key, value)))?;
-        count += 1;
-        if count.is_multiple_of(BATCH_SIZE) {
-            batch.write()?;
-            batch = new.batch();
-        }
-    }
-    if !count.is_multiple_of(BATCH_SIZE) {
-        batch.write()?;
-    }
-
     info!("migrated coin_v2 -> coin ({count} entries)");
     Ok(())
 }
@@ -980,7 +954,7 @@ impl IndexStoreTables {
     fn owner_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         type_filter: OwnerTypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
@@ -1169,7 +1143,7 @@ impl GrpcIndexesStore {
     pub fn owner_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         type_filter: OwnerTypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
@@ -1230,9 +1204,9 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
-    ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>
+    ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>
     {
         let type_filter = OwnerTypeFilter::from_struct_tag(object_type.as_ref());
         let iter = self
@@ -1241,7 +1215,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
             .map_err(|e| StorageError::custom(e.to_string()))?
             .map(|result| {
                 result.map(|(key, info)| {
-                    let cursor = OwnedObjectV2Cursor {
+                    let cursor = OwnedObjectCursor {
                         object_type_identifier: key.object_type_identifier,
                         object_type_params: key.object_type_params,
                         inverted_balance: key.inverted_balance,
@@ -1276,7 +1250,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfoV2>> {
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         self.tables
             .get_coin_info(coin_type)
             .map(|opt| opt.map(Into::into))

@@ -831,10 +831,10 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
     fn account_owned_objects_info_iter(
         &self,
         _owner: iota_types::base_types::IotaAddress,
-        _cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
+        _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
         _object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = iota_types::storage::OwnedObjectV2IteratorItem> + '_>,
+        Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>,
     > {
         Ok(Box::new(std::iter::empty()))
     }
@@ -859,7 +859,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
     fn get_coin_info(
         &self,
         _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfoV2>> {
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         Ok(None)
     }
 

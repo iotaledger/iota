@@ -139,7 +139,7 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 /// A dynamic-field index key (parent + field_id).
 pub type DynamicFieldIterItem = anyhow::Result<iota_types::storage::DynamicFieldKey>;
 
-pub use iota_types::storage::OwnedObjectV2Cursor;
+pub use iota_types::storage::OwnedObjectCursor;
 
 /// An owned-object together with a seek cursor for the position it
 /// occupies in the index.
@@ -148,7 +148,7 @@ pub use iota_types::storage::OwnedObjectV2Cursor;
 /// seek position.
 pub type OwnedObjectIterItem = anyhow::Result<(
     iota_types::storage::AccountOwnedObjectInfo,
-    iota_types::storage::OwnedObjectV2Cursor,
+    iota_types::storage::OwnedObjectCursor,
 )>;
 
 /// A package-version index entry (key + storage info).
@@ -612,7 +612,7 @@ impl GrpcReader {
     pub fn account_owned_objects_info_iter(
         &self,
         owner: iota_types::base_types::IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
@@ -643,7 +643,7 @@ impl GrpcReader {
     pub fn get_coin_info(
         &self,
         coin_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<iota_types::storage::CoinInfoV2>, crate::error::RpcError> {
+    ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
