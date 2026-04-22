@@ -22,7 +22,7 @@ pub trait ExtendedApi {
     async fn get_epochs(
         &self,
         /// Optional paging cursor
-        #[schemars(with = "String")]
+        #[schemars(with = "Option<String>")]
         cursor: Option<BigInt<u64>>,
         /// Maximum number of items per page
         limit: Option<usize>,
@@ -37,7 +37,7 @@ pub trait ExtendedApi {
     async fn get_epoch_metrics(
         &self,
         /// Optional paging cursor
-        #[schemars(with = "String")]
+        #[schemars(with = "Option<String>")]
         cursor: Option<BigInt<u64>>,
         /// Maximum number of items per page
         limit: Option<usize>,

@@ -4066,7 +4066,6 @@
         {
           "name": "cursor",
           "description": "Optional paging cursor",
-          "required": true,
           "schema": {
             "type": "string"
           }
@@ -4108,7 +4107,6 @@
         {
           "name": "cursor",
           "description": "Optional paging cursor",
-          "required": true,
           "schema": {
             "type": "string"
           }
@@ -5387,10 +5385,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           }
         },
@@ -5517,10 +5512,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           }
         },

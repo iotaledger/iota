@@ -86,7 +86,7 @@ pub trait TransactionBuilder {
         #[schemars(with = "Vec<IotaAddressSchema>")]
         recipients: Vec<IotaAddress>,
         /// the amounts to be transferred to recipients, following the same order
-        #[schemars(with = "Vec<Option<String>>")]
+        #[schemars(with = "Vec<String>")]
         amounts: Vec<BigInt<u64>>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
         #[schemars(with = "Option<ObjectIDSchema>")]
@@ -121,7 +121,7 @@ pub trait TransactionBuilder {
         #[schemars(with = "Vec<IotaAddressSchema>")]
         recipients: Vec<IotaAddress>,
         /// the amounts to be transferred to recipients, following the same order
-        #[schemars(with = "Vec<Option<String>>")]
+        #[schemars(with = "Vec<String>")]
         amounts: Vec<BigInt<u64>>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
         #[schemars(with = "String")]
