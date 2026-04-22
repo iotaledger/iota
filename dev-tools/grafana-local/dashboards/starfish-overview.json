@@ -689,7 +689,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Validators behind the network head (p95) by checkpoints or consensus rounds. ETA uses the gap-closing rate over a 5m window: gap_now / ((gap_5m_ago - gap_now) / 300). When the gap is not shrinking the ETA becomes very large (red). Rows are hidden when both gaps are below their thresholds (240 checkpoints, 1000 rounds).",
+      "description": "Validators behind the network head (p95) by checkpoints or consensus rounds. ETA uses the gap-closing rate over a 5m window: gap_now / ((gap_5m_ago - gap_now) / 300). When the gap is not shrinking the ETA becomes very large (red). Rows are hidden when both gaps are below their thresholds (1000 checkpoints, 5000 rounds).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -979,7 +979,7 @@
                 "config": {
                   "id": "greater",
                   "options": {
-                    "value": 240
+                    "value": 1000
                   }
                 }
               },
@@ -988,7 +988,7 @@
                 "config": {
                   "id": "greater",
                   "options": {
-                    "value": 1000
+                    "value": 5000
                   }
                 }
               }
@@ -3971,13 +3971,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "max by(host) (rate(transactions_included_in_checkpoint[2m]))",
+              "expr": "max by(host) (rate(last_sent_checkpoint_signature[2m])) < 1000",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Checkpoint Tx Rate per Validator",
+          "title": "Last Sent Checkpoint Signature Rate per Validator",
           "type": "timeseries"
         },
         {
