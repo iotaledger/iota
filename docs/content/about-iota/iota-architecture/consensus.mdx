@@ -66,6 +66,9 @@ Block header metadata is separated from transaction data, enabling efficient and
 Even if multiple network routes are unavailable, a single functioning connection is sufficient to propagate block headers — without retries or request–response cycles.
 This ensures deterministic and predictable commit performance.
 
+- **Push-based Header Dissemination**
+Block headers are propagated between validators by push rather than on-demand pull. Validators at the edge of the network — with long round-trip times or a single reliable peer — achieve stable p95 commit latency, because no chain of request–response round-trips is needed to assemble a block's history.
+
 - **Linear Communication Cost for Transaction Data**
 Transactions are encoded into shards using Reed–Solomon erasure coding. Nodes can reconstruct missing data from partial shards, removing redundant broadcasts and enabling scalable throughput.
 
