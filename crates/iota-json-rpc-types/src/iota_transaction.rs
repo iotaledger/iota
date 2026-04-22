@@ -493,8 +493,8 @@ impl IotaTransactionBlockKind {
         tx: TransactionKind,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        Ok(match tx {
-            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
+        match tx {
+            TransactionKind::Genesis(g) => Ok(Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
                     .events
@@ -502,9 +502,9 @@ impl IotaTransactionBlockKind {
                     .enumerate()
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
-            }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
-                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
+            })),
+            TransactionKind::ConsensusCommitPrologueV1(p) => Ok(Self::ConsensusCommitPrologueV1(
+                IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -512,30 +512,32 @@ impl IotaTransactionBlockKind {
                     consensus_commit_digest: p.consensus_commit_digest,
                     consensus_determined_version_assignments: p
                         .consensus_determined_version_assignments,
-                })
-            }
+                },
+            )),
             TransactionKind::ProgrammableTransaction(_) => {
                 // This case is handled separately by the callers
-                unreachable!()
+                Err(anyhow::anyhow!(
+                    "ProgrammableTransaction must be handled by the caller, not try_from_inner"
+                ))
             }
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // and was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
+                Err(anyhow::anyhow!(
+                    "AuthenticatorStateUpdateV1 transactions are deprecated and were never created on IOTA"
+                ))
             }
             TransactionKind::RandomnessStateUpdate(update) => {
-                Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
+                Ok(Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
                     epoch: update.epoch,
                     randomness_round: update.randomness_round.0,
                     random_bytes: update.random_bytes,
-                })
+                }))
             }
             TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
-                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
+                Ok(Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
                         .into_iter()
                         .map(|tx| match tx {
@@ -553,9 +555,9 @@ impl IotaTransactionBlockKind {
                             }
                         })
                         .collect(),
-                })
+                }))
             }
-        })
+        }
     }
 
     fn try_from_with_module_cache(

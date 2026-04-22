@@ -244,10 +244,7 @@ impl TransactionBlock {
     /// comprising the transaction of this kind.
     #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
-        Some(TransactionBlockKind::from(
-            self.native().kind().clone(),
-            self.checkpoint_viewed_at,
-        ))
+        TransactionBlockKind::try_from(self.native().kind().clone(), self.checkpoint_viewed_at).ok()
     }
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially

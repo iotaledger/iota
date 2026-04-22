@@ -9,8 +9,11 @@ use self::{
     consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
 };
-use crate::types::transaction_block_kind::{
-    end_of_epoch::EndOfEpochTransaction, programmable::ProgrammableTransactionBlock,
+use crate::{
+    error::Error,
+    types::transaction_block_kind::{
+        end_of_epoch::EndOfEpochTransaction, programmable::ProgrammableTransactionBlock,
+    },
 };
 
 pub(crate) mod consensus_commit_prologue;
@@ -31,42 +34,45 @@ pub(crate) enum TransactionBlockKind {
 }
 
 impl TransactionBlockKind {
-    pub(crate) fn from(kind: NativeTransactionKind, checkpoint_viewed_at: u64) -> Self {
+    pub(crate) fn try_from(
+        kind: NativeTransactionKind,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
         use NativeTransactionKind as K;
         use TransactionBlockKind as T;
 
         match kind {
-            K::ProgrammableTransaction(pt) => T::Programmable(ProgrammableTransactionBlock {
+            K::ProgrammableTransaction(pt) => Ok(T::Programmable(ProgrammableTransactionBlock {
                 native: pt,
                 checkpoint_viewed_at,
-            }),
-            K::Genesis(g) => T::Genesis(GenesisTransaction {
+            })),
+            K::Genesis(g) => Ok(T::Genesis(GenesisTransaction {
                 native: g,
                 checkpoint_viewed_at,
-            }),
-            K::ConsensusCommitPrologueV1(ccp) => {
-                T::ConsensusCommitPrologue(ConsensusCommitPrologueTransaction {
+            })),
+            K::ConsensusCommitPrologueV1(ccp) => Ok(T::ConsensusCommitPrologue(
+                ConsensusCommitPrologueTransaction {
                     native: ccp,
                     checkpoint_viewed_at,
-                })
-            }
+                },
+            )),
             #[allow(deprecated)]
             K::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // and was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
+                Err(Error::UnsupportedFeature(
+                    "AuthenticatorStateUpdateV1 transactions are deprecated and were never created on IOTA".to_string(),
+                ))
             }
-            K::EndOfEpochTransaction(eoe) => T::EndOfEpoch(EndOfEpochTransaction {
+            K::EndOfEpochTransaction(eoe) => Ok(T::EndOfEpoch(EndOfEpochTransaction {
                 native: eoe,
                 checkpoint_viewed_at,
-            }),
-            K::RandomnessStateUpdate(rsu) => T::Randomness(RandomnessStateUpdateTransaction {
+            })),
+            K::RandomnessStateUpdate(rsu) => Ok(T::Randomness(RandomnessStateUpdateTransaction {
                 native: rsu,
                 checkpoint_viewed_at,
-            }),
+            })),
         }
     }
 }
