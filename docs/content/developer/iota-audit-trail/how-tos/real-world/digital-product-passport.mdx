@@ -1,6 +1,6 @@
 ---
-title: E-Bike Battery Passport - Audit Trail
-sidebar_label: E-Bike Battery Passport
+title: Digital Product Passport - Audit Trail
+sidebar_label: Digital Product Passport
 description: Real-world example demonstrating how to use IOTA Audit Trail to model a Digital Product Passport for an e-bike battery with lifecycle tracking, service-network authorization, and reward payouts.
 tags:
   - audit-trail
@@ -10,13 +10,24 @@ tags:
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# E-Bike Battery Passport - Audit Trail
+# Digital Product Passport - Audit Trail
 
-This real-world example models a Digital Product Passport (DPP) for an e-bike battery, inspired by the public IOTA DPP demo. Seven actors — a manufacturer, lifecycle manager, distributor, consumer, service technician, recycler, and an Extended Producer Responsibility Organization (EPRO) — collaborate through a shared, tamper-proof Audit Trail. The example demonstrates role-scoped capabilities, an access-request flow where a technician is denied writes until explicitly authorized, and reward-payout evidence recorded alongside the maintenance event.
+This real-world example models a Digital Product Passport (DPP) for an e-bike battery, inspired by the public [IOTA DPP demo](https://dpp.demo.iota.org/).
+It uses a role model based on seven actors collaborating through a shared, tamper-proof Audit Trail:
+
+* Manufacturer
+* Lifecycle Manager
+* Distributor
+* Consumer
+* Service Technician
+* Recycler
+* Extended Producer Responsibility Organization (EPRO)
+
+The example demonstrates role-scoped capabilities, an access-request flow where a technician is denied writes until explicitly authorized, and reward-payout evidence recorded alongside the maintenance event.
 
 ## Business Context
 
-The EU Digital Product Passport regulation requires that products carry a verifiable, machine-readable history covering their entire lifecycle. For e-bike batteries this means tracking manufacturing, distribution, ownership, servicing, and end-of-life processing. A blockchain-based audit trail provides:
+The EU Digital Product Passport regulation requires certain products, i.e. e-bike batteries, to have a digital, machine-readable record with structured information about identity, manufacturing, distribution, end user ownership, servicing, and end-of-life handling.
 
 - **Regulatory Compliance**: Immutable, chronological records satisfying EU Battery Regulation and DPP data retention requirements
 - **Service-Network Authorization**: Only manufacturer-authorized technicians can write maintenance records, enforced by time-scoped capabilities
@@ -25,6 +36,8 @@ The EU Digital Product Passport regulation requires that products carry a verifi
 - **Consumer Trust**: End users can confirm authenticity, maintenance history, and sustainability claims before and during ownership
 
 ## Field Usage Strategy
+
+Available Audit Trail fields are used for these purposes:
 
 - **`immutable_metadata`**: Battery passport identity — product name, manufacturer, and serial number
 - **`updatable_metadata`**: Current lifecycle stage (e.g., `"Lifecycle Stage: Manufactured"` through `"Lifecycle Stage: Maintained and Ready for Continued Use"`)
@@ -70,7 +83,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L65-L82
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L72-L89
 ```
 
 </TabItem>
@@ -80,6 +93,13 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 ### 2. Define DPP Roles and Issue Capabilities
 
 Create tag-scoped roles for each lifecycle participant: Manufacturer, Distributor, Consumer, Recycler, and EPRO each receive record-admin permissions for their respective tags. The ServiceTechnician role is created but its capability is not yet issued — the technician must be explicitly authorized later. A LifecycleManager role receives metadata-admin permissions to update the lifecycle stage.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Issue Tagged Record Role](./utility-functions.mdx#issue-tagged-record-role)
+    * [Issue Metadata Role](./utility-functions.mdx#issue-metadata-role)
+</details>
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -93,7 +113,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L86-L102
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L93-L109
 ```
 
 </TabItem>
@@ -116,7 +136,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L106-L170
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L113-L178
 ```
 
 </TabItem>
@@ -139,7 +159,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L174-L226
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L181-L234
 ```
 
 </TabItem>
@@ -162,7 +182,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L230-L269
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L237-L276
 ```
 
 </TabItem>
@@ -185,7 +205,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/a
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L273-L312
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L280-L319
 ```
 
 </TabItem>
@@ -211,6 +231,14 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../../getting-started/local-network-setup.mdx) guide.
 
 ## Full Example Code
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get (Funded Audit Trail) Client](./utility-functions.mdx#get-funded-audit-trail-client)
+    * [Issue Tagged Record Role](./utility-functions.mdx#issue-tagged-record-role)
+    * [Issue Metadata Role](./utility-functions.mdx#issue-metadata-role)
+</details>
 
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
