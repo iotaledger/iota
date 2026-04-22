@@ -140,12 +140,16 @@ fn check_authority_overload(
         queueing_latency, txn_ready_rate, execution_rate
     );
 
+    // Use the quorum load shedding percentage (from consensus) as the reference
+    // point for the current percentage actually used.
+    let current_load_shedding_percentage = authority
+        .load_epoch_store_one_call_per_task()
+        .get_quorum_load_shedding_percentage()
+        .unwrap_or(0) as u32;
+
     let (is_overload, load_shedding_percentage) = check_overload_signals(
         config,
-        authority
-            .overload_info
-            .load_shedding_percentage
-            .load(Ordering::Relaxed),
+        current_load_shedding_percentage,
         queueing_latency,
         txn_ready_rate,
         execution_rate,
