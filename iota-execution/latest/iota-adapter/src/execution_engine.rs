@@ -1321,9 +1321,10 @@ mod checked {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
-                unreachable!(
-                    "AuthenticatorState transactions are deprecated and were never created on IOTA"
-                );
+                return Err(ExecutionError::new(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 setup_randomness_state_update(
