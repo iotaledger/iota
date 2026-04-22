@@ -26,10 +26,8 @@ enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
-im.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
