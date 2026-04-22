@@ -674,7 +674,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} / 10000\n    * on(host) group_left(version)\n    topk by(host) (1, clamp_min(clamp_max(last_over_time(uptime{process=\"validator\"}[30s]), 1), 1)),\n    \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+).*\"\n  )\n) by (version_prefix)\n",
+          "expr": "sum(\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} / 10000\n    * on(host) group_left(version)\n    topk by(host) (1, clamp_min(clamp_max(uptime{process=\"validator\"}, 1), 1)),\n    \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+(?:-rc)?).*\"\n  )\n) by (version_prefix)\n",
           "instant": true,
           "legendFormat": "{{version_prefix}}",
           "range": false,
