@@ -17,7 +17,10 @@ use iota_types::{
     },
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
-    effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
+    effects::{
+        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+        TransactionEvents, estimate_effects_size_upperbound_v1, new_from_execution_v1,
+    },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
@@ -201,19 +204,56 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| {
-                (
-                    *id,
-                    EffectsObjectChange::new(
-                        self.get_object_modified_at(id)
-                            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner)),
-                        results.written_objects.get(id),
-                        results.created_object_ids.contains(id),
-                        results.deleted_object_ids.contains(id),
-                    ),
-                )
-            })
+            .map(|id| (*id, self.new_effects_object_change(id, results)))
             .collect()
+    }
+
+    fn new_effects_object_change(
+        &self,
+        id: &ObjectID,
+        results: &ExecutionResultsV1,
+    ) -> EffectsObjectChange {
+        let modified_at = self
+            .get_object_modified_at(id)
+            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
+        let written = results.written_objects.get(id);
+        let id_created = results.created_object_ids.contains(id);
+        let id_deleted = results.deleted_object_ids.contains(id);
+
+        debug_assert!(
+            !id_created || !id_deleted,
+            "Object ID can't be created and deleted at the same time."
+        );
+        EffectsObjectChange {
+            object_id: *id,
+            input_state: modified_at.map_or(ObjectIn::Missing, |((version, digest), owner)| {
+                ObjectIn::Data {
+                    version,
+                    digest,
+                    owner,
+                }
+            }),
+            output_state: written.map_or(ObjectOut::Missing, |o| {
+                if o.is_package() {
+                    ObjectOut::PackageWrite {
+                        version: o.version(),
+                        digest: o.digest(),
+                    }
+                } else {
+                    ObjectOut::ObjectWrite {
+                        digest: o.digest(),
+                        owner: o.owner,
+                    }
+                }
+            }),
+            id_operation: if id_created {
+                IDOperation::Created
+            } else if id_deleted {
+                IDOperation::Deleted
+            } else {
+                IDOperation::None
+            },
+        }
     }
 
     pub fn into_effects(
@@ -263,7 +303,7 @@ impl<'backing> TemporaryStore<'backing> {
         let loaded_per_epoch_config_objects = self.loaded_per_epoch_config_objects.read().clone();
         let inner = self.into_inner();
 
-        let effects = TransactionEffects::new_from_execution_v1(
+        let effects = new_from_execution_v1(
             status,
             epoch,
             gas_cost_summary,
@@ -452,7 +492,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        TransactionEffects::estimate_effects_size_upperbound_v1(
+        estimate_effects_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),

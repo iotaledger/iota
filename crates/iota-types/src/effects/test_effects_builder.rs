@@ -6,8 +6,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
-    digests::{ObjectDigest, TransactionEventsDigest},
-    effects::{EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects},
+    digests::{Digest, ObjectDigest},
+    effects::{
+        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+        new_from_execution_v1,
+    },
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
@@ -22,7 +25,7 @@ pub struct TestEffectsBuilder {
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
     shared_input_versions: BTreeMap<ObjectID, SequenceNumber>,
-    events_digest: Option<TransactionEventsDigest>,
+    events_digest: Option<Digest>,
     created_objects: Vec<(ObjectID, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
     mutated_objects: Vec<(ObjectID, SequenceNumber, Owner)>,
@@ -66,7 +69,7 @@ impl TestEffectsBuilder {
         self
     }
 
-    pub fn with_events_digest(mut self, digest: TransactionEventsDigest) -> Self {
+    pub fn with_events_digest(mut self, digest: Digest) -> Self {
         self.events_digest = Some(digest);
         self
     }
@@ -124,11 +127,9 @@ impl TestEffectsBuilder {
         let shared_objects = self
             .shared_input_versions
             .iter()
-            .map(|(id, version)| {
-                SharedInput::Existing(ObjectRef::new(*id, *version, ObjectDigest::MIN))
-            })
+            .map(|(id, version)| SharedInput::Existing(ObjectRef::new(*id, *version, Digest::MIN)))
             .collect();
-        let executed_epoch = 0;
+        let epoch = 0;
         let sender = self.transaction.transaction_data().sender();
         // TODO: Include receiving objects in the object changes as well.
         let changed_objects = self
@@ -147,15 +148,17 @@ impl TestEffectsBuilder {
                     Some((
                         oref.object_id,
                         EffectsObjectChange {
-                            input_state: ObjectIn::Exist((
-                                (oref.version, oref.digest),
-                                Owner::Address(sender),
-                            )),
-                            output_state: ObjectOut::ObjectWrite((
+                            object_id: oref.object_id,
+                            input_state: ObjectIn::Data {
+                                version: oref.version,
+                                digest: oref.digest,
+                                owner: Owner::Address(sender),
+                            },
+                            output_state: ObjectOut::ObjectWrite {
                                 // Digest must change with a mutation.
-                                ObjectDigest::MAX,
-                                Owner::Address(sender),
-                            )),
+                                digest: ObjectDigest::MAX,
+                                owner: Owner::Address(sender),
+                            },
                             id_operation: IDOperation::None,
                         },
                     ))
@@ -168,21 +171,20 @@ impl TestEffectsBuilder {
                 } => mutable.then_some((
                     *id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (
-                                *self
-                                    .shared_input_versions
-                                    .get(id)
-                                    .unwrap_or(initial_shared_version),
-                                ObjectDigest::MIN,
-                            ),
-                            Owner::Shared(*initial_shared_version),
-                        )),
-                        output_state: ObjectOut::ObjectWrite((
+                        object_id: *id,
+                        input_state: ObjectIn::Data {
+                            version: *self
+                                .shared_input_versions
+                                .get(id)
+                                .unwrap_or(initial_shared_version),
+                            digest: ObjectDigest::MIN,
+                            owner: Owner::Shared(*initial_shared_version),
+                        },
+                        output_state: ObjectOut::ObjectWrite {
                             // Digest must change with a mutation.
-                            ObjectDigest::MAX,
-                            Owner::Shared(*initial_shared_version),
-                        )),
+                            digest: ObjectDigest::MAX,
+                            owner: Owner::Shared(*initial_shared_version),
+                        },
                         id_operation: IDOperation::None,
                     },
                 )),
@@ -191,8 +193,12 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::NotExist,
-                        output_state: ObjectOut::ObjectWrite((ObjectDigest::random(), owner)),
+                        object_id: id,
+                        input_state: ObjectIn::Missing,
+                        output_state: ObjectOut::ObjectWrite {
+                            digest: Digest::random(),
+                            owner,
+                        },
                         id_operation: IDOperation::Created,
                     },
                 )
@@ -204,14 +210,16 @@ impl TestEffectsBuilder {
                         (
                             id,
                             EffectsObjectChange {
-                                input_state: ObjectIn::Exist((
-                                    (version, ObjectDigest::random()),
-                                    Owner::Address(sender),
-                                )),
-                                output_state: ObjectOut::ObjectWrite((
-                                    ObjectDigest::random(),
+                                object_id: id,
+                                input_state: ObjectIn::Data {
+                                    version,
+                                    digest: ObjectDigest::random(),
+                                    owner: Owner::Address(sender),
+                                },
+                                output_state: ObjectOut::ObjectWrite {
+                                    digest: ObjectDigest::random(),
                                     owner,
-                                )),
+                                },
                                 id_operation: IDOperation::None,
                             },
                         )
@@ -221,11 +229,13 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (version, ObjectDigest::random()),
-                            Owner::Address(sender),
-                        )),
-                        output_state: ObjectOut::NotExist,
+                        object_id: id,
+                        input_state: ObjectIn::Data {
+                            version,
+                            digest: ObjectDigest::random(),
+                            owner: Owner::Address(sender),
+                        },
+                        output_state: ObjectOut::Missing,
                         id_operation: IDOperation::Deleted,
                     },
                 )
@@ -234,11 +244,13 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (version, ObjectDigest::random()),
-                            Owner::Address(sender),
-                        )),
-                        output_state: ObjectOut::NotExist,
+                        object_id: id,
+                        input_state: ObjectIn::Data {
+                            version,
+                            digest: ObjectDigest::random(),
+                            owner: Owner::Address(sender),
+                        },
+                        output_state: ObjectOut::Missing,
                         id_operation: IDOperation::None,
                     },
                 )
@@ -247,8 +259,12 @@ impl TestEffectsBuilder {
                 (
                     id,
                     EffectsObjectChange {
-                        input_state: ObjectIn::NotExist,
-                        output_state: ObjectOut::ObjectWrite((ObjectDigest::random(), owner)),
+                        object_id: id,
+                        input_state: ObjectIn::Missing,
+                        output_state: ObjectOut::ObjectWrite {
+                            digest: Digest::random(),
+                            owner,
+                        },
                         id_operation: IDOperation::None,
                     },
                 )
@@ -257,9 +273,10 @@ impl TestEffectsBuilder {
         let gas_object_id = self.transaction.transaction_data().gas()[0].object_id;
         let event_digest = self.events_digest;
         let dependencies = vec![];
-        TransactionEffects::new_from_execution_v1(
+
+        new_from_execution_v1(
             status,
-            executed_epoch,
+            epoch,
             GasCostSummary::default(),
             shared_objects,
             BTreeSet::new(),

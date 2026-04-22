@@ -32,7 +32,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{PublicKey, SignatureScheme},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
@@ -1822,11 +1822,11 @@ impl TestEnvironment {
             ) {
                 // Create the delayed abstract account.
                 let arguments = vec![
-                    builder.obj(CallArg::Shared(SharedObjectRef {
-                        object_id: delayed_aa_ref.object_id,
-                        initial_shared_version: delayed_aa_ref.version,
-                        mutable: true,
-                    }))?,
+                    builder.obj(CallArg::Shared(SharedObjectRef::new(
+                        delayed_aa_ref.object_id,
+                        delayed_aa_ref.version,
+                        true,
+                    )))?,
                     builder.pure(aa_owner_pk.as_ref())?,
                     Argument::Result(authenticator_function_ref_v1),
                 ];
@@ -1964,11 +1964,11 @@ impl TestEnvironment {
 
         // Random IOTA account command.
         let arguments = vec![
-            builder.obj(CallArg::Shared(SharedObjectRef {
-                object_id: aa_ref.object_id,
-                initial_shared_version: aa_ref.version,
-                mutable: true,
-            }))?,
+            builder.obj(CallArg::Shared(SharedObjectRef::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             builder.pure(1_u8)?,
             builder.pure(2_u8)?,
         ];
@@ -2034,11 +2034,11 @@ impl TestEnvironment {
         ) {
             // rotate the key in the abstract account.
             let arguments = vec![
-                builder.obj(CallArg::Shared(SharedObjectRef {
-                    object_id: aa_ref.object_id,
-                    initial_shared_version: aa_ref.version,
-                    mutable: true,
-                }))?,
+                builder.obj(CallArg::Shared(SharedObjectRef::new(
+                    aa_ref.object_id,
+                    aa_ref.version,
+                    true,
+                )))?,
                 builder.pure(new_aa_owner_pk.as_ref())?,
                 Argument::Result(authenticator_function_ref_v1),
             ];
@@ -2149,11 +2149,11 @@ impl TestEnvironment {
         let mut b = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            b.obj(CallArg::Shared(SharedObjectRef {
-                object_id: aa_ref.object_id,
-                initial_shared_version: aa_ref.version,
-                mutable: true,
-            }))?,
+            b.obj(CallArg::Shared(SharedObjectRef::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`
             // yields a Receiving PTB arg (SDK converts when building the call).
             b.obj(CallArg::Receiving(gas_ref))?,

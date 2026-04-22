@@ -3900,11 +3900,11 @@ async fn create_move_authenticator_signature(
         MoveAuthenticator::new_v1(
             call_args,
             type_args,
-            CallArg::Shared(SharedObjectRef {
-                object_id: ObjectID::from(address),
+            CallArg::Shared(SharedObjectRef::new(
+                ObjectID::from(address),
                 initial_shared_version,
-                mutable: false,
-            }),
+                false,
+            )),
         ),
     ))
 }

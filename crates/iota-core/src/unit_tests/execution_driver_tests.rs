@@ -15,7 +15,7 @@ use iota_types::{
     base_types::TransactionDigest,
     committee::Committee,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
     error::{IotaError, IotaResult},
     object::{Object, Owner},
     transaction::{

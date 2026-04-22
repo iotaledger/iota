@@ -227,7 +227,7 @@ impl InsertState {
 mod tests {
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
-        effects::TransactionEffects,
+        effects::{TransactionEffects, TransactionEffectsAPIForTesting},
     };
 
     use super::*;

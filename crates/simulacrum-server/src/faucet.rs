@@ -16,7 +16,7 @@ use axum::{
 use iota_faucet::{
     BatchFaucetResponse, CoinInfo, FaucetError, FaucetReceipt, FaucetRequest, FaucetResponse,
 };
-use iota_types::effects::TransactionEffectsAPI;
+use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsAPIExt as _};
 use tracing::{info, warn};
 use uuid::Uuid;
 

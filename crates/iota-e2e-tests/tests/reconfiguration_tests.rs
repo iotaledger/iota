@@ -33,7 +33,6 @@ use iota_types::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
-    message_envelope::Message,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
@@ -527,7 +526,7 @@ async fn test_validator_resign_effects() {
         .into_effects_for_testing();
     // Ensure that we are able to form a new effects cert in the new epoch.
     assert_eq!(effects1.epoch(), 1);
-    assert_eq!(effects1.executed_epoch(), 0);
+    assert_eq!(effects1.data().epoch(), 0);
 }
 
 #[sim_test]

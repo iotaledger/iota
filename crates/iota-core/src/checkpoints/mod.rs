@@ -28,7 +28,7 @@ use iota_types::{
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt as _},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
@@ -1796,7 +1796,7 @@ impl CheckpointBuilder {
                 }
 
                 // Skip roots already included in checkpoints or roots from previous epochs
-                if tx_included || effect.executed_epoch() < self.epoch_store.epoch() {
+                if tx_included || effect.epoch() < self.epoch_store.epoch() {
                     continue;
                 }
 
@@ -2698,7 +2698,7 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        effects::{TransactionEffects, TransactionEvents},
+        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
         object,

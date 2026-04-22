@@ -24,6 +24,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     committee::Committee,
     digests::{CheckpointDigest, TransactionDigest},
+    effects::TransactionEffectsAPIExt as _,
     event::EventID,
     full_checkpoint_content::CheckpointData,
     object::{Data, bounded_visitor::BoundedVisitor},

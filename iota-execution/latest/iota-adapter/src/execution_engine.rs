@@ -1939,11 +1939,11 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        initial_shared_version: update.randomness_obj_initial_shared_version,
-                        mutable: true,
-                    }),
+                    CallArg::Shared(SharedObjectRef::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        update.randomness_obj_initial_shared_version,
+                        true,
+                    )),
                     CallArg::pure(&update.randomness_round),
                     CallArg::pure(&update.random_bytes),
                 ],

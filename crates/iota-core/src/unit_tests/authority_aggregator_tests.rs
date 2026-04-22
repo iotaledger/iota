@@ -23,7 +23,9 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPIForTesting, TransactionEvents,
+    },
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
@@ -2267,7 +2269,7 @@ async fn test_process_transaction_again() {
             newly_formed,
         } => {
             assert!(newly_formed);
-            certificate
+            *certificate
         }
         _ => {
             panic!("Expected Certified result");

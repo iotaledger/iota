@@ -1012,7 +1012,7 @@ async fn verify_tto_not_locked(
 
 fn assert_effects_equivalent(ef1: &TransactionEffects, ef2: &TransactionEffects) {
     assert_eq!(ef1.status(), ef2.status());
-    assert_eq!(ef1.executed_epoch(), ef2.executed_epoch());
+    assert_eq!(ef1.epoch(), ef2.epoch());
     assert_eq!(ef1.gas_cost_summary(), ef2.gas_cost_summary());
     assert_eq!(
         ef1.modified_at_versions().len(),
@@ -1670,11 +1670,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef {
-                            object_id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef::new(
+                            shared.0.object_id,
                             initial_shared_version,
-                            mutable: true,
-                        }))
+                            true,
+                        )))
                         .unwrap();
                     let child = builder.obj(CallArg::Receiving(owned.0)).unwrap();
                     move_call! {
@@ -1692,11 +1692,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef {
-                            object_id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef::new(
+                            shared.0.object_id,
                             initial_shared_version,
-                            mutable: true,
-                        }))
+                            true,
+                        )))
                         .unwrap();
                     let child = builder.obj(CallArg::ImmutableOrOwned(owned.0)).unwrap();
                     move_call! {

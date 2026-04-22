@@ -34,7 +34,7 @@ use iota_types::{
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt, TransactionEvents},
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{

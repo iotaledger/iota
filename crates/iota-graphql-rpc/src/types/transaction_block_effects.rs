@@ -240,7 +240,7 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix].clone(), c.c);
+            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c);
             match result {
                 Ok(unchanged_shared_object) => {
                     connection
@@ -288,7 +288,7 @@ impl TransactionBlockEffects {
 
         for c in consistent_page.cursors {
             let object_change = ObjectChange {
-                native: object_changes[c.ix].clone(),
+                native: object_changes[c.ix],
                 checkpoint_viewed_at: c.c,
                 source: source.clone(),
             };
@@ -424,13 +424,9 @@ impl TransactionBlockEffects {
     /// The epoch this transaction was executed in.
     #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native().executed_epoch()),
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native().epoch()), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// The checkpoint this transaction was finalized in, if it is within the

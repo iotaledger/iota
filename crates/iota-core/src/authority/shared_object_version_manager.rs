@@ -707,11 +707,11 @@ mod tests {
         for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
         {
             builder
-                .obj(CallArg::Shared(SharedObjectRef {
-                    object_id: *shared_object_id,
-                    initial_shared_version: *shared_object_init_version,
-                    mutable: *shared_object_mutable,
-                }))
+                .obj(CallArg::Shared(SharedObjectRef::new(
+                    *shared_object_id,
+                    *shared_object_init_version,
+                    *shared_object_mutable,
+                )))
                 .unwrap();
         }
         let tx_data = TestTransactionBuilder::new(

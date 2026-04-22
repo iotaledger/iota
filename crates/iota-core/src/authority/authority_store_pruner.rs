@@ -17,8 +17,7 @@ use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    message_envelope::Message,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
@@ -936,7 +935,7 @@ mod tests {
 
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::{TransactionEffects, TransactionEffectsAPIForTesting},
         object::Object,
         storage::ObjectKey,
     };
