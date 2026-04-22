@@ -1,3 +1,0 @@
-if [ "$NPM_PRECOMMIT_HOOK" = "true" ]; then
-  pnpm exec lint-staged --allow-empty
-fi

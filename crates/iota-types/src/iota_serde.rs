@@ -257,7 +257,6 @@ where
     }
 }
 
-#[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct SequenceNumber(u64);
 

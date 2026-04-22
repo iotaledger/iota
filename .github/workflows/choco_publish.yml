@@ -34,6 +34,11 @@ jobs:
           mkdir -p ${{ env.TMP_BUILD_DIR }}
           tar -xvzf ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }}
 
+      - name: Create LICENSE copy for chocolatey files list
+        shell: bash
+        run: |
+          cp LICENSE ./tmp/LICENSE.txt
+
       - name: Publish Windows iota binary to Chocolatey
         shell: bash
         run: |

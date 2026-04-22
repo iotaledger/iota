@@ -2941,7 +2941,7 @@ impl AuthorityPerEpochStore {
                         authority, transaction.certificate_author_index
                     );
                     self.scorer
-                        .update_invalid_reports_count(transaction.certificate_author_index);
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
                     return None;
                 }
             }
@@ -4268,22 +4268,50 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
+                if !self.protocol_config().calculate_validator_scores() {
+                    warn!(
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
+                        authority.concise()
+                    );
+                    return Ok(ConsensusCertificateResult::ConsensusMessage);
+                }
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring misbehavior report from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                    return Ok(ConsensusCertificateResult::ConsensusMessage);
+                }
+
+                // Safe: verify_consensus_transaction already confirmed that the
+                // report's authority matches the consensus block author, who is
+                // always a committee member.
                 let authority_index = self
                     .committee
                     .authority_index(authority)
                     .expect("authority in committee");
-                // Check validity of the report and update scores depending on the result. We
-                // already have consensus on inclusion of this report in the DAG.
-                if !report.verify(self.committee.num_members()) {
-                    self.scorer.update_invalid_reports_count(authority_index);
+                // Check validity of the report and update scores depending on
+                // the result. We already have consensus on inclusion of this
+                // report in the DAG.
+                if !report.is_valid_version(self.protocol_config()) {
+                    self.scorer.increment_invalid_reports_count(authority_index);
+                    warn!(
+                        "Received misbehavior report with unsupported version from {:?}",
+                        authority.concise()
+                    );
+                } else if !report.verify(self.committee.num_members()) {
+                    self.scorer.increment_invalid_reports_count(authority_index);
                     warn!(
                         "Received invalid misbehavior report from {:?}",
                         authority.concise()
                     );
                 } else {
-                    // Here we update all counts related to the information in the reports.
                     self.scorer.update_received_reports(authority_index, report);
                 }
+
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {

@@ -1755,6 +1755,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1839,6 +1840,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1934,6 +1936,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2020,6 +2023,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2157,6 +2161,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2239,6 +2244,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             true,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2475,6 +2481,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2639,6 +2646,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2819,6 +2827,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         // Create the authority service
@@ -3147,6 +3156,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         // Create the authority service
@@ -3287,6 +3297,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         // Create the authority service
@@ -3453,6 +3464,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         // Create the authority service
@@ -3644,6 +3656,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         // Create the authority service
@@ -3867,6 +3880,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         let authority_service = Arc::new(AuthorityService::new(
