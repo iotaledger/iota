@@ -3,7 +3,7 @@
 # Copyright (c) 2025 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# dual-run.sh — run sets of experiments (Mysticeti + Starfish per step)
+# dual-run.sh — run sets of fuzz experiments across several parameter combinations
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -54,7 +54,6 @@ DURATION=3600              # seconds
 SPAMMER=true
 SPAMMER_TPS=100
 SPAMMER_TYPE="stress"
-PAUSE_BETWEEN_PROTOCOLS=60 # seconds
 PAUSE_BETWEEN_STEPS=180 # seconds
 
 # parameter sequences (same length)
@@ -64,16 +63,15 @@ L_LIST=(10 15 10 10)   # percent nodes with loss
 
 
 run_experiment() {
-  local PROTO="$1" R="$2" X="$3" L="$4"
+  local R="$1" X="$2" L="$3"
   local ts; ts=$(date +%Y%m%d-%H%M%S)
-  echo "=== ${ts}: starting ${PROTO} (r=${R} x=${X} l=${L}) ==="
+  echo "=== ${ts}: starting (r=${R} x=${X} l=${L}) ==="
   sudo -E \
     FUZZ_ROUND_SPAN="${FUZZ_ROUND_SPAN}" \
     HEAL_EVERY_ROUND="${HEAL_EVERY_ROUND}" \
     HEAL_NUM_ROUNDS="${HEAL_NUM_ROUNDS}" \
     ./run-all-fuzz.sh \
       -n "${NUM_VALIDATORS}" \
-      -p "${PROTO}" \
       -t "${TOPOLOGY}" \
       -b false \
       -r "${R}" \
@@ -83,7 +81,7 @@ run_experiment() {
       -S "${SPAMMER}" \
       -T "${SPAMMER_TPS}" \
       -C "${SPAMMER_TYPE}"
-  echo "=== finished ${PROTO} (r=${R} x=${X} l=${L}) ==="
+  echo "=== finished (r=${R} x=${X} l=${L}) ==="
 }
 
 for i in "${!R_LIST[@]}"; do
@@ -92,11 +90,7 @@ for i in "${!R_LIST[@]}"; do
   L=${L_LIST[$i]}
   echo
   echo ">>> Step $((i+1)): r=${R}, x=${X}, l=${L} — $(date +%Y%m%d-%H%M%S)"
-  run_experiment "mysticeti" "$R" "$X" "$L"
-  echo "Sleeping ${PAUSE_BETWEEN_PROTOCOLS}s before starfish..."
-  sleep "${PAUSE_BETWEEN_PROTOCOLS}"
-
-  run_experiment "starfish" "$R" "$X" "$L"
+  run_experiment "$R" "$X" "$L"
   echo "Step $((i+1)) complete. Sleeping ${PAUSE_BETWEEN_STEPS}s before next step..."
   sleep "${PAUSE_BETWEEN_STEPS}"
 done
