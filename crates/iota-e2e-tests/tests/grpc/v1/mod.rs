@@ -8,10 +8,12 @@ mod state_service;
 mod transaction_execution_service;
 
 use iota_grpc_types::v1::{
+    checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
     command::{
         Argument, CommandOutput, CommandOutputs, CommandResult, CommandResults,
         argument::{Input, Result},
     },
+    event::Event,
     ledger_service::GetServiceInfoResponse,
     object::Object,
     transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
@@ -29,6 +31,24 @@ impl_field_presence_checker!(ObjectReference {
 impl_field_presence_checker!(Object {
     reference: ObjectReference,
     bcs,
+});
+
+impl_field_presence_checker!(CheckpointSummary { digest, bcs });
+impl_field_presence_checker!(CheckpointContents { digest, bcs });
+impl_field_presence_checker!(Checkpoint {
+    sequence_number,
+    summary: CheckpointSummary,
+    contents: CheckpointContents,
+    signature,
+});
+impl_field_presence_checker!(Event {
+    bcs,
+    package_id,
+    module,
+    sender,
+    event_type,
+    bcs_contents,
+    json_contents,
 });
 
 impl_field_presence_checker!(GetServiceInfoResponse {

@@ -1,106 +1,573 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
-use iota_types::transaction::CallArg;
+use iota_grpc_types::{
+    field::FieldMaskUtil,
+    read_masks::GET_CHECKPOINT_READ_MASK,
+    v1::{
+        ledger_service::{
+            CheckpointData, GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data,
+            ledger_service_client::LedgerServiceClient,
+        },
+        types as grpc_types,
+    },
+};
+use iota_macros::sim_test;
+use prost_types::FieldMask;
 use tokio::time::timeout;
 
 use crate::utils::{
-    BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_MINTED_EVENT, NFT_MODULE, NFT_PACKAGE,
-    publish_example_package, setup_grpc_test,
+    FieldPresenceChecker, assert_field_presence, assert_tonic_error,
+    comma_separated_field_mask_to_paths, setup_grpc_test,
 };
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_get_checkpoint() {
-    let (_cluster, client) = setup_grpc_test(Some(2), None).await;
+/// `sequence_number` is always populated by the server and not controlled by
+/// the read_mask, so field-presence checks must ignore it.
+const CHECKPOINT_IGNORED_FIELDS: &[&str] = &["sequence_number"];
 
-    // Test getting checkpoint data for sequence number 0
-    let response = client
-        .get_checkpoint_by_sequence_number(
-            0,
-            Some("checkpoint.summary,checkpoint.contents,transactions"),
-            None,
-            None,
-        )
-        .await
-        .expect("gRPC call");
+/// `json_contents` is populated only when the server can resolve the Move
+/// event's type information, which is not guaranteed for system or
+/// test-fixture events. Skip it in field-presence checks so tests stay stable
+/// regardless of which events happen to land in the checkpoint.
+const EVENT_IGNORED_FIELDS: &[&str] = &["json_contents"];
 
-    // Verify the checkpoint data structure
-    assert_eq!(response.body().sequence_number(), 0);
-    let summary = response
-        .body()
-        .summary()
-        .expect("should have summary")
-        .summary()
-        .expect("should deserialize summary");
-    assert_eq!(summary.epoch, 0);
-    assert!(!response.body().executed_transactions.is_empty());
-    assert!(response.body().contents.is_some());
-    let digest_0 = summary.content_digest;
+/// Paths applicable to one `CheckpointData` payload variant.
+///
+/// `wildcard = true` means the caller requested every field (via a bare
+/// `"checkpoint"` / `"transactions"` / `"events"` entry in the read mask).
+/// The concrete field list is then expanded at validation time from the
+/// checker's `top_level_fields()`, keeping the field list authoritative in
+/// one place (the `impl_field_presence_checker!` macro calls in `v1/mod.rs`).
+#[derive(Default)]
+struct PayloadPaths<'a> {
+    wildcard: bool,
+    paths: Vec<&'a str>,
+}
 
-    // Test getting another checkpoint
-    let response_1 = client
-        .get_checkpoint_by_sequence_number(1, Some("checkpoint.summary"), None, None)
-        .await
-        .expect("gRPC call");
+/// Categorize read-mask paths under `CheckpointData`'s top-level payload
+/// fields (`checkpoint.*`, `transactions.*`, `events.*`). Bare prefixes
+/// record a wildcard to be expanded at validation time.
+fn split_checkpoint_paths<'a>(
+    expected: &[&'a str],
+) -> (PayloadPaths<'a>, PayloadPaths<'a>, PayloadPaths<'a>) {
+    let mut checkpoint = PayloadPaths::default();
+    let mut transactions = PayloadPaths::default();
+    let mut events = PayloadPaths::default();
 
-    assert_eq!(response_1.body().sequence_number(), 1);
-    let summary_1 = response_1
-        .body()
-        .summary()
-        .expect("should have summary")
-        .summary()
-        .expect("should deserialize summary");
-    assert_eq!(summary_1.epoch, 0);
-    let digest_1 = summary_1.content_digest;
-
-    // Verify they are different checkpoints
-    assert_ne!(digest_0, digest_1);
-
-    // Test getting checkpoint data for a non-existent sequence number
-    match client
-        .get_checkpoint_by_sequence_number(999999, None, None, None)
-        .await
-    {
-        Ok(_) => {
-            panic!("Unexpectedly found checkpoint data for non-existent sequence number");
+    for path in expected {
+        if let Some(sub) = path.strip_prefix("checkpoint.") {
+            checkpoint.paths.push(sub);
+        } else if *path == "checkpoint" {
+            checkpoint.wildcard = true;
+        } else if let Some(sub) = path.strip_prefix("transactions.") {
+            transactions.paths.push(sub);
+        } else if *path == "transactions" {
+            transactions.wildcard = true;
+        } else if let Some(sub) = path.strip_prefix("events.") {
+            events.paths.push(sub);
+        } else if *path == "events" {
+            events.wildcard = true;
+        } else {
+            panic!(
+                "split_checkpoint_paths: unrecognized CheckpointData path {path:?} — \
+                 valid top-level prefixes are \"checkpoint\", \"transactions\", \"events\""
+            );
         }
-        Err(iota_grpc_client::Error::Grpc(status)) => {
-            assert_eq!(status.code(), tonic::Code::NotFound);
-        }
-        Err(e) => {
-            panic!("Unexpected error type: {e:?}");
-        }
+    }
+
+    (checkpoint, transactions, events)
+}
+
+/// Resolve a `PayloadPaths` bucket to the concrete field list for
+/// [`assert_field_presence`]. A wildcard expands to every top-level field of
+/// `checker` (minus `ignored`); otherwise the explicit dotted sub-paths are
+/// returned as-is.
+fn resolve_payload_paths<'a>(
+    payload: &PayloadPaths<'a>,
+    checker: &dyn FieldPresenceChecker,
+    ignored: &[&str],
+) -> Vec<&'a str> {
+    if payload.wildcard {
+        checker
+            .top_level_fields()
+            .iter()
+            .copied()
+            .filter(|f| !ignored.contains(f))
+            .collect()
+    } else {
+        payload.paths.clone()
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_stream_checkpoints() {
-    let (_cluster, client) = setup_grpc_test(None, None).await;
-
-    let mut stream = client
-        .stream_checkpoints(None, Some(2), None, None, None)
-        .await
-        .unwrap();
-
-    tokio::time::timeout(Duration::from_secs(120), async {
-        if let Some(res) = stream.body_mut().next().await {
-            match res {
-                Ok(response) => {
-                    assert_eq!(response.sequence_number(), 2);
-                }
-                Err(e) => {
-                    panic!("Stream error: {e:?}");
-                }
+/// Validate a single `CheckpointData` payload against the expected field
+/// presence under each top-level `CheckpointData` payload type. Returns `true`
+/// when an `EndMarker` is observed (signalling the end of a checkpoint's
+/// data).
+fn validate_checkpoint_payload(
+    data: &CheckpointData,
+    checkpoint_paths: &PayloadPaths<'_>,
+    transactions_paths: &PayloadPaths<'_>,
+    events_paths: &PayloadPaths<'_>,
+    expected_end_marker_seq: &mut Option<u64>,
+    scenario: &str,
+) -> bool {
+    match data.payload.as_ref() {
+        Some(checkpoint_data::Payload::Checkpoint(checkpoint)) => {
+            assert!(
+                expected_end_marker_seq.is_none(),
+                "{scenario}: received Checkpoint before previous EndMarker"
+            );
+            *expected_end_marker_seq = checkpoint.sequence_number;
+            let paths =
+                resolve_payload_paths(checkpoint_paths, checkpoint, CHECKPOINT_IGNORED_FIELDS);
+            assert_field_presence(
+                checkpoint,
+                &paths,
+                CHECKPOINT_IGNORED_FIELDS,
+                &format!("{scenario}: checkpoint payload"),
+            );
+            false
+        }
+        Some(checkpoint_data::Payload::ExecutedTransactions(txs)) => {
+            for (idx, tx) in txs.executed_transactions.iter().enumerate() {
+                let paths = resolve_payload_paths(transactions_paths, tx, &[]);
+                assert_field_presence(
+                    tx,
+                    &paths,
+                    &[],
+                    &format!("{scenario}: transactions payload (tx {idx})"),
+                );
             }
-        } else {
-            panic!("No checkpoint data returned");
+            false
+        }
+        Some(checkpoint_data::Payload::Events(events)) => {
+            for (idx, event) in events.events.iter().enumerate() {
+                let paths = resolve_payload_paths(events_paths, event, EVENT_IGNORED_FIELDS);
+                assert_field_presence(
+                    event,
+                    &paths,
+                    EVENT_IGNORED_FIELDS,
+                    &format!("{scenario}: events payload (event {idx})"),
+                );
+            }
+            false
+        }
+        Some(checkpoint_data::Payload::EndMarker(marker)) => {
+            assert_eq!(
+                marker.sequence_number,
+                expected_end_marker_seq.take(),
+                "{scenario}: EndMarker sequence_number should match Checkpoint"
+            );
+            true
+        }
+        Some(checkpoint_data::Payload::Progress(_)) => {
+            panic!("{scenario}: unexpected Progress payload outside filter_checkpoints mode");
+        }
+        Some(_) => panic!("{scenario}: unknown CheckpointData payload variant"),
+        None => panic!("{scenario}: unexpected empty payload"),
+    }
+}
+
+/// Helper to issue a `GetCheckpointRequest` and validate every payload in the
+/// response stream against `expected_field_mask_paths` (paths relative to
+/// `CheckpointData`). Returns all received messages.
+///
+/// Asserts that the stream produces exactly one `Checkpoint` payload followed
+/// by optional `ExecutedTransactions` / `Events` payloads and terminates with
+/// a single `EndMarker`.
+async fn assert_get_checkpoint_request(
+    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    request: GetCheckpointRequest,
+    expected_field_mask_paths: &[&str],
+    scenario: &str,
+) -> Vec<CheckpointData> {
+    let (checkpoint_paths, transactions_paths, events_paths) =
+        split_checkpoint_paths(expected_field_mask_paths);
+
+    let mut stream = ledger_client
+        .get_checkpoint(request)
+        .await
+        .unwrap()
+        .into_inner();
+
+    let mut messages = Vec::new();
+    let mut saw_end_marker = false;
+    let mut pending_end_marker_seq: Option<u64> = None;
+
+    while let Some(data) = stream.next().await {
+        let data = data.unwrap();
+        let ended = validate_checkpoint_payload(
+            &data,
+            &checkpoint_paths,
+            &transactions_paths,
+            &events_paths,
+            &mut pending_end_marker_seq,
+            scenario,
+        );
+        messages.push(data);
+        if ended {
+            saw_end_marker = true;
+            break;
+        }
+    }
+
+    assert!(saw_end_marker, "{scenario}: expected EndMarker payload");
+    assert!(
+        stream.next().await.is_none(),
+        "{scenario}: stream should be exhausted after EndMarker"
+    );
+
+    messages
+}
+
+/// Helper to issue a `StreamCheckpointsRequest` and validate every payload
+/// across the full range of expected checkpoints. Asserts that exactly
+/// `expected_checkpoint_count` checkpoints are returned, each with a matching
+/// `EndMarker`.
+async fn assert_stream_checkpoints_request(
+    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    request: StreamCheckpointsRequest,
+    expected_field_mask_paths: &[&str],
+    expected_checkpoint_count: usize,
+    scenario: &str,
+) -> Vec<CheckpointData> {
+    let (checkpoint_paths, transactions_paths, events_paths) =
+        split_checkpoint_paths(expected_field_mask_paths);
+
+    let mut stream = ledger_client
+        .stream_checkpoints(request)
+        .await
+        .unwrap()
+        .into_inner();
+
+    let mut messages = Vec::new();
+    let mut checkpoint_count = 0usize;
+    let mut pending_end_marker_seq: Option<u64> = None;
+
+    while let Some(data) = stream.next().await {
+        let data = data.unwrap();
+        let ended = validate_checkpoint_payload(
+            &data,
+            &checkpoint_paths,
+            &transactions_paths,
+            &events_paths,
+            &mut pending_end_marker_seq,
+            &format!("{scenario} (checkpoint #{checkpoint_count})"),
+        );
+        messages.push(data);
+        if ended {
+            checkpoint_count += 1;
+            if checkpoint_count >= expected_checkpoint_count {
+                break;
+            }
+        }
+    }
+
+    assert_eq!(
+        checkpoint_count, expected_checkpoint_count,
+        "{scenario}: expected {expected_checkpoint_count} checkpoints, got {checkpoint_count}"
+    );
+
+    messages
+}
+
+#[sim_test]
+async fn get_checkpoint_readmask_scenarios() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
+    let test_cases: Vec<TestCase> = vec![
+        (
+            "default readmask",
+            None,
+            comma_separated_field_mask_to_paths(GET_CHECKPOINT_READ_MASK),
+        ),
+        (
+            "empty readmask",
+            Some(FieldMask::from_paths(&[] as &[&str])),
+            vec![],
+        ),
+        (
+            "checkpoint.summary only",
+            Some(FieldMask::from_paths(["checkpoint.summary"])),
+            vec!["checkpoint.summary"],
+        ),
+        (
+            "checkpoint.contents only",
+            Some(FieldMask::from_paths(["checkpoint.contents"])),
+            vec!["checkpoint.contents"],
+        ),
+        (
+            "checkpoint wildcard",
+            Some(FieldMask::from_paths(["checkpoint"])),
+            vec!["checkpoint"],
+        ),
+        (
+            "partial readmask (summary.digest only)",
+            Some(FieldMask::from_paths(["checkpoint.summary.digest"])),
+            vec!["checkpoint.summary.digest"],
+        ),
+        (
+            "transactions partial (transaction.digest + timestamp)",
+            Some(FieldMask::from_paths([
+                "transactions.transaction.digest",
+                "transactions.timestamp",
+            ])),
+            vec!["transactions.transaction.digest", "transactions.timestamp"],
+        ),
+        (
+            "full readmask",
+            Some(FieldMask::from_paths([
+                "checkpoint",
+                "transactions",
+                "events",
+            ])),
+            vec!["checkpoint", "transactions", "events"],
+        ),
+    ];
+
+    for (scenario, mask, expected_paths) in test_cases {
+        let mut request = GetCheckpointRequest::default().with_sequence_number(0);
+        if let Some(mask) = mask {
+            request = request.with_read_mask(mask);
+        }
+        assert_get_checkpoint_request(&mut ledger_client, request, &expected_paths, scenario).await;
+    }
+}
+
+#[sim_test]
+async fn get_checkpoint_by_digest() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    // Step 1: fetch genesis (sequence 0) to learn its summary digest.
+    let by_seq = assert_get_checkpoint_request(
+        &mut ledger_client,
+        GetCheckpointRequest::default()
+            .with_sequence_number(0)
+            .with_read_mask(FieldMask::from_paths(["checkpoint.summary.digest"])),
+        &["checkpoint.summary.digest"],
+        "by-sequence for digest lookup",
+    )
+    .await;
+
+    let digest = by_seq
+        .iter()
+        .find_map(|msg| match msg.payload.as_ref() {
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => {
+                cp.summary.as_ref().and_then(|s| s.digest.clone())
+            }
+            _ => None,
+        })
+        .expect("genesis checkpoint should have a summary digest");
+
+    // Step 2: fetch the same checkpoint by digest and confirm the sequence
+    // number round-trips.
+    let by_digest = assert_get_checkpoint_request(
+        &mut ledger_client,
+        GetCheckpointRequest::default()
+            .with_digest(digest)
+            .with_read_mask(FieldMask::from_paths(["checkpoint.summary.digest"])),
+        &["checkpoint.summary.digest"],
+        "by-digest lookup",
+    )
+    .await;
+
+    let seq = by_digest
+        .iter()
+        .find_map(|msg| match msg.payload.as_ref() {
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => cp.sequence_number,
+            _ => None,
+        })
+        .expect("by-digest response should include a sequence number");
+    assert_eq!(seq, 0, "by-digest: expected genesis sequence number");
+}
+
+#[sim_test]
+async fn get_checkpoint_latest() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    let messages = assert_get_checkpoint_request(
+        &mut ledger_client,
+        GetCheckpointRequest::default()
+            .with_latest(true)
+            .with_read_mask(FieldMask::from_paths(["checkpoint.summary"])),
+        &["checkpoint.summary"],
+        "latest checkpoint",
+    )
+    .await;
+
+    let seq = messages
+        .iter()
+        .find_map(|msg| match msg.payload.as_ref() {
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => cp.sequence_number,
+            _ => None,
+        })
+        .expect("latest response should include a sequence number");
+    assert!(
+        seq >= 2,
+        "latest sequence should be >= the waited-for checkpoint (2), got {seq}"
+    );
+}
+
+#[sim_test]
+async fn get_checkpoint_nonexistent() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    // Sequence-number lookups: the server opens the stream successfully and
+    // yields the NotFound error as the first stream item (the sequence
+    // number isn't resolved until the stream starts reading the checkpoint).
+    assert_sequence_number_not_found(&mut ledger_client, 999_999_999).await;
+
+    // Probe `latest + 100` by first resolving the current tip through the same
+    // streaming endpoint.  An empty read_mask keeps the payload minimal; the
+    // server always populates `sequence_number` regardless of the mask.
+    let latest_messages = assert_get_checkpoint_request(
+        &mut ledger_client,
+        GetCheckpointRequest::default()
+            .with_latest(true)
+            .with_read_mask(FieldMask::from_paths(&[] as &[&str])),
+        &[],
+        "fetch latest for not-found probe",
+    )
+    .await;
+    let latest = latest_messages
+        .iter()
+        .find_map(|msg| match msg.payload.as_ref() {
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => cp.sequence_number,
+            _ => None,
+        })
+        .expect("latest checkpoint should have sequence_number");
+    assert_sequence_number_not_found(&mut ledger_client, latest + 100).await;
+
+    // Digest lookups: the server resolves the digest to a sequence number
+    // upfront, so an unknown digest is returned as the initial response
+    // error instead.
+    let bogus_digest = grpc_types::Digest::default().with_digest(vec![0u8; 32]);
+    let result = ledger_client
+        .get_checkpoint(GetCheckpointRequest::default().with_digest(bogus_digest))
+        .await;
+    assert_tonic_error(result, tonic::Code::NotFound, "bogus digest");
+}
+
+async fn assert_sequence_number_not_found(
+    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    sequence_number: u64,
+) {
+    let mut stream = ledger_client
+        .get_checkpoint(GetCheckpointRequest::default().with_sequence_number(sequence_number))
+        .await
+        .expect("initial response should succeed for sequence-number lookup")
+        .into_inner();
+    let first = stream
+        .next()
+        .await
+        .expect("stream should yield the NotFound error");
+    assert_tonic_error(
+        first,
+        tonic::Code::NotFound,
+        &format!("sequence number {sequence_number}"),
+    );
+}
+
+#[sim_test]
+async fn stream_checkpoints_readmask_scenarios() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
+    let test_cases: Vec<TestCase> = vec![
+        (
+            "stream default readmask",
+            None,
+            comma_separated_field_mask_to_paths(GET_CHECKPOINT_READ_MASK),
+        ),
+        (
+            "stream empty readmask",
+            Some(FieldMask::from_paths(&[] as &[&str])),
+            vec![],
+        ),
+        (
+            "stream checkpoint wildcard",
+            Some(FieldMask::from_paths(["checkpoint"])),
+            vec!["checkpoint"],
+        ),
+        (
+            "stream transactions partial (effects.digest + timestamp)",
+            Some(FieldMask::from_paths([
+                "transactions.effects.digest",
+                "transactions.timestamp",
+            ])),
+            vec!["transactions.effects.digest", "transactions.timestamp"],
+        ),
+        (
+            "stream full readmask",
+            Some(FieldMask::from_paths([
+                "checkpoint",
+                "transactions",
+                "events",
+            ])),
+            vec!["checkpoint", "transactions", "events"],
+        ),
+    ];
+
+    for (scenario, mask, expected_paths) in test_cases {
+        let mut request = StreamCheckpointsRequest::default()
+            .with_start_sequence_number(0)
+            .with_end_sequence_number(2);
+        if let Some(mask) = mask {
+            request = request.with_read_mask(mask);
+        }
+        assert_stream_checkpoints_request(
+            &mut ledger_client,
+            request,
+            &expected_paths,
+            3, // checkpoints 0, 1, 2
+            scenario,
+        )
+        .await;
+    }
+}
+
+/// Verify the server closes a bounded `[start, end]` stream after delivering
+/// the final `EndMarker`. Guards against two regressions: over-delivery past
+/// `end_sequence_number`, and failure to terminate the stream.
+#[sim_test]
+async fn stream_checkpoints_terminates_on_bounded_range() {
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
+    let mut ledger_client = client.ledger_service_client();
+
+    let mut stream = ledger_client
+        .stream_checkpoints(
+            StreamCheckpointsRequest::default()
+                .with_start_sequence_number(0)
+                .with_end_sequence_number(2),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    let mut end_markers = 0;
+    timeout(Duration::from_secs(30), async {
+        while let Some(msg) = stream.next().await {
+            if matches!(
+                msg.unwrap().payload,
+                Some(checkpoint_data::Payload::EndMarker(_))
+            ) {
+                end_markers += 1;
+            }
         }
     })
     .await
-    .expect("waiting for checkpoint data timed out");
+    .expect("server did not close stream after final EndMarker");
+
+    assert_eq!(end_markers, 3, "expected EndMarker for checkpoints 0, 1, 2");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
