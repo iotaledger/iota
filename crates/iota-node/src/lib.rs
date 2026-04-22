@@ -301,7 +301,7 @@ impl IotaNode {
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_adapter: Arc<ConsensusAdapter>,
     ) -> Option<JoinHandle<()>> {
-        if !epoch_store.protocol_config().post_consensus_load_shedding() {
+        if !epoch_store.protocol_config().enable_white_flag_flow() {
             return None;
         }
 

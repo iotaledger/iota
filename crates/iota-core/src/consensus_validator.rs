@@ -124,11 +124,7 @@ impl IotaTxValidator {
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
 
                 ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
-                    if !self
-                        .epoch_store
-                        .protocol_config()
-                        .post_consensus_load_shedding()
-                    {
+                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error:
                                 "OverloadNotificationV1 not supported at current protocol version"
@@ -431,9 +427,10 @@ mod tests {
                 // IOTA and the variant is retained only for serialization
                 // compatibility.
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
-                // Gated behind `post_consensus_load_shedding`.
+
+                // Gated behind `enable_white_flag_flow`.
                 ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
-                    Some(config.post_consensus_load_shedding())
+                    Some(config.enable_white_flag_flow())
                 }
             }
         }
