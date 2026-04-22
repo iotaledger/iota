@@ -24,10 +24,6 @@ on:
       changedExternalCrates:
         type: string
         required: false
-      consensusProtocol:
-        type: string
-        required: false
-        default: "mysticeti"
       isNightly:
         type: boolean
         default: false
@@ -37,7 +33,6 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
-  CONSENSUS_PROTOCOL: ${{ inputs.consensusProtocol }}
   CARGO_TERM_COLOR: always
   RUST_LOG: "error"
   # Don't emit giant backtraces in the CI logs.

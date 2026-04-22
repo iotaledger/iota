@@ -83,20 +83,6 @@ jobs:
       testOnlyChangedCrates: false
       isNightly: true
 
-  tests-with-starfish:
-    if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
-    uses: ./.github/workflows/_rust_tests.yml
-    with:
-      isRust: true
-      isPgIntegration: true
-      isMoveExampleUsedByOthers: true
-      consensusProtocol: "starfish"
-      # simtest job below runs a superset of these tests
-      runSimtest: false
-      # run all tests by default
-      testOnlyChangedCrates: false
-      isNightly: true
-
   deny:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_cargo_deny.yml
@@ -125,28 +111,6 @@ jobs:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600
     runs-on: [self-hosted-x64]
-    env:
-      CONSENSUS_PROTOCOL: mysticeti
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ env.IOTA_REF }}
-
-      - name: Get latest simtest script from commit that triggered this workflow
-        run: |
-          git fetch origin ${{ github.sha }}
-          git checkout ${{ github.sha }} -- scripts/simtest/simtest-run.sh
-
-      - name: Run simtest
-        run: scripts/simtest/simtest-run.sh
-
-  simtest-with-starfish:
-    if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
-    timeout-minutes: 600
-    runs-on: [self-hosted-x64]
-    env:
-      CONSENSUS_PROTOCOL: starfish
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

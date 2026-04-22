@@ -86,7 +86,6 @@ jobs:
     uses: ./.github/workflows/_rust_tests.yml
     with:
       isRust: ${{ inputs.isRust }}
-      consensusProtocol: "mysticeti"
       isPgIntegration: ${{ inputs.isPgIntegration }}
       isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
       runSimtest: true
