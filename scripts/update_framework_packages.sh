@@ -25,10 +25,16 @@ pushd "$ROOT/crates/iota-framework"
 UPDATE=1 cargo insta test
 popd
 
-# Step 2: Update bytecode snapshot for the latest protocol version
+# Step 2: Check if git is dirty before proceeding to update the snapshot
+if [[ -n $(git status --porcelain) ]]; then
+  echo "Git repository is dirty. Please commit or stash your changes before updating the snapshot."
+  exit 1
+fi
+
+# Step 3: Update bytecode snapshot for the latest protocol version
 pushd "$ROOT"
 cargo run --release --bin iota-framework-snapshot
 popd
 
-# Step 3: Verify compatibility with all previous bytecode snapshots
+# Step 4: Verify compatibility with all previous bytecode snapshots
 cargo test --package iota-framework-snapshot --test compatibility_tests
