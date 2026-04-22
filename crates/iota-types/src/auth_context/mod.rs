@@ -51,17 +51,21 @@ pub struct AuthContext {
     tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
     tx_commands: Vec<MoveCommand>,
+    /// The BCS-serialized `TransactionData` bytes.
+    tx_data_bytes: Vec<u8>,
 }
 
 impl AuthContext {
     pub fn new_from_components(
         auth_digest: MoveAuthenticatorDigest,
         ptb: &ProgrammableTransaction,
+        tx_data_bytes: Vec<u8>,
     ) -> Self {
         Self {
             auth_digest,
             tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
             tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
+            tx_data_bytes,
         }
     }
 
@@ -70,6 +74,7 @@ impl AuthContext {
             auth_digest: MoveAuthenticatorDigest::default(),
             tx_inputs: Vec::new(),
             tx_commands: Vec::new(),
+            tx_data_bytes: Vec::new(),
         }
     }
 
@@ -83,6 +88,10 @@ impl AuthContext {
 
     pub fn tx_commands(&self) -> &Vec<MoveCommand> {
         &self.tx_commands
+    }
+
+    pub fn tx_data_bytes(&self) -> &Vec<u8> {
+        &self.tx_data_bytes
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
@@ -134,10 +143,12 @@ impl AuthContext {
         auth_digest: MoveAuthenticatorDigest,
         tx_inputs: Vec<MoveCallArg>,
         tx_commands: Vec<MoveCommand>,
+        tx_data_bytes: Vec<u8>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
         self.tx_commands = tx_commands;
+        self.tx_data_bytes = tx_data_bytes;
     }
 }
 
@@ -195,7 +206,8 @@ mod tests {
             }))],
         };
 
-        let ctx = AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb);
+        let ctx =
+            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb, vec![]);
 
         assert_eq!(ctx.tx_inputs().len(), 1);
         assert_eq!(ctx.tx_commands().len(), 1);
@@ -228,6 +240,7 @@ mod tests {
         ctx.replace(
             MoveAuthenticatorDigest::default(),
             vec![MoveCallArg::Pure(vec![1])],
+            vec![],
             vec![],
         );
         let non_empty_bytes = ctx.to_bcs_bytes();

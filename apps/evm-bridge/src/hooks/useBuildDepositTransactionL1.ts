@@ -5,6 +5,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { createDepositTransactionL1, getGasSummary } from '../lib/utils';
+import { getUserFriendlyDryRunExecutionError } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useNetworkVariables } from '../config';
 import { CoinStruct } from '@iota/iota-sdk/client';
@@ -49,7 +50,8 @@ export function useBuildDepositTransactionL1({
                 transactionBlock: txBytes,
             });
             if (txDryRun.effects.status.status !== 'success') {
-                throw new Error(`Tx dry run failed: ${txDryRun.effects.status?.error}`);
+                const errorText = txDryRun.effects.status?.error ?? 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
             }
             return {
                 txBytes,

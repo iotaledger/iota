@@ -13,7 +13,7 @@ WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
 # libudev for Ledger hardware wallets
-RUN apt update && apt install -y cmake clang lld libudev-dev protobuf-compiler
+RUN apt update && apt install -y cmake clang lld libudev-dev protobuf-compiler jq
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
@@ -22,36 +22,37 @@ RUN mkdir -p ~/.cargo && \
 # Install additional dependencies (git is needed when fetching move dependencies during builds)
 RUN apt install -y libpq5 libpq-dev ca-certificates git
 
-# Copy in all crates, Cargo.toml, and Cargo.lock
+# Copy in all crates, Cargo.toml, Cargo.lock, and binary build list
 COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock binary-build-list.json ./
 
-# Build the binaries and copy them to the working directory
-RUN cargo build --profile ${PROFILE} \
-      --bin iota-node \
-      --bin stress \
-      --bin iota-analytics-indexer \
-      --bin iota \
-      --bin iota-localnet \
-      --bin iota-faucet \
-      --bin iota-cluster-test \
-      --bin iota-tool \
-      --bin iota-genesis-builder \
-      --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-node ./iota-node && \
-    cp $TARGET_FOLDER/stress ./stress && \
-    cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
-    cp $TARGET_FOLDER/iota ./iota && \
-    cp $TARGET_FOLDER/iota-localnet ./iota-localnet && \
-    cp $TARGET_FOLDER/iota-faucet ./iota-faucet && \
-    cp $TARGET_FOLDER/iota-cluster-test ./iota-cluster-test && \
-    cp $TARGET_FOLDER/iota-tool ./iota-tool && \
-    cp $TARGET_FOLDER/iota-genesis-builder ./iota-genesis-builder
+# Build binaries with their required features looked up from binary-build-list.json
+RUN BINARIES="\
+      iota-node \
+      stress \
+      iota-analytics-indexer \
+      iota \
+      iota-localnet \
+      iota-faucet \
+      iota-cluster-test \
+      iota-tool \
+      iota-genesis-builder \
+    "; \
+    for binary in $BINARIES; do \
+      features=$(jq -r --arg bin "$binary" '.release_binaries[$bin] // [] | join(",")' binary-build-list.json); \
+      echo ">>> Building $binary with features: $features"; \
+      if [ -z "$features" ]; then \
+        cargo build --profile ${PROFILE} --bin "$binary"; \
+      else \
+        cargo build --profile ${PROFILE} --bin "$binary" --features "$features"; \
+      fi; \
+      cp $TARGET_FOLDER/$binary ./$binary; \
+    done
 
 # Production image
 FROM debian:trixie-slim AS runtime

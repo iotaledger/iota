@@ -32,6 +32,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -89,6 +90,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -98,6 +100,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            header_synchronizer,
             sync_type: CommitSyncType::Fast,
         });
         let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
@@ -189,6 +192,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 e
                             );
                         } else {
+                            self.inner
+                                .header_synchronizer
+                                .clear_verified_headers_cache();
                             info!(
                                 "[{}] Components reinitialized, fast sync complete",
                                 self.inner.sync_type.as_str()
@@ -840,6 +846,7 @@ mod tests {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        protocol_config.set_gc_depth_for_testing(5);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

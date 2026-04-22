@@ -8,11 +8,10 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::{IotaNode, metrics};
-use iota_rest_api::ServerVersion;
+use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
-    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
-    supported_protocol_versions::SupportedProtocolVersions,
+    committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
+    multiaddr::Multiaddr, supported_protocol_versions::SupportedProtocolVersions,
 };
 #[cfg(all(feature = "flamegraph-alloc", nightly))]
 use telemetry_subscribers::flamegraph::CounterAlloc;
@@ -100,7 +99,16 @@ fn main() {
 
     {
         let _enter = runtimes.metrics.enter();
-        metrics::start_metrics_push_task(&config, registry_service.clone());
+        if let Some(metrics_config) = &config.metrics {
+            if let Some(push_url) = &metrics_config.push_url {
+                iota_metrics_push_client::start_metrics_push_task(
+                    metrics_config.push_interval_seconds,
+                    push_url.clone(),
+                    config.network_key_pair().copy(),
+                    registry_service.clone(),
+                );
+            }
+        }
     }
 
     if let Some(listen_address) = args.listen_address {
@@ -117,8 +125,8 @@ fn main() {
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
-    let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
     runtimes.iota_node.spawn(async move {
+        let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
         match IotaNode::start_async(config, registry_service, server_version).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)

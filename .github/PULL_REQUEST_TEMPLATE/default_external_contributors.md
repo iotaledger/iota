@@ -39,4 +39,4 @@ For each box you select, include information after the relevant heading that des
 - [ ] GraphQL:
 - [ ] CLI:
 - [ ] Rust SDK:
-- [ ] REST API:
+- [ ] gRPC:

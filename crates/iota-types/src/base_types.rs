@@ -30,10 +30,10 @@ use move_core_types::{
 use rand::Rng;
 use schemars::JsonSchema;
 use serde::{
-    Deserialize, Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer,
     ser::{Error, SerializeSeq},
 };
-use serde_with::serde_as;
+use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
@@ -52,7 +52,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::{HexAccountAddress, Readable, to_iota_struct_tag_string},
+    iota_serde::{Readable, to_custom_deser_error, to_iota_struct_tag_string},
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -1699,6 +1699,33 @@ impl From<ObjectID> for AccountAddress {
 impl From<IotaAddress> for AccountAddress {
     fn from(address: IotaAddress) -> Self {
         Self::new(address.0)
+    }
+}
+
+/// Hex serde for AccountAddress
+struct HexAccountAddress;
+
+impl SerializeAs<AccountAddress> for HexAccountAddress {
+    fn serialize_as<S>(value: &AccountAddress, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Hex::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, AccountAddress> for HexAccountAddress {
+    fn deserialize_as<D>(deserializer: D) -> Result<AccountAddress, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s.starts_with("0x") {
+            AccountAddress::from_hex_literal(&s)
+        } else {
+            AccountAddress::from_hex(&s)
+        }
+        .map_err(to_custom_deser_error::<'de, D, _>)
     }
 }
 

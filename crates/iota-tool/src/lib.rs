@@ -115,18 +115,18 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
-        // TODO: Enable TLS on this interface with below config, once support is rolled
-        // out to validators.
-        // ```
-        // let tls_config = iota_tls::create_rustls_client_config(
-        //     iota_types::crypto::NetworkPublicKey::from_bytes(&committee_member.network_pubkey_bytes)?,
-        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
-        //     None,
-        // );
-        // ```
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())
+            .unwrap()
+            .rewrite_http_to_https();
+        let tls_config = iota_tls::create_rustls_client_config(
+            iota_types::crypto::NetworkPublicKey::from_bytes(
+                &committee_member.network_pubkey_bytes,
+            )?,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+            None,
+        );
         let channel = net_config
-            .connect_lazy(&net_addr, None)
+            .connect_lazy(&net_addr, Some(tls_config))
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
@@ -1095,17 +1095,6 @@ pub async fn download_db_snapshot(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .for_each(|result| result.expect("Task failed"));
-
-    // The rest index is stored under the name "grpc_indexes" in the snapshot but
-    // must live at "rest_index" on disk so that RestIndexStore can open it.
-    let grpc_indexes_dir = path.join(format!("epoch_{epoch}")).join("grpc_indexes");
-    if grpc_indexes_dir.exists() {
-        fs::rename(
-            &grpc_indexes_dir,
-            path.join(format!("epoch_{epoch}")).join("rest_index"),
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to rename grpc_indexes to rest_index: {e}"))?;
-    }
 
     let store_dir = path.join("store");
     if store_dir.exists() {
