@@ -881,11 +881,14 @@ impl Object {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
+                let (prev, next, results_iter) = page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
                     backward_objects_query(&filter, checkpoint_viewed_at, &page),
-                )?))
+                )?;
+                let results = results_iter.collect();
+                let results = resolve_tombstone_versions(conn, results)?;
+                Ok(Some((prev, next, results)))
             })
             .await?
         else {
@@ -1117,6 +1120,13 @@ fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
 }
 
 impl ObjectFilter {
+    /// Returns `true` if the filter only constrains on object ID and/or version
+    /// (no type or owner filters). Such filters are safe to apply against
+    /// tables that lack type/owner columns (e.g. `objects_version`).
+    pub(crate) fn is_keys_only(&self) -> bool {
+        self.type_.is_none() && self.owner.is_none()
+    }
+
     /// Try to create a filter whose results are the intersection of objects in
     /// `self`'s results and objects in `other`'s results. This may not be
     /// possible if the resulting filter is inconsistent in some way (e.g. a
@@ -1369,6 +1379,12 @@ pub(crate) struct StoredBackwardObject {
     pub coin_balance: Option<i64>,
     #[diesel(sql_type = sql_types::Nullable<sql_types::SmallInt>)]
     pub df_kind: Option<i16>,
+    /// `TRUE` when the row came from `objects_backward_history`, `FALSE`
+    /// otherwise (from `checkpointed_objects` or `objects_version`). Used to
+    /// decide whether version correction is needed for `WrappedOrDeleted`
+    /// entries, since backward history stores a lamport-1 approximation.
+    #[diesel(sql_type = sql_types::Bool)]
+    pub from_backward_history: bool,
 }
 
 impl StoredBackwardObject {
@@ -1395,6 +1411,83 @@ impl StoredBackwardObject {
             df_kind: self.df_kind,
         }
     }
+}
+
+/// Resolves real tombstone versions for `WrappedOrDeleted` entries from
+/// `objects_backward_history`.
+///
+/// The backward history stores a lamport-1 version approximation which may be
+/// higher than the actual tombstone version. This function looks up the real
+/// version from `objects_version` using a single batch query with a VALUES
+/// list joined via `MAX(object_version) <= backward_history_version`. Only
+/// entries tagged with `from_backward_history = true` are resolved; entries
+/// from `checkpointed_objects` already have the correct version.
+pub(crate) fn resolve_tombstone_versions(
+    conn: &mut crate::data::pg::PgConnection<'_>,
+    results: Vec<StoredBackwardObject>,
+) -> Result<Vec<StoredBackwardObject>, diesel::result::Error> {
+    let to_resolve: Vec<(Vec<u8>, i64)> = results
+        .iter()
+        .filter(|r| {
+            r.from_backward_history
+                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
+        })
+        .map(|r| (r.object_id.clone(), r.object_version))
+        .collect();
+
+    if to_resolve.is_empty() {
+        return Ok(results);
+    }
+
+    let values = to_resolve
+        .iter()
+        .map(|(id, ver)| format!("('\\x{}'::bytea, {}::bigint)", hex::encode(id), ver))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let sql = format!(
+        "SELECT pairs.object_id, pairs.backward_history_version, MAX(ov.object_version) AS real_version \
+         FROM (VALUES {values}) AS pairs(object_id, backward_history_version) \
+         LEFT JOIN objects_version ov \
+           ON ov.object_id = pairs.object_id AND ov.object_version <= pairs.backward_history_version \
+         GROUP BY pairs.object_id, pairs.backward_history_version"
+    );
+
+    #[derive(diesel::QueryableByName)]
+    struct ResolvedVersion {
+        #[diesel(sql_type = sql_types::Binary)]
+        object_id: Vec<u8>,
+        #[diesel(sql_type = sql_types::BigInt)]
+        backward_history_version: i64,
+        #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
+        real_version: Option<i64>,
+    }
+
+    let rows: Vec<ResolvedVersion> = conn.results(move || diesel::sql_query(sql.clone()))?;
+
+    // Key by (object_id, backward_history_version) → real_version
+    let resolved_map: HashMap<(Vec<u8>, i64), i64> = rows
+        .into_iter()
+        .filter_map(|r| {
+            r.real_version
+                .map(|real| ((r.object_id, r.backward_history_version), real))
+        })
+        .collect();
+
+    Ok(results
+        .into_iter()
+        .map(|mut r| {
+            if r.from_backward_history
+                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
+            {
+                let key = (r.object_id.clone(), r.object_version);
+                if let Some(&real_version) = resolved_map.get(&key) {
+                    r.object_version = real_version;
+                }
+            }
+            r
+        })
+        .collect())
 }
 
 impl RawPaginated<Cursor> for StoredBackwardObject {
@@ -1728,6 +1821,7 @@ impl Loader<LatestAtKey> for Db {
                             )
                             .into_boxed()
                         })?;
+                        let results = resolve_tombstone_versions(conn, results)?;
 
                         Ok(results
                             .into_iter()
@@ -1841,12 +1935,15 @@ fn backward_objects_query(
         })
         .finish();
 
-        let keys_only_filter = ObjectFilter {
+        let keys_filter = ObjectFilter {
             object_ids: None,
             ..filter.clone()
         };
-        let (key_query, key_bindings) =
-            historical::query(page, move |query| keys_only_filter.apply(query)).finish();
+        let (key_query, key_bindings) = if keys_filter.is_keys_only() {
+            historical::query_keys_only(page, move |query| keys_filter.apply(query)).finish()
+        } else {
+            historical::query_with_filter(page, move |query| keys_filter.apply(query)).finish()
+        };
 
         RawQuery::new(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
@@ -1855,7 +1952,11 @@ fn backward_objects_query(
         .order_by("object_id")
         .limit(page.limit() as i64)
     } else if filter.object_keys.is_some() {
-        historical::query(page, move |query| filter.apply(query))
+        if filter.is_keys_only() {
+            historical::query_keys_only(page, move |query| filter.apply(query))
+        } else {
+            historical::query_with_filter(page, move |query| filter.apply(query))
+        }
     } else {
         consistent::query(checkpoint_viewed_at, page, move |query| filter.apply(query))
     }
