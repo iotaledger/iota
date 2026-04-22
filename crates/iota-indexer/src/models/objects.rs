@@ -349,33 +349,38 @@ pub(crate) struct StoredDeletedHistoryObject {
 
 /// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
 ///
-/// Mirrors all columns of `objects` except `finalized_in_cp`. Used as the
-/// base table for backward-diff consistent views, avoiding race conditions
-/// with optimistic indexing.
+/// Mirrors `objects_snapshot` schema (includes `object_status` and
+/// `checkpoint_sequence_number`). Used as the base table for backward-diff
+/// consistent views, avoiding race conditions with optimistic indexing.
+/// Stores both active and wrapped/deleted objects.
 #[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = checkpointed_objects, primary_key(object_id))]
 pub struct StoredCheckpointedObject {
     pub object_id: Vec<u8>,
     pub object_version: i64,
-    pub object_digest: Vec<u8>,
-    pub owner_type: i16,
+    pub object_status: i16,
+    pub object_digest: Option<Vec<u8>>,
+    pub checkpoint_sequence_number: i64,
+    pub owner_type: Option<i16>,
     pub owner_id: Option<Vec<u8>>,
     pub object_type: Option<String>,
     pub object_type_package: Option<Vec<u8>>,
     pub object_type_module: Option<String>,
     pub object_type_name: Option<String>,
-    pub serialized_object: Vec<u8>,
+    pub serialized_object: Option<Vec<u8>>,
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
 }
 
-impl From<&StoredObject> for StoredCheckpointedObject {
-    fn from(o: &StoredObject) -> Self {
+impl From<&StoredObjectSnapshot> for StoredCheckpointedObject {
+    fn from(o: &StoredObjectSnapshot) -> Self {
         Self {
             object_id: o.object_id.clone(),
             object_version: o.object_version,
+            object_status: o.object_status,
             object_digest: o.object_digest.clone(),
+            checkpoint_sequence_number: o.checkpoint_sequence_number,
             owner_type: o.owner_type,
             owner_id: o.owner_id.clone(),
             object_type: o.object_type.clone(),
