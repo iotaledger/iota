@@ -110,14 +110,18 @@ pub struct Stake {
 pub struct TimelockedStake {
     #[schemars(with = "ObjectIDSchema")]
     pub timelocked_staked_iota_id: ObjectID,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_request_epoch: EpochId,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_active_epoch: EpochId,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub principal: u64,
     #[serde(flatten)]
     pub status: StakeStatus,
+    #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub expiration_timestamp_ms: u64,
     pub label: Option<String>,

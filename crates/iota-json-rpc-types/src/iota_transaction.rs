@@ -684,14 +684,19 @@ impl IotaTransactionBlockKind {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaChangeEpoch {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: EpochId,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_charge: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub computation_charge: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_rebate: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_start_timestamp_ms: u64,
 }
 
@@ -711,16 +716,22 @@ impl From<ChangeEpoch> for IotaChangeEpoch {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaChangeEpochV2 {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: EpochId,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_charge: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub computation_charge: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub computation_charge_burned: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_rebate: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_start_timestamp_ms: u64,
     #[schemars(with = "Option<Vec<String>>")]
     #[serde_as(as = "Option<Vec<DisplayFromStr>>")]
@@ -1867,13 +1878,16 @@ pub struct IotaGenesisTransaction {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub round: u64,
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub sub_dag_index: Option<u64>,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub commit_timestamp_ms: u64,
     #[schemars(with = "Base58")]
     pub consensus_commit_digest: ConsensusCommitDigest,
@@ -1934,8 +1948,10 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaAuthenticatorStateUpdateV1 {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub round: u64,
 
     pub new_active_jwks: Vec<IotaActiveJwk>,
@@ -1945,9 +1961,11 @@ pub struct IotaAuthenticatorStateUpdateV1 {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaRandomnessStateUpdate {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
 
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub randomness_round: u64,
     pub random_bytes: Vec<u8>,
 }
@@ -1971,6 +1989,7 @@ pub enum IotaEndOfEpochTransactionKind {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaAuthenticatorStateExpire {
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub min_epoch: u64,
 }
 
@@ -1981,6 +2000,7 @@ pub struct IotaActiveJwk {
     pub jwk: IotaJWK,
 
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
 }
 
@@ -2696,7 +2716,11 @@ impl From<EffectsWithInput> for IotaTransactionBlockEffects {
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub enum TransactionFilter {
     /// Query by checkpoint.
-    Checkpoint(#[schemars(with = "String")] CheckpointSequenceNumber),
+    Checkpoint(
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
+        CheckpointSequenceNumber,
+    ),
     /// Query by move function.
     MoveFunction {
         #[schemars(with = "ObjectIDSchema")]
@@ -2821,7 +2845,11 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 #[non_exhaustive]
 pub enum TransactionFilterV2 {
     /// Query by checkpoint.
-    Checkpoint(#[schemars(with = "String")] CheckpointSequenceNumber),
+    Checkpoint(
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
+        CheckpointSequenceNumber,
+    ),
     /// Query by move function.
     MoveFunction {
         #[schemars(with = "ObjectIDSchema")]

@@ -14,7 +14,7 @@ use iota_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{DeserializeAs, SerializeAs};
+use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema};
 
@@ -79,20 +79,25 @@ impl From<NativeSystemStateSummary> for IotaSystemStateSummary {
 /// This is the JSON-RPC type for the
 /// [`IotaSystemStateSummaryV1`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV1)
 /// object.
+#[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaSystemStateSummaryV1 {
     /// The current epoch ID, starting from 0.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
     /// The current protocol version, starting from 1.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub protocol_version: u64,
     /// The current version of the system state data structure type.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub system_state_version: u64,
     /// The current IOTA supply.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
     #[schemars(with = "ObjectIDSchema")]
@@ -100,14 +105,17 @@ pub struct IotaSystemStateSummaryV1 {
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_fund_total_object_storage_rebates: u64,
     /// The non-refundable portion of the storage fund coming from
     /// non-refundable storage rebates and any leftover
     /// staking rewards.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_fund_non_refundable_balance: u64,
     /// The reference gas price for the current epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub reference_gas_price: u64,
     /// Whether the system is running in a downgraded safe mode due to a
     /// non-recoverable bug. This is set whenever we failed to execute
@@ -117,39 +125,48 @@ pub struct IotaSystemStateSummaryV1 {
     /// Amount of storage charges accumulated (and not yet distributed) during
     /// safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_storage_charges: u64,
     /// Amount of computation rewards accumulated (and not yet distributed)
     /// during safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_computation_rewards: u64,
     /// Amount of storage rebates accumulated (and not yet burned) during safe
     /// mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_storage_rebates: u64,
     /// Amount of non-refundable storage fee accumulated during safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_non_refundable_storage_fee: u64,
     /// Unix timestamp of the current epoch start
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_start_timestamp_ms: u64,
 
     // System parameters
     /// The duration of an epoch, in milliseconds.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_duration_ms: u64,
 
     /// Minimum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go under this.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub min_validator_count: u64,
 
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub max_validator_count: u64,
 
     /// Lower-bound on the amount of stake required to become a validator.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub min_validator_joining_stake: u64,
 
     /// Validators with stake amount below `validator_low_stake_threshold` are
@@ -157,22 +174,26 @@ pub struct IotaSystemStateSummaryV1 {
     /// validator set after being below this threshold for more than
     /// `validator_low_stake_grace_period` number of epochs.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_low_stake_threshold: u64,
 
     /// Validators with stake below `validator_very_low_stake_threshold` will be
     /// removed immediately at epoch change, no grace period.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
     /// for this many epochs before being kicked out.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_low_stake_grace_period: u64,
 
     // Validator set
     /// Total amount of stake from all active validators at the beginning of the
     /// epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub total_stake: u64,
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<IotaValidatorSummary>,
@@ -182,6 +203,7 @@ pub struct IotaSystemStateSummaryV1 {
     pub pending_active_validators_id: ObjectID,
     /// Number of new validators that will join at the end of the epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pending_active_validators_size: u64,
     /// Removal requests from the validators. Each element is an index
     /// pointing to `active_validators`.
@@ -193,6 +215,7 @@ pub struct IotaSystemStateSummaryV1 {
     pub staking_pool_mappings_id: ObjectID,
     /// Number of staking pool mappings.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
@@ -200,6 +223,7 @@ pub struct IotaSystemStateSummaryV1 {
     pub inactive_pools_id: ObjectID,
     /// Number of inactive staking pools.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
@@ -207,6 +231,7 @@ pub struct IotaSystemStateSummaryV1 {
     pub validator_candidates_id: ObjectID,
     /// Number of preactive validators.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
@@ -335,20 +360,25 @@ impl From<NativeSystemStateSummaryV1> for IotaSystemStateSummaryV1 {
 /// This is the JSON-RPC type for the
 /// [`IotaSystemStateSummaryV2`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2)
 /// object.
+#[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaSystemStateSummaryV2 {
     /// The current epoch ID, starting from 0.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch: u64,
     /// The current protocol version, starting from 1.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub protocol_version: u64,
     /// The current version of the system state data structure type.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub system_state_version: u64,
     /// The current IOTA supply.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
     #[schemars(with = "ObjectIDSchema")]
@@ -356,14 +386,17 @@ pub struct IotaSystemStateSummaryV2 {
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_fund_total_object_storage_rebates: u64,
     /// The non-refundable portion of the storage fund coming from
     /// non-refundable storage rebates and any leftover
     /// staking rewards.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub storage_fund_non_refundable_balance: u64,
     /// The reference gas price for the current epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub reference_gas_price: u64,
     /// Whether the system is running in a downgraded safe mode due to a
     /// non-recoverable bug. This is set whenever we failed to execute
@@ -373,42 +406,52 @@ pub struct IotaSystemStateSummaryV2 {
     /// Amount of storage charges accumulated (and not yet distributed) during
     /// safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_storage_charges: u64,
     /// Amount of computation charges accumulated (and not yet distributed)
     /// during safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_computation_charges: u64,
     /// Amount of burned computation charges accumulated during safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_computation_charges_burned: u64,
     /// Amount of storage rebates accumulated (and not yet burned) during safe
     /// mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_storage_rebates: u64,
     /// Amount of non-refundable storage fee accumulated during safe mode.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub safe_mode_non_refundable_storage_fee: u64,
     /// Unix timestamp of the current epoch start
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_start_timestamp_ms: u64,
 
     // System parameters
     /// The duration of an epoch, in milliseconds.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub epoch_duration_ms: u64,
 
     /// Minimum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go under this.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub min_validator_count: u64,
 
     /// Maximum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go above this.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub max_validator_count: u64,
 
     /// Lower-bound on the amount of stake required to become a validator.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub min_validator_joining_stake: u64,
 
     /// Validators with stake amount below `validator_low_stake_threshold` are
@@ -416,22 +459,26 @@ pub struct IotaSystemStateSummaryV2 {
     /// validator set after being below this threshold for more than
     /// `validator_low_stake_grace_period` number of epochs.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_low_stake_threshold: u64,
 
     /// Validators with stake below `validator_very_low_stake_threshold` will be
     /// removed immediately at epoch change, no grace period.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
     /// for this many epochs before being kicked out.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_low_stake_grace_period: u64,
 
     // Validator set
     /// Total amount of stake from all committee validators at the beginning of
     /// the epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub total_stake: u64,
     /// List of committee validators in the current epoch. Each element is an
     /// index pointing to `active_validators`.
@@ -445,6 +492,7 @@ pub struct IotaSystemStateSummaryV2 {
     pub pending_active_validators_id: ObjectID,
     /// Number of new validators that will join at the end of the epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pending_active_validators_size: u64,
     /// Removal requests from the validators. Each element is an index
     /// pointing to `active_validators`.
@@ -456,6 +504,7 @@ pub struct IotaSystemStateSummaryV2 {
     pub staking_pool_mappings_id: ObjectID,
     /// Number of staking pool mappings.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
@@ -463,6 +512,7 @@ pub struct IotaSystemStateSummaryV2 {
     pub inactive_pools_id: ObjectID,
     /// Number of inactive staking pools.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
@@ -470,6 +520,7 @@ pub struct IotaSystemStateSummaryV2 {
     pub validator_candidates_id: ObjectID,
     /// Number of preactive validators.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
@@ -602,6 +653,7 @@ impl From<NativeSystemStateSummaryV2> for IotaSystemStateSummaryV2 {
 /// This is the JSON-RPC type for the IOTA validator. It flattens all inner
 /// structures to top-level fields so that they are decoupled from the internal
 /// definitions.
+#[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaValidatorSummary {
@@ -636,20 +688,26 @@ pub struct IotaValidatorSummary {
     pub next_epoch_primary_address: Option<String>,
 
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub voting_power: u64,
     #[schemars(with = "ObjectIDSchema")]
     pub operation_cap_id: ObjectID,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub gas_price: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub commission_rate: u64,
     #[schemars(with = "Option<String>")]
     pub effective_commission_rate: Option<u64>,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub next_epoch_stake: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub next_epoch_gas_price: u64,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub next_epoch_commission_rate: u64,
 
     // Staking pool information
@@ -665,29 +723,36 @@ pub struct IotaValidatorSummary {
     pub staking_pool_deactivation_epoch: Option<u64>,
     /// The total number of IOTA tokens in this pool.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub staking_pool_iota_balance: u64,
     /// The epoch stake rewards will be added here at the end of each epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub rewards_pool: u64,
     /// Total number of pool tokens issued by the pool.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pool_token_balance: u64,
     /// Pending stake amount for this epoch.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pending_stake: u64,
     /// Pending stake withdrawn during the current epoch, emptied at epoch
     /// boundaries.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pending_total_iota_withdraw: u64,
     /// Pending pool token withdrawn during the current epoch, emptied at epoch
     /// boundaries.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub pending_pool_token_withdraw: u64,
     /// ID of the exchange rate table object.
     #[schemars(with = "ObjectIDSchema")]
     pub exchange_rates_id: ObjectID,
     /// Number of exchange rates in the table.
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub exchange_rates_size: u64,
 }
 
