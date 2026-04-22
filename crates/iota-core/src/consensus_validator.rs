@@ -122,6 +122,20 @@ impl IotaTxValidator {
 
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
+
+                ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
+                    if !self
+                        .epoch_store
+                        .protocol_config()
+                        .post_consensus_load_shedding()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "OverloadNotificationV1 not supported at current protocol version"
+                                    .into(),
+                        });
+                    }
+                }
             }
         }
 
@@ -417,6 +431,10 @@ mod tests {
                 // IOTA and the variant is retained only for serialization
                 // compatibility.
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
+                // Gated behind `post_consensus_load_shedding`.
+                ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
+                    Some(config.post_consensus_load_shedding())
+                }
             }
         }
 
@@ -471,6 +489,10 @@ mod tests {
             (
                 "UserTransactionV1",
                 ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
+            ),
+            (
+                "OverloadNotificationV1",
+                ConsensusTransactionKind::OverloadNotificationV1(authority, 50),
             ),
         ];
 

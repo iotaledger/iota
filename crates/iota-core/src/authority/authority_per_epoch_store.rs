@@ -828,6 +828,13 @@ pub struct AuthorityEpochTables {
     /// Record of the capabilities advertised by each authority.
     authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
 
+    /// Record of the latest load shedding percentage from each authority,
+    /// received via OverloadNotificationV1 consensus transactions. Keyed by
+    /// AuthorityName, value is the most recently reported percentage
+    /// (0-100). Overwrites on each new notification from the same
+    /// authority.
+    authority_overload_notifications: DBMap<AuthorityName, u8>,
+
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
     override_protocol_upgrade_buffer_stake: DBMap<u64, u64>,
@@ -2705,6 +2712,32 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn record_overload_notification_v1(
+        &self,
+        authority: &AuthorityName,
+        percentage: u8,
+    ) -> IotaResult {
+        info!(
+            "received overload notification v1 from {:?}: {}%",
+            authority.concise(),
+            percentage
+        );
+        self.tables()?
+            .authority_overload_notifications
+            .insert(authority, &percentage)?;
+        Ok(())
+    }
+
+    pub fn get_overload_notification_v1(
+        &self,
+        authority: &AuthorityName,
+    ) -> IotaResult<Option<u8>> {
+        Ok(self
+            .tables()?
+            .authority_overload_notifications
+            .get(authority)?)
+    }
+
     pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
         self.consensus_quarantine
             .read()
@@ -3008,6 +3041,26 @@ impl AuthorityPerEpochStore {
                     warn!(
                         "RandomnessDkgConfirmation authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                ..
+            }) => {
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "OverloadNotificationV1 authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+                if *percentage > 100 {
+                    warn!(
+                        "OverloadNotificationV1 from {:?} has invalid percentage {}",
+                        authority.concise(),
+                        percentage
                     );
                     return None;
                 }
@@ -4457,6 +4510,28 @@ impl AuthorityPerEpochStore {
                     suggested_gas_price_calculator,
                     authority_metrics,
                 )
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                ..
+            }) => {
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received OverloadNotificationV1 from {:?} with percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    self.record_overload_notification_v1(authority, *percentage)?;
+                } else {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
