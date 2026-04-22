@@ -1106,8 +1106,7 @@ impl From<IotaUpgradeInfo> for UpgradeInfo {
 pub struct IotaRawMovePackage {
     #[schemars(with = "ObjectIDSchema")]
     pub id: ObjectID,
-    #[schemars(with = "SequenceNumberStringSchema")]
-    #[serde_as(as = "SequenceNumberStringSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[schemars(with = "BTreeMap<String, Base64>")]
     #[serde_as(as = "BTreeMap<_, Base64>")]

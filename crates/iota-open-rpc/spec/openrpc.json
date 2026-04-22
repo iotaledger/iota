@@ -11136,7 +11136,7 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberString"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             }
           }
