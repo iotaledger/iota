@@ -834,9 +834,9 @@ pub enum DkgStatus {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use consensus_core::{BlockRef, BlockStatus};
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::messages_consensus::ConsensusTransactionKind;
+    use starfish_core::{BlockRef, BlockStatus};
     use tokio::sync::mpsc;
 
     use crate::{
@@ -885,7 +885,11 @@ mod tests {
                     tx_consensus.try_send(transactions.to_vec()).unwrap();
                     true
                 })
-                .returning(|_, _| Ok(with_block_status(BlockStatus::Sequenced(BlockRef::MIN))));
+                .returning(|_, _| {
+                    Ok(with_block_status(BlockStatus::Sequenced(
+                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                    )))
+                });
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
@@ -1032,8 +1036,8 @@ mod tests {
                     true
                 })
                 .returning(|_, _| {
-                    Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
-                        BlockRef::MIN,
+                    Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
                     )))
                 });
 

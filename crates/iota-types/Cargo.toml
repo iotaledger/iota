@@ -57,7 +57,6 @@ tonic.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true

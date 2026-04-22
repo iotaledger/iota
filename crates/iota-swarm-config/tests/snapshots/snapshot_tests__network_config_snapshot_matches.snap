@@ -23,7 +23,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -124,7 +123,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -225,7 +223,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -326,7 +323,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -427,7 +423,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -528,7 +523,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -629,7 +623,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~

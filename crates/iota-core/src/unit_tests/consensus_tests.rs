@@ -4,7 +4,6 @@
 
 use std::{collections::HashSet, time::Duration};
 
-use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -27,6 +26,7 @@ use iota_types::{
 use move_core_types::{account_address::AccountAddress, ident_str};
 use parking_lot::Mutex;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
+use starfish_core::{BlockRef, BlockStatus};
 use tokio::time::sleep;
 
 use super::*;
@@ -243,10 +243,18 @@ async fn submit_transaction_to_consensus_adapter() {
 
     // Make a new consensus adapter instance.
     let block_status_receivers = vec![
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
     ];
     let adapter = make_consensus_adapter_for_test(
         state.clone(),
@@ -295,7 +303,9 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         state.clone(),
         process_via_checkpoint,
         false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
     );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
@@ -332,7 +342,9 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         state.clone(),
         HashSet::new(),
         false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
     );
 
     let checkpoint_summary = CheckpointSummary::new(
@@ -437,7 +449,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
 /// are submitted instead of one.
 #[tokio::test]
 async fn submit_recovered_end_of_publish_crash_recovery() {
-    use consensus_core::{BlockRef, BlockStatus};
+    use starfish_core::{BlockRef, BlockStatus};
     use tokio::sync::Notify;
 
     use crate::mock_consensus::with_block_status;
@@ -463,7 +475,9 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             self.submitted.lock().extend_from_slice(transactions);
             self.notify.notify_one();
 
-            Ok(with_block_status(BlockStatus::Sequenced(BlockRef::MIN)))
+            Ok(with_block_status(BlockStatus::Sequenced(
+                starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            )))
         }
     }
 

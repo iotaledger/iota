@@ -11,7 +11,6 @@ use std::{
 };
 
 use anyhow::Result;
-use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
@@ -801,14 +800,6 @@ impl NodeConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ConsensusProtocol {
-    #[serde(rename = "mysticeti")]
-    Mysticeti,
-    #[serde(rename = "starfish")]
-    Starfish,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
     // Base consensus DB path for all epochs.
@@ -843,12 +834,9 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    /// Parameters for Mysticeti consensus
-    pub parameters: Option<ConsensusParameters>,
-
     /// Parameters for Starfish consensus
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starfish_parameters: Option<StarfishParameters>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
+    pub parameters: Option<StarfishParameters>,
 }
 
 impl ConsensusConfig {

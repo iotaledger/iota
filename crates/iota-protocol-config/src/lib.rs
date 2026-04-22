@@ -259,7 +259,10 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
+    #[serde(
+        default = "ConsensusChoice::mysticeti_deprecated",
+        skip_serializing_if = "ConsensusChoice::is_mysticeti_deprecated"
+    )]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
@@ -513,14 +516,28 @@ impl PerObjectCongestionControlMode {
 // Configuration options for consensus algorithm.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
+    /// Kept only so protocol-config serialization of historical epochs stays
+    /// bit-for-bit identical; no runtime code branches on it.
+    #[deprecated(note = "Mysticeti was replaced by Starfish")]
+    MysticetiDeprecated,
     #[default]
-    Mysticeti,
     Starfish,
 }
 
+#[expect(deprecated)]
 impl ConsensusChoice {
-    pub fn is_mysticeti(&self) -> bool {
-        matches!(self, ConsensusChoice::Mysticeti)
+    /// serde deserialization default: an absent `consensus_choice` field in a
+    /// historical snapshot deserializes to `MysticetiDeprecated` so that
+    /// re-serialization stays byte-identical (the skip condition below also
+    /// triggers on that variant). Decoupled from the Rust `Default` impl,
+    /// which returns `Starfish` to reflect that Starfish is the current
+    /// consensus protocol.
+    fn mysticeti_deprecated() -> Self {
+        ConsensusChoice::MysticetiDeprecated
+    }
+
+    pub fn is_mysticeti_deprecated(&self) -> bool {
+        matches!(self, ConsensusChoice::MysticetiDeprecated)
     }
     pub fn is_starfish(&self) -> bool {
         matches!(self, ConsensusChoice::Starfish)
@@ -2264,9 +2281,14 @@ impl ProtocolConfig {
             }
         }
 
-        // Enable Mysticeti on mainnet.
-        cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
-        // Use tonic networking for Mysticeti.
+        // Historical default: Mysticeti. Kept explicitly to match the
+        // serialized form of pre-v14/v19/v24 configs. No runtime behavior
+        // depends on this — Starfish is the only consensus protocol.
+        #[expect(deprecated)]
+        {
+            cfg.feature_flags.consensus_choice = ConsensusChoice::MysticetiDeprecated;
+        }
+        // Use tonic networking for consensus.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
 
         cfg.feature_flags.per_object_congestion_control_mode =

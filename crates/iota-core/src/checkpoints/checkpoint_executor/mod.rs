@@ -522,7 +522,7 @@ impl CheckpointExecutor {
             .await;
 
         // Currently this code only runs on validators, where this method call does
-        // nothing. But in the future, fullnodes may follow the mysticeti dag
+        // nothing. But in the future, fullnodes may follow the consensus dag
         // and build their own checkpoints.
         self.insert_finalized_transactions(&tx_digests, sequence_number, checkpoint.timestamp_ms);
 

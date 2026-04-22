@@ -7,7 +7,6 @@ use std::{
     ops::Deref,
 };
 
-use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -24,6 +23,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::ident_str;
+use starfish_core::{BlockRef, BlockStatus};
 
 use crate::{
     authority::{
@@ -871,7 +871,9 @@ async fn test_handle_soft_bundle_certificates() {
         authority.clone(),
         HashSet::new(),
         true,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
     );
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
     let _metrics = server.metrics.clone();

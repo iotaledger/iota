@@ -55,7 +55,7 @@ impl UniversalCommitter {
         // let last_round = match self
         //     .context
         //     .protocol_config
-        //     .mysticeti_num_leaders_per_round()
+        //     .consensus_num_leaders_per_round()
         // {
         //     Some(1) => {
         // Ensure that we don't commit any leaders from the same round as last_decided
