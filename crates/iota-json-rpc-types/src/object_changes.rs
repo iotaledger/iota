@@ -18,7 +18,7 @@ use crate::{
     iota_owner::OwnerSchema,
     serde_utils::{
         Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        SequenceNumberString as SequenceNumberSchema, StructTag as StructTagSchema,
+        SequenceNumberString as SequenceNumberStringSchema, StructTag as StructTagSchema,
     },
 };
 
@@ -33,8 +33,8 @@ pub enum ObjectChange {
     Published {
         #[schemars(with = "ObjectIDSchema")]
         package_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
@@ -53,8 +53,8 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
@@ -72,11 +72,11 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         previous_version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
@@ -91,8 +91,8 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
     },
     /// Wrapped object
@@ -105,8 +105,8 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
     },
     /// Unwrapped object
@@ -122,8 +122,8 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
@@ -141,8 +141,8 @@ pub enum ObjectChange {
         object_type: StructTag,
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,

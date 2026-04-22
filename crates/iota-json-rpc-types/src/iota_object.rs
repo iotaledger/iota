@@ -43,8 +43,8 @@ use crate::{
     iota_owner::OwnerSchema,
     serde_utils::{
         Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        SequenceNumberString as SequenceNumberSchema, SequenceNumberU64 as SequenceNumberU64Schema,
-        StructTag as StructTagSchema,
+        SequenceNumberString as SequenceNumberStringSchema,
+        SequenceNumberU64 as SequenceNumberU64Schema, StructTag as StructTagSchema,
     },
 };
 
@@ -211,8 +211,7 @@ pub struct IotaObjectData {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[serde_as(as = "SequenceNumberSchema")]
-    #[schemars(with = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58")]
@@ -974,8 +973,8 @@ pub struct IotaRawMoveObject {
     #[schemars(with = "String")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64")]
@@ -1076,8 +1075,8 @@ pub struct IotaUpgradeInfo {
     #[schemars(with = "ObjectIDSchema")]
     pub upgraded_id: ObjectID,
     /// The version of the package at `upgraded_id`.
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
     pub upgraded_version: SequenceNumber,
 }
 
@@ -1105,8 +1104,8 @@ impl From<IotaUpgradeInfo> for UpgradeInfo {
 pub struct IotaRawMovePackage {
     #[schemars(with = "ObjectIDSchema")]
     pub id: ObjectID,
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
     #[schemars(with = "BTreeMap<String, Base64>")]
     #[serde_as(as = "BTreeMap<_, Base64>")]
@@ -1258,8 +1257,8 @@ pub struct IotaGetPastObjectRequest {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// the version of the queried object.
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
 }
 

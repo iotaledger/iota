@@ -61,7 +61,7 @@ use crate::{
     object_changes::ObjectChange,
     serde_utils::{
         Base58, GenericSignature as GenericSignatureSchema, IotaAddress as IotaAddressSchema,
-        ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberSchema,
+        ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
 };
@@ -822,8 +822,8 @@ pub trait IotaTransactionBlockEffectsAPI {
 pub struct IotaTransactionBlockEffectsModifiedAtVersions {
     #[schemars(with = "ObjectIDSchema")]
     object_id: ObjectID,
-    #[schemars(with = "SequenceNumberSchema")]
-    #[serde_as(as = "SequenceNumberSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
     sequence_number: SequenceNumber,
 }
 
@@ -2033,8 +2033,8 @@ pub enum IotaInputObjectKind {
     SharedMoveObject {
         #[schemars(with = "ObjectIDSchema")]
         id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         initial_shared_version: SequenceNumber,
         #[serde(default = "default_shared_object_mutability")]
         mutable: bool,
@@ -2648,8 +2648,8 @@ pub enum IotaObjectArg {
     ImmOrOwnedObject {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
@@ -2661,8 +2661,8 @@ pub enum IotaObjectArg {
     SharedObject {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
@@ -2671,8 +2671,8 @@ pub enum IotaObjectArg {
     Receiving {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberSchema")]
-        #[serde_as(as = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
         #[schemars(with = "Base58")]
         digest: ObjectDigest,
