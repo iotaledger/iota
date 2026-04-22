@@ -415,17 +415,15 @@ impl BaseCommitter {
         false
     }
 
-    /// Classify a freshly committed leader into `Optimistic`/`Standard`/`Pending`
-    /// based on the strong-vote evidence at the voting and certifying rounds.
-    /// Returns `None` when the StarfishSpeed protocol flag is disabled.
+    /// Classify a freshly committed leader into
+    /// `Optimistic`/`Standard`/`Pending` based on the strong-vote evidence
+    /// at the voting and certifying rounds. Returns `None` when the
+    /// StarfishSpeed protocol flag is disabled.
     ///
     /// 1. 2f+1 certifiers at `r+2` each carrying a StrongQC → `Optimistic`.
     /// 2. 2f+1 voters at `r+1` with `is_strong_blame() == true` → `Standard`.
     /// 3. Otherwise → `Pending`.
-    fn determine_metastate(
-        &self,
-        leader_block: &VerifiedBlockHeader,
-    ) -> Option<CommitMetastate> {
+    fn determine_metastate(&self, leader_block: &VerifiedBlockHeader) -> Option<CommitMetastate> {
         if !self.context.protocol_config.consensus_starfish_speed() {
             return None;
         }
