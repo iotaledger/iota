@@ -351,7 +351,7 @@ pub enum TransactionKind {
     ProgrammableTransaction(ProgrammableTransaction),
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
-    #[deprecated(note = "JWK/authenticator state is no longer supported")]
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
     AuthenticatorStateUpdateV1Deprecated,
 
     /// EndOfEpochTransaction contains a list of transactions
@@ -2434,9 +2434,7 @@ impl SenderSignedData {
             match sig {
                 GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                     return Err(IotaError::UserInput {
-                        error: UserInputError::Unsupported(
-                            "zklogin is not enabled on this network".to_string(),
-                        ),
+                        error: UserInputError::Unsupported("zkLogin is not supported".to_string()),
                     });
                 }
                 GenericSignature::PasskeyAuthenticator(_) => {

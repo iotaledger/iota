@@ -79,7 +79,7 @@ pub enum ConsensusTransactionKey {
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
-    #[deprecated(note = "JWK is no longer supported")]
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
     NewJWKFetchedDeprecated,
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
@@ -107,7 +107,10 @@ impl Debug for ConsensusTransactionKey {
                 generation
             ),
             Self::NewJWKFetchedDeprecated => {
-                write!(f, "NewJWKFetched(deprecated: JWK is no longer supported)")
+                write!(
+                    f,
+                    "NewJWKFetched(deprecated: Authenticator state (JWK) is deprecated and was never enabled on IOTA)"
+                )
             }
             Self::RandomnessDkgMessage(name) => {
                 write!(f, "RandomnessDkgMessage({:?})", name.concise())
@@ -250,7 +253,7 @@ pub enum ConsensusTransactionKind {
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
     SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
-    #[deprecated(note = "JWK is no longer supported")]
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
     NewJWKFetchedDeprecated,
 
     // DKG is used to generate keys for use in the random beacon protocol.

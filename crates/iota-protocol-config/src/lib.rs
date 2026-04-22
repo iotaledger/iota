@@ -2713,7 +2713,8 @@ impl ProtocolConfig {
                 }
                 #[allow(deprecated)]
                 25 => {
-                    // Deprecate zkLogin related parameters since zkLogin is no longer supported.
+                    // Deprecate zkLogin related parameters since zkLogin is deprecated and was
+                    // never enabled on IOTA.
                     cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = None;
                     cfg.check_zklogin_id_cost_base = None;
                     cfg.check_zklogin_issuer_cost_base = None;

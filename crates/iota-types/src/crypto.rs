@@ -294,7 +294,7 @@ pub enum PublicKey {
     Ed25519(Ed25519PublicKeyAsBytes),
     Secp256k1(Secp256k1PublicKeyAsBytes),
     Secp256r1(Secp256r1PublicKeyAsBytes),
-    #[deprecated(note = "zkLogin is no longer supported")]
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
     ZkLoginDeprecated,
     Passkey(Secp256r1PublicKeyAsBytes),
 }
@@ -1699,7 +1699,7 @@ pub enum SignatureScheme {
     Secp256r1,
     BLS12381, // This is currently not supported for user Iota Address.
     MultiSig,
-    #[deprecated(note = "zkLogin is no longer supported")]
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
     ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
@@ -1757,7 +1757,7 @@ pub enum CompressedSignature {
     Ed25519(Ed25519SignatureAsBytes),
     Secp256k1(Secp256k1SignatureAsBytes),
     Secp256r1(Secp256r1SignatureAsBytes),
-    #[deprecated(note = "zkLogin is no longer supported")]
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
     ZkLoginDeprecated,
     Passkey(PasskeyAuthenticatorAsBytes),
     Move(MoveAuthenticatorAsBytes),

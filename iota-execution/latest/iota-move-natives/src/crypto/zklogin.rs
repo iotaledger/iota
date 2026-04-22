@@ -17,9 +17,7 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 
-#[deprecated(
-    note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
-)]
+#[deprecated(note = "zkLogin has been removed; kept only for old bytecode snapshot compatibility")]
 #[derive(Clone)]
 pub struct CheckZkloginIdCostParams {
     /// Base cost for invoking the `check_zklogin_id` function
@@ -37,9 +35,7 @@ pub fn check_zklogin_id_internal(
     Ok(NativeResult::err(context.gas_used(), 0))
 }
 
-#[deprecated(
-    note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
-)]
+#[deprecated(note = "zkLogin has been removed; kept only for old bytecode snapshot compatibility")]
 #[derive(Clone)]
 pub struct CheckZkloginIssuerCostParams {
     /// Base cost for invoking the `check_zklogin_issuer` function

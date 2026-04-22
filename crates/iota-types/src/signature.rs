@@ -61,7 +61,7 @@ pub trait AuthenticatorTrait {
 /// Deprecated zkLogin authenticator — empty stub retained only so the
 /// [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles.
 /// Instances are never constructed; deserialization rejects the flag byte.
-#[deprecated(note = "zkLogin is no longer supported")]
+#[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct ZkLoginAuthenticatorDeprecated;
 
@@ -247,7 +247,8 @@ impl ToFromBytes for GenericSignature {
                     Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
                 }
                 SignatureScheme::ZkLoginAuthenticatorDeprecated => {
-                    // zkLogin is no longer supported — reject at deserialization.
+                    // zkLogin is deprecated and was never enabled on IOTA — reject at
+                    // deserialization.
                     Err(FastCryptoError::GeneralError(
                         "zkLogin is not supported".to_string(),
                     ))
