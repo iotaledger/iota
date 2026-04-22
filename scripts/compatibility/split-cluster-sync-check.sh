@@ -172,17 +172,8 @@ get_metrics "${CONFIGS[0]}" "$METRICS_DIR/node-0-before-node3.txt"
 INITIAL_COMMIT_INDEX=$(get_metric_value "$METRICS_DIR/node-0-before-node3.txt" "consensus_last_commit_index")
 echo "Initial commit index on node-0: $INITIAL_COMMIT_INDEX"
 
-# Detect consensus protocol (Starfish vs Mysticeti) from the release node log.
-# The consensus manager logs "Starting consensus protocol Mysticeti ..." or
-# "Starting consensus protocol Starfish ..." on every epoch start, making this
-# a reliable signal independent of any metric values.
-if grep -q "Starting consensus protocol Starfish" "$LOG_DIR/node-0.log" 2>/dev/null; then
-  CONSENSUS_TYPE="starfish"
-  echo "Detected consensus protocol: Starfish"
-else
-  CONSENSUS_TYPE="mysticeti"
-  echo "Detected consensus protocol: Mysticeti"
-fi
+CONSENSUS_TYPE="starfish"
+echo "Consensus protocol: Starfish"
 
 echo -e "\n=== Phase 2: Late Start of Candidate Node ==="
 echo "Starting node-3 (candidate) - should trigger synchronization to catch up..."

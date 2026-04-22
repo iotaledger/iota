@@ -479,7 +479,7 @@ mod test {
     };
 
     #[test]
-    fn test_iota_and_mysticeti_committee_are_same() {
+    fn test_iota_and_consensus_committee_are_same() {
         // GIVEN
         let mut committee_validators = vec![];
 
@@ -547,7 +547,7 @@ mod test {
     }
 
     #[test]
-    fn test_v2_iota_and_mysticeti_committee_are_same() {
+    fn test_v2_iota_and_consensus_committee_are_same() {
         // GIVEN
         let mut committee_validators = vec![];
         let mut non_committee_validators = vec![];

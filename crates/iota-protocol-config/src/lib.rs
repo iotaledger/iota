@@ -2258,8 +2258,7 @@ impl ProtocolConfig {
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
         }
 
-        // Enable Mysticeti on mainnet.
-        // Use tonic networking for Mysticeti.
+        // Use tonic networking for consensus.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
 
         cfg.feature_flags.per_object_congestion_control_mode =

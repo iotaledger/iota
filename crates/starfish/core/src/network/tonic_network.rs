@@ -535,7 +535,7 @@ impl ChannelPool {
             .keep_alive_timeout(config.keepalive_interval)
             .http2_keep_alive_interval(config.keepalive_interval)
             // tcp keepalive is probably unnecessary and is unsupported by msim.
-            .user_agent("mysticeti")
+            .user_agent("starfish")
             .unwrap()
             .tls_config(client_tls_config)
             .unwrap();
