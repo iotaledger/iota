@@ -33,7 +33,7 @@ mod ingestion_tests {
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
-        types::{EventIndex, TxIndex},
+        types::{EventIndex, ObjectStatus, TxIndex},
     };
     use iota_types::{
         base_types::{IotaAddress, StructTag},
@@ -613,14 +613,22 @@ mod ingestion_tests {
             !all_objects.is_empty(),
             "objects table should not be empty after ingestion"
         );
+
+        // Filter to active checkpointed objects only for comparison with `objects`.
+        let active_checkpointed: Vec<_> = all_checkpointed
+            .iter()
+            .filter(|cp| cp.object_status == ObjectStatus::Active as i16)
+            .collect();
+
         assert_eq!(
             all_objects.len(),
-            all_checkpointed.len(),
-            "objects and checkpointed_objects should have the same number of rows"
+            active_checkpointed.len(),
+            "objects and active checkpointed_objects should have the same number of rows"
         );
 
-        // Compare each row field by field (minus finalized_in_cp).
-        for (obj, cp_obj) in all_objects.iter().zip(all_checkpointed.iter()) {
+        // Compare each active row field by field (minus finalized_in_cp,
+        // object_status, checkpoint_sequence_number).
+        for (obj, cp_obj) in all_objects.iter().zip(active_checkpointed.iter()) {
             assert_eq!(obj.object_id, cp_obj.object_id, "object_id mismatch");
             assert_eq!(
                 obj.object_version, cp_obj.object_version,
@@ -628,12 +636,14 @@ mod ingestion_tests {
                 obj.object_id
             );
             assert_eq!(
-                obj.object_digest, cp_obj.object_digest,
+                Some(&obj.object_digest),
+                cp_obj.object_digest.as_ref(),
                 "object_digest mismatch for {:?}",
                 obj.object_id
             );
             assert_eq!(
-                obj.owner_type, cp_obj.owner_type,
+                Some(obj.owner_type),
+                cp_obj.owner_type,
                 "owner_type mismatch for {:?}",
                 obj.object_id
             );
@@ -663,7 +673,8 @@ mod ingestion_tests {
                 obj.object_id
             );
             assert_eq!(
-                obj.serialized_object, cp_obj.serialized_object,
+                Some(&obj.serialized_object),
+                cp_obj.serialized_object.as_ref(),
                 "serialized_object mismatch for {:?}",
                 obj.object_id
             );
