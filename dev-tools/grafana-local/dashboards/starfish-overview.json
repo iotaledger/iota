@@ -598,7 +598,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "avg(rate(total_transaction_certificates[2m]) > 1)",
+          "expr": "quantile(0.5, rate(transactions_included_in_checkpoint[2m]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1182,10 +1182,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m]))",
-          "legendFormat": "p50",
+          "expr": "quantile(0.05, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p5",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.5, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.95, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Block Latency",
@@ -1276,10 +1298,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[2m]) / rate(consensus_transaction_commit_latency_count[2m]) or rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m]))",
-          "legendFormat": "p50",
+          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p5",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Tx Latency",
