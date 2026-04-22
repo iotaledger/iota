@@ -35,7 +35,7 @@ use iota_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
-    committee::{Committee, CommitteeTrait},
+    committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
@@ -2736,6 +2736,48 @@ impl AuthorityPerEpochStore {
             .tables()?
             .authority_overload_notifications
             .get(authority)?)
+    }
+
+    /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
+    /// received via OverloadNotificationV1 consensus transactions. Authorities
+    /// that have not sent a notification are assumed to have a percentage of 0.
+    pub fn get_quorum_load_shedding_percentage(&self) -> IotaResult<u8> {
+        let notifications = self
+            .tables()?
+            .authority_overload_notifications
+            .safe_iter()
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?;
+
+        let committee = self.committee();
+
+        // Build a vec of (percentage, stake) for every committee member.
+        // Default to 0% for authorities that haven't reported.
+        let mut weighted_values: Vec<(u8, StakeUnit)> = committee
+            .members()
+            .map(|(authority, stake)| {
+                let percentage = notifications.get(authority).copied().unwrap_or(0);
+                (percentage, *stake)
+            })
+            .collect();
+
+        // Sort ascending by percentage.
+        weighted_values.sort_by_key(|(percentage, _)| *percentage);
+
+        // Walk from lowest to highest, accumulating stake. The value where
+        // cumulative stake first reaches the quorum threshold (2f+1) is the result.
+        let quorum_threshold = committee.quorum_threshold();
+        let mut accumulated_stake: StakeUnit = 0;
+
+        for (percentage, stake) in weighted_values {
+            accumulated_stake += stake;
+            if accumulated_stake >= quorum_threshold {
+                return Ok(percentage);
+            }
+        }
+
+        // Unreachable with a valid committee (total stake >= quorum threshold),
+        // but return 0 as a safe fallback.
+        Ok(0)
     }
 
     pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
