@@ -127,6 +127,7 @@ impl ConsensusClient for LazyStarfishClient {
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
+                    | ConsensusTransactionKind::OverloadNotificationV1(_, _)
             )
         {
             let transaction_key = SequencedConsensusTransactionKey::External(transactions[0].key());

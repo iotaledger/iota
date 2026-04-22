@@ -56,6 +56,7 @@ pub enum ConsensusTransactionKey {
     ),
     /// White flag user transaction key (by transaction digest).
     UserTransaction(TransactionDigest),
+    OverloadNotificationV1(AuthorityName, u8),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -97,6 +98,14 @@ impl Debug for ConsensusTransactionKey {
                 )
             }
             Self::UserTransaction(digest) => write!(f, "UserTransaction({digest:?})"),
+            Self::OverloadNotificationV1(name, percentage) => {
+                write!(
+                    f,
+                    "OverloadNotificationV1({:?}, {:?})",
+                    name.concise(),
+                    percentage
+                )
+            }
         }
     }
 }
@@ -239,6 +248,7 @@ pub enum ConsensusTransactionKind {
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
     UserTransactionV1(Box<Transaction>),
+    OverloadNotificationV1(AuthorityName, u8),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -552,6 +562,23 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_overload_notification_v1(
+        authority: AuthorityName,
+        load_shedding_percentage: u8,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        authority.hash(&mut hasher);
+        load_shedding_percentage.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::OverloadNotificationV1(
+                authority,
+                load_shedding_percentage,
+            ),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -601,6 +628,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::UserTransactionV1(tx) => {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, percentage) => {
+                ConsensusTransactionKey::OverloadNotificationV1(*authority, *percentage)
             }
         }
     }
