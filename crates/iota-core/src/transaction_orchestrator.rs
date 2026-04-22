@@ -296,7 +296,11 @@ where
                     EffectsFinalityInfo::PendingCheckpointExecution(_)
                 )
             {
-                Self::reconcile_effects_from_cache(&self.validator_state, &mut response);
+                Self::reconcile_effects_from_cache(
+                    &self.validator_state,
+                    *transaction.digest(),
+                    &mut response,
+                );
             }
 
             executed_locally
@@ -316,11 +320,9 @@ where
                  to the client for tx {:?}",
                 response.effects.effects.transaction_digest()
             );
-            return Err(QuorumDriverError::QuorumDriverInternal(
-                iota_types::error::IotaError::Unknown(
-                    "internal error: transaction effects not finalized".to_string(),
-                ),
-            ));
+            return Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
+                "internal error: transaction effects not finalized".to_string(),
+            )));
         }
 
         Ok((response, executed_locally))
@@ -331,16 +333,21 @@ where
     /// executor has processed the tx, so the cache has the real effects and
     /// the TD-returned (single-validator) copy can be discarded.
     ///
+    /// `tx_digest` must be the digest of the caller's original transaction,
+    /// not the digest carried in `response.effects.effects` — a byzantine
+    /// submitter could set the latter to an unrelated (already-executed) tx
+    /// so we'd read unrelated effects from the cache.
+    ///
     /// Also upgrades the finality info from `PendingCheckpointExecution` to
     /// `QuorumExecuted`. A warning is logged if the TD-returned effects
     /// digest diverges from the cache digest (byzantine submitter or bug).
     fn reconcile_effects_from_cache(
         validator_state: &Arc<AuthorityState>,
+        tx_digest: TransactionDigest,
         response: &mut ExecuteTransactionResponseV1,
     ) {
         use iota_types::{effects::TransactionEffectsAPI as _, message_envelope::Message as _};
 
-        let tx_digest = *response.effects.effects.transaction_digest();
         let cache = validator_state.get_transaction_cache_reader();
 
         let cache_effects = match cache.try_get_executed_effects(&tx_digest) {

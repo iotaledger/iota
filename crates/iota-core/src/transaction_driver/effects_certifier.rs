@@ -215,6 +215,11 @@ impl EffectsCertifier {
     /// checkpoint execution for finality, making the 2f+1 certification
     /// broadcast redundant.
     ///
+    /// The returned `executed_data.effects.transaction_digest()` is verified
+    /// to match `expected_tx_digest`; a mismatch indicates a byzantine
+    /// submitter attempting to inject effects for an unrelated transaction
+    /// and is rejected.
+    ///
     /// Behavior per `submit_txn_result`:
     /// - `Executed { details: Some(_) }`: use the submitting validator's
     ///   details directly — no extra RPC needed.
@@ -276,6 +281,26 @@ impl EffectsCertifier {
                     ),
                 })?
         };
+
+        // Guard against a byzantine submitter returning effects for a different
+        // transaction. The caller will later key the local-cache reconciliation
+        // off the returned effects digest, so letting this slip through would
+        // let the attacker swap in effects from an unrelated (already-executed)
+        // tx. `tx_digest` is always `Some` on this path (pings never use
+        // WaitForLocalExecution), so we assert rather than silently skip.
+        let expected_tx_digest = tx_digest.expect(
+            "get_effects_without_certification is only invoked for user transactions; \
+             tx_digest must be Some",
+        );
+        let returned_tx_digest = *executed_data.effects.transaction_digest();
+        if returned_tx_digest != expected_tx_digest {
+            return Err(TransactionDriverError::ClientInternal {
+                error: format!(
+                    "Submitting validator {:?} returned effects for tx {:?} but we expected {:?}",
+                    current_target, returned_tx_digest, expected_tx_digest
+                ),
+            });
+        }
 
         self.metrics.executed_transactions.inc();
         tracing::debug!("Transaction executed (uncertified) with effects digest: {effects_digest}");
