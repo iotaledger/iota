@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
+    hash::Hasher as _,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -77,6 +78,7 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
+use twox_hash::XxHash64;
 use typed_store::{
     DBMapUtils, Map,
     rocks::{
@@ -3300,15 +3302,40 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         let enable_white_flag = self.protocol_config.enable_white_flag_flow();
+
+        // Post-consensus load shedding: compute the drop percentage once before
+        // the loop so user transactions can be dropped inline during categorization.
+        let drop_percentage = if enable_white_flag {
+            self.get_quorum_load_shedding_percentage()? as u64
+        } else {
+            0
+        };
+        let drop_seed = consensus_commit_info.round;
+
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
-                current_commit_sequenced_randomness_transactions.push(tx);
             } else {
-                current_commit_sequenced_consensus_transactions.push(tx);
+                // For user transactions, deterministically drop based on the
+                // quorum load shedding percentage.
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.executable_transaction_digest() {
+                        let mut hasher = XxHash64::with_seed(drop_seed);
+                        hasher.write(digest.inner());
+                        let hash = hasher.finish();
+                        if hash % 100 < drop_percentage {
+                            continue;
+                        }
+                    }
+                }
+
+                if tx.0.is_user_tx_with_randomness() {
+                    current_commit_sequenced_randomness_transactions.push(tx);
+                } else {
+                    current_commit_sequenced_consensus_transactions.push(tx);
+                }
             }
         }
 
@@ -4739,7 +4766,7 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 }
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
