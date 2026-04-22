@@ -170,7 +170,7 @@ impl GraphQLStream {
         filter: Option<SubscriptionTransactionFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         self.streamer
-            .subscribe_transactions()
+            .subscribe_transactions(None)
             .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
             .then(|stored| {
                 let subscription_item = match stored {
@@ -208,7 +208,7 @@ impl GraphQLStream {
         filter: Option<SubscriptionEventFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         self.streamer
-            .subscribe_events()
+            .subscribe_events(None)
             .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
             .then(|stored| {
                 let subscription_item = match stored {

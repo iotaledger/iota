@@ -19,6 +19,8 @@ pub enum IndexerStreamingError {
     Indexer(String),
     #[error(transparent)]
     Lagged(#[from] BroadcastStreamRecvError),
+    #[error("not found: {0}")]
+    NotFound(String),
 }
 
 impl From<diesel::result::Error> for IndexerStreamingError {

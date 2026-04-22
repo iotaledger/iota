@@ -2718,7 +2718,7 @@ impl<'a> DBReader<'a> {
             .map(|seq| seq.is_none())
     }
 
-    async fn resolve_cursor_tx_digest_to_seq_num(
+    pub async fn resolve_cursor_tx_digest_to_seq_num(
         &self,
         cursor: TransactionDigest,
     ) -> IndexerResult<i64> {
@@ -3054,6 +3054,23 @@ impl<'a> DBReader<'a> {
         };
 
         Ok(result)
+    }
+
+    /// Fetches the latest transaction sequence number from the checkpoints
+    /// table.
+    pub async fn latest_tx_sequence_number(&self) -> Result<Option<i64>, IndexerError> {
+        use crate::schema::checkpoints::dsl;
+
+        let pool = self.main_reader.get_pool();
+
+        run_query_async!(&pool, |conn| {
+            dsl::checkpoints
+                .select(dsl::max_tx_sequence_number)
+                .order(dsl::sequence_number.desc())
+                .first::<Option<i64>>(conn)
+                .optional()
+        })
+        .map(Option::flatten)
     }
 }
 
