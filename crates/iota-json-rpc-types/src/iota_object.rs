@@ -974,8 +974,7 @@ pub struct IotaRawMoveObject {
     #[schemars(with = "String")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
-    #[schemars(with = "SequenceNumberStringSchema")]
-    #[serde_as(as = "SequenceNumberStringSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64")]
