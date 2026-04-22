@@ -29,5 +29,5 @@
 		}
 	},
 	"globalEnv": ["VERCEL_ENV", "BUILD_ENV"],
-	"globalDependencies": []
+	"globalDependencies": ["prettier.config.js", ".prettierignore"]
 }

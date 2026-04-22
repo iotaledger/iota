@@ -1,0 +1,27 @@
+# ignore everything by default
+/*
+# Enable prettier for the docs site and root js configs
+!/docs
+!/.config
+!/*.js
+
+# ignore markdown and yml files because they are covered by dprint
+**/*.md
+**/*.mdx
+**/*.yml
+**/*.yaml
+
+# ignore generated files
+npm-debug.log*
+package-lock.json
+yarn-debug.log*
+yarn-error.log*
+.next/
+.swc/
+build/
+coverage/
+dist/
+out/
+generated/
+playwright-report/
+storybook-static/
