@@ -102,6 +102,12 @@ pub enum TransactionDriverError {
         attempts: u32,
         timeout: Duration,
     },
+    /// Transaction was successfully submitted to consensus, but the
+    /// subsequent effects fetch from the submitting validator failed. The
+    /// tx is expected to be finalized via the local checkpoint executor; the
+    /// caller may recover by waiting for checkpoint inclusion and reading
+    /// effects from the local cache. Retriable at the client level.
+    SubmittedButFetchFailed { error: String },
 }
 
 impl TransactionDriverError {
@@ -147,6 +153,7 @@ impl TransactionDriverError {
             TransactionDriverError::TimeoutWithLastRetriableError { .. } => {
                 ErrorCategory::Unavailable
             }
+            TransactionDriverError::SubmittedButFetchFailed { .. } => ErrorCategory::Unavailable,
         }
     }
 
@@ -262,6 +269,12 @@ impl std::fmt::Display for TransactionDriverError {
                         .as_ref()
                         .map(|e| e.to_string())
                         .unwrap_or_default()
+                )
+            }
+            TransactionDriverError::SubmittedButFetchFailed { error } => {
+                write!(
+                    f,
+                    "Transaction submitted to consensus but failed to fetch effects from submitter: {error}"
                 )
             }
         }

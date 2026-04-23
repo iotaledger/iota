@@ -275,44 +275,76 @@ where
         let include_input_objects = request.include_input_objects;
         let include_output_objects = request.include_output_objects;
 
-        // Use TransactionDriver if configured, otherwise fall back to QuorumDriver.
-        let (transaction, mut response) = if let Some(td) = &self.transaction_driver {
-            self.submit_with_transaction_driver(
-                td.clone(),
-                &epoch_store,
-                request,
-                client_addr,
-                request_type.clone(),
-            )
-            .await?
-        } else {
-            let (tx, qd_resp) = self
-                .execute_transaction_impl(&epoch_store, request, client_addr)
-                .await?;
-            let resp = quorum_driver_response_to_v1(qd_resp);
-            (tx, resp)
-        };
+        let transaction = epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+
+        // `None` here means the TransactionDriver skip-effect-certification
+        // path reached consensus but failed to fetch effects from the single
+        // submitting validator. We'll rebuild the response from the local
+        // cache further down, sharing the same `wait_for_checkpoint_inclusion`
+        // that the skip-cert success path uses.
+        let mut response: Option<ExecuteTransactionResponseV1> =
+            if let Some(td) = &self.transaction_driver {
+                match self
+                    .submit_with_transaction_driver(
+                        td.clone(),
+                        request,
+                        client_addr,
+                        request_type.clone(),
+                    )
+                    .await
+                {
+                    Ok(response) => Some(response),
+                    Err(TransactionDriverError::SubmittedButFetchFailed { error })
+                        if matches!(
+                            request_type,
+                            ExecuteTransactionRequestType::WaitForLocalExecution
+                        ) =>
+                    {
+                        self.metrics.skip_effect_cert_submitter_fetch_failure.inc();
+                        debug!(
+                            tx_digest = ?transaction.digest(),
+                            "submit_with_transaction_driver fetch failed ({error}); \
+                             will rebuild response from local cache after checkpoint inclusion"
+                        );
+                        None
+                    }
+                    Err(e) => return Err(map_td_error_to_qd(e)),
+                }
+            } else {
+                let (_, qd_resp) = self
+                    .execute_transaction_impl(&epoch_store, request, client_addr)
+                    .await?;
+                Some(quorum_driver_response_to_v1(qd_resp))
+            };
 
         let executed_locally = if matches!(
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         ) {
-            let skip_effect_certification = matches!(
-                response.effects.finality_info,
-                EffectsFinalityInfo::PendingCheckpointExecution(_)
-            );
+            // A response with `PendingCheckpointExecution` finality came from
+            // the TD skip-effect-certification path; `None` means we need to
+            // build the response from scratch. Both cases share the same
+            // `wait_for_checkpoint_inclusion`.
+            let needs_cache_rebuild = response.is_none()
+                || response
+                    .as_ref()
+                    .map(|r| {
+                        matches!(
+                            r.effects.finality_info,
+                            EffectsFinalityInfo::PendingCheckpointExecution(_)
+                        )
+                    })
+                    .unwrap_or(false);
 
-            let executed_locally = if skip_effect_certification {
-                // Skip-effect-certification path: the TD returned
-                // single-validator (potentially
-                // byzantine) data. Use wait_for_checkpoint_inclusion instead of
-                // the usual effects-only wait — it returns the checkpoint seq
-                // as a side effect and guarantees the mapping is stored (the
-                // CheckpointExecutor writes `executed_transactions_to_checkpoint`
-                // strictly after every tx in the checkpoint has its effects
-                // written, so waiting on the mapping implies effects are also
-                // available). Then reconcile the response against the
-                // authoritative local-cache data.
+            let executed_locally = if needs_cache_rebuild {
+                // Wait for local checkpoint inclusion. This guarantees the
+                // mapping is stored — the CheckpointExecutor writes
+                // `executed_transactions_to_checkpoint` strictly after every
+                // tx in the checkpoint has its effects written, so waiting on
+                // the mapping implies effects are also available. Returns the
+                // checkpoint seq which we use to tag `Checkpointed` finality.
                 let tx_digest = *transaction.digest();
                 let seq = self
                     .validator_state
@@ -326,18 +358,38 @@ where
                 add_server_timing("local_execution");
 
                 if let Some(seq) = seq {
-                    Self::reconcile_effects_from_cache(
-                        &self.validator_state,
-                        tx_digest,
-                        seq,
-                        include_events,
-                        include_input_objects,
-                        include_output_objects,
-                        &mut response,
-                        &self.metrics,
-                    );
+                    match response.as_mut() {
+                        Some(existing) => Self::reconcile_effects_from_cache(
+                            &self.validator_state,
+                            tx_digest,
+                            seq,
+                            include_events,
+                            include_input_objects,
+                            include_output_objects,
+                            existing,
+                            &self.metrics,
+                        ),
+                        None => {
+                            response = Some(Self::build_response_from_cache(
+                                &self.validator_state,
+                                tx_digest,
+                                seq,
+                                include_events,
+                                include_input_objects,
+                                include_output_objects,
+                            )?);
+                        }
+                    }
                     true
                 } else {
+                    // Timed out waiting for the tx to land in a local
+                    // checkpoint. For the TD-success-with-PendingCheckpointExecution
+                    // case, the existing safety guard rejects the response.
+                    // For the recovery case (response is None), surface a
+                    // TimeoutBeforeFinality to the caller.
+                    if response.is_none() {
+                        return Err(QuorumDriverError::TimeoutBeforeFinality);
+                    }
                     false
                 }
             } else {
@@ -361,6 +413,13 @@ where
         } else {
             false
         };
+
+        // At this point `response` is always `Some`: the recovery path either
+        // successfully rebuilt from cache or returned early with
+        // `TimeoutBeforeFinality`; every other code path populated it
+        // unconditionally. `expect` guards against a future refactor that
+        // forgets this invariant.
+        let response = response.expect("response must be populated before return");
 
         // Safety: uncertified effects (PendingCheckpointExecution) must never
         // reach the client — they are from a single validator and have not
@@ -413,8 +472,6 @@ where
         response: &mut ExecuteTransactionResponseV1,
         metrics: &TransactionOrchestratorMetrics,
     ) {
-        use iota_types::{effects::TransactionEffectsAPI as _, message_envelope::Message as _};
-
         let cache = validator_state.get_transaction_cache_reader();
 
         let cache_effects = match cache.try_get_executed_effects(&tx_digest) {
@@ -513,9 +570,93 @@ where
             }
         }
 
-        let epoch = cache_effects.executed_epoch();
+        let epoch = cache_effects.epoch();
         response.effects.effects = cache_effects;
         response.effects.finality_info = EffectsFinalityInfo::Checkpointed(epoch, checkpoint_seq);
+    }
+
+    /// Build a skip-effect-certification response entirely from the local
+    /// cache. The caller must have already obtained `checkpoint_seq` via
+    /// `wait_for_checkpoint_inclusion` — that guarantees both the effects
+    /// write and the checkpoint-mapping write have landed.
+    ///
+    /// Used as a recovery path in `execute_transaction_block` when the
+    /// submitter was reachable enough to submit the tx (so consensus will
+    /// include it) but the subsequent effects fetch from that single
+    /// validator failed.
+    fn build_response_from_cache(
+        validator_state: &Arc<AuthorityState>,
+        tx_digest: TransactionDigest,
+        checkpoint_seq: CheckpointSequenceNumber,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let cache = validator_state.get_transaction_cache_reader();
+        let effects = cache
+            .try_get_executed_effects(&tx_digest)
+            .map_err(|e| {
+                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                    "failed to read effects for tx {tx_digest:?}: {e:?}"
+                )))
+            })?
+            .ok_or_else(|| {
+                // Should be unreachable: wait_for_checkpoint_inclusion
+                // returned Some(seq), which means the CheckpointExecutor
+                // has already stored effects for every tx in that checkpoint.
+                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                    "effects missing from cache after checkpoint inclusion for tx {tx_digest:?}"
+                )))
+            })?;
+
+        let events = if include_events {
+            cache.try_get_events(&tx_digest).map_err(|e| {
+                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                    "failed to read events for tx {tx_digest:?}: {e:?}"
+                )))
+            })?
+        } else {
+            None
+        };
+
+        let input_objects = if include_input_objects {
+            Some(
+                validator_state
+                    .get_transaction_input_objects(&effects)
+                    .map_err(|e| {
+                        QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                            "failed to derive input objects for tx {tx_digest:?}: {e:?}"
+                        )))
+                    })?,
+            )
+        } else {
+            None
+        };
+        let output_objects = if include_output_objects {
+            Some(
+                validator_state
+                    .get_transaction_output_objects(&effects)
+                    .map_err(|e| {
+                        QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                            "failed to derive output objects for tx {tx_digest:?}: {e:?}"
+                        )))
+                    })?,
+            )
+        } else {
+            None
+        };
+
+        let epoch = effects.epoch();
+        Ok(ExecuteTransactionResponseV1 {
+            effects: FinalizedEffects {
+                effects,
+                finality_info: EffectsFinalityInfo::Checkpointed(epoch, checkpoint_seq),
+            },
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data: None,
+        })
     }
 
     // Utilize the handle_certificate_v1 validator api to request input/output
@@ -531,16 +672,17 @@ where
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
         if let Some(td) = &self.transaction_driver {
-            let (_, response) = self
-                .submit_with_transaction_driver(
-                    td.clone(),
-                    &epoch_store,
-                    request,
-                    client_addr,
-                    request_type,
-                )
-                .await?;
-            return Ok(response);
+            // v1 does not do an internal wait; callers (e.g. the gRPC
+            // execution service) are responsible for their own
+            // `wait_for_checkpoint_inclusion` when they need it, and will
+            // reconcile the response from the cache there.
+            epoch_store
+                .verify_transaction(request.transaction.clone())
+                .map_err(QuorumDriverError::InvalidUserSignature)?;
+            return self
+                .submit_with_transaction_driver(td.clone(), request, client_addr, request_type)
+                .await
+                .map_err(map_td_error_to_qd);
         }
 
         let qd_resp = self
@@ -557,15 +699,11 @@ where
     async fn submit_with_transaction_driver(
         &self,
         td: Arc<TransactionDriver<A>>,
-        epoch_store: &AuthorityPerEpochStore,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         request_type: ExecuteTransactionRequestType,
-    ) -> Result<(VerifiedTransaction, ExecuteTransactionResponseV1), QuorumDriverError> {
-        let transaction = epoch_store
-            .verify_transaction(request.transaction.clone())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
-        let tx_digest = *transaction.digest();
+    ) -> Result<ExecuteTransactionResponseV1, TransactionDriverError> {
+        let tx_digest = *request.transaction.digest();
 
         // TODO: add transaction to some struct to prevent sending the same transaction
         // multiple times in case client sends it multiple times if self
@@ -589,8 +727,7 @@ where
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
                 Some(request_type),
             )
-            .await
-            .map_err(map_td_error_to_qd)?;
+            .await?;
 
         debug!(
             "TransactionOrchestrator: TransactionDriver submission succeeded for transaction {}",
@@ -606,7 +743,7 @@ where
         } = td_response;
 
         let effects = convert_td_to_qd_effects(td_effects);
-        let response = ExecuteTransactionResponseV1 {
+        Ok(ExecuteTransactionResponseV1 {
             effects,
             events: if request.include_events { events } else { None },
             input_objects: if request.include_input_objects {
@@ -624,9 +761,7 @@ where
             } else {
                 None
             },
-        };
-
-        Ok((transaction, response))
+        })
     }
 
     // TODO check if tx is already executed on this node.
@@ -1061,6 +1196,11 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
             warn!("TransactionDriver client-internal error: {msg}");
             QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(msg))
         }
+        other @ SubmittedButFetchFailed { .. } => {
+            let msg = other.to_string();
+            warn!("TransactionDriver submitted transaction but failed to fetch effects: {msg}");
+            QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(msg))
+        }
     }
 }
 
@@ -1098,6 +1238,13 @@ pub struct TransactionOrchestratorMetrics {
     // claimed had events. Uncertified events are rejected and the request
     // fails via the safety guard.
     skip_effect_cert_events_cache_miss: GenericCounter<AtomicU64>,
+
+    // Bumped when the submit-with-transaction-driver step succeeded in
+    // pushing the tx into consensus but the subsequent effects fetch from
+    // the single submitting validator failed. `execute_transaction_block`
+    // recovers by rebuilding the response from the local cache after
+    // waiting for checkpoint inclusion.
+    skip_effect_cert_submitter_fetch_failure: GenericCounter<AtomicU64>,
 
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
@@ -1228,6 +1375,15 @@ impl TransactionOrchestratorMetrics {
                 "Number of skip-effect-certification responses rejected because the \
                  single submitter claimed to have events but the local cache did not \
                  corroborate them",
+                registry,
+            )
+            .unwrap(),
+            skip_effect_cert_submitter_fetch_failure: register_int_counter_with_registry!(
+                "tx_orchestrator_skip_effect_cert_submitter_fetch_failure",
+                "Number of skip-effect-certification submissions where the tx reached \
+                 consensus but the subsequent effects fetch from the submitting \
+                 validator failed; execute_transaction_block then recovers by reading \
+                 from the local cache",
                 registry,
             )
             .unwrap(),

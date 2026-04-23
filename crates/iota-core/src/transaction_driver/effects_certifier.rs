@@ -275,10 +275,17 @@ impl EffectsCertifier {
                 .clone();
             self.get_full_effects(client, tx_digest, options)
                 .await
-                .map_err(|e| TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Failed to get full effects from submitting validator {current_target:?}: {e}"
-                    ),
+                .map_err(|e| {
+                    // The tx was already submitted to consensus (we are past
+                    // `submit_transaction` which surfaces Rejected/Expired as
+                    // errors), so the effects-fetch failure does not imply
+                    // the tx won't finalize. Signal this specifically so the
+                    // orchestrator can recover via local checkpoint execution.
+                    TransactionDriverError::SubmittedButFetchFailed {
+                        error: format!(
+                            "failed to get full effects from submitting validator {current_target:?}: {e}"
+                        ),
+                    }
                 })?
         };
 
@@ -296,8 +303,7 @@ impl EffectsCertifier {
         if returned_tx_digest != expected_tx_digest {
             return Err(TransactionDriverError::ClientInternal {
                 error: format!(
-                    "Submitting validator {:?} returned effects for tx {:?} but we expected {:?}",
-                    current_target, returned_tx_digest, expected_tx_digest
+                    "Submitting validator {current_target:?} returned effects for tx {returned_tx_digest:?} but we expected {expected_tx_digest:?}"
                 ),
             });
         }
