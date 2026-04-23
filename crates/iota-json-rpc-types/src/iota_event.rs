@@ -41,7 +41,6 @@ pub type EventPage = Page<IotaEvent, EventID>;
 pub struct IotaEventID {
     #[schemars(with = "Base58")]
     pub tx_digest: TransactionDigest,
-
     #[schemars(with = "String")]
     pub event_seq: u64,
 }
