@@ -497,14 +497,22 @@ impl BaseCommitter {
 
     /// 2f+1 StrongQCs at `r+2` for `leader_block`.
     fn has_strong_qc_quorum(&self, leader_block: &VerifiedBlockHeader) -> bool {
+        let voting_round = leader_block.round() + 1;
         let certifying_round = leader_block.round() + 2;
 
-        let (_vote_refs, strong_vote_refs) =
-            self.vote_and_strong_vote_refs_for_leader(leader_block);
-        let decision_blocks = self
-            .dag_state
-            .read()
-            .get_uncommitted_block_headers_at_round(certifying_round);
+        let (voters, decision_blocks) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.get_uncommitted_block_headers_at_round(voting_round),
+                dag_state.get_uncommitted_block_headers_at_round(certifying_round),
+            )
+        };
+
+        let strong_vote_refs: HashSet<BlockRef> = voters
+            .into_iter()
+            .filter(|b| b.is_strong_vote() && self.is_vote(b, leader_block))
+            .map(|b| b.reference())
+            .collect();
 
         let mut strong_qc_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for decision_block in &decision_blocks {
