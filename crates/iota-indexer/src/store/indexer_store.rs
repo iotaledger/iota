@@ -186,6 +186,14 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         limit: i64,
     ) -> Result<usize, IndexerError>;
 
+    async fn prune_table_by_checkpoint_with_limit(
+        &self,
+        table: &PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError>;
+
     async fn update_watermark_lowest_unpruned_key(
         &self,
         table: &PrunableTable,
