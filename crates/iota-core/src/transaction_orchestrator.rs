@@ -422,9 +422,27 @@ where
         // forgets this invariant.
         let response = response.expect("response must be populated before return");
 
-        // Safety: uncertified effects (UncertifiedSingleValidator) must never
-        // reach the client — they are from a single validator and have not
-        // been confirmed by the local checkpoint executor.
+        // Safety guard: `UncertifiedSingleValidator` finality carries effects
+        // from the single submitting validator only — they MUST NOT reach the
+        // client without first being corroborated against the local
+        // checkpoint cache. This is the last-chance check before a successful
+        // return; it is reachable when:
+        //
+        // 1. The skip-effect-certification path returned single-validator data but the
+        //    caller did not pass `WaitForLocalExecution`, so
+        //    `reconcile_effects_from_cache` was never invoked.
+        // 2. `wait_for_finalized_tx_executed_locally_with_timeout` /
+        //    `wait_for_checkpoint_inclusion` timed out, so
+        //    `reconcile_effects_from_cache` bailed early and left the finality as-is.
+        // 3. `reconcile_effects_from_cache` took one of its early-return branches —
+        //    cache miss for effects, events, or object derivation — and left the
+        //    finality unchanged.
+        // 4. A future refactor introduces a new return path that forgets to run
+        //    reconciliation.
+        //
+        // In cases (1)-(3) the caller sees `TimeoutBeforeFinality` upstream,
+        // so this guard is expected only as a belt-and-braces fallback. Do
+        // not remove it as "dead code".
         if matches!(
             response.effects.finality_info,
             EffectsFinalityInfo::UncertifiedSingleValidator(_)
