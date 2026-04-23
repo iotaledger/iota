@@ -121,33 +121,29 @@ fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
     let mut iter = args.iter().peekable();
 
     while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--auth-call-args"
-            | "--auth-type-args"
-            | "--sponsor-auth-call-args"
-            | "--sponsor-auth-type-args" => {
-                let mut values = Vec::new();
-                while let Some(next) = iter.peek() {
-                    if next.starts_with("--") {
-                        break;
-                    }
-                    values.push(iter.next().unwrap().clone());
-                }
-
-                let slot = match arg.as_str() {
-                    "--auth-call-args" => &mut auth_call_args,
-                    "--auth-type-args" => &mut auth_type_args,
-                    "--sponsor-auth-call-args" => &mut sponsor_auth_call_args,
-                    "--sponsor-auth-type-args" => &mut sponsor_auth_type_args,
-                    _ => unreachable!(),
-                };
-                if slot.is_some() {
-                    bail!("Duplicate {arg} found");
-                }
-                *slot = Some(values);
+        let slot = match arg.as_str() {
+            "--auth-call-args" => &mut auth_call_args,
+            "--auth-type-args" => &mut auth_type_args,
+            "--sponsor-auth-call-args" => &mut sponsor_auth_call_args,
+            "--sponsor-auth-type-args" => &mut sponsor_auth_type_args,
+            _ => {
+                remaining_args.push(arg.clone());
+                continue;
             }
-            _ => remaining_args.push(arg.clone()),
+        };
+
+        let mut values = Vec::new();
+        while let Some(next) = iter.peek() {
+            if next.starts_with("--") {
+                break;
+            }
+            values.push(iter.next().unwrap().clone());
         }
+
+        if slot.is_some() {
+            bail!("Duplicate {arg} found");
+        }
+        *slot = Some(values);
     }
 
     Ok(ExtractedAuthArgs {

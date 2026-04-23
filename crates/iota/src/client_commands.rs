@@ -3886,19 +3886,10 @@ async fn create_move_authenticator_signature(
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
-    let auth_info = fetch_auth_info(client, address).await?;
-
-    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
-
-    let call_args = resolve_auth_call_args(
-        client,
-        auth_info.value.package,
-        &auth_info.value.module,
-        &auth_info.value.function,
-        &type_args,
-        json_args,
-    )
-    .await?;
+    let (call_args, type_args) =
+        build_auth_args_for_signing(client, address, auth_call_args, auth_type_args)
+            .await?
+            .ok_or_else(|| anyhow!("auth args are required to create a MoveAuthenticator"))?;
 
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
