@@ -75,6 +75,19 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
+// Timeout for the skip-effect-certification branch in
+// `execute_transaction_block` when waiting
+// for the tx to be included in a local checkpoint (which also brings the
+// authoritative effects into the cache). Most txs are checkpointed well under
+// 1s; 5s is a generous upper bound.
+//
+// TODO: `execute_transaction_block` is the legacy JSON-RPC entry-point and
+// is expected to be phased out in favor of `execute_transaction_v1` (the gRPC
+// path), at which point this constant can be removed. The gRPC handler
+// performs its own `wait_for_checkpoint_inclusion` with a client-supplied
+// timeout.
+const WAIT_FOR_LOCAL_CHECKPOINT_INCLUSION_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Transaction Orchestrator is a Node component that supports both QuorumDriver
 /// and TransactionDriver for submitting transactions to validators for
 /// finality. It adds inflight deduplication, waiting for local execution,
@@ -276,32 +289,61 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         ) {
-            let executed_locally = Self::wait_for_finalized_tx_executed_locally_with_timeout(
-                &self.validator_state,
-                &transaction,
-                &self.metrics,
-            )
-            .await
-            .is_ok();
-            add_server_timing("local_execution");
+            let skip_effect_certification = matches!(
+                response.effects.finality_info,
+                EffectsFinalityInfo::PendingCheckpointExecution(_)
+            );
 
-            // Skip-certification path: the TD returned effects from a single
-            // validator (tagged PendingCheckpointExecution) which could be
-            // byzantine. After the local checkpoint executor has processed
-            // the tx, reconcile the response against the authoritative
-            // local-cache effects and upgrade the finality info.
-            if executed_locally
-                && matches!(
-                    response.effects.finality_info,
-                    EffectsFinalityInfo::PendingCheckpointExecution(_)
-                )
-            {
-                Self::reconcile_effects_from_cache(
+            let executed_locally = if skip_effect_certification {
+                // Skip-effect-certification path: the TD returned
+                // single-validator (potentially
+                // byzantine) data. Use wait_for_checkpoint_inclusion instead of
+                // the usual effects-only wait — it returns the checkpoint seq
+                // as a side effect and guarantees the mapping is stored (the
+                // CheckpointExecutor writes `executed_transactions_to_checkpoint`
+                // strictly after every tx in the checkpoint has its effects
+                // written, so waiting on the mapping implies effects are also
+                // available). Then reconcile the response against the
+                // authoritative local-cache data.
+                let tx_digest = *transaction.digest();
+                let seq = self
+                    .validator_state
+                    .wait_for_checkpoint_inclusion(
+                        &[tx_digest],
+                        WAIT_FOR_LOCAL_CHECKPOINT_INCLUSION_TIMEOUT,
+                    )
+                    .await
+                    .ok()
+                    .and_then(|mut map| map.remove(&tx_digest).map(|(seq, _ts)| seq));
+                add_server_timing("local_execution");
+
+                if let Some(seq) = seq {
+                    Self::reconcile_effects_from_cache(
+                        &self.validator_state,
+                        tx_digest,
+                        seq,
+                        &mut response,
+                    );
+                    true
+                } else {
+                    false
+                }
+            } else {
+                // QuorumDriver fallback path (white flag flow disabled in the
+                // current protocol). QD already collected 2f+1 effects acks
+                // and tagged the response `Certified`, so no reconciliation is
+                // needed — we only wait to confirm local execution. This branch
+                // can be removed once QD is dropped from the fullnode.
+                let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                     &self.validator_state,
-                    *transaction.digest(),
-                    &mut response,
-                );
-            }
+                    &transaction,
+                    &self.metrics,
+                )
+                .await
+                .is_ok();
+                add_server_timing("local_execution");
+                ok
+            };
 
             executed_locally
         } else {
@@ -328,22 +370,31 @@ where
         Ok((response, executed_locally))
     }
 
-    /// Replace the response's effects (and events, if present) with the
-    /// authoritative copies from the local cache — the local checkpoint
-    /// executor has processed the tx, so the cache has the real effects and
-    /// the TD-returned (single-validator) copy can be discarded.
+    /// Replace the response's effects, events, and input/output objects with
+    /// the authoritative copies derived from the local cache — the local
+    /// checkpoint executor has processed the tx, so the cache has the real
+    /// data and the TD-returned (single-validator) copies can be discarded.
     ///
     /// `tx_digest` must be the digest of the caller's original transaction,
     /// not the digest carried in `response.effects.effects` — a byzantine
     /// submitter could set the latter to an unrelated (already-executed) tx
     /// so we'd read unrelated effects from the cache.
     ///
-    /// Also upgrades the finality info from `PendingCheckpointExecution` to
-    /// `QuorumExecuted`. A warning is logged if the TD-returned effects
-    /// digest diverges from the cache digest (byzantine submitter or bug).
+    /// The caller must have obtained `checkpoint_seq` from
+    /// `wait_for_checkpoint_inclusion` (not just `get_transaction_checkpoint`),
+    /// because that function guarantees both the effects write and the
+    /// checkpoint-mapping write have landed — it's the only way to avoid the
+    /// race between `notify_read_executed_effects_digests` (fires per-tx) and
+    /// `insert_finalized_transactions` (fires per-checkpoint, after the
+    /// `CheckpointExecutor` has awaited every tx in that checkpoint).
+    ///
+    /// Upgrades the finality info to `Checkpointed(epoch, checkpoint_seq)`. A
+    /// warning is logged if the TD-returned effects digest diverges from the
+    /// cache digest (byzantine submitter or bug).
     fn reconcile_effects_from_cache(
         validator_state: &Arc<AuthorityState>,
         tx_digest: TransactionDigest,
+        checkpoint_seq: CheckpointSequenceNumber,
         response: &mut ExecuteTransactionResponseV1,
     ) {
         use iota_types::{effects::TransactionEffectsAPI as _, message_envelope::Message as _};
@@ -391,9 +442,31 @@ where
             }
         }
 
+        // Re-derive input/output objects from the cache-authoritative effects.
+        // The TD-returned copies came from a single validator and cannot be
+        // trusted any more than the effects themselves.
+        if response.input_objects.is_some() {
+            match validator_state.get_transaction_input_objects(&cache_effects) {
+                Ok(objs) => response.input_objects = Some(objs),
+                Err(e) => warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: failed to derive input objects: {e:?}"
+                ),
+            }
+        }
+        if response.output_objects.is_some() {
+            match validator_state.get_transaction_output_objects(&cache_effects) {
+                Ok(objs) => response.output_objects = Some(objs),
+                Err(e) => warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: failed to derive output objects: {e:?}"
+                ),
+            }
+        }
+
         let epoch = cache_effects.executed_epoch();
         response.effects.effects = cache_effects;
-        response.effects.finality_info = EffectsFinalityInfo::QuorumExecuted(epoch);
+        response.effects.finality_info = EffectsFinalityInfo::Checkpointed(epoch, checkpoint_seq);
     }
 
     // Utilize the handle_certificate_v1 validator api to request input/output
