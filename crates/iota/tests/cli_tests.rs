@@ -6376,6 +6376,7 @@ async fn setup_move_authenticator_account(
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
 
+    // Publish the account package
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
@@ -6394,6 +6395,7 @@ async fn setup_move_authenticator_account(
     .execute(context)
     .await?;
 
+    // Extract IDs from publish response
     let IotaClientCommandResult::TransactionBlock(response) = resp else {
         anyhow::bail!("Expected TransactionBlock from Publish");
     };
@@ -6430,6 +6432,7 @@ async fn setup_move_authenticator_account(
         })
         .expect("package metadata created");
 
+    // Link auth
     IotaClientCommands::Call {
         package: package_id,
         module: module.to_string(),
@@ -6451,6 +6454,7 @@ async fn setup_move_authenticator_account(
     .execute(context)
     .await?;
 
+    // Send funds to account
     let transfer_resp = IotaClientCommands::PTB(PTB {
         args: vec![
             "--split-coins".to_string(),
