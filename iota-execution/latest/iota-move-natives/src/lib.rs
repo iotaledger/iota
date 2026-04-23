@@ -75,8 +75,6 @@ use self::{
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-#[allow(deprecated)]
-use crate::crypto::zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams};
 use crate::{
     auth_context::{
         AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
@@ -85,6 +83,7 @@ use crate::{
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
+        zklogin,
     },
     tx_context::TxContextDigestCostParams,
 };
@@ -213,12 +212,6 @@ pub struct NativesCostTable {
 
     // vdf
     pub vdf_cost_params: VDFCostParams,
-
-    // zklogin (deprecated stubs for old bytecode snapshot compatibility)
-    #[allow(deprecated)]
-    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
-    #[allow(deprecated)]
-    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
 
     // Receive object
     pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
@@ -691,14 +684,6 @@ impl NativesCostTable {
                     .transfer_receive_object_cost_base_as_option()
                     .unwrap_or(0)
                     .into(),
-            },
-            #[allow(deprecated)]
-            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: Some(0.into()),
-            },
-            #[allow(deprecated)]
-            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: Some(0.into()),
             },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config

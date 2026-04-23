@@ -11,18 +11,10 @@
 use std::collections::VecDeque;
 
 use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::native_functions::NativeContext;
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
-
-#[deprecated(note = "zkLogin has been removed; kept only for old bytecode snapshot compatibility")]
-#[derive(Clone)]
-pub struct CheckZkloginIdCostParams {
-    /// Base cost for invoking the `check_zklogin_id` function
-    pub check_zklogin_id_cost_base: Option<InternalGas>,
-}
 
 #[deprecated(
     note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
@@ -33,13 +25,6 @@ pub fn check_zklogin_id_internal(
     _args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     Ok(NativeResult::err(context.gas_used(), 0))
-}
-
-#[deprecated(note = "zkLogin has been removed; kept only for old bytecode snapshot compatibility")]
-#[derive(Clone)]
-pub struct CheckZkloginIssuerCostParams {
-    /// Base cost for invoking the `check_zklogin_issuer` function
-    pub check_zklogin_issuer_cost_base: Option<InternalGas>,
 }
 
 #[deprecated(
