@@ -6761,3 +6761,102 @@ async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+/// Tests that the CLI can execute a sponsored transaction where both the
+/// sender AND the gas sponsor are abstract accounts authenticated via a
+/// `MoveAuthenticator`. The sender's auth args are supplied via
+/// `--auth-call-args` and the sponsor's via `--sponsor-auth-call-args`.
+#[sim_test]
+async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let publisher = test_cluster.get_address_0();
+    let recipient = test_cluster.get_address_1();
+    let context = &mut test_cluster.wallet;
+
+    // Publish the `account` example package twice — each publication produces
+    // a distinct shared `Account` with its own authenticator function ref.
+    let sender_aa = setup_move_authenticator_account(
+        context,
+        rgp,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+    let sponsor_aa = setup_move_authenticator_account(
+        context,
+        rgp,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+    assert_ne!(sender_aa, sponsor_aa);
+
+    // Both AA addresses must be in the keystore so the CLI can build their
+    // `MoveAuthenticator` signatures.
+    IotaClientCommands::AddAccount {
+        alias: None,
+        address: sender_aa.into(),
+    }
+    .execute(context)
+    .await?;
+    IotaClientCommands::AddAccount {
+        alias: None,
+        address: sponsor_aa.into(),
+    }
+    .execute(context)
+    .await?;
+
+    // Sponsored PTB splitting a nano off the sponsor's gas and transferring it
+    // to `recipient`. Sender is authenticated via `--auth-call-args`, sponsor
+    // via `--sponsor-auth-call-args`.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{recipient}"),
+            "--sender".to_string(),
+            format!("@{sender_aa}"),
+            "--gas-sponsor".to_string(),
+            format!("@{sponsor_aa}"),
+            "--gas-budget".to_string(),
+            (rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER).to_string(),
+            "--auth-call-args".to_string(),
+            "hello".to_string(),
+            "--sponsor-auth-call-args".to_string(),
+            "hello".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(tx) = ptb_resp else {
+        panic!("Expected TransactionBlock result, got {ptb_resp:?}");
+    };
+    let effects = tx.effects.as_ref().unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "Sponsored tx with MoveAuthenticator sender and sponsor should succeed: {:?}",
+        effects.status()
+    );
+    let tx_block = tx.transaction.as_ref().expect("transaction block");
+    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
+    assert_eq!(tx_block.data.gas_data().owner, IotaAddress::from(sponsor_aa));
+
+    Ok(())
+}
