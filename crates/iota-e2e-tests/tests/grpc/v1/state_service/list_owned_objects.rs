@@ -329,7 +329,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
 
 /// Walk through all owned objects one at a time using cursor-based pagination.
 ///
-/// This exercises the real v2 owner index, `owner_v2_bounds` cursor seeking,
+/// This exercises the real owner index, `owner_bounds` cursor seeking,
 /// and page-token round-tripping through the full gRPC stack — something
 /// the unit tests with `MockGrpcStateReader` cannot cover.
 #[sim_test]
