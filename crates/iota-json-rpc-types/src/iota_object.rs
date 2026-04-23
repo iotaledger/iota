@@ -1077,8 +1077,7 @@ pub struct IotaUpgradeInfo {
     #[schemars(with = "ObjectIDSchema")]
     pub upgraded_id: ObjectID,
     /// The version of the package at `upgraded_id`.
-    #[schemars(with = "SequenceNumberStringSchema")]
-    #[serde_as(as = "SequenceNumberStringSchema")]
+    #[schemars(with = "SequenceNumberU64Schema")]
     pub upgraded_version: SequenceNumber,
 }
 

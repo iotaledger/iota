@@ -12325,7 +12325,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumberString"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
