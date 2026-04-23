@@ -40,7 +40,6 @@ pub enum IotaObjectResponseError {
     Display {
         error: String,
     },
-    // TODO: also integrate IotaPastObjectResponse (VersionNotFound,  VersionTooHigh)
 }
 
 impl SerializeAs<NativeObjectResponseError> for IotaObjectResponseError {
