@@ -373,11 +373,8 @@ impl EffectsCertifier {
     where
         A: AuthorityAPI + Send + Sync + 'static,
     {
-        let ping_type = tx_digest.is_none();
-        let ping_label = ping_type.to_string();
         self.metrics
             .certified_effects_ack_attempts
-            .with_label_values(&[ping_label.as_str()])
             .inc();
         let timer = tokio::time::Instant::now();
         let clients = authority_aggregator
@@ -485,11 +482,9 @@ impl EffectsCertifier {
                         // Record success and latency
                         self.metrics
                             .certified_effects_ack_successes
-                            .with_label_values(&[ping_label.as_str()])
                             .inc();
                         self.metrics
                             .certified_effects_ack_latency
-                            .with_label_values(&[ping_label.as_str()])
                             .observe(timer.elapsed().as_secs_f64());
 
                         return Ok(effects_digest);
@@ -505,7 +500,6 @@ impl EffectsCertifier {
                     }
                     self.metrics
                         .rejection_acks
-                        .with_label_values(&[ping_label.as_str()])
                         .inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Expired { epoch }))) => {
@@ -514,7 +508,6 @@ impl EffectsCertifier {
                     retriable_errors_aggregator.insert(name, error);
                     self.metrics
                         .expiration_acks
-                        .with_label_values(&[ping_label.as_str()])
                         .inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Submitted))) => {

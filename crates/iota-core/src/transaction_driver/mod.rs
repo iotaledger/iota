@@ -161,17 +161,10 @@ where
         // / reference_gas_price.
         let amplification_factor: u64 = 1;
 
-        let ping_label = if transaction.is_none() {
-            "true"
-        } else {
-            "false"
-        };
-
         let timer = Instant::now();
 
         self.metrics
             .total_transactions_submitted
-            .with_label_values(&[ping_label])
             .inc();
 
         let mut backoff = ExponentialBackoff::new(
@@ -191,12 +184,11 @@ where
                         let settlement_finality_latency = timer.elapsed().as_secs_f64();
                         self.metrics
                             .settlement_finality_latency
-                            .with_label_values(&[ping_label])
                             .observe(settlement_finality_latency);
                         // Record the number of retries for successful transaction
                         self.metrics
                             .transaction_retries
-                            .with_label_values(&["success", ping_label])
+                            .with_label_values(&["success"])
                             .observe(attempts as f64);
                         return Ok(resp);
                     }
@@ -204,13 +196,13 @@ where
                         let error_category: &str = e.categorize().into();
                         self.metrics
                             .drive_transaction_errors
-                            .with_label_values(&[error_category, ping_label])
+                            .with_label_values(&[error_category])
                             .inc();
                         if !e.is_submission_retriable() {
                             // Record the number of retries for failed transaction
                             self.metrics
                                 .transaction_retries
-                                .with_label_values(&["failure", ping_label])
+                                .with_label_values(&["failure"])
                                 .observe(attempts as f64);
                             if transaction.is_some() {
                                 tracing::info!(

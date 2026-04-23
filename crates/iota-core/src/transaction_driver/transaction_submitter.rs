@@ -70,11 +70,6 @@ impl TransactionSubmitter {
             &options.blocked_validators,
         );
 
-        let ping_label = if transaction.is_none() {
-            "true"
-        } else {
-            "false"
-        };
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();
 
@@ -89,7 +84,7 @@ impl TransactionSubmitter {
                         let display_name = authority_aggregator.get_display_name(&name);
                         self.metrics
                             .validator_selections
-                            .with_label_values(&[display_name.as_str(), ping_label])
+                            .with_label_values(&[display_name.as_str()])
                             .inc();
 
                         // Create a future that returns the name and display_name along with the
@@ -137,7 +132,7 @@ impl TransactionSubmitter {
                 Some((name, display_name, Ok(result))) => {
                     self.metrics
                         .validator_submit_transaction_successes
-                        .with_label_values(&[display_name.as_str(), ping_label])
+                        .with_label_values(&[display_name.as_str()])
                         .inc();
                     self.metrics
                         .submit_transaction_retries
@@ -145,7 +140,6 @@ impl TransactionSubmitter {
                     let elapsed = start_time.elapsed().as_secs_f64();
                     self.metrics
                         .submit_transaction_latency
-                        .with_label_values(&[ping_label])
                         .observe(elapsed);
 
                     return Ok((name, result));
@@ -154,7 +148,10 @@ impl TransactionSubmitter {
                     let error_type = e.categorize().into();
                     self.metrics
                         .validator_submit_transaction_errors
-                        .with_label_values(&[display_name.as_str(), error_type, ping_label])
+                        .with_label_values(&[
+                            display_name.as_str(),
+                            error_type,
+                        ])
                         .inc();
 
                     retries += 1;
