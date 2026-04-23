@@ -55,13 +55,13 @@ pub(crate) fn build_backward_objects_query(
 /// Builds a consistent view by merging non-superseded live objects with
 /// previous versions of objects that changed after the target checkpoint.
 fn build_consistent_query(
-    cv: i64,
+    checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     merge_and_deduplicate(
-        non_superseded_live_objects(cv, page, &filter_fn),
-        superseded_past_versions(cv, page, &filter_fn),
+        consistent_checkpointed_objects(checkpoint_viewed_at, page, &filter_fn),
+        consistent_historical_objects(checkpoint_viewed_at, page, &filter_fn),
     )
 }
 
@@ -72,18 +72,18 @@ fn build_historical_query(
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     merge_and_deduplicate(
-        all_live_objects(page, &filter_fn),
-        all_past_versions(page, &filter_fn),
+        checkpointed_objects(page, &filter_fn),
+        historical_objects(page, &filter_fn),
     )
 }
 
 /// Returns objects from `checkpointed_objects` (including tombstones) that
-/// were not superseded after the given checkpoint.
+/// were consistent also at the given checkpoint.
 ///
 /// Uses a LEFT JOIN against `objects_backward_history` to exclude objects
-/// that have any entry with `superseded_at_checkpoint > cv`.
-fn non_superseded_live_objects(
-    cv: i64,
+/// that have any entry with `superseded_at_checkpoint > checkpoint_viewed_at`.
+fn consistent_checkpointed_objects(
+    checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
@@ -94,7 +94,7 @@ fn non_superseded_live_objects(
 
     let changed_subquery = query!(format!(
         "SELECT DISTINCT object_id FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {cv}"
+         WHERE superseded_at_checkpoint > {checkpoint_viewed_at}"
     ));
     let mut source = query!(
         r#"SELECT candidates.* FROM ({}) candidates
@@ -106,15 +106,15 @@ fn non_superseded_live_objects(
     page.apply::<StoredBackwardObject>(source)
 }
 
-/// Returns previous versions of objects that were superseded after the given
-/// checkpoint.
+/// Returns objects from `objects_backward_history` that were consistent at the
+/// given checkpoint.
 ///
 /// Picks the earliest superseded version (`MIN(object_version)`) per object,
 /// which represents the state just before the first change after the target
 /// checkpoint. Excludes `NOT_YET_CREATED` entries (objects that didn't exist
 /// at the target checkpoint).
-fn superseded_past_versions(
-    cv: i64,
+fn consistent_historical_objects(
+    checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
@@ -126,14 +126,14 @@ fn superseded_past_versions(
         history_filtered,
         format!(
             "superseded_at_checkpoint > {} AND object_status != {NOT_YET_CREATED}",
-            cv
+            checkpoint_viewed_at
         )
     );
 
     let oldest_subquery = query!(format!(
         "SELECT object_id, MIN(object_version) AS min_version \
          FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {cv} \
+         WHERE superseded_at_checkpoint > {checkpoint_viewed_at} \
          GROUP BY object_id"
     ));
     let source = query!(
@@ -147,8 +147,11 @@ fn superseded_past_versions(
 }
 
 /// Returns all objects from `checkpointed_objects` (including tombstones)
-/// without consistency filtering.
-fn all_live_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQuery) -> RawQuery {
+/// that satisfy the provided filter.
+fn checkpointed_objects(
+    page: &Page<Cursor>,
+    filter_fn: &impl Fn(RawQuery) -> RawQuery,
+) -> RawQuery {
     let checkpointed_filtered = filter_fn(query!(format!(
         "SELECT {} FROM checkpointed_objects",
         OBJECT_COLUMNS
@@ -160,9 +163,9 @@ fn all_live_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQue
     page.apply::<StoredBackwardObject>(source)
 }
 
-/// Returns all past versions from `objects_backward_history`, excluding
-/// `NOT_YET_CREATED` entries.
-fn all_past_versions(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQuery) -> RawQuery {
+/// Returns all objects from `objects_backward_history` that satisfy the
+/// provided filter, excluding `NOT_YET_CREATED` entries.
+fn historical_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQuery) -> RawQuery {
     let history_filtered = filter_fn(query!(format!(
         "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
     )));

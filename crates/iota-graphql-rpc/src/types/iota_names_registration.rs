@@ -41,6 +41,7 @@ use crate::{
     connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    types::object::StoredBackwardObject,
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -534,7 +535,7 @@ impl IotaNames {
                     move |query| filter.apply(query),
                 );
 
-                let backward_objects: Vec<super::object::StoredBackwardObject> =
+                let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
                 let objects: Vec<StoredHistoryObject> = backward_objects
                     .into_iter()
