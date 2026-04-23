@@ -267,6 +267,14 @@ where
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
+        // Capture the caller's opt-in flags before `request` is moved; the
+        // skip-effect-certification reconcile uses them to decide which
+        // fields to (re-)read from the cache, rather than inferring intent
+        // from whatever the submitter happened to return.
+        let include_events = request.include_events;
+        let include_input_objects = request.include_input_objects;
+        let include_output_objects = request.include_output_objects;
+
         // Use TransactionDriver if configured, otherwise fall back to QuorumDriver.
         let (transaction, mut response) = if let Some(td) = &self.transaction_driver {
             self.submit_with_transaction_driver(
@@ -322,6 +330,9 @@ where
                         &self.validator_state,
                         tx_digest,
                         seq,
+                        include_events,
+                        include_input_objects,
+                        include_output_objects,
                         &mut response,
                         &self.metrics,
                     );
@@ -396,6 +407,9 @@ where
         validator_state: &Arc<AuthorityState>,
         tx_digest: TransactionDigest,
         checkpoint_seq: CheckpointSequenceNumber,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
         response: &mut ExecuteTransactionResponseV1,
         metrics: &TransactionOrchestratorMetrics,
     ) {
@@ -434,21 +448,26 @@ where
             );
         }
 
-        if response.events.is_some() {
+        // Gate each reconciled field on whether the caller actually asked for
+        // it, not on what the submitter happened to populate. A byzantine
+        // submitter could otherwise censor a field by returning `None` and
+        // we'd skip the cache check.
+        if include_events {
             match cache.try_get_events(&tx_digest) {
                 Ok(Some(events)) => response.events = Some(events),
                 Ok(None) => {
-                    // The submitter claimed events but the local cache —
-                    // authoritative after `wait_for_checkpoint_inclusion` —
-                    // has none. Trust the cache: discard the submitter's
-                    // (possibly byzantine) events. Log + bump a metric so
-                    // ops can see how often this happens.
-                    warn!(
-                        ?tx_digest,
-                        "reconcile_effects_from_cache: submitter claimed events but \
-                         cache has none — discarding (possible byzantine submitter)"
-                    );
-                    metrics.skip_effect_cert_events_cache_miss.inc();
+                    // The cache (authoritative after
+                    // `wait_for_checkpoint_inclusion`) says this tx emitted
+                    // no events. If the submitter claimed otherwise, log +
+                    // bump a metric; either way trust the cache.
+                    if response.events.is_some() {
+                        warn!(
+                            ?tx_digest,
+                            "reconcile_effects_from_cache: submitter claimed events but \
+                             cache has none — discarding (possible byzantine submitter)"
+                        );
+                        metrics.skip_effect_cert_events_cache_miss.inc();
+                    }
                     response.events = None;
                 }
                 Err(e) => {
@@ -469,7 +488,7 @@ where
         // trusted any more than the effects themselves. On storage failure,
         // fail closed via the safety guard rather than leak the submitter's
         // values.
-        if response.input_objects.is_some() {
+        if include_input_objects {
             match validator_state.get_transaction_input_objects(&cache_effects) {
                 Ok(objs) => response.input_objects = Some(objs),
                 Err(e) => {
@@ -481,7 +500,7 @@ where
                 }
             }
         }
-        if response.output_objects.is_some() {
+        if include_output_objects {
             match validator_state.get_transaction_output_objects(&cache_effects) {
                 Ok(objs) => response.output_objects = Some(objs),
                 Err(e) => {
