@@ -1446,4 +1446,51 @@ where
             .wait_for_checkpoint_inclusion(digests, timeout)
             .await
     }
+
+    fn read_transaction_from_cache(
+        &self,
+        digest: &TransactionDigest,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
+    ) -> Result<Option<iota_types::transaction_executor::CachedTransactionData>, IotaError> {
+        let cache = self.validator_state.get_transaction_cache_reader();
+        let Some(effects) = cache.try_get_executed_effects(digest)? else {
+            return Ok(None);
+        };
+
+        let events = if include_events {
+            cache.try_get_events(digest)?
+        } else {
+            None
+        };
+
+        let input_objects = if include_input_objects {
+            Some(
+                self.validator_state
+                    .get_transaction_input_objects(&effects)
+                    .map_err(|e| IotaError::Unknown(format!("input objects: {e:?}")))?,
+            )
+        } else {
+            None
+        };
+        let output_objects = if include_output_objects {
+            Some(
+                self.validator_state
+                    .get_transaction_output_objects(&effects)
+                    .map_err(|e| IotaError::Unknown(format!("output objects: {e:?}")))?,
+            )
+        } else {
+            None
+        };
+
+        Ok(Some(
+            iota_types::transaction_executor::CachedTransactionData {
+                effects,
+                events,
+                input_objects,
+                output_objects,
+            },
+        ))
+    }
 }
