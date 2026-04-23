@@ -34,7 +34,7 @@ pub mod regular;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -165,6 +165,16 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) dag_state: Arc<RwLock<DagState>>,
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) sync_type: CommitSyncType,
+    /// Present only when `FastCommitSyncer` is constructed (both the
+    /// protocol flag `consensus_fast_commit_sync` and the local flag
+    /// `enable_fast_commit_syncer` are on). The atomic is seeded at
+    /// startup from the durable `DagState::fast_sync_ongoing()` flag so
+    /// that a restart during fast sync correctly pauses regular syncing
+    /// before fast sync's own loop has had a chance to run. After
+    /// startup, fast sync owns the atomic and updates it each schedule
+    /// iteration — the durable flag is not reactive enough for runtime
+    /// gating. `None` on deployments where fast sync is disabled.
+    pub(crate) fast_sync_active: Option<Arc<AtomicBool>>,
 }
 
 impl<C: NetworkClient> Inner<C> {

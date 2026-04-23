@@ -139,19 +139,16 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 /// A dynamic-field index key (parent + field_id).
 pub type DynamicFieldIterItem = anyhow::Result<iota_types::storage::DynamicFieldKey>;
 
-/// An owned-object from the legacy `owner` (v1) index.
-pub type OwnedObjectIterItem = anyhow::Result<iota_types::storage::AccountOwnedObjectInfo>;
+pub use iota_types::storage::OwnedObjectCursor;
 
-pub use iota_types::storage::OwnedObjectV2Cursor;
-
-/// An owned-object together with the v2 seek cursor for the position it
+/// An owned-object together with a seek cursor for the position it
 /// occupies in the index.
 ///
-/// Unlike [`OwnedObjectIterItem`], this carries the full v2 key components
-/// so that page tokens can encode an exact seek position.
-pub type OwnedObjectV2IterItem = anyhow::Result<(
+/// Carries the full key components so that page tokens can encode an exact
+/// seek position.
+pub type OwnedObjectIterItem = anyhow::Result<(
     iota_types::storage::AccountOwnedObjectInfo,
-    iota_types::storage::OwnedObjectV2Cursor,
+    iota_types::storage::OwnedObjectCursor,
 )>;
 
 /// A package-version index entry (key + storage info).
@@ -611,28 +608,19 @@ impl GrpcReader {
 
     /// Iterate over objects owned by an account address.
     ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the `owner_v2`
-    /// backfill has not yet completed.
-    ///
     /// The cursor is exclusive: items *after* the cursor position are returned.
-    pub fn account_owned_objects_info_iter_v2(
+    pub fn account_owned_objects_info_iter(
         &self,
         owner: iota_types::base_types::IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
+        cursor: Option<&OwnedObjectCursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>, crate::error::RpcError> {
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_owner_v2_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "owner_v2",
-            }
-            .into());
-        }
         let skip = usize::from(cursor.is_some());
         let iter = indexes
-            .account_owned_objects_info_iter_v2(owner, cursor, object_type)
+            .account_owned_objects_info_iter(owner, cursor, object_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
     }
@@ -651,33 +639,21 @@ impl GrpcReader {
         Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
     }
 
-    /// Get unified coin info from the `coin_v2` table.
-    ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the `coin_v2`
-    /// backfill has not yet completed.
-    pub fn get_coin_v2_info(
+    /// Get unified coin info.
+    pub fn get_coin_info(
         &self,
         coin_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<iota_types::storage::CoinInfoV2>, crate::error::RpcError> {
+    ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_coin_v2_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "coin_v2",
-            }
-            .into());
-        }
         let info = indexes
-            .get_coin_v2_info(coin_type)
+            .get_coin_info(coin_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
         Ok(info)
     }
 
     /// Iterate over all versions of a package by its original package ID.
-    ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the backfill has not
-    /// yet completed so callers receive a retryable `Unavailable` gRPC status.
     pub fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
@@ -686,12 +662,6 @@ impl GrpcReader {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_package_version_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "package_version",
-            }
-            .into());
-        }
         let skip = usize::from(cursor.is_some());
         let iter = indexes
             .package_versions_iter(original_package_id, cursor)

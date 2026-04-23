@@ -6398,7 +6398,7 @@
             "$ref": "#/components/schemas/TransactionDigest"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberBigInt"
           }
         }
       },
@@ -6928,7 +6928,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         }
       },
@@ -7783,7 +7783,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             ]
           }
@@ -7836,7 +7836,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   },
                   "mutable": {
                     "default": true,
@@ -7978,7 +7978,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   }
                 }
               },
@@ -7992,7 +7992,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -8030,7 +8030,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   }
                 }
               }
@@ -10721,7 +10721,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10760,7 +10760,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10791,7 +10791,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10803,7 +10803,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10834,7 +10834,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10865,7 +10865,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10904,7 +10904,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10943,7 +10943,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           }
@@ -11045,7 +11045,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             ]
           }
@@ -11324,7 +11324,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 ]
               }
@@ -11985,7 +11985,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -12028,7 +12028,7 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
@@ -12045,7 +12045,7 @@
         "format": "uint64",
         "minimum": 0.0
       },
-      "SequenceNumber2": {
+      "SequenceNumberBigInt": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
@@ -12480,7 +12480,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumberBigInt"
           }
         }
       },
@@ -13298,7 +13298,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             ]
           }

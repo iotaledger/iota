@@ -20,7 +20,7 @@ use crate::{
     constants::validate_max_message_size,
     error::RpcError,
     merge::Merge,
-    types::{GrpcReader, OwnedObjectV2Cursor},
+    types::{GrpcReader, OwnedObjectCursor},
     validation::{
         decode_page_token, encode_page_token, page_token_mismatch, require_address,
         validate_page_size, validate_read_mask,
@@ -34,7 +34,7 @@ const MAX_PAGE_SIZE: u32 = 1000;
 struct PageToken {
     owner: IotaAddress,
     object_type: Option<move_core_types::language_storage::StructTag>,
-    cursor: OwnedObjectV2Cursor,
+    cursor: OwnedObjectCursor,
 }
 
 #[tracing::instrument(skip(reader))]
@@ -79,11 +79,11 @@ pub(crate) fn list_owned_objects(
     let cursor = page_token.as_ref().map(|t| &t.cursor);
 
     let mut iter =
-        reader.account_owned_objects_info_iter_v2(owner_address, cursor, type_filter.clone())?;
+        reader.account_owned_objects_info_iter(owner_address, cursor, type_filter.clone())?;
 
     let mut objects = Vec::with_capacity(page_size);
     let mut size_bytes = 0usize;
-    let mut last_cursor: Option<OwnedObjectV2Cursor> = None;
+    let mut last_cursor: Option<OwnedObjectCursor> = None;
 
     for result in iter.by_ref() {
         let (info, item_cursor) = result.map_err(RpcError::from)?;

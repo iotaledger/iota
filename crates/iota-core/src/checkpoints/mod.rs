@@ -1588,12 +1588,7 @@ impl CheckpointBuilder {
                     .protocol_config()
                     .pass_calculated_validator_scores_to_advance_epoch()
                 {
-                    self.epoch_store
-                        .scorer
-                        .current_scores
-                        .iter()
-                        .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
-                        .collect()
+                    self.epoch_store.scorer.current_scores()
                 } else {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]

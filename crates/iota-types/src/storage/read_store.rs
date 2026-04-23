@@ -857,17 +857,17 @@ pub struct AccountOwnedObjectInfo {
     pub type_: MoveObjectType,
 }
 
-/// Opaque cursor for seeking in the `owner_v2` index.
+/// Opaque cursor for seeking in the `owner` index.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OwnedObjectV2Cursor {
+pub struct OwnedObjectCursor {
     pub object_type_identifier: u64,
     pub object_type_params: u64,
     pub inverted_balance: Option<u64>,
     pub object_id: ObjectID,
 }
 
-pub type OwnedObjectV2IteratorItem =
-    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
+pub type OwnedObjectIteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectCursor), TypedStoreError>;
 
 pub type DynamicFieldIteratorItem = Result<DynamicFieldKey, TypedStoreError>;
 
@@ -886,15 +886,9 @@ impl DynamicFieldKey {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-}
-
 /// Coin info including optional regulated coin metadata.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinInfoV2 {
+pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
     pub regulated_coin_metadata_object_id: Option<ObjectID>,

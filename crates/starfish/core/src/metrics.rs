@@ -243,6 +243,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
     pub(crate) commit_sync_voting_block_headers_hits: IntCounter,
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
+    pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
 }
 
@@ -1061,6 +1062,12 @@ impl NodeMetrics {
                 "commit_sync_voting_block_headers_fallbacks",
                 "Number of voting block headers served from regular storage (fallback) during commit sync.",
                 registry
+            ).unwrap(),
+            syncer_paused_by_fast_sync: register_int_counter_vec_with_registry!(
+                "syncer_paused_by_fast_sync",
+                "Number of times a syncer (regular commit syncer, header synchronizer) skipped dispatching work because the fast commit syncer was active.",
+                &["source"],
+                registry,
             ).unwrap(),
             uptime: register_histogram_with_registry!(
                 "uptime",
