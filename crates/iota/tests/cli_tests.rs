@@ -6673,10 +6673,9 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
 }
 
 /// Tests that the CLI can execute a sponsored transaction where the gas
-/// sponsor is an abstract account authenticated via a `MoveAuthenticator`
-/// (the feature enabled by PR #10947 / issue #11087). The sender is a regular
-/// keystore address; the sponsor's auth args are supplied via the new
-/// `--sponsor-auth-call-args` flag.
+/// sponsor is an abstract account authenticated via a `MoveAuthenticator`.
+/// The sender is a regular keystore address; the sponsor's auth args are
+/// supplied via the new `--sponsor-auth-call-args` flag.
 #[sim_test]
 async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
