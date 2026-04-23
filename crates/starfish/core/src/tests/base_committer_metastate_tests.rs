@@ -520,9 +520,7 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
     let c3 = certifier(&committer, 3, vec![voters[1], voters[2], voters[3]]);
     let (c0_ref, c1_ref, c2_ref) = (c0.reference(), c1.reference(), c2.reference());
     for b in [c0, c1, c2, c3] {
-        dag_state
-            .write()
-            .accept_block_header(b, DataSource::Test);
+        dag_state.write().accept_block_header(b, DataSource::Test);
     }
 
     // Anchor at round 6 includes c0 (StrongQC) in its round-5 ancestors.
@@ -572,9 +570,7 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     let c3 = certifier(&committer, 3, vec![voters[1], voters[2], voters[3]]);
     let (c1_ref, c2_ref, c3_ref) = (c1.reference(), c2.reference(), c3.reference());
     for b in [c0, c1, c2, c3] {
-        dag_state
-            .write()
-            .accept_block_header(b, DataSource::Test);
+        dag_state.write().accept_block_header(b, DataSource::Test);
     }
 
     // Anchor excludes c0 — its round-5 path contains only regular QCs. The
