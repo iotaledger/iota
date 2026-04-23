@@ -324,7 +324,7 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         ) {
-            // A response with `PendingCheckpointExecution` finality came from
+            // A response with `UncertifiedSingleValidator` finality came from
             // the TD skip-effect-certification path; `None` means we need to
             // build the response from scratch. Both cases share the same
             // `wait_for_checkpoint_inclusion`.
@@ -334,7 +334,7 @@ where
                     .map(|r| {
                         matches!(
                             r.effects.finality_info,
-                            EffectsFinalityInfo::PendingCheckpointExecution(_)
+                            EffectsFinalityInfo::UncertifiedSingleValidator(_)
                         )
                     })
                     .unwrap_or(false);
@@ -384,7 +384,7 @@ where
                     true
                 } else {
                     // Timed out waiting for the tx to land in a local
-                    // checkpoint. For the TD-success-with-PendingCheckpointExecution
+                    // checkpoint. For the TD-success-with-UncertifiedSingleValidator
                     // case, the existing safety guard rejects the response.
                     // For the recovery case (response is None), surface a
                     // TimeoutBeforeFinality to the caller.
@@ -422,15 +422,15 @@ where
         // forgets this invariant.
         let response = response.expect("response must be populated before return");
 
-        // Safety: uncertified effects (PendingCheckpointExecution) must never
+        // Safety: uncertified effects (UncertifiedSingleValidator) must never
         // reach the client — they are from a single validator and have not
         // been confirmed by the local checkpoint executor.
         if matches!(
             response.effects.finality_info,
-            EffectsFinalityInfo::PendingCheckpointExecution(_)
+            EffectsFinalityInfo::UncertifiedSingleValidator(_)
         ) {
             debug_fatal!(
-                "Uncertified effects (PendingCheckpointExecution) about to be returned \
+                "Uncertified effects (UncertifiedSingleValidator) about to be returned \
                  to the client for tx {:?}",
                 response.effects.effects.transaction_digest()
             );
@@ -1135,8 +1135,8 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
             EffectsFinalityInfo::Checkpointed(epoch, seq)
         }
         TdEffectsFinalityInfo::QuorumExecuted(epoch) => EffectsFinalityInfo::QuorumExecuted(epoch),
-        TdEffectsFinalityInfo::PendingCheckpointExecution(epoch) => {
-            EffectsFinalityInfo::PendingCheckpointExecution(epoch)
+        TdEffectsFinalityInfo::UncertifiedSingleValidator(epoch) => {
+            EffectsFinalityInfo::UncertifiedSingleValidator(epoch)
         }
     };
     FinalizedEffects {

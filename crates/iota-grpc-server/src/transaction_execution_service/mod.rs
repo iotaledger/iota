@@ -287,7 +287,7 @@ pub async fn execute_transactions(
     // Execute each transaction sequentially, collecting per-item results and
     // digests for successful executions. `RebuildCtx` is populated for items
     // whose response carries uncertified single-validator data (finality =
-    // `PendingCheckpointExecution`) — those must be rebuilt from the local
+    // `UncertifiedSingleValidator`) — those must be rebuilt from the local
     // cache after checkpoint inclusion before being returned to the client.
     let mut transaction_results = Vec::with_capacity(request.transactions.len());
     // For each successful execution: (index, digest, rebuild_ctx). `rebuild_ctx`
@@ -625,7 +625,7 @@ async fn execute_single_transaction(
     // carries uncertified single-validator data (skip-effect-cert path).
     let rebuild_ctx = matches!(
         effects.finality_info,
-        iota_types::quorum_driver_types::EffectsFinalityInfo::PendingCheckpointExecution(_)
+        iota_types::quorum_driver_types::EffectsFinalityInfo::UncertifiedSingleValidator(_)
     )
     .then(|| RebuildCtx {
         transaction: sdk_transaction.clone(),

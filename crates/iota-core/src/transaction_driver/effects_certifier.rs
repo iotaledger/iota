@@ -309,7 +309,7 @@ impl EffectsCertifier {
         let epoch = executed_data.effects.epoch();
         let effects = FinalizedEffects {
             effects: executed_data.effects,
-            finality_info: EffectsFinalityInfo::PendingCheckpointExecution(epoch),
+            finality_info: EffectsFinalityInfo::UncertifiedSingleValidator(epoch),
         };
 
         Ok(QuorumTransactionResponse {

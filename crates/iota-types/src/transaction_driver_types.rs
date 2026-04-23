@@ -146,7 +146,7 @@ pub enum EffectsFinalityInfo {
     /// Effects from a single validator without quorum certification.
     /// The caller MUST wait for local checkpoint execution before returning
     /// these to the client, as they have not been certified by a quorum.
-    PendingCheckpointExecution(EpochId),
+    UncertifiedSingleValidator(EpochId),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -169,7 +169,7 @@ impl FinalizedEffects {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
             EffectsFinalityInfo::Checkpointed(epoch, _)
             | EffectsFinalityInfo::QuorumExecuted(epoch)
-            | EffectsFinalityInfo::PendingCheckpointExecution(epoch) => *epoch,
+            | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
     }
 
