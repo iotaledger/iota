@@ -121,7 +121,7 @@ const PREFERRED_GROUP_DELTA: f64 = 0.02;
 /// Ok(latency in sec) or Err(high failure latency in sec)
 type Observation = Result<f64, f64>;
 
-/// EWMA-based estimator.
+/// Exponential weighted moving average (EWMA) estimator.
 ///
 /// Each new observation is weighted by α and the prior estimate by (1 − α):
 /// μ_t ​= α x_t​ + (1−α) μ_{t−1}​
@@ -132,7 +132,7 @@ struct Ewma {
     mean: f64,
     /// Current variance estimate: σ_t^2.
     variance: f64,
-    /// Failure estimate.
+    /// Failure mean estimate.
     failure: f64,
     /// Decayed/effective sample size.
     weight: f64,
@@ -154,8 +154,6 @@ impl Ewma {
 
     fn update(&mut self, observation: Observation, alpha: f64) {
         let a1 = 1.0 - alpha;
-        // failures EWMA
-        self.failure = a1 * self.failure + observation.map_or(alpha, |_| 0.0);
         // treat failures as high latency
         let x = observation.unwrap_or_else(|failure| failure);
         // μ_t ​= α x_t​ + (1−α) μ_{t−1}​ = μ_{t−1}​ + α (x_t​ - μ_{t−1})
@@ -163,6 +161,8 @@ impl Ewma {
         self.mean += alpha * delta;
         // σ_t^2​ = (1−α) (σ_{t−1}^2 ​+ α (x_t​−μ_{t−1}​)^2) =
         self.variance = a1 * (self.variance + alpha * delta * delta);
+        // failures EWMA
+        self.failure = a1 * self.failure + observation.map_or(alpha, |_| 0.0);
         // weight is just EWMA of the count
         // w_t = (1 - α) w_{t-1} + 1
         self.weight = a1 * self.weight + 1.0;
@@ -181,10 +181,11 @@ impl Ewma {
 
 /// Time-decayed EWMA-based estimator.
 ///
-/// This is a EWMA estimator with a variable weight α_t:
+/// This is a EWMA estimator with a variable weight α_t (interval between updates):
 /// α_t = 1 - exp(-Δt / τ)
 #[derive(Clone, Copy, Debug)]
 struct TimeDecayEwma {
+    /// Base EWMA estimator.
     ewma: Ewma,
     /// Timestamp of the last update: t.
     last_update: Instant,
@@ -236,6 +237,7 @@ impl TimeDecayEwma {
     }
 }
 
+/// Latency estimator is based on time-decayed EWMA.
 #[derive(Clone, Copy, Debug, Default)]
 struct LatencyEwma {
     inner: Option<TimeDecayEwma>,
@@ -260,6 +262,10 @@ impl LatencyEwma {
     }
 }
 
+/// Latency estimator with logarithmic observations.
+///
+/// Logarithmic observations help smooth out high variability in latency measurements.
+/// For regular observations LatencyEwma can be used.
 #[derive(Clone, Copy, Debug, Default)]
 struct LogLatencyEwma {
     inner: LatencyEwma,
