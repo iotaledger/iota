@@ -284,6 +284,10 @@ where
         // submitting validator. We'll rebuild the response from the local
         // cache further down, sharing the same `wait_for_checkpoint_inclusion`
         // that the skip-cert success path uses.
+        let skip_certification = matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        );
         let mut response: Option<ExecuteTransactionResponseV1> =
             if let Some(td) = &self.transaction_driver {
                 match self
@@ -291,16 +295,13 @@ where
                         td.clone(),
                         request,
                         client_addr,
-                        request_type.clone(),
+                        skip_certification,
                     )
                     .await
                 {
                     Ok(response) => Some(response),
                     Err(TransactionDriverError::SubmittedButFetchFailed { error })
-                        if matches!(
-                            request_type,
-                            ExecuteTransactionRequestType::WaitForLocalExecution
-                        ) =>
+                        if skip_certification =>
                     {
                         self.metrics.skip_effect_cert_submitter_fetch_failure.inc();
                         debug!(
@@ -679,8 +680,17 @@ where
             epoch_store
                 .verify_transaction(request.transaction.clone())
                 .map_err(QuorumDriverError::InvalidUserSignature)?;
+            let skip_certification = matches!(
+                request_type,
+                ExecuteTransactionRequestType::WaitForLocalExecution
+            );
             return self
-                .submit_with_transaction_driver(td.clone(), request, client_addr, request_type)
+                .submit_with_transaction_driver(
+                    td.clone(),
+                    request,
+                    client_addr,
+                    skip_certification,
+                )
                 .await
                 .map_err(map_td_error_to_qd);
         }
@@ -701,7 +711,7 @@ where
         td: Arc<TransactionDriver<A>>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
-        request_type: ExecuteTransactionRequestType,
+        skip_certification: bool,
     ) -> Result<ExecuteTransactionResponseV1, TransactionDriverError> {
         let tx_digest = *request.transaction.digest();
 
@@ -725,7 +735,7 @@ where
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
-                Some(request_type),
+                skip_certification,
             )
             .await?;
 

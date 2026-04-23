@@ -227,7 +227,7 @@ impl EffectsCertifier {
     ///   the submitting validator (one RPC, no quorum broadcast).
     /// - `Rejected` or `Expired`: return `ClientInternal` error (these should
     ///   already be filtered upstream by `drive_transaction_once`).
-    #[instrument(level = "error", skip_all, err(level = "debug"))]
+    #[instrument(level = "debug", skip_all, err(level = "debug"))]
     pub(crate) async fn get_effects_without_certification<A>(
         &self,
         authority_aggregator: &AuthorityAggregator<A>,
@@ -239,12 +239,35 @@ impl EffectsCertifier {
     where
         A: AuthorityAPI + Send + Sync + 'static,
     {
-        let full_effects = match submit_txn_result {
-            TxStatusUpdate::Submitted => None,
+        let (effects_digest, executed_data) = match submit_txn_result {
             TxStatusUpdate::Executed {
                 effects_digest,
-                details,
-            } => details.map(|d| (effects_digest, d)),
+                details: Some(details),
+            } => (effects_digest, details),
+            TxStatusUpdate::Submitted | TxStatusUpdate::Executed { details: None, .. } => {
+                let client = authority_aggregator
+                    .authority_clients
+                    .get(&current_target)
+                    .ok_or_else(|| TransactionDriverError::ClientInternal {
+                        error: format!(
+                            "Submitting validator {current_target:?} not found in authority clients"
+                        ),
+                    })?
+                    .clone();
+                self.get_full_effects(client, tx_digest, options)
+                    .await
+                    .map_err(|e| {
+                        // The tx was already submitted to consensus (we are past
+                        // `submit_transaction` which surfaces Rejected/Expired as
+                        // errors), so the effects-fetch failure does not imply
+                        // the tx won't finalize. Signal this specifically so the
+                        // orchestrator can recover via local checkpoint execution.
+                        TransactionDriverError::SubmittedButFetchFailed {
+                            error: format!(
+                                "failed to get full effects from submitting validator {current_target:?}: {e}"),
+                        }
+                    })?
+            }
             TxStatusUpdate::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
@@ -255,38 +278,10 @@ impl EffectsCertifier {
             TxStatusUpdate::Expired { epoch } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Transaction expired in epoch {epoch} during get_effects_without_certification()"
+                        "Transaction expired in epoch {epoch} during get_effects_without_certification()",
                     ),
                 });
             }
-        };
-
-        let (effects_digest, executed_data) = if let Some(full_effects) = full_effects {
-            full_effects
-        } else {
-            let client = authority_aggregator
-                .authority_clients
-                .get(&current_target)
-                .ok_or_else(|| TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Submitting validator {current_target:?} not found in authority clients"
-                    ),
-                })?
-                .clone();
-            self.get_full_effects(client, tx_digest, options)
-                .await
-                .map_err(|e| {
-                    // The tx was already submitted to consensus (we are past
-                    // `submit_transaction` which surfaces Rejected/Expired as
-                    // errors), so the effects-fetch failure does not imply
-                    // the tx won't finalize. Signal this specifically so the
-                    // orchestrator can recover via local checkpoint execution.
-                    TransactionDriverError::SubmittedButFetchFailed {
-                        error: format!(
-                            "failed to get full effects from submitting validator {current_target:?}: {e}"
-                        ),
-                    }
-                })?
         };
 
         // Guard against a byzantine submitter returning effects for a different
