@@ -154,6 +154,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 ```
 
 Key rules:
+
 - Wrap in `<div className={'hide-code-block-extras'}>` to suppress extra UI.
 - Use `groupId="language"` and `queryString` on `<Tabs>`.
 - Tab values are always `rust` and `typescript-node`.
