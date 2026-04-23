@@ -323,6 +323,7 @@ where
                         tx_digest,
                         seq,
                         &mut response,
+                        &self.metrics,
                     );
                     true
                 } else {
@@ -396,6 +397,7 @@ where
         tx_digest: TransactionDigest,
         checkpoint_seq: CheckpointSequenceNumber,
         response: &mut ExecuteTransactionResponseV1,
+        metrics: &TransactionOrchestratorMetrics,
     ) {
         use iota_types::{effects::TransactionEffectsAPI as _, message_envelope::Message as _};
 
@@ -434,33 +436,61 @@ where
 
         if response.events.is_some() {
             match cache.try_get_events(&tx_digest) {
-                Ok(events) => response.events = events,
-                Err(e) => warn!(
-                    ?tx_digest,
-                    "reconcile_effects_from_cache: failed to read events: {e:?}"
-                ),
+                Ok(Some(events)) => response.events = Some(events),
+                Ok(None) => {
+                    // The submitter claimed events but the local cache —
+                    // authoritative after `wait_for_checkpoint_inclusion` —
+                    // has none. Trust the cache: discard the submitter's
+                    // (possibly byzantine) events. Log + bump a metric so
+                    // ops can see how often this happens.
+                    warn!(
+                        ?tx_digest,
+                        "reconcile_effects_from_cache: submitter claimed events but \
+                         cache has none — discarding (possible byzantine submitter)"
+                    );
+                    metrics.skip_effect_cert_events_cache_miss.inc();
+                    response.events = None;
+                }
+                Err(e) => {
+                    // Storage error reading events — cannot trust the
+                    // submitter's copy either. Fail closed via the safety
+                    // guard.
+                    warn!(
+                        ?tx_digest,
+                        "reconcile_effects_from_cache: failed to read events: {e:?}"
+                    );
+                    return;
+                }
             }
         }
 
         // Re-derive input/output objects from the cache-authoritative effects.
-        // The TD-returned copies came from a single validator and cannot be
-        // trusted any more than the effects themselves.
+        // The submitter's copies came from a single validator and cannot be
+        // trusted any more than the effects themselves. On storage failure,
+        // fail closed via the safety guard rather than leak the submitter's
+        // values.
         if response.input_objects.is_some() {
             match validator_state.get_transaction_input_objects(&cache_effects) {
                 Ok(objs) => response.input_objects = Some(objs),
-                Err(e) => warn!(
-                    ?tx_digest,
-                    "reconcile_effects_from_cache: failed to derive input objects: {e:?}"
-                ),
+                Err(e) => {
+                    warn!(
+                        ?tx_digest,
+                        "reconcile_effects_from_cache: failed to derive input objects: {e:?}"
+                    );
+                    return;
+                }
             }
         }
         if response.output_objects.is_some() {
             match validator_state.get_transaction_output_objects(&cache_effects) {
                 Ok(objs) => response.output_objects = Some(objs),
-                Err(e) => warn!(
-                    ?tx_digest,
-                    "reconcile_effects_from_cache: failed to derive output objects: {e:?}"
-                ),
+                Err(e) => {
+                    warn!(
+                        ?tx_digest,
+                        "reconcile_effects_from_cache: failed to derive output objects: {e:?}"
+                    );
+                    return;
+                }
             }
         }
 
@@ -1044,6 +1074,12 @@ pub struct TransactionOrchestratorMetrics {
     local_execution_timeout: GenericCounter<AtomicU64>,
     local_execution_failure: GenericCounter<AtomicU64>,
 
+    // Bumped when the skip-effect-certification path reconciles against the
+    // local cache but the cache has no events for a tx the single submitter
+    // claimed had events. Uncertified events are rejected and the request
+    // fails via the safety guard.
+    skip_effect_cert_events_cache_miss: GenericCounter<AtomicU64>,
+
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
     wait_for_finality_latency_single_writer: Histogram,
@@ -1165,6 +1201,14 @@ impl TransactionOrchestratorMetrics {
             local_execution_failure: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_failure",
                 "Total number of failed local execution txns Transaction Orchestrator handles",
+                registry,
+            )
+            .unwrap(),
+            skip_effect_cert_events_cache_miss: register_int_counter_with_registry!(
+                "tx_orchestrator_skip_effect_cert_events_cache_miss",
+                "Number of skip-effect-certification responses rejected because the \
+                 single submitter claimed to have events but the local cache did not \
+                 corroborate them",
                 registry,
             )
             .unwrap(),
