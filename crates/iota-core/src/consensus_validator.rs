@@ -95,8 +95,12 @@ impl IotaTxValidator {
                     }
                 }
                 #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                    return Err(IotaError::UnsupportedFeature {
+                        error: "NewJWKFetched (zkLogin) is deprecated and not supported".into(),
+                    });
+                }
                 ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::NewJWKFetchedDeprecated
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }
@@ -358,7 +362,6 @@ mod tests {
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::NewJWKFetchedDeprecated
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
@@ -366,6 +369,11 @@ mod tests {
                 ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
                     Some(config.calculate_validator_scores())
                 }
+
+                // Always rejected: zkLogin JWK support was never enabled on
+                // IOTA and the variant is retained only for serialization
+                // compatibility.
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
             }
         }
 
