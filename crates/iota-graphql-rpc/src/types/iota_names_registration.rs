@@ -39,12 +39,12 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    types::object::ObjectOwner,
+    types::object::{ObjectOwner, StoredBackwardObject},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -524,22 +524,25 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_objects_query(
-                    View::Consistent,
-                    range,
-                    &page,
-                    move |query| filter.apply(query),
-                    move |newer| newer,
-                );
+                let sql = consistent::query(checkpoint_viewed_at, &page, move |query| {
+                    filter.apply(query)
+                });
 
-                let objects: Vec<StoredHistoryObject> =
+                let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
+                let objects: Vec<StoredHistoryObject> = backward_objects
+                    .into_iter()
+                    .map(|o| o.into_stored_history(checkpoint_viewed_at))
+                    .collect();
 
                 Ok(Some((timestamp_ms, objects)))
             })

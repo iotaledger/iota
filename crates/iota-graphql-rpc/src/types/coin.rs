@@ -6,13 +6,13 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_indexer::types::OwnerType;
 use iota_types::{base_types::TypeTag, coin::Coin as NativeCoin};
 
 use crate::{
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, QueryExecutor},
     error::Error,
     filter,
@@ -29,7 +29,9 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{
+            self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus, StoredBackwardObject,
+        },
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -349,14 +351,17 @@ impl Coin {
 
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    coins_query(coin_type, owner, range, &page),
+                    coins_query(coin_type, owner, checkpoint_viewed_at, &page),
                 )?))
             })
             .await?
@@ -372,8 +377,9 @@ impl Coin {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
             let object =
-                Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
@@ -415,16 +421,12 @@ impl TryFrom<&MoveObject> for Coin {
 fn coins_query(
     coin_type: TypeTag,
     owner: Option<IotaAddress>,
-    range: AvailableRange,
+    checkpoint_viewed_at: u64,
     page: &Page<object::Cursor>,
 ) -> RawQuery {
-    build_objects_query(
-        View::Consistent,
-        range,
-        page,
-        move |query| apply_filter(query, &coin_type, owner),
-        move |newer| newer,
-    )
+    consistent::query(checkpoint_viewed_at, page, move |query| {
+        apply_filter(query, &coin_type, owner)
+    })
 }
 
 fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddress>) -> RawQuery {

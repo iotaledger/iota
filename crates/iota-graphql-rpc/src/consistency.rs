@@ -19,12 +19,10 @@ use crate::{
 /// The checkpoint sequence number for entities not available for view.
 pub(crate) const UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER: u64 = u64::MAX;
 
+/// View mode for forward diff queries. Only used by dynamic fields.
+/// Historical lookups use `backward_view` instead.
 #[derive(Copy, Clone)]
 pub(crate) enum View {
-    /// Return objects that fulfill the filtering criteria, even if there are
-    /// more recent versions of the object within the checkpoint range. This
-    /// is used for lookups such as by `object_id` and `version`.
-    Historical,
     /// Return objects that fulfill the filtering criteria and are the most
     /// recent version within the checkpoint range.
     Consistent,
@@ -148,13 +146,6 @@ pub(crate) fn build_objects_query(
             snapshot_objs = filter!(snapshot_objs, "newer.object_version IS NULL");
             snapshot_objs
         }
-        View::Historical => {
-            // The cursor pagination logic refers to the table with the `candidates` alias
-            query!(
-                "SELECT candidates.* FROM ({}) candidates",
-                snapshot_objs_inner
-            )
-        }
     };
 
     // Always apply cursor pagination and limit to constrain the number of rows
@@ -199,10 +190,6 @@ pub(crate) fn build_objects_query(
                 newest
             );
             history_objs
-        }
-        View::Historical => {
-            // The cursor pagination logic refers to the table with the `candidates` alias
-            query!("SELECT candidates.* FROM ({}) candidates", history_window)
         }
     };
 

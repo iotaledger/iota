@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 use diesel::{CombineDsl, ExpressionMethods, QueryDsl, QueryResult};
-use iota_indexer::schema::{checkpoints, objects_snapshot};
+use iota_indexer::schema::{checkpoints, objects_snapshot, watermarks};
 
 use crate::{
     data::{Conn, Db, DbConnection, QueryExecutor},
@@ -93,5 +93,53 @@ impl AvailableRange {
 
         last = checkpoint_viewed_at;
         Ok(Some(Self { first, last }))
+    }
+
+    /// Maximum number of checkpoints to look back for backward diff queries.
+    /// Limits how far back a consistent view can be requested, for performance
+    /// reasons (the further back, the more backward history entries to
+    /// traverse).
+    const BACKWARD_HISTORY_MAX_LOOKBACK: u64 = 900;
+
+    /// Returns whether `checkpoint_viewed_at` is within the range served by
+    /// backward diff queries. The lower bound is the greater of the backward
+    /// history watermark (`min_available_cp`) and `latest_checkpoint -
+    /// BACKWARD_HISTORY_MAX_LOOKBACK`. The upper bound is the latest
+    /// checkpoint.
+    pub(crate) fn is_checkpoint_in_backward_history_range(
+        conn: &mut Conn,
+        checkpoint_viewed_at: u64,
+    ) -> QueryResult<bool> {
+        use checkpoints::dsl as cp;
+        use watermarks::dsl as wm;
+
+        let last: Option<i64> = conn
+            .results(|| {
+                cp::checkpoints
+                    .select(cp::sequence_number)
+                    .order(cp::sequence_number.desc())
+                    .limit(1)
+                    .into_boxed()
+            })?
+            .into_iter()
+            .next();
+
+        let watermark_first: Option<i64> = conn
+            .results(|| {
+                wm::watermarks
+                    .filter(wm::entity.eq(crate::backward_view::BACKWARD_HISTORY_WATERMARK_ENTITY))
+                    .select(wm::min_available_cp)
+                    .limit(1)
+                    .into_boxed()
+            })?
+            .into_iter()
+            .next();
+
+        let last = last.unwrap_or(0) as u64;
+        let watermark_first = watermark_first.unwrap_or(0) as u64;
+        let lag_first = last.saturating_sub(Self::BACKWARD_HISTORY_MAX_LOOKBACK);
+        let first = watermark_first.max(lag_first);
+
+        Ok(checkpoint_viewed_at >= first && checkpoint_viewed_at <= last)
     }
 }
