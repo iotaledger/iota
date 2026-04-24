@@ -1,21 +1,25 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{StructTag as NativeStructTag, TypeTag as NativeTypeTag},
-};
+//! JSON Schema adapter types for the IOTA JSON-RPC surface, applied at field
+//! sites via `#[serde_as(as = "...")]`. Core serde behaviour lives in
+//! `iota_types::iota_serde`; this module adds the `schemars::JsonSchema` layer
+//! on top (the `iota-types` crate intentionally has no `schemars` dependency).
+//!
+//! To add a new adapter, prefer a unit marker struct with a manual
+//! `JsonSchema` impl for explicit control over description, format, and shape.
+//! If custom serialisation is needed, delegate `SerializeAs` / `DeserializeAs`
+//! to the corresponding adapter in `iota_types::iota_serde` so the two crates
+//! cannot drift. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
+//! appropriate when the wrapper itself is the serialised value.
+
+use iota_types::iota_serde::{IotaStructTag, IotaTypeTag};
+use move_core_types::language_storage::{StructTag as NativeStructTag, TypeTag as NativeTypeTag};
 use schemars::{
     JsonSchema,
     schema::{InstanceType, Metadata, SchemaObject},
 };
-use serde::{
-    Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::Error as SerError,
-};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 /// A schema type that defines the JSON representation of the
@@ -266,47 +270,12 @@ impl JsonSchema for StructTag {
     }
 }
 
-const IOTA_ADDRESSES: [AccountAddress; 7] = [
-    AccountAddress::ZERO,
-    MOVE_STDLIB_ADDRESS,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    STARDUST_ADDRESS,
-    IOTA_SYSTEM_STATE_ADDRESS,
-    IOTA_CLOCK_ADDRESS,
-];
-
-/// Serialize StructTag as a string, retaining the leading zeros in the address.
-fn to_iota_struct_tag_string(value: &NativeStructTag) -> Result<String, std::fmt::Error> {
-    use std::fmt::Write;
-    let mut f = String::new();
-    let address = value.address;
-    // trim leading zeros if address is in IOTA_ADDRESSES
-    let address_str = if IOTA_ADDRESSES.contains(&address) {
-        format!("0x{}", address.short_str_lossless())
-    } else {
-        address.to_canonical_string(/* with_prefix */ true)
-    };
-
-    write!(f, "{}::{}::{}", address_str, value.module, value.name)?;
-    if let Some(first_ty) = value.type_params.first() {
-        write!(f, "<")?;
-        write!(f, "{}", to_iota_type_tag_string(first_ty)?)?;
-        for ty in value.type_params.iter().skip(1) {
-            write!(f, ", {}", to_iota_type_tag_string(ty)?)?;
-        }
-        write!(f, ">")?;
-    }
-    Ok(f)
-}
-
 impl SerializeAs<NativeStructTag> for StructTag {
     fn serialize_as<S>(value: &NativeStructTag, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let f = to_iota_struct_tag_string(value).map_err(S::Error::custom)?;
-        f.serialize(serializer)
+        IotaStructTag::serialize_as(value, serializer)
     }
 }
 
@@ -315,8 +284,7 @@ impl<'de> DeserializeAs<'de, NativeStructTag> for StructTag {
     where
         D: Deserializer<'de>,
     {
-        String::deserialize(deserializer)
-            .and_then(|s| parse_iota_struct_tag(&s).map_err(D::Error::custom))
+        IotaStructTag::deserialize_as(deserializer)
     }
 }
 
@@ -343,21 +311,12 @@ impl JsonSchema for TypeTag {
     }
 }
 
-fn to_iota_type_tag_string(value: &NativeTypeTag) -> Result<String, std::fmt::Error> {
-    match value {
-        NativeTypeTag::Vector(t) => Ok(format!("vector<{}>", to_iota_type_tag_string(t)?)),
-        NativeTypeTag::Struct(s) => to_iota_struct_tag_string(s),
-        _ => Ok(value.to_string()),
-    }
-}
-
 impl SerializeAs<NativeTypeTag> for TypeTag {
     fn serialize_as<S>(value: &NativeTypeTag, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let s = to_iota_type_tag_string(value).map_err(S::Error::custom)?;
-        s.serialize(serializer)
+        IotaTypeTag::serialize_as(value, serializer)
     }
 }
 
@@ -366,8 +325,7 @@ impl<'de> DeserializeAs<'de, NativeTypeTag> for TypeTag {
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        parse_iota_type_tag(&s).map_err(D::Error::custom)
+        IotaTypeTag::deserialize_as(deserializer)
     }
 }
 
