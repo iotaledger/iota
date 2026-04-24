@@ -10,7 +10,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
-use crate::{iota_owner::OwnerSchema, serde_utils::TypeTag as TypeTagSchema};
+use crate::{iota_owner::OwnerSchema, iota_primitives::TypeTag as TypeTagSchema};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -20,7 +20,7 @@ pub struct BalanceChange {
     #[schemars(with = "OwnerSchema")]
     #[serde_as(as = "OwnerSchema")]
     pub owner: Owner,
-    #[schemars(with = "String")]
+    #[schemars(with = "TypeTagSchema")]
     #[serde_as(as = "TypeTagSchema")]
     pub coin_type: TypeTag,
     /// The amount indicate the balance value changes,

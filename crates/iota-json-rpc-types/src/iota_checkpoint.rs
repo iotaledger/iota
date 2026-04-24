@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -24,7 +23,9 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use crate::{
     IotaAuthorityPublicKeyBytes, Page,
     iota_gas_cost_summary::IotaGasCostSummary,
-    serde_utils::{Base58, ProtocolVersion as ProtocolVersionSchema},
+    iota_primitives::{
+        Base58 as Base58Schema, Base64 as Base64Schema, ProtocolVersion as ProtocolVersionSchema,
+    },
 };
 pub type CheckpointPage = Page<Checkpoint, BigInt<u64>>;
 
@@ -41,7 +42,7 @@ pub struct Checkpoint {
     #[serde_as(as = "DisplayFromStr")]
     pub sequence_number: CheckpointSequenceNumber,
     /// Checkpoint digest
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub digest: CheckpointDigest,
     /// Total number of transactions committed since genesis, including those in
     /// this checkpoint.
@@ -50,7 +51,7 @@ pub struct Checkpoint {
     pub network_total_transactions: u64,
     /// Digest of the previous checkpoint
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Base58>")]
+    #[schemars(with = "Option<Base58Schema>")]
     pub previous_digest: Option<CheckpointDigest>,
     /// The running total gas costs of all transactions included in the current
     /// epoch so far until this checkpoint.
@@ -70,7 +71,7 @@ pub struct Checkpoint {
     #[serde_as(as = "Option<EndOfEpochDataSchema>")]
     pub end_of_epoch_data: Option<EndOfEpochData>,
     /// Transaction digests
-    #[schemars(with = "Vec<Base58>")]
+    #[schemars(with = "Vec<Base58Schema>")]
     pub transactions: Vec<TransactionDigest>,
 
     /// Commitments to checkpoint state
@@ -78,8 +79,7 @@ pub struct Checkpoint {
     #[serde_as(as = "Vec<CheckpointCommitmentSchema>")]
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     /// Validator Signature
-    #[schemars(with = "Base64")]
-    //#[serde_as(as = "Readable<Base64, Bytes>")]
+    #[schemars(with = "Base64Schema")]
     pub validator_signature: AggregateAuthoritySignature,
 }
 
@@ -317,7 +317,7 @@ pub enum CheckpointId {
         #[serde_as(as = "DisplayFromStr")]
         CheckpointSequenceNumber,
     ),
-    Digest(#[schemars(with = "Base58")] CheckpointDigest),
+    Digest(#[schemars(with = "Base58Schema")] CheckpointDigest),
 }
 
 impl From<CheckpointSequenceNumber> for CheckpointId {

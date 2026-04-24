@@ -12,7 +12,7 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     IotaAuthorityPublicKeyBytes,
-    serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
 };
 
 /// RPC representation of the [Committee] type.

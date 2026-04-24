@@ -7,7 +7,10 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
     TransactionBlockBytes,
-    serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{
+        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        TypeTag as TypeTagSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -173,6 +176,7 @@ pub trait TransactionBuilder {
         /// the move function name, e.g. `split`
         function: String,
         /// the type arguments of the Move function
+        #[schemars(with = "Vec<TypeTagSchema>")]
         type_arguments: Vec<IotaTypeTag>,
         /// the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/developer/references/iota-api) format
         arguments: Vec<IotaJsonValue>,
@@ -195,6 +199,7 @@ pub trait TransactionBuilder {
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         /// the compiled bytes of a Move package
+        #[schemars(with = "Vec<Base64Schema>")]
         compiled_modules: Vec<Base64>,
         /// a list of transitive dependency addresses that this set of modules depends on.
         #[schemars(with = "Vec<ObjectIDSchema>")]

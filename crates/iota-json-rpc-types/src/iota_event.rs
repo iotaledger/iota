@@ -23,9 +23,9 @@ use tabled::settings::Style as TableStyle;
 
 use crate::{
     Page,
-    serde_utils::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        StructTag as StructTagSchema,
+    iota_primitives::{
+        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
+        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
     },
     type_and_fields_from_move_event_data,
 };
@@ -39,7 +39,7 @@ pub type EventPage = Page<IotaEvent, EventID>;
 #[serde(rename_all = "camelCase")]
 #[schemars(rename = "EventID")]
 pub struct IotaEventID {
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub tx_digest: TransactionDigest,
     #[schemars(with = "String")]
     pub event_seq: u64,
@@ -77,15 +77,14 @@ pub struct IotaEvent {
     /// Move package where this event was emitted.
     #[schemars(with = "ObjectIDSchema")]
     pub package_id: ObjectID,
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
+    #[schemars(with = "IdentifierSchema")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
     #[schemars(with = "IotaAddressSchema")]
     pub sender: IotaAddress,
     /// Move event type.
-    #[schemars(with = "String")]
+    #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     /// Parsed json value of the event
@@ -107,12 +106,12 @@ pub struct IotaEvent {
 pub enum BcsEvent {
     Base64 {
         #[serde_as(as = "Base64")]
-        #[schemars(with = "Base64")]
+        #[schemars(with = "Base64Schema")]
         bcs: Vec<u8>,
     },
     Base58 {
         #[serde_as(as = "Base58")]
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         bcs: Vec<u8>,
     },
 }
@@ -346,15 +345,14 @@ pub enum EventFilter {
         #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
+        #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },
     /// Return events with the given Move event struct name (struct tag).
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventType(
-        #[schemars(with = "String")]
+        #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         StructTag,
     ),
@@ -367,8 +365,7 @@ pub enum EventFilter {
         #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
+        #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },
     MoveEventField {

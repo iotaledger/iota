@@ -41,8 +41,9 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use crate::{
     IotaMoveStruct, IotaMoveValue, IotaObjectResponseError as IotaObjectResponseErrorSchema, Page,
     iota_owner::OwnerSchema,
-    serde_utils::{
-        Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+    iota_primitives::{
+        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
+        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
         SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, StructTag as StructTagSchema,
     },
@@ -215,7 +216,7 @@ pub struct IotaObjectData {
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
     /// The type of the object. Default to be None unless
     /// IotaObjectDataOptions.showType is set to true
@@ -234,7 +235,7 @@ pub struct IotaObjectData {
     /// Default to be None unless IotaObjectDataOptions.
     /// showPreviousTransaction is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Base58>")]
+    #[schemars(with = "Option<Base58Schema>")]
     pub previous_transaction: Option<TransactionDigest>,
     /// The amount of IOTA we would rebate if this object gets deleted.
     /// This number is re-calculated each time the object is mutated based on
@@ -651,7 +652,7 @@ pub struct ObjectRefSchema {
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
 }
 
@@ -890,7 +891,7 @@ pub trait IotaMoveObject: Sized {
 #[serde(rename = "MoveObject", rename_all = "camelCase")]
 pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
-    #[schemars(with = "String")]
+    #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     pub fields: IotaMoveStruct,
@@ -971,13 +972,13 @@ pub fn type_and_fields_from_move_event_data(
 #[serde(rename = "RawMoveObject", rename_all = "camelCase")]
 pub struct IotaRawMoveObject {
     #[serde(rename = "type")]
-    #[schemars(with = "String")]
+    #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
-    #[schemars(with = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub bcs_bytes: Vec<u8>,
 }
 
@@ -1029,14 +1030,14 @@ impl IotaRawMoveObject {
 #[schemars(rename = "TypeOrigin")]
 pub struct IotaTypeOrigin {
     /// The name of the module the data type resides in.
-    #[schemars(with = "String")]
+    #[schemars(with = "IdentifierSchema")]
     pub module_name: Identifier,
     /// The name of the data type.
     ///
     /// Here this either refers to an enum or a struct identifier.
     // `struct_name` alias to support backwards compatibility with the old name
     #[serde(alias = "struct_name")]
-    #[schemars(with = "String")]
+    #[schemars(with = "IdentifierSchema")]
     pub datatype_name: Identifier,
     /// `Storage ID` of the package, where the given type first appeared.
     #[schemars(with = "ObjectIDSchema")]
@@ -1107,13 +1108,12 @@ pub struct IotaRawMovePackage {
     pub id: ObjectID,
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
-    #[schemars(with = "BTreeMap<String, Base64>")]
+    #[schemars(with = "BTreeMap<String, Base64Schema>")]
     #[serde_as(as = "BTreeMap<_, Base64>")]
     pub module_map: BTreeMap<String, Vec<u8>>,
     #[schemars(with = "Vec<IotaTypeOrigin>")]
     pub type_origin_table: Vec<TypeOrigin>,
     #[schemars(with = "BTreeMap<ObjectIDSchema, IotaUpgradeInfo>")]
-    #[serde_as(as = "BTreeMap<ObjectIDSchema, _>")]
     pub linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
@@ -1276,13 +1276,12 @@ pub enum IotaObjectDataFilter {
         #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
-        #[schemars(with = "String")]
-        #[serde_as(as = "DisplayFromStr")]
+        #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },
     /// Query by type
     StructType(
-        #[schemars(with = "String")]
+        #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         StructTag,
     ),
@@ -1290,11 +1289,7 @@ pub enum IotaObjectDataFilter {
     ObjectOwner(#[schemars(with = "ObjectIDSchema")] ObjectID),
     ObjectId(#[schemars(with = "ObjectIDSchema")] ObjectID),
     // allow querying for multiple object ids
-    ObjectIds(
-        #[schemars(with = "Vec<ObjectIDSchema>")]
-        #[serde_as(as = "Vec<ObjectIDSchema>")]
-        Vec<ObjectID>,
-    ),
+    ObjectIds(#[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectID>),
     Version(
         #[serde_as(as = "DisplayFromStr")]
         #[schemars(with = "String")]

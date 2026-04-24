@@ -58,12 +58,13 @@ use crate::{
     balance_changes::BalanceChange,
     iota_gas_cost_summary::IotaGasCostSummary,
     iota_owner::OwnerSchema,
-    object_changes::ObjectChange,
-    serde_utils::{
-        Base58, GenericSignature as GenericSignatureSchema, IotaAddress as IotaAddressSchema,
-        ObjectID as ObjectIDSchema, SequenceNumberString as SequenceNumberStringSchema,
+    iota_primitives::{
+        Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
+        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
+    object_changes::ObjectChange,
 };
 
 // similar to EpochId of iota-types but BigInt
@@ -267,7 +268,7 @@ impl IotaTransactionBlockResponseOptions {
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, Default)]
 #[serde(rename_all = "camelCase", rename = "TransactionBlockResponse")]
 pub struct IotaTransactionBlockResponse {
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub digest: TransactionDigest,
     /// Transaction input data
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -275,7 +276,7 @@ pub struct IotaTransactionBlockResponse {
     /// BCS encoded [SenderSignedData] that includes input object references
     /// returns empty array if `show_raw_transaction` is false
     #[serde_as(as = "Base64")]
-    #[schemars(with = "Base64")]
+    #[schemars(with = "Base64Schema")]
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub raw_transaction: Vec<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -863,7 +864,7 @@ pub struct IotaTransactionBlockEffectsV1 {
     #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub shared_objects: Vec<ObjectRef>,
     /// The transaction digest
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub transaction_digest: TransactionDigest,
     /// ObjectRef and owner of new objects created.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -898,11 +899,11 @@ pub struct IotaTransactionBlockEffectsV1 {
     /// The digest of the events emitted during execution,
     /// can be None if the transaction does not emit any event.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Base58>")]
+    #[schemars(with = "Option<Base58Schema>")]
     pub events_digest: Option<TransactionEventsDigest>,
     /// The set of transaction digests this transaction depends on.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(with = "Vec<Base58>")]
+    #[schemars(with = "Vec<Base58Schema>")]
     pub dependencies: Vec<TransactionDigest>,
 }
 
@@ -1306,7 +1307,6 @@ pub struct DevInspectArgs {
     /// The sponsor of the gas for the transaction, might be different from the
     /// sender.
     #[schemars(with = "Option<IotaAddressSchema>")]
-    #[serde_as(as = "Option<IotaAddressSchema>")]
     pub gas_sponsor: Option<IotaAddress>,
     /// The gas budget for the transaction.
     #[schemars(with = "Option<String>")]
@@ -1355,9 +1355,11 @@ pub struct IotaExecutionResult {
     /// The value of any arguments that were mutably borrowed.
     /// Non-mut borrowed values are not included
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<(IotaArgument, Vec<u8>, TypeTagSchema)>")]
     pub mutable_reference_outputs: Vec<(/* argument */ IotaArgument, Vec<u8>, IotaTypeTag)>,
     /// The return values from the transaction
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<(Vec<u8>, TypeTagSchema)>")]
     pub return_values: Vec<(Vec<u8>, IotaTypeTag)>,
 }
 
@@ -1868,7 +1870,6 @@ impl Display for IotaTransactionBlock {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
     #[schemars(with = "Vec<ObjectIDSchema>")]
-    #[serde_as(as = "Vec<ObjectIDSchema>")]
     pub objects: Vec<ObjectID>,
     #[schemars(with = "Vec<IotaEventID>")]
     pub events: Vec<EventID>,
@@ -1889,7 +1890,7 @@ pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub commit_timestamp_ms: u64,
-    #[schemars(with = "Base58")]
+    #[schemars(with = "Base58Schema")]
     pub consensus_commit_digest: ConsensusCommitDigest,
     pub consensus_determined_version_assignments: IotaConsensusDeterminedVersionAssignments,
 }
@@ -1901,7 +1902,7 @@ pub struct IotaConsensusCommitPrologueV1 {
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[schemars(with = "Vec<(Base58, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
+        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
         Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
     ),
 }
@@ -2226,16 +2227,10 @@ pub enum IotaCommand {
     MergeCoins(IotaArgument, Vec<IotaArgument>),
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
-    Publish(
-        #[schemars(with = "Vec<ObjectIDSchema>")]
-        #[serde_as(as = "Vec<ObjectIDSchema>")]
-        Vec<ObjectID>,
-    ),
+    Publish(#[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectID>),
     /// Upgrades a Move package
     Upgrade(
-        #[schemars(with = "Vec<ObjectIDSchema>")]
-        #[serde_as(as = "Vec<ObjectIDSchema>")]
-        Vec<ObjectID>,
+        #[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectID>,
         #[schemars(with = "ObjectIDSchema")] ObjectID,
         IotaArgument,
     ),
@@ -2464,7 +2459,7 @@ impl From<InputObjectKind> for IotaInputObjectKind {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename = "TypeTag", rename_all = "camelCase")]
 pub struct IotaTypeTag(String);
 
@@ -2519,6 +2514,7 @@ pub struct MoveCallParams {
     pub module: String,
     pub function: String,
     #[serde(default)]
+    #[schemars(with = "Vec<TypeTagSchema>")]
     pub type_arguments: Vec<IotaTypeTag>,
     pub arguments: Vec<PtbInput>,
 }
@@ -2529,6 +2525,7 @@ pub struct MoveCallParams {
 pub struct TransactionBlockBytes {
     /// BCS serialized transaction data bytes without its type tag, as base-64
     /// encoded string.
+    #[schemars(with = "Base64Schema")]
     pub tx_bytes: Base64,
     /// the gas objects to be used
     #[schemars(with = "Vec<ObjectRefSchema>")]
@@ -2644,7 +2641,7 @@ impl IotaCallArg {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaPureValue {
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<TypeTagSchema>")]
     #[serde_as(as = "Option<TypeTagSchema>")]
     value_type: Option<TypeTag>,
     value: IotaJsonValue,
@@ -2672,7 +2669,7 @@ pub enum IotaObjectArg {
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     // A Move object that's shared.
@@ -2695,7 +2692,7 @@ pub enum IotaObjectArg {
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
 }

@@ -761,9 +761,7 @@
           "description": "the event query criteria.",
           "required": true,
           "schema": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           }
         }
       ],
@@ -2248,9 +2246,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           }
         },
         {
@@ -2426,9 +2422,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           }
         }
       ],
@@ -2659,9 +2653,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "description": "Base58 encoded data",
-              "type": "string",
-              "format": "base58"
+              "$ref": "#/components/schemas/Base58"
             }
           }
         },
@@ -4987,9 +4979,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           }
         },
         {
@@ -5010,7 +5000,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaTransactionBlockResponse,Base58>",
+        "name": "Page<IotaTransactionBlockResponse,Base58Schema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_Base58"
@@ -6146,7 +6136,7 @@
             "type": "string"
           },
           "coinType": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "owner": {
             "description": "Owner of the balance change",
@@ -6159,11 +6149,14 @@
         }
       },
       "Base58": {
-        "type": "string"
+        "description": "Base58 encoded data",
+        "type": "string",
+        "format": "base58"
       },
       "Base64": {
-        "description": "Base64 encoding",
-        "type": "string"
+        "description": "Base64 encoded data",
+        "type": "string",
+        "format": "base64"
       },
       "Checkpoint": {
         "type": "object",
@@ -6188,8 +6181,11 @@
           },
           "digest": {
             "description": "Checkpoint digest",
-            "type": "string",
-            "format": "base58"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              }
+            ]
           },
           "endOfEpochData": {
             "description": "Present only on the final checkpoint of the epoch.",
@@ -6220,11 +6216,14 @@
           },
           "previousDigest": {
             "description": "Digest of the previous checkpoint",
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "base58"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sequenceNumber": {
             "description": "Checkpoint sequence number",
@@ -6238,9 +6237,7 @@
             "description": "Transaction digests",
             "type": "array",
             "items": {
-              "description": "Base58 encoded data",
-              "type": "string",
-              "format": "base58"
+              "$ref": "#/components/schemas/Base58"
             }
           },
           "validatorSignature": {
@@ -6275,9 +6272,7 @@
             "type": "string"
           },
           {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           }
         ]
       },
@@ -6302,14 +6297,10 @@
             "type": "string"
           },
           "digest": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           },
           "previousTransaction": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           },
           "version": {
             "$ref": "#/components/schemas/SequenceNumberString"
@@ -6360,9 +6351,7 @@
                   "type": "array",
                   "items": [
                     {
-                      "description": "Base58 encoded data",
-                      "type": "string",
-                      "format": "base58"
+                      "$ref": "#/components/schemas/Base58"
                     },
                     {
                       "type": "array",
@@ -6410,7 +6399,7 @@
                 "$ref": "#/components/schemas/MoveStruct"
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -6514,7 +6503,6 @@
           },
           "gasSponsor": {
             "description": "The sponsor of the gas for the transaction, might be different from the sender.",
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -6723,9 +6711,7 @@
         ],
         "properties": {
           "digest": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           },
           "name": {
             "$ref": "#/components/schemas/DynamicFieldName"
@@ -6752,7 +6738,7 @@
         ],
         "properties": {
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "value": true
         }
@@ -7073,11 +7059,19 @@
           },
           "transactionModule": {
             "description": "Move module where this event was emitted.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "type": {
             "description": "Move event type.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StructTag"
+              }
+            ]
           }
         }
       },
@@ -7104,9 +7098,7 @@
             ],
             "properties": {
               "Transaction": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               }
             },
             "additionalProperties": false
@@ -7140,7 +7132,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7163,7 +7159,7 @@
             ],
             "properties": {
               "MoveEventType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -7184,7 +7180,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7384,7 +7384,7 @@
         ]
       },
       "GasCostSummary": {
-        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text gas-cost-summary = u64 ; computation-cost u64 ; storage-cost u64 ; storage-rebate u64 ; non-refundable-storage-fee ```",
+        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: - `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of storage is the number of bytes of the objects being mutated multiplied by a variable storage cost per byte - `storage_rebate`: this is the amount a user gets back when manipulating an object. The `storage_rebate` is the `storage_cost` for an object minus fees. - `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee` ```",
         "type": "object",
         "required": [
           "computationCost",
@@ -7443,7 +7443,9 @@
         }
       },
       "GenericSignature": {
-        "$ref": "#/components/schemas/Base64"
+        "description": "Base64 encoded signature",
+        "type": "string",
+        "format": "base64"
       },
       "GetPastObjectRequest": {
         "type": "object",
@@ -7469,6 +7471,10 @@
             ]
           }
         }
+      },
+      "Identifier": {
+        "description": "Move identifier",
+        "type": "string"
       },
       "InputObjectKind": {
         "oneOf": [
@@ -7546,7 +7552,9 @@
         }
       },
       "IotaAddress": {
-        "type": "string"
+        "description": "IOTA address as a hex string",
+        "type": "string",
+        "format": "hex"
       },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
@@ -7643,9 +7651,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "description": "Base58 encoded data",
-                    "type": "string",
-                    "format": "base58"
+                    "$ref": "#/components/schemas/Base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7697,9 +7703,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "description": "Base58 encoded data",
-                    "type": "string",
-                    "format": "base58"
+                    "$ref": "#/components/schemas/Base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7746,9 +7750,13 @@
               },
               "valueType": {
                 "default": null,
-                "type": [
-                  "string",
-                  "null"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TypeTag"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             }
@@ -7887,7 +7895,6 @@
           },
           "id": {
             "description": "Object id for the CoinMetadata object",
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -8425,7 +8432,6 @@
           },
           "targetAddress": {
             "description": "The target address that this name points to",
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -8513,7 +8519,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -8536,7 +8546,7 @@
             ],
             "properties": {
               "StructType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -9771,7 +9781,7 @@
                 }
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -9849,7 +9859,7 @@
             }
           },
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/StructTag"
           },
           "variant": {
             "type": "string"
@@ -9915,9 +9925,7 @@
             ],
             "properties": {
               "digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "modules": {
                 "type": "array",
@@ -9953,15 +9961,13 @@
             ],
             "properties": {
               "digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "recipient": {
                 "$ref": "#/components/schemas/Owner"
@@ -9995,15 +10001,13 @@
             ],
             "properties": {
               "digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -10040,7 +10044,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10071,7 +10075,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10101,9 +10105,7 @@
             ],
             "properties": {
               "digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10142,15 +10144,13 @@
             ],
             "properties": {
               "digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -10203,8 +10203,11 @@
           },
           "digest": {
             "description": "Base64 string representing the object digest",
-            "type": "string",
-            "format": "base58"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              }
+            ]
           },
           "display": {
             "description": "The Display metadata for frontend UI rendering, default to be None unless IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not have Display defined",
@@ -10233,11 +10236,14 @@
           },
           "previousTransaction": {
             "description": "The digest of the transaction that created or last mutated this object. Default to be None unless IotaObjectDataOptions. showPreviousTransaction is set to true",
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "base58"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "storageRebate": {
             "description": "The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each time the object is mutated based on the present storage gas price.",
@@ -10304,7 +10310,9 @@
         }
       },
       "ObjectID": {
-        "type": "string"
+        "description": "Object ID as a hex string",
+        "type": "string",
+        "format": "hex"
       },
       "ObjectRead": {
         "oneOf": [
@@ -10441,8 +10449,11 @@
         "properties": {
           "digest": {
             "description": "Base64 string representing the object digest",
-            "type": "string",
-            "format": "base58"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              }
+            ]
           },
           "objectId": {
             "description": "Hex code as string representing the object id",
@@ -10517,8 +10528,11 @@
               },
               "digest": {
                 "description": "Base64 string representing the object digest",
-                "type": "string",
-                "format": "base58"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base58"
+                  }
+                ]
               },
               "object_id": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10892,12 +10906,14 @@
             "type": "boolean"
           },
           "nextCursor": {
-            "description": "Base58 encoded data",
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "base58"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Base58"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -11021,6 +11037,7 @@
         ]
       },
       "ProtocolVersion": {
+        "description": "A schema type that defines the JSON representation of the [`ProtocolVersion`](iota_protocol_config::ProtocolVersion) type as a string and provides an alternate serialization usable via `#[serde_as]`.",
         "type": "string"
       },
       "PtbInput": {
@@ -11082,7 +11099,7 @@
                 ]
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "version": {
                 "$ref": "#/components/schemas/SequenceNumberU64"
@@ -11135,12 +11152,12 @@
         ]
       },
       "SequenceNumberString": {
+        "description": "Sequence number as a string",
         "type": "string"
       },
       "SequenceNumberU64": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
+        "description": "Sequence number as a u64 integer",
+        "type": "integer"
       },
       "Stake": {
         "type": "object",
@@ -11217,6 +11234,10 @@
             ]
           }
         }
+      },
+      "StructTag": {
+        "description": "Move struct tag, in the format 'address::module::name<type_params>'",
+        "type": "string"
       },
       "Supply": {
         "type": "object",
@@ -11422,18 +11443,19 @@
                 "description": "The set of transaction digests this transaction depends on.",
                 "type": "array",
                 "items": {
-                  "description": "Base58 encoded data",
-                  "type": "string",
-                  "format": "base58"
+                  "$ref": "#/components/schemas/Base58"
                 }
               },
               "eventsDigest": {
                 "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "base58"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Base58"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "executedEpoch": {
                 "description": "The epoch when this transaction was executed.",
@@ -11487,8 +11509,11 @@
               },
               "transactionDigest": {
                 "description": "The transaction digest",
-                "type": "string",
-                "format": "base58"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base58"
+                  }
+                ]
               },
               "unwrapped": {
                 "description": "ObjectRef and owner of objects that are unwrapped in this transaction. Unwrapped objects are objects that were wrapped into other objects in the past, and just got extracted out.",
@@ -11577,9 +11602,7 @@
                 "type": "string"
               },
               "consensus_commit_digest": {
-                "description": "Base58 encoded data",
-                "type": "string",
-                "format": "base58"
+                "$ref": "#/components/schemas/Base58"
               },
               "consensus_determined_version_assignments": {
                 "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
@@ -11751,9 +11774,7 @@
             ]
           },
           "digest": {
-            "description": "Base58 encoded data",
-            "type": "string",
-            "format": "base58"
+            "$ref": "#/components/schemas/Base58"
           },
           "effects": {
             "anyOf": [
@@ -12286,11 +12307,19 @@
         "properties": {
           "datatype_name": {
             "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "module_name": {
             "description": "The name of the module the data type resides in.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package": {
             "description": "`Storage ID` of the package, where the given type first appeared.",
@@ -12303,6 +12332,7 @@
         }
       },
       "TypeTag": {
+        "description": "Move type tag as a string",
         "type": "string"
       },
       "UpgradeInfo": {

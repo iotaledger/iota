@@ -8,7 +8,9 @@ use iota_json_rpc_types::{
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
-    serde_utils::{Base58, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{
+        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -68,13 +70,13 @@ pub trait IndexerApi {
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
     #[method(name = "queryTransactionBlocks")]
-    #[schemars(with = "Page<IotaTransactionBlockResponse, Base58>")]
+    #[schemars(with = "Page<IotaTransactionBlockResponse, Base58Schema>")]
     async fn query_transaction_blocks_v2(
         &self,
         /// the transaction query criteria.
         query: IotaTransactionBlockResponseQueryV2,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        #[schemars(with = "Option<Base58>")]
+        #[schemars(with = "Option<Base58Schema>")]
         cursor: Option<TransactionDigest>,
         /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.
         limit: Option<usize>,

@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
-use crate::serde_utils::{
+use crate::iota_primitives::{
     IotaAddress as IotaAddressSchema, SequenceNumberU64 as SequenceNumberU64Schema,
 };
 

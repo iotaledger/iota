@@ -16,7 +16,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema};
+use crate::iota_primitives::{
+    Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+};
 
 /// This is the JSON-RPC type for IOTA system state objects.
 /// It is an enum type that can represent either V1 or V2 system state objects.
@@ -660,13 +662,17 @@ pub struct IotaValidatorSummary {
     // Metadata
     #[schemars(with = "IotaAddressSchema")]
     pub iota_address: IotaAddress,
-    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub authority_pubkey_bytes: Vec<u8>,
-    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub network_pubkey_bytes: Vec<u8>,
-    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub protocol_pubkey_bytes: Vec<u8>,
-    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub proof_of_possession_bytes: Vec<u8>,
     pub name: String,
     pub description: String,
@@ -675,13 +681,13 @@ pub struct IotaValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    #[schemars(with = "Option<Base64>")]
+    #[schemars(with = "Option<Base64Schema>")]
     pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
-    #[schemars(with = "Option<Base64>")]
+    #[schemars(with = "Option<Base64Schema>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
-    #[schemars(with = "Option<Base64>")]
+    #[schemars(with = "Option<Base64Schema>")]
     pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
-    #[schemars(with = "Option<Base64>")]
+    #[schemars(with = "Option<Base64Schema>")]
     pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
     pub next_epoch_net_address: Option<String>,
     pub next_epoch_p2p_address: Option<String>,

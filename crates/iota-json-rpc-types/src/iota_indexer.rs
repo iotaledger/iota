@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema};
+use crate::iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema};
 
 /// A single record in the registry.
 #[serde_as]
@@ -29,7 +29,6 @@ pub struct IotaNameRecord {
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to
     #[schemars(with = "Option<IotaAddressSchema>")]
-    #[serde_as(as = "Option<IotaAddressSchema>")]
     pub target_address: Option<IotaAddress>,
     /// Additional data which may be stored in a record
     pub data: BTreeMap<String, String>,

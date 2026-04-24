@@ -18,6 +18,10 @@ pub use iota_move::*;
 pub use iota_object::*;
 pub use iota_object_response_error::*;
 pub use iota_owner::*;
+use iota_primitives::{
+    Base58 as Base58Schema, Base64 as Base64Schema, ObjectID as ObjectIDSchema,
+    SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
+};
 pub use iota_protocol::*;
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
@@ -30,10 +34,6 @@ use move_core_types::language_storage::TypeTag;
 pub use object_changes::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_utils::{
-    Base58 as Base58Schema, ObjectID as ObjectIDSchema,
-    SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
-};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 #[cfg(test)]
@@ -53,11 +53,11 @@ mod iota_move;
 mod iota_object;
 mod iota_object_response_error;
 mod iota_owner;
+pub mod iota_primitives;
 mod iota_protocol;
 mod iota_system_state_summary;
 mod iota_transaction;
 mod object_changes;
-pub mod serde_utils;
 
 pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectID>;
 
@@ -86,7 +86,7 @@ impl<T, C> Page<T, C> {
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "DynamicFieldName")]
 pub struct DynamicFieldNameSchema {
-    #[schemars(with = "String")]
+    #[schemars(with = "TypeTagSchema")]
     #[serde_as(as = "TypeTagSchema")]
     pub type_: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
@@ -255,13 +255,13 @@ impl From<IotaDynamicFieldInfo> for DynamicFieldInfo {
 pub enum BcsName {
     Base64 {
         #[serde_as(as = "Base64")]
-        #[schemars(with = "Base64")]
+        #[schemars(with = "Base64Schema")]
         #[serde(rename = "bcsName")]
         bcs_name: Vec<u8>,
     },
     Base58 {
         #[serde_as(as = "Base58")]
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         #[serde(rename = "bcsName")]
         bcs_name: Vec<u8>,
     },
@@ -338,8 +338,8 @@ impl From<MaybeTaggedBcsName> for BcsName {
 )]
 #[schemars(rename = "AuthorityPublicKeyBytes")]
 pub struct IotaAuthorityPublicKeyBytes(
-    #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
     pub [u8; AuthorityPublicKey::LENGTH],
 );
 

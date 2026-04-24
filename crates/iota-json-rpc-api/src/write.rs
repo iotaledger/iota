@@ -8,7 +8,9 @@ use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag,
-    serde_utils::IotaAddress as IotaAddressSchema,
+    iota_primitives::{
+        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, TypeTag as TypeTagSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
@@ -35,8 +37,10 @@ pub trait WriteApi {
     async fn execute_transaction_block(
         &self,
         /// BCS serialized transaction data bytes without its type tag, as base-64 encoded string.
+        #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// A list of signatures (`flag || signature || pubkey` bytes, as base-64 encoded string). Signature is committed to the intent message of the transaction data, as base-64 encoded string.
+        #[schemars(with = "Vec<Base64Schema>")]
         signatures: Vec<Base64>,
         /// options for specifying the content to be returned
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -51,6 +55,7 @@ pub trait WriteApi {
         &self,
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
         function_name: String,
+        #[schemars(with = "Option<Vec<TypeTagSchema>>")]
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults>;
@@ -65,6 +70,7 @@ pub trait WriteApi {
         #[schemars(with = "IotaAddressSchema")]
         sender_address: IotaAddress,
         /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
+        #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price
         #[schemars(with = "Option<String>")]
@@ -81,6 +87,6 @@ pub trait WriteApi {
     #[method(name = "dryRunTransactionBlock")]
     async fn dry_run_transaction_block(
         &self,
-        tx_bytes: Base64,
+        #[schemars(with = "Base64Schema")] tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse>;
 }

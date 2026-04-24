@@ -7,8 +7,9 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
     ProtocolConfigResponse,
-    serde_utils::{
-        Base58, ObjectID as ObjectIDSchema, SequenceNumberU64 as SequenceNumberU64Schema,
+    iota_primitives::{
+        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        SequenceNumberU64 as SequenceNumberU64Schema,
     },
 };
 use iota_open_rpc_macros::open_rpc;
@@ -31,7 +32,7 @@ pub trait ReadApi {
     async fn is_transaction_indexed_on_node(
         &self,
         /// the digest of the queried transaction
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         digest: TransactionDigest,
     ) -> RpcResult<bool>;
 
@@ -41,7 +42,7 @@ pub trait ReadApi {
     async fn get_transaction_block(
         &self,
         /// the digest of the queried transaction
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         digest: TransactionDigest,
         /// options for specifying the content to be returned
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -55,7 +56,7 @@ pub trait ReadApi {
     async fn multi_get_transaction_blocks(
         &self,
         /// A list of transaction digests.
-        #[schemars(with = "Vec<Base58>")]
+        #[schemars(with = "Vec<Base58Schema>")]
         digests: Vec<TransactionDigest>,
         /// config options to control which fields to fetch
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -167,7 +168,7 @@ pub trait ReadApi {
     async fn get_events(
         &self,
         /// the event query criteria.
-        #[schemars(with = "Base58")]
+        #[schemars(with = "Base58Schema")]
         transaction_digest: TransactionDigest,
     ) -> RpcResult<Vec<IotaEvent>>;
 

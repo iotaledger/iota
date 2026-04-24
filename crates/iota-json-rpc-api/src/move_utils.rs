@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use iota_json_rpc_types::{
     IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
-    MoveFunctionArgType, serde_utils::ObjectID as ObjectIDSchema,
+    MoveFunctionArgType, iota_primitives::ObjectID as ObjectIDSchema,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::base_types::ObjectID;

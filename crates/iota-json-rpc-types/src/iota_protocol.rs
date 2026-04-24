@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
-use crate::serde_utils::ProtocolVersion as ProtocolVersionSchema;
+use crate::iota_primitives::ProtocolVersion as ProtocolVersionSchema;
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]

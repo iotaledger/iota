@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, IotaSystemStateSummary,
     IotaSystemStateSummaryV1, ValidatorApys,
-    serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{

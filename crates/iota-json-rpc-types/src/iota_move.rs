@@ -33,7 +33,7 @@ use serde_json::{Value, json};
 use serde_with::serde_as;
 use tracing::warn;
 
-use crate::serde_utils::{
+use crate::iota_primitives::{
     IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
 };
 
@@ -538,7 +538,7 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[serde(rename = "MoveVariant")]
 pub struct IotaMoveVariant {
     #[serde(rename = "type")]
-    #[schemars(with = "String")]
+    #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     pub variant: String,
@@ -593,7 +593,7 @@ pub enum IotaMoveStruct {
     Runtime(Vec<IotaMoveValue>),
     WithTypes {
         #[serde(rename = "type")]
-        #[schemars(with = "String")]
+        #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         type_: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,

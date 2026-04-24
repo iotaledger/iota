@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::{
     Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
-    serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::base_types::{IotaAddress, ObjectID};
