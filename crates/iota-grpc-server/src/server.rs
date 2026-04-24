@@ -140,7 +140,7 @@ pub async fn start_grpc_server(
         .map(|m| m.inflight_checkpoint_stream_subscribers());
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(
         checkpoint_data_tx,
-        config.max_concurrent_stream_subscribers.get() as usize,
+        config.max_concurrent_stream_subscribers.max(1) as usize,
         inflight_subscribers,
     );
 

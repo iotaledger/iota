@@ -167,7 +167,15 @@ impl GrpcCheckpointDataBroadcaster {
         Some(SubscribedReceiver { rx, guard })
     }
 
-    /// Get the number of active receivers
+    /// Get the number of active broadcast receivers.
+    ///
+    /// Counts every receiver on the underlying `broadcast::Sender`, including
+    /// any internal subscribers that did not go through [`subscribe`] and are
+    /// therefore not tracked by the subscriber cap or `inflight_subscribers`
+    /// gauge. Use this when deciding whether to send on the channel; use the
+    /// gauge when reporting externally-subscribed stream count.
+    ///
+    /// [`subscribe`]: Self::subscribe
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }
