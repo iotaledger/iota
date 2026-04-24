@@ -654,12 +654,12 @@ impl PrimaryWorker {
             let superseded_ids: HashSet<ObjectID> = effects
                 .mutated()
                 .into_iter()
-                .map(|((id, _, _), _)| id)
+                .map(|(r, _)| r.object_id)
                 .chain(
                     effects
                         .all_removed_objects()
                         .into_iter()
-                        .map(|((id, _, _), _)| id),
+                        .map(|(r, _)| r.object_id),
                 )
                 .collect();
 
@@ -678,9 +678,9 @@ impl PrimaryWorker {
             }
 
             // 2. Created objects did not exist before this transaction.
-            for ((object_id, _, _), _) in effects.created() {
+            for (r, _) in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
-                    object_id,
+                    r.object_id,
                     -1,
                     BackwardHistoryObjectStatus::NotYetCreated,
                     checkpoint_seq,
@@ -691,10 +691,10 @@ impl PrimaryWorker {
             //    data available. Use lamport version - 1 as approximation.
             let unwrapped_refs = effects.unwrapped().into_iter().map(|(r, _)| r);
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
-            for (object_id, version, _) in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
+            for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
                 result.push(StoredBackwardHistoryObject::from_empty(
-                    object_id,
-                    version.value() as i64 - 1,
+                    r.object_id,
+                    r.version.as_u64() as i64 - 1,
                     BackwardHistoryObjectStatus::WrappedOrDeleted,
                     checkpoint_seq,
                 ));

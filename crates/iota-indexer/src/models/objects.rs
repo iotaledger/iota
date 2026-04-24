@@ -830,7 +830,7 @@ impl StoredBackwardHistoryObject {
         superseded_at_checkpoint: i64,
     ) -> Self {
         Self {
-            object_id: object_id.to_vec(),
+            object_id: object_id.as_bytes().to_vec(),
             object_version,
             object_status: status as i16,
             object_digest: None,
