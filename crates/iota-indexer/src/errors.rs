@@ -163,6 +163,9 @@ pub enum IndexerError {
     #[error("historical fallback storage error: {0}")]
     HistoricalFallbackStorageError(String),
 
+    #[error("historical fallback input error: {0}")]
+    HistoricalFallbackInput(String),
+
     #[error("Missing data due to pruning: `{0}`")]
     DataPruned(String),
 

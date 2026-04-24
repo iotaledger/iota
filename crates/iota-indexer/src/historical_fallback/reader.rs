@@ -99,8 +99,8 @@ impl HistoricalFallbackReader {
             .collect::<Vec<(ObjectID, SequenceNumber)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(
-            self.client.multi_get_objects(&input_object_keys),
-            self.client.multi_get_objects(&output_object_keys),
+            self.client.multi_get_objects(&input_object_keys, false),
+            self.client.multi_get_objects(&output_object_keys, false),
         )?;
 
         let input_objects = raw_input_objects
@@ -342,29 +342,14 @@ impl HistoricalFallbackReader {
     ///
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
-    ///
-    /// # Note
-    ///
-    /// Currently only supports `before_version = false`.
-    ///
-    /// Support for `before_version = true` will be added once range scan is
-    /// implemented on the KV REST API.
     pub(crate) async fn objects(
         &self,
         object_refs: &[(ObjectID, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<StoredObject>>> {
-        if before_version {
-            // TODO: Implement once range scan is available on KV REST API
-            // For now, we cannot determine the correct previous version without it due to
-            // non-contiguous object versioning:
-            // https://docs.iota.org/developer/iota-101/objects/versioning#move-objects.
-            return Ok(vec![None; object_refs.len()]);
-        }
-
         let stored_objects = self
             .client
-            .multi_get_objects(object_refs)
+            .multi_get_objects(object_refs, before_version)
             .await?
             .into_iter()
             .map(|obj| obj.map(StoredObject::from))
