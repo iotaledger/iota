@@ -874,7 +874,10 @@ impl Object {
 
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                if AvailableRange::result(conn, checkpoint_viewed_at)?.is_none() {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
@@ -1703,7 +1706,10 @@ impl Loader<LatestAtKey> for Db {
                 .into_iter()
                 .map(|(checkpoint_viewed_at, ids)| {
                     self.execute_repeatable(move |conn| {
-                        if AvailableRange::result(conn, checkpoint_viewed_at)?.is_none() {
+                        if !AvailableRange::is_checkpoint_in_backward_history_range(
+                            conn,
+                            checkpoint_viewed_at,
+                        )? {
                             return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
                                 vec![],
                             );

@@ -26,6 +26,11 @@ pub(crate) enum BackwardView {
 /// from backward diff results.
 const NOT_YET_CREATED: i16 = BackwardHistoryObjectStatus::NotYetCreated as i16;
 
+/// Watermark entity name for `objects_backward_history`. Must match the
+/// `CommitterTables::ObjectsBackwardHistory` strum serialization in
+/// `iota-indexer`.
+pub(crate) const BACKWARD_HISTORY_WATERMARK_ENTITY: &str = "objects_backward_history";
+
 /// Column list shared by both `checkpointed_objects` and
 /// `objects_backward_history` projections into `StoredBackwardObject` layout.
 const OBJECT_COLUMNS: &str = "\

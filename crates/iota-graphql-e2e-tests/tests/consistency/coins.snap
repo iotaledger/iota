@@ -303,25 +303,44 @@ Response: {
       "last": {
         "sequenceNumber": 3
       }
-    }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
+    },
+    "coins": {
+      "nodes": [
         {
-          "line": 11,
-          "column": 3
+          "address": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
+          "contents": {
+            "json": {
+              "balance": {
+                "value": "100"
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+            }
+          }
+        },
+        {
+          "address": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
+          "contents": {
+            "json": {
+              "balance": {
+                "value": "200"
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+            }
+          }
         }
-      ],
-      "path": [
-        "coins"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
+      ]
     }
-  ]
+  }
 }
 
 task 14, lines 194-220:
@@ -335,23 +354,9 @@ Response: {
       "last": {
         "sequenceNumber": 3
       }
+    },
+    "coins": {
+      "nodes": []
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 11,
-          "column": 3
-        }
-      ],
-      "path": [
-        "coins"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }

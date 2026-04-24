@@ -521,7 +521,10 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                if AvailableRange::result(conn, checkpoint_viewed_at)?.is_none() {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
