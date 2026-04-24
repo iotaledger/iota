@@ -554,6 +554,11 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     let mut package_path = PathBuf::from(TEST_DATA_DIR);
     package_path.push("ptb_complex_args_test_functions");
 
+    // Drop any stale `Move.lock` left behind by a prior publish — its
+    // `published-id` would rewrite module addresses away from 0x0 and fail
+    // this publish. `Move.lock` is gitignored, so this is always safe.
+    let _ = fs::remove_file(package_path.join("Move.lock"));
+
     let publish_ptb_string = format!(
         r#"
          --move-call iota::tx_context::sender
@@ -586,6 +591,10 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     package_path.push("ptb_complex_args_test_functions");
     let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
     package_path_2.push("clever_errors");
+
+    // Drop stale `Move.lock`s from prior publishes; see `test_ptb_publish`.
+    let _ = fs::remove_file(package_path.join("Move.lock"));
+    let _ = fs::remove_file(package_path_2.join("Move.lock"));
 
     let publish_ptb_string = format!(
         r#"
