@@ -6348,7 +6348,6 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
 /// are the abstract-account address.
 async fn setup_move_authenticator_account(
     context: &mut WalletContext,
-    rgp: u64,
     publisher: IotaAddress,
     package_relative_path: &str,
     module: &str,
@@ -6386,10 +6385,7 @@ async fn setup_move_authenticator_account(
         payment: PaymentArgs {
             gas: vec![gas_obj_id],
         },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
+        gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
     .execute(context)
@@ -6445,10 +6441,7 @@ async fn setup_move_authenticator_account(
             IotaJsonValue::from_str(&format!("\"{function}\"")).unwrap(),
         ],
         payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-            ..Default::default()
-        },
+        gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
     .execute(context)
@@ -6493,13 +6486,11 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         .with_num_validators(1)
         .build()
         .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
     let sender_address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
     let account_address = setup_move_authenticator_account(
         context,
-        rgp,
         sender_address,
         "examples/move/account",
         "account",
@@ -6606,13 +6597,11 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
         .with_num_validators(1)
         .build()
         .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
     let sender_address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
     let account_address = setup_move_authenticator_account(
         context,
-        rgp,
         sender_address,
         "examples/move/abstract_iota_accounts/account_multi_auth",
         "account",
@@ -6679,7 +6668,6 @@ async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
         .with_num_validators(1)
         .build()
         .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
     let publisher = test_cluster.get_address_0();
     let sender = test_cluster.get_address_1();
     let recipient = test_cluster.get_address_2();
@@ -6689,7 +6677,6 @@ async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
     // Account so it can act as the sponsor.
     let account_address = setup_move_authenticator_account(
         context,
-        rgp,
         publisher,
         "examples/move/account",
         "account",
@@ -6721,7 +6708,6 @@ async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
         object_id: sender_obj,
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             gas_sponsor: Some(account_address.into()),
             ..Default::default()
         },
@@ -6760,7 +6746,6 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
         .with_num_validators(1)
         .build()
         .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
     let publisher = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
@@ -6769,7 +6754,6 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
     // a distinct shared `Account` with its own authenticator function ref.
     let sender_aa = setup_move_authenticator_account(
         context,
-        rgp,
         publisher,
         "examples/move/account",
         "account",
@@ -6779,7 +6763,6 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
     .await?;
     let sponsor_aa = setup_move_authenticator_account(
         context,
-        rgp,
         publisher,
         "examples/move/account",
         "account",
@@ -6806,8 +6789,6 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
             format!("@{sender_aa}"),
             "--gas-sponsor".to_string(),
             format!("@{sponsor_aa}"),
-            "--gas-budget".to_string(),
-            (rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER).to_string(),
             "--auth-call-args".to_string(),
             "hello".to_string(),
             "--sponsor-auth-call-args".to_string(),
@@ -6829,7 +6810,10 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
     );
     let tx_block = tx.transaction.as_ref().expect("transaction block");
     assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
-    assert_eq!(tx_block.data.gas_data().owner, IotaAddress::from(sponsor_aa));
+    assert_eq!(
+        tx_block.data.gas_data().owner,
+        IotaAddress::from(sponsor_aa)
+    );
 
     Ok(())
 }
