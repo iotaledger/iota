@@ -22,8 +22,9 @@ use crate::{
     storage::ObjectStore,
 };
 
-/// This is the JSON-RPC type for IOTA system state objects.
-/// It is an enum type that can represent either V1 or V2 system state objects.
+/// This is the summary type for IOTA system state objects.
+/// It is an enum type that can represent either V1 or V2 system state summary
+/// objects.
 #[non_exhaustive]
 #[derive(Debug, Deserialize, Serialize, Clone, derive_more::From)]
 pub enum IotaSystemStateSummary {
@@ -783,7 +784,7 @@ impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
     }
 }
 
-/// This is the JSON-RPC type for the IOTA validator. It flattens all inner
+/// This is a flattened summary of the IOTA validator. It flattens all inner
 /// structures to top-level fields so that they are decoupled from the internal
 /// definitions.
 #[serde_as]
