@@ -4,7 +4,6 @@
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-#[cfg(not(msim))]
 use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
