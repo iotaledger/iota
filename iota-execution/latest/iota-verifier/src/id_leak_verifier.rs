@@ -17,7 +17,6 @@ use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
     GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
-    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
@@ -81,9 +80,11 @@ const IOTA_CLOCK_CREATE: FunctionIdent = (
     CLOCK_MODULE_NAME,
     ident_str!("create"),
 );
+// Kept for bytecode snapshot compatibility (snapshots v1-v24 still contain
+// authenticator_state::create which uses a special UID).
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    AUTHENTICATOR_STATE_MODULE_NAME,
+    ident_str!("authenticator_state"),
     ident_str!("create"),
 );
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (

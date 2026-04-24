@@ -14,13 +14,6 @@ use prometheus::{
 };
 
 pub struct IotaNodeMetrics {
-    pub jwk_requests: IntCounterVec,
-    pub jwk_request_errors: IntCounterVec,
-
-    pub total_jwks: IntCounterVec,
-    pub invalid_jwks: IntCounterVec,
-    pub unique_jwks: IntCounterVec,
-
     pub current_protocol_version: IntGauge,
     pub binary_max_protocol_version: IntGauge,
     pub configured_max_protocol_version: IntGauge,
@@ -29,41 +22,6 @@ pub struct IotaNodeMetrics {
 impl IotaNodeMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            jwk_requests: register_int_counter_vec_with_registry!(
-                "jwk_requests",
-                "Total number of JWK requests",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            jwk_request_errors: register_int_counter_vec_with_registry!(
-                "jwk_request_errors",
-                "Total number of JWK request errors",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            total_jwks: register_int_counter_vec_with_registry!(
-                "total_jwks",
-                "Total number of JWKs",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            invalid_jwks: register_int_counter_vec_with_registry!(
-                "invalid_jwks",
-                "Total number of invalid JWKs",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            unique_jwks: register_int_counter_vec_with_registry!(
-                "unique_jwks",
-                "Total number of unique JWKs",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
             current_protocol_version: register_int_gauge_with_registry!(
                 "iota_current_protocol_version",
                 "Current protocol version in this epoch",

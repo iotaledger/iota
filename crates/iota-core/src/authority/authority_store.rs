@@ -12,13 +12,13 @@ use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePrunin
 use iota_macros::fail_point_arg;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    accumulator::Accumulator,
     base_types::SequenceNumber,
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
+    global_state_hash::GlobalStateHash,
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
@@ -51,8 +51,8 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
+    global_state_hasher::GlobalStateHashStore,
     grpc_indexes::GrpcIndexesStore,
-    state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -125,7 +125,8 @@ pub struct AuthorityStore {
 
     pub(crate) perpetual_tables: Arc<AuthorityPerpetualTables>,
 
-    pub(crate) root_state_notify_read: NotifyRead<EpochId, (CheckpointSequenceNumber, Accumulator)>,
+    pub(crate) root_state_notify_read:
+        NotifyRead<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
 
     /// Whether to enable expensive IOTA conservation check at epoch boundaries.
     enable_epoch_iota_conservation_check: bool,
@@ -243,8 +244,10 @@ impl AuthorityStore {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
-            root_state_notify_read:
-                NotifyRead::<EpochId, (CheckpointSequenceNumber, Accumulator)>::new(),
+            root_state_notify_read: NotifyRead::<
+                EpochId,
+                (CheckpointSequenceNumber, GlobalStateHash),
+            >::new(),
             enable_epoch_iota_conservation_check,
             metrics: AuthorityStoreMetrics::new(registry),
         });
@@ -370,8 +373,10 @@ impl AuthorityStore {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
-            root_state_notify_read:
-                NotifyRead::<EpochId, (CheckpointSequenceNumber, Accumulator)>::new(),
+            root_state_notify_read: NotifyRead::<
+                EpochId,
+                (CheckpointSequenceNumber, GlobalStateHash),
+            >::new(),
             enable_epoch_iota_conservation_check,
             metrics: AuthorityStoreMetrics::new(registry),
         });
@@ -536,7 +541,7 @@ impl AuthorityStore {
     pub async fn notify_read_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<(CheckpointSequenceNumber, Accumulator)> {
+    ) -> IotaResult<(CheckpointSequenceNumber, GlobalStateHash)> {
         // We need to register waiters _before_ reading from the database to avoid race
         // conditions
         let registration = self.root_state_notify_read.register_one(&epoch);
@@ -1714,20 +1719,20 @@ impl AuthorityStore {
     }
 }
 
-impl AccumulatorStore for AuthorityStore {
-    fn get_root_state_accumulator_for_epoch(
+impl GlobalStateHashStore for AuthorityStore {
+    fn get_root_state_hash_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         self.perpetual_tables
             .root_state_hash_by_epoch
             .get(&epoch)
             .map_err(Into::into)
     }
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
         Ok(self
             .perpetual_tables
             .root_state_hash_by_epoch
@@ -1736,11 +1741,11 @@ impl AccumulatorStore for AuthorityStore {
             .transpose()?)
     }
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
         last_checkpoint_of_epoch: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        acc: &GlobalStateHash,
     ) -> IotaResult {
         self.perpetual_tables
             .root_state_hash_by_epoch

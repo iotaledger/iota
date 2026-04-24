@@ -113,8 +113,6 @@ pub(crate) enum TransactionBlockKindInput {
     Genesis = 2,
     /// The consensus commit prologue transaction block.
     ConsensusCommitPrologueV1 = 3,
-    /// The authenticator state update transaction block.
-    AuthenticatorStateUpdateV1 = 4,
     /// The randomness state update transaction block.
     RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
@@ -246,10 +244,7 @@ impl TransactionBlock {
     /// comprising the transaction of this kind.
     #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
-        Some(TransactionBlockKind::from(
-            self.native().kind().clone(),
-            self.checkpoint_viewed_at,
-        ))
+        TransactionBlockKind::try_from(self.native().kind().clone(), self.checkpoint_viewed_at).ok()
     }
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially

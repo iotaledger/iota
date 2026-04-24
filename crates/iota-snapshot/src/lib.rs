@@ -30,14 +30,14 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    state_accumulator::WrappedObject,
+    global_state_hasher::WrappedObject,
 };
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::ObjectID,
+    global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
         get_iota_system_state,
@@ -242,7 +242,7 @@ pub fn create_file_metadata(
 
 pub async fn setup_db_state(
     epoch: u64,
-    accumulator: Accumulator,
+    state_hash: GlobalStateHash,
     perpetual_db: Arc<AuthorityPerpetualTables>,
     checkpoint_store: Arc<CheckpointStore>,
     committee_store: Arc<CommitteeStore>,
@@ -255,7 +255,7 @@ pub async fn setup_db_state(
     let system_state_object = get_iota_system_state(&perpetual_db)?;
     let new_epoch_start_state = system_state_object.into_epoch_start_state();
     let next_epoch_committee = new_epoch_start_state.get_iota_committee();
-    let root_digest: ECMHLiveObjectSetDigest = accumulator.digest().into();
+    let root_digest: ECMHLiveObjectSetDigest = state_hash.digest().into();
     let last_checkpoint = checkpoint_store
         .get_epoch_last_checkpoint(epoch)
         .expect("Error loading last checkpoint for current epoch")
@@ -269,7 +269,7 @@ pub async fn setup_db_state(
     )
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
-    perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, accumulator)?;
+    perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, state_hash)?;
     perpetual_db.set_highest_pruned_checkpoint_without_wb(last_checkpoint.sequence_number)?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
@@ -297,7 +297,7 @@ pub async fn accumulate_live_object_iter(
     iter: Box<dyn Iterator<Item = LiveObject> + '_>,
     m: MultiProgress,
     num_live_objects: u64,
-) -> Accumulator {
+) -> GlobalStateHash {
     // Monitor progress of live object accumulation
     let accum_progress_bar = m.add(ProgressBar::new(num_live_objects).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
@@ -326,7 +326,7 @@ pub async fn accumulate_live_object_iter(
     });
 
     // Accumulate live objects
-    let mut acc = Accumulator::default();
+    let mut acc = GlobalStateHash::default();
     for live_object in iter {
         match live_object {
             LiveObject::Normal(object) => {

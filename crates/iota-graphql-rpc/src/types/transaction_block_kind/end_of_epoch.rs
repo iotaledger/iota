@@ -12,7 +12,6 @@ use iota_types::{
     digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{
-        AuthenticatorStateExpire as NativeAuthenticatorStateExpireTransaction,
         ChangeEpoch as NativeChangeEpochTransaction,
         ChangeEpochV2 as NativeChangeEpochTransactionV2,
         ChangeEpochV3 as NativeChangeEpochTransactionV3,
@@ -48,8 +47,6 @@ pub(crate) struct EndOfEpochTransaction {
 pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     ChangeEpochV2(ChangeEpochTransactionV2),
-    AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
-    AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
 }
 
 // System transaction for advancing the epoch.
@@ -161,21 +158,6 @@ impl ChangeEpochTransactionV2 {
             checkpoint_viewed_at,
         }
     }
-}
-
-/// System transaction for creating the on-chain state used by zkLogin.
-#[derive(SimpleObject, Clone, PartialEq, Eq)]
-pub(crate) struct AuthenticatorStateCreateTransaction {
-    /// A workaround to define an empty variant of a GraphQL union.
-    #[graphql(name = "_")]
-    dummy: Option<bool>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct AuthenticatorStateExpireTransaction {
-    pub native: NativeAuthenticatorStateExpireTransaction,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
 }
 
 pub(crate) type CTxn = JsonCursor<ConsistentIndexCursor>;
@@ -439,24 +421,6 @@ impl ChangeEpochTransactionV2 {
     }
 }
 
-#[Object]
-impl AuthenticatorStateExpireTransaction {
-    /// Expire JWKs that have a lower epoch than this.
-    async fn min_epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(ctx, Some(self.native.min_epoch), self.checkpoint_viewed_at)
-            .await
-            .extend()
-    }
-
-    /// The initial version that the AuthenticatorStateUpdateV1 was shared at.
-    async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
-        self.native
-            .authenticator_obj_initial_shared_version
-            .value()
-            .into()
-    }
-}
-
 impl EndOfEpochTransactionKind {
     fn from(kind: NativeEndOfEpochTransactionKind, checkpoint_viewed_at: u64) -> Self {
         use EndOfEpochTransactionKind as K;
@@ -479,15 +443,6 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
-            N::AuthenticatorStateCreate => {
-                K::AuthenticatorStateCreate(AuthenticatorStateCreateTransaction { dummy: None })
-            }
-            N::AuthenticatorStateExpire(ase) => {
-                K::AuthenticatorStateExpire(AuthenticatorStateExpireTransaction {
-                    native: ase,
-                    checkpoint_viewed_at,
-                })
-            }
         }
     }
 }

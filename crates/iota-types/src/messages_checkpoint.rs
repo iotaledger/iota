@@ -21,7 +21,6 @@ use tracing::{instrument, warn};
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
-    accumulator::Accumulator,
     base_types::{
         AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref,
     },
@@ -34,6 +33,7 @@ use crate::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     gas::GasCostSummary,
+    global_state_hash::GlobalStateHash,
     iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     signature::GenericSignature,
@@ -99,7 +99,7 @@ impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
 
 impl Default for ECMHLiveObjectSetDigest {
     fn default() -> Self {
-        Accumulator::default().digest().into()
+        GlobalStateHash::default().digest().into()
     }
 }
 

@@ -62,7 +62,6 @@ use iota_types::{
             AuthenticatorFunctionRefV1,
         },
     },
-    authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
@@ -168,13 +167,13 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -314,8 +313,6 @@ pub struct AuthorityMetrics {
     /// bytecode verifier metrics for tracking timeouts
     pub bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
 
-    /// Count of zklogin signatures
-    pub zklogin_sig_count: IntCounter,
     /// Count of multisig signatures
     pub multisig_sig_count: IntCounter,
 
@@ -730,15 +727,9 @@ impl AuthorityMetrics {
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
-            zklogin_sig_count: register_int_counter_with_registry!(
-                "zklogin_sig_count",
-                "Count of zkLogin signatures",
-                registry,
-            )
-            .unwrap(),
             multisig_sig_count: register_int_counter_with_registry!(
                 "multisig_sig_count",
-                "Count of zkLogin signatures",
+                "Count of multisig signatures",
                 registry,
             )
             .unwrap(),
@@ -1478,38 +1469,6 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
-            certificate.data().transaction_data().kind()
-        {
-            if let Some(err) = &execution_error_opt {
-                debug_fatal!("Authenticator state update failed: {:?}", err);
-            }
-            epoch_store.update_authenticator_state(auth_state);
-
-            // double check that the signature verifier always matches the authenticator
-            // state
-            if cfg!(debug_assertions) {
-                let authenticator_state = get_authenticator_state(self.get_object_store())
-                    .expect("Read cannot fail")
-                    .expect("Authenticator state must exist");
-
-                let mut sys_jwks: Vec<_> = authenticator_state
-                    .active_jwks
-                    .into_iter()
-                    .map(|jwk| (jwk.jwk_id, jwk.jwk))
-                    .collect();
-                let mut active_jwks: Vec<_> = epoch_store
-                    .signature_verifier
-                    .get_jwks()
-                    .into_iter()
-                    .collect();
-                sys_jwks.sort();
-                active_jwks.sort();
-
-                assert_eq!(sys_jwks, active_jwks);
-            }
-        }
-
         let elapsed = process_certificate_start_time.elapsed().as_micros() as f64;
         if elapsed > 0.0 {
             self.metrics
@@ -1591,10 +1550,8 @@ impl AuthorityState {
         input_object_count: usize,
         shared_object_count: usize,
     ) {
-        // count signature by scheme, for zklogin and multisig
-        if certificate.has_zklogin_sig() {
-            self.metrics.zklogin_sig_count.inc();
-        } else if certificate.has_upgraded_multisig() {
+        // count signature by scheme, for multisig
+        if certificate.has_upgraded_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 
@@ -3184,8 +3141,8 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.reconfig_api
     }
 
-    pub fn get_accumulator_store(&self) -> &Arc<dyn AccumulatorStore> {
-        &self.execution_cache_trait_pointers.accumulator_store
+    pub fn get_global_state_hash_store(&self) -> &Arc<dyn GlobalStateHashStore> {
+        &self.execution_cache_trait_pointers.global_state_hash_store
     }
 
     pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
@@ -3366,7 +3323,7 @@ impl AuthorityState {
         supported_protocol_versions: SupportedProtocolVersions,
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
         epoch_last_checkpoint: CheckpointSequenceNumber,
@@ -3396,14 +3353,20 @@ impl AuthorityState {
             epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
             "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
         );
-        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint {
+        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint
+            || self.is_fullnode(cur_epoch_store)
+        {
             // if we built the last checkpoint locally (as opposed to receiving it from a
             // peer), then all shared_version_assignments except the one for the
             // ChangeEpoch transaction should have been removed
             let num_shared_version_assignments = cur_epoch_store.num_shared_version_assignments();
-            // Note that while 1 is the typical value, 0 is possible if the node restarts
-            // after committing the last checkpoint but before reconfiguring.
-            if num_shared_version_assignments > 1 {
+            // Due to (otherwise harmless) race conditions between CheckpointExecutor and
+            // ConsensusHandler, we actually can't guarantee that all
+            // shared_version_assignments have been removed. However,
+            // typically at most 2 or 3 are left over. We leave this check here in order to
+            // catch complete failure of cleanup which would cause a memory
+            // leak.
+            if num_shared_version_assignments > 10 {
                 // If this happens in prod, we have a memory leak, but not a correctness issue.
                 debug_fatal!(
                     "all shared_version_assignments should have been removed \
@@ -3423,7 +3386,7 @@ impl AuthorityState {
             .clear_state_end_of_epoch(&execution_lock);
         self.check_system_consistency(
             cur_epoch_store,
-            accumulator,
+            state_hasher,
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
@@ -3490,7 +3453,6 @@ impl AuthorityState {
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             &self.config.expensive_safety_check_config,
             self.checkpoint_store
                 .get_epoch_last_checkpoint(epoch_store.epoch())
@@ -3509,7 +3471,7 @@ impl AuthorityState {
     fn check_system_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
     ) -> IotaResult<()> {
@@ -3532,7 +3494,7 @@ impl AuthorityState {
                 cur_epoch_store.epoch()
             );
             self.expensive_check_is_consistent_state(
-                accumulator,
+                state_hasher,
                 cur_epoch_store,
                 cfg!(debug_assertions), // panic in debug mode only
             );
@@ -3540,7 +3502,7 @@ impl AuthorityState {
 
         if expensive_safety_check_config.enable_secondary_index_checks() {
             if let Some(indexes) = self.indexes.clone() {
-                verify_indexes(self.get_accumulator_store().as_ref(), indexes)
+                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
                     .expect("secondary indexes are inconsistent");
             }
         }
@@ -3550,15 +3512,15 @@ impl AuthorityState {
 
     fn expensive_check_is_consistent_state(
         &self,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set();
+        let live_object_set_hash = state_hasher.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
-            .get_accumulator_store()
-            .get_root_state_accumulator_for_epoch(cur_epoch_store.epoch())
+            .get_global_state_hash_store()
+            .get_root_state_hash_for_epoch(cur_epoch_store.epoch())
             .expect("Retrieving root state hash cannot fail")
             .expect("Root state hash for epoch must exist")
             .1
@@ -3582,7 +3544,7 @@ impl AuthorityState {
         }
 
         if !panic {
-            accumulator.set_inconsistent_state(is_inconsistent);
+            state_hasher.set_inconsistent_state(is_inconsistent);
         }
     }
 
@@ -5037,42 +4999,6 @@ impl AuthorityState {
         total_weight
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_authenticator_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_jwk_consensus_updates() {
-            info!("authenticator state transactions not enabled");
-            return None;
-        }
-
-        let authenticator_state_exists = epoch_store.authenticator_state_exists();
-        let tx = if authenticator_state_exists {
-            let next_epoch = epoch_store.epoch().checked_add(1).expect("epoch overflow");
-            let min_epoch =
-                next_epoch.saturating_sub(epoch_store.protocol_config().max_age_of_jwk_in_epochs());
-            let authenticator_obj_initial_shared_version = epoch_store
-                .epoch_start_config()
-                .authenticator_obj_initial_shared_version()
-                .expect("initial version must exist");
-
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_expire(
-                min_epoch,
-                authenticator_obj_initial_shared_version,
-            );
-
-            info!(?min_epoch, "Creating AuthenticatorStateExpire tx",);
-
-            tx
-        } else {
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_create();
-            info!("Creating AuthenticatorStateCreate tx");
-            tx
-        };
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -5099,10 +5025,6 @@ impl AuthorityState {
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
-
-        if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
 
         let next_epoch = epoch_store.epoch() + 1;
 
@@ -5404,7 +5326,6 @@ impl AuthorityState {
             new_committee,
             epoch_start_configuration,
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             expensive_safety_check_config,
             epoch_last_checkpoint,
         )?;
@@ -5658,7 +5579,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store()
+        self.get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
     }
 

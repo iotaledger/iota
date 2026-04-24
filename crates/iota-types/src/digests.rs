@@ -960,17 +960,6 @@ impl std::str::FromStr for ObjectDigest {
     }
 }
 
-/// A digest of a ZkLoginInputs, which commits to the signatures as well as the
-/// tx.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ZKLoginInputsDigest(Digest);
-
-impl ZKLoginInputsDigest {
-    pub const fn new(digest: [u8; 32]) -> Self {
-        Self(Digest::new(digest))
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ConsensusCommitDigest(Digest);
 

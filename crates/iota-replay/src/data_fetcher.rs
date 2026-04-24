@@ -551,7 +551,7 @@ impl DataFetcher for RemoteFetcher {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
-            for kind in kinds {
+            if let Some(kind) = kinds.iter().next() {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
                         let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
@@ -590,8 +590,6 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
-                    EndOfEpochTransactionKind::AuthenticatorStateCreate
-                    | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
                 };
 
                 // Backfill cache

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_types::{
     base_types::ObjectRef,
@@ -78,19 +77,9 @@ fn check_disabled_features(
     );
 
     tx_signatures.iter().try_for_each(|s| {
-        if let GenericSignature::ZkLoginAuthenticator(z) = s {
-            deny_if_true!(
-                filter_config.zklogin_sig_disabled(),
-                "zkLogin authenticator is temporarily disabled"
-            );
-            deny_if_true!(
-                filter_config.zklogin_disabled_providers().contains(
-                    &OIDCProvider::from_iss(z.get_iss())
-                        .map_err(|_| IotaError::UnexpectedMessage)?
-                        .to_string()
-                ),
-                "zkLogin OAuth provider is temporarily disabled"
-            )
+        #[allow(deprecated)]
+        if let GenericSignature::ZkLoginAuthenticatorDeprecated(_) = s {
+            deny_if_true!(true, "zkLogin is not supported");
         } else if let GenericSignature::MoveAuthenticator(_) = s {
             deny_if_true!(
                 filter_config.move_authenticator_disabled(),

@@ -60,8 +60,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -75,33 +73,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -190,8 +161,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -205,33 +174,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -320,8 +262,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -335,33 +275,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -450,8 +363,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -465,33 +376,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -580,8 +464,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -595,33 +477,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -710,8 +565,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -725,33 +578,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -840,8 +666,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -855,33 +679,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0

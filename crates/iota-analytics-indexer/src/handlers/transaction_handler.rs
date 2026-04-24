@@ -190,7 +190,7 @@ impl TransactionHandler {
 
             raw_transaction: Base64::encode(bcs::to_bytes(&txn_data).unwrap()),
 
-            has_zklogin_sig: transaction.has_zklogin_sig(),
+            has_zklogin_sig: false,
             has_upgraded_multisig: transaction.has_upgraded_multisig(),
             transaction_json: Some(transaction_json),
             effects_json: Some(effects_json),

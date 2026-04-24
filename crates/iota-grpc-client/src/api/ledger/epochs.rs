@@ -68,7 +68,7 @@ impl Client {
     ///   > all entries, you must specify the map directly, or single entries of
     ///   > it by name.
     ///   > (e.g. `protocol_config.feature_flags` to get all entries, or
-    ///   > `protocol_config.feature_flags.zklogin_auth` to get a single flag)
+    ///   > `protocol_config.feature_flags.enable_vdf` to get a single flag)
     ///
     /// # Example
     ///
@@ -95,7 +95,7 @@ impl Client {
     ///
     /// // Get a single named feature flag
     /// let epoch = client
-    ///     .get_epoch(None, Some("protocol_config.feature_flags.zklogin_auth"))
+    ///     .get_epoch(None, Some("protocol_config.feature_flags.enable_vdf"))
     ///     .await?;
     ///
     /// // Get all protocol attributes for the current epoch

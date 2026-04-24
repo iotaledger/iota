@@ -81,8 +81,8 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransactionKey,
     execution_cache::TransactionCacheRead,
+    global_state_hasher::GlobalStateHasher,
     stake_aggregator::{InsertResult, MultiStakeAggregator},
-    state_accumulator::StateAccumulator,
 };
 
 pub type CheckpointHeight = u64;
@@ -893,21 +893,21 @@ pub enum CheckpointWatermark {
     HighestPruned,
 }
 
-struct CheckpointAccumulator {
+struct CheckpointStateHasher {
     epoch_store: Arc<AuthorityPerEpochStore>,
-    accumulator: Weak<StateAccumulator>,
+    hasher: Weak<GlobalStateHasher>,
     receive_from_builder: mpsc::Receiver<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
 }
 
-impl CheckpointAccumulator {
+impl CheckpointStateHasher {
     fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
-        accumulator: Weak<StateAccumulator>,
+        hasher: Weak<GlobalStateHasher>,
         receive_from_builder: mpsc::Receiver<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
     ) -> Self {
         Self {
             epoch_store,
-            accumulator,
+            hasher,
             receive_from_builder,
         }
     }
@@ -915,15 +915,15 @@ impl CheckpointAccumulator {
     async fn run(self) {
         let Self {
             epoch_store,
-            accumulator,
+            hasher,
             mut receive_from_builder,
         } = self;
         while let Some((seq, effects)) = receive_from_builder.recv().await {
-            let Some(accumulator) = accumulator.upgrade() else {
-                info!("Accumulator was dropped, stopping checkpoint accumulation");
+            let Some(hasher) = hasher.upgrade() else {
+                info!("GlobalStateHash was dropped, stopping checkpoint accumulation");
                 break;
             };
-            accumulator
+            hasher
                 .accumulate_checkpoint(&effects, seq, &epoch_store)
                 .expect("epoch ended while accumulating checkpoint");
         }
@@ -938,8 +938,8 @@ pub struct CheckpointBuilder {
     notify_aggregator: Arc<Notify>,
     last_built: watch::Sender<CheckpointSequenceNumber>,
     effects_store: Arc<dyn TransactionCacheRead>,
-    accumulator: Weak<StateAccumulator>,
-    send_to_accumulator: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
+    global_state_hasher: Weak<GlobalStateHasher>,
+    send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
     output: Box<dyn CheckpointOutput>,
     metrics: Arc<CheckpointMetrics>,
     max_transactions_per_checkpoint: usize,
@@ -976,9 +976,9 @@ impl CheckpointBuilder {
         notify: Arc<Notify>,
         effects_store: Arc<dyn TransactionCacheRead>,
         // for synchronous accumulation of end-of-epoch checkpoint
-        accumulator: Weak<StateAccumulator>,
+        global_state_hasher: Weak<GlobalStateHasher>,
         // for asynchronous/concurrent accumulation of regular checkpoints
-        send_to_accumulator: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
+        send_to_hasher: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
         output: Box<dyn CheckpointOutput>,
         notify_aggregator: Arc<Notify>,
         last_built: watch::Sender<CheckpointSequenceNumber>,
@@ -992,8 +992,8 @@ impl CheckpointBuilder {
             epoch_store,
             notify,
             effects_store,
-            accumulator,
-            send_to_accumulator,
+            global_state_hasher,
+            send_to_hasher,
             output,
             notify_aggregator,
             last_built,
@@ -1478,12 +1478,16 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
                 match transaction.inner().transaction_data().kind() {
+                    #[allow(deprecated)]
                     TransactionKind::ConsensusCommitPrologueV1(_)
-                    | TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                        // ConsensusCommitPrologue and
-                        // AuthenticatorStateUpdateV1
-                        // are guaranteed to be
+                    | TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                        // ConsensusCommitPrologue is guaranteed to be
                         // processed before we reach here.
+                        //
+                        // Deprecated: Authenticator state (JWK) is deprecated
+                        // and was never enabled.
+                        // These transaction kinds are retained
+                        // only for BCS enum variant compatibility.
                     }
                     TransactionKind::RandomnessStateUpdate(rsu) => {
                         randomness_rounds
@@ -1624,7 +1628,7 @@ impl CheckpointBuilder {
                 // otherwise we will not capture the change_epoch tx.
                 let root_state_digest = {
                     let state_acc = self
-                        .accumulator
+                        .global_state_hasher
                         .upgrade()
                         .expect("No checkpoints should be getting built after local configuration");
                     let acc = state_acc.accumulate_checkpoint(
@@ -1660,7 +1664,7 @@ impl CheckpointBuilder {
                     epoch_supply_change,
                 })
             } else {
-                self.send_to_accumulator
+                self.send_to_hasher
                     .send((sequence_number, effects.clone()))
                     .await?;
                 None
@@ -2384,7 +2388,7 @@ enum CheckpointServiceState {
         Box<(
             CheckpointBuilder,
             CheckpointAggregator,
-            CheckpointAccumulator,
+            CheckpointStateHasher,
         )>,
     ),
     Started,
@@ -2396,7 +2400,7 @@ impl CheckpointServiceState {
     ) -> (
         CheckpointBuilder,
         CheckpointAggregator,
-        CheckpointAccumulator,
+        CheckpointStateHasher,
     ) {
         let mut state = CheckpointServiceState::Started;
         std::mem::swap(self, &mut state);
@@ -2431,7 +2435,7 @@ impl CheckpointService {
         checkpoint_store: Arc<CheckpointStore>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         effects_store: Arc<dyn TransactionCacheRead>,
-        accumulator: Weak<StateAccumulator>,
+        global_state_hasher: Weak<GlobalStateHasher>,
         checkpoint_output: Box<dyn CheckpointOutput>,
         certified_checkpoint_output: Box<dyn CertifiedCheckpointOutput>,
         metrics: Arc<CheckpointMetrics>,
@@ -2468,11 +2472,11 @@ impl CheckpointService {
             metrics.clone(),
         );
 
-        let (send_to_accumulator, receive_from_builder) = mpsc::channel(16);
+        let (send_to_hasher, receive_from_builder) = mpsc::channel(16);
 
-        let ckpt_accumulator = CheckpointAccumulator::new(
+        let ckpt_state_hasher = CheckpointStateHasher::new(
             epoch_store.clone(),
-            accumulator.clone(),
+            global_state_hasher.clone(),
             receive_from_builder,
         );
 
@@ -2482,8 +2486,8 @@ impl CheckpointService {
             epoch_store.clone(),
             notify_builder.clone(),
             effects_store,
-            accumulator,
-            send_to_accumulator,
+            global_state_hasher,
+            send_to_hasher,
             checkpoint_output,
             notify_aggregator.clone(),
             highest_currently_built_seq_tx.clone(),
@@ -2508,7 +2512,7 @@ impl CheckpointService {
             state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
                 builder,
                 aggregator,
-                ckpt_accumulator,
+                ckpt_state_hasher,
             )))),
         })
     }
@@ -2524,10 +2528,10 @@ impl CheckpointService {
     pub async fn spawn(&self) -> JoinSet<()> {
         let mut tasks = JoinSet::new();
 
-        let (builder, aggregator, accumulator) = self.state.lock().take_unstarted();
+        let (builder, aggregator, state_hasher) = self.state.lock().take_unstarted();
         tasks.spawn(monitored_future!(builder.run()));
         tasks.spawn(monitored_future!(aggregator.run()));
-        tasks.spawn(monitored_future!(accumulator.run()));
+        tasks.spawn(monitored_future!(state_hasher.run()));
 
         // If this times out, the validator may still start up. The worst that can
         // happen is that we will crash later on instead of immediately. The eventual
@@ -2796,8 +2800,8 @@ mod tests {
         let checkpoint_store = CheckpointStore::new(tmp_dir.path());
         let epoch_store = state.epoch_store_for_testing();
 
-        let accumulator = Arc::new(StateAccumulator::new_for_tests(
-            state.get_accumulator_store().clone(),
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
         ));
 
         let checkpoint_service = CheckpointService::build(
@@ -2805,7 +2809,7 @@ mod tests {
             checkpoint_store,
             epoch_store.clone(),
             store,
-            Arc::downgrade(&accumulator),
+            Arc::downgrade(&global_state_hasher),
             Box::new(output),
             Box::new(certified_output),
             CheckpointMetrics::new_for_tests(),

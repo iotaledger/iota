@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, quote, quote_spanned};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, Item, ItemMacro,
     Stmt, StmtMacro, Token, UnOp,
@@ -589,4 +589,60 @@ pub fn enum_variant_order_derive(input: TokenStream) -> TokenStream {
     } else {
         panic!("EnumVariantOrder can only be used with enums.");
     }
+}
+
+/// Wraps an item in a module with `#[allow(deprecated)]` and re-exports it.
+///
+/// Some proc-macro derives (e.g. strum, enum_dispatch) generate code that
+/// references deprecated variants, and `#[allow(deprecated)]` on the item
+/// itself does not propagate to their output. This macro works around that
+/// limitation by placing the item inside a private module where the
+/// `deprecated` lint is suppressed, then re-exporting the type.
+///
+/// If the item itself carries `#[deprecated]`, the attribute is moved onto
+/// the `pub use` re-export so that external callers still see the
+/// deprecation warning while derive-generated code inside the module does
+/// not.
+///
+/// Place this attribute **above** all `#[derive(...)]` and proc-macro
+/// attributes on the item:
+///
+/// ```ignore
+/// #[allow_deprecated_for_derives]
+/// #[derive(Debug, EnumString, strum_macros::Display)]
+/// pub enum MyEnum {
+///     Active,
+///     #[deprecated(note = "no longer used")]
+///     Legacy,
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn allow_deprecated_for_derives(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as DeriveInput);
+    let vis = &input.vis;
+    let ident = &input.ident;
+    let mod_name = format_ident!("__allow_deprecated_{}", ident.to_string().to_lowercase());
+
+    // If the item itself is `#[deprecated]`, move that attribute onto the
+    // re-export so derive macros inside the module never see it.
+    let mut deprecated_attrs: Vec<Attribute> = Vec::new();
+    input.attrs.retain(|attr| {
+        if attr.path().is_ident("deprecated") {
+            deprecated_attrs.push(attr.clone());
+            false
+        } else {
+            true
+        }
+    });
+
+    quote! {
+        #[allow(deprecated)]
+        mod #mod_name {
+            use super::*;
+            #input
+        }
+        #(#deprecated_attrs)*
+        #vis use #mod_name::#ident;
+    }
+    .into()
 }

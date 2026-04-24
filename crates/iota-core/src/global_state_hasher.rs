@@ -8,12 +8,12 @@ use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{ObjectID, SequenceNumber},
     committee::EpochId,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
+    global_state_hash::GlobalStateHash,
     in_memory_storage::InMemoryStorage,
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     storage::ObjectStore,
@@ -26,16 +26,16 @@ use crate::authority::{
     authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
 };
 
-pub struct StateAccumulatorMetrics {
+pub struct GlobalStateHashMetrics {
     inconsistent_state: IntGauge,
 }
 
-impl StateAccumulatorMetrics {
+impl GlobalStateHashMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         let this = Self {
             inconsistent_state: register_int_gauge_with_registry!(
-                "accumulator_inconsistent_state",
-                "1 if accumulated live object set differs from StateAccumulator root state hash for the previous epoch",
+                "global_state_hash_inconsistent_state",
+                "1 if accumulated live object set differs from GlobalStateHasher root state hash for the previous epoch",
                 registry
             )
             .unwrap(),
@@ -44,26 +44,26 @@ impl StateAccumulatorMetrics {
     }
 }
 
-pub struct StateAccumulator {
-    store: Arc<dyn AccumulatorStore>,
-    metrics: Arc<StateAccumulatorMetrics>,
+pub struct GlobalStateHasher {
+    store: Arc<dyn GlobalStateHashStore>,
+    metrics: Arc<GlobalStateHashMetrics>,
 }
 
-pub trait AccumulatorStore: ObjectStore + Send + Sync {
-    fn get_root_state_accumulator_for_epoch(
+pub trait GlobalStateHashStore: ObjectStore + Send + Sync {
+    fn get_root_state_hash_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>>;
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>>;
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>>;
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>>;
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        acc: &GlobalStateHash,
     ) -> IotaResult;
 
     fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_>;
@@ -73,25 +73,25 @@ pub trait AccumulatorStore: ObjectStore + Send + Sync {
     }
 }
 
-impl AccumulatorStore for InMemoryStorage {
-    fn get_root_state_accumulator_for_epoch(
+impl GlobalStateHashStore for InMemoryStorage {
+    fn get_root_state_hash_for_epoch(
         &self,
         _epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         unreachable!("not used for testing")
     }
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
         unreachable!("not used for testing")
     }
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         _epoch: EpochId,
         _checkpoint_seq_num: &CheckpointSequenceNumber,
-        _acc: &Accumulator,
+        _acc: &GlobalStateHash,
     ) -> IotaResult {
         unreachable!("not used for testing")
     }
@@ -121,8 +121,8 @@ impl WrappedObject {
     }
 }
 
-fn accumulate_effects(effects: &[TransactionEffects]) -> Accumulator {
-    let mut acc = Accumulator::default();
+fn accumulate_effects(effects: &[TransactionEffects]) -> GlobalStateHash {
+    let mut acc = GlobalStateHash::default();
 
     // process insertions to the set
     acc.insert_all(
@@ -151,16 +151,16 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> Accumulator {
     acc
 }
 
-impl StateAccumulator {
-    pub fn new(store: Arc<dyn AccumulatorStore>, metrics: Arc<StateAccumulatorMetrics>) -> Self {
+impl GlobalStateHasher {
+    pub fn new(store: Arc<dyn GlobalStateHashStore>, metrics: Arc<GlobalStateHashMetrics>) -> Self {
         Self { store, metrics }
     }
 
-    pub fn new_for_tests(store: Arc<dyn AccumulatorStore>) -> Self {
-        Self::new(store, StateAccumulatorMetrics::new(&Registry::new()))
+    pub fn new_for_tests(store: Arc<dyn GlobalStateHashStore>) -> Self {
+        Self::new(store, GlobalStateHashMetrics::new(&Registry::new()))
     }
 
-    pub fn metrics(&self) -> Arc<StateAccumulatorMetrics> {
+    pub fn metrics(&self) -> Arc<GlobalStateHashMetrics> {
         self.metrics.clone()
     }
 
@@ -177,7 +177,7 @@ impl StateAccumulator {
         effects: &[TransactionEffects],
         checkpoint_seq_num: CheckpointSequenceNumber,
         epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult<Accumulator> {
+    ) -> IotaResult<GlobalStateHash> {
         let _scope = monitored_scope("AccumulateCheckpoint");
         if let Some(acc) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
             return Ok(acc);
@@ -195,25 +195,25 @@ impl StateAccumulator {
         Ok(acc)
     }
 
-    pub fn accumulate_cached_live_object_set_for_testing(&self) -> Accumulator {
+    pub fn accumulate_cached_live_object_set_for_testing(&self) -> GlobalStateHash {
         Self::accumulate_live_object_set_impl(self.store.iter_cached_live_object_set_for_testing())
     }
 
     /// Returns the result of accumulating the live object set, without side
     /// effects
-    pub fn accumulate_live_object_set(&self) -> Accumulator {
+    pub fn accumulate_live_object_set(&self) -> GlobalStateHash {
         Self::accumulate_live_object_set_impl(self.store.iter_live_object_set())
     }
 
-    fn accumulate_live_object_set_impl(iter: impl Iterator<Item = LiveObject>) -> Accumulator {
-        let mut acc = Accumulator::default();
+    fn accumulate_live_object_set_impl(iter: impl Iterator<Item = LiveObject>) -> GlobalStateHash {
+        let mut acc = GlobalStateHash::default();
         iter.for_each(|live_object| {
             Self::accumulate_live_object(&mut acc, &live_object);
         });
         acc
     }
 
-    pub fn accumulate_live_object(acc: &mut Accumulator, live_object: &LiveObject) {
+    pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
         match live_object {
             LiveObject::Normal(object) => {
                 acc.insert(object.compute_object_reference().2);
@@ -254,7 +254,7 @@ impl StateAccumulator {
         // there is nothing to wait for.
         if self
             .store
-            .get_root_state_accumulator_for_highest_epoch()?
+            .get_root_state_hash_for_highest_epoch()?
             .map(|(_, (last_checkpoint_prev_epoch, _))| last_checkpoint_prev_epoch)
             == Some(checkpoint_seq_num - 1)
         {
@@ -275,13 +275,13 @@ impl StateAccumulator {
         &self,
         epoch_store: &AuthorityPerEpochStore,
         checkpoint_seq_num: CheckpointSequenceNumber,
-    ) -> IotaResult<Accumulator> {
+    ) -> IotaResult<GlobalStateHash> {
         if checkpoint_seq_num == 0 {
-            return Ok(Accumulator::default());
+            return Ok(GlobalStateHash::default());
         }
 
         if let Some((prev_epoch, (last_checkpoint_prev_epoch, prev_acc))) =
-            self.store.get_root_state_accumulator_for_highest_epoch()?
+            self.store.get_root_state_hash_for_highest_epoch()?
         {
             assert_eq!(prev_epoch + 1, epoch_store.epoch());
             if last_checkpoint_prev_epoch == checkpoint_seq_num - 1 {
@@ -290,10 +290,10 @@ impl StateAccumulator {
         }
 
         let Some(prior_running_root) =
-            epoch_store.get_running_root_accumulator(checkpoint_seq_num - 1)?
+            epoch_store.get_running_root_state_hash(checkpoint_seq_num - 1)?
         else {
             fatal!(
-                "Running root accumulator must exist for checkpoint {}",
+                "Running root state hasher must exist for checkpoint {}",
                 checkpoint_seq_num - 1
             );
         };
@@ -308,7 +308,7 @@ impl StateAccumulator {
         &self,
         epoch_store: &AuthorityPerEpochStore,
         checkpoint_seq_num: CheckpointSequenceNumber,
-        checkpoint_acc: Option<Accumulator>,
+        checkpoint_acc: Option<GlobalStateHash>,
     ) -> IotaResult {
         let _scope = monitored_scope("AccumulateRunningRoot");
         tracing::debug!(
@@ -318,7 +318,7 @@ impl StateAccumulator {
 
         // Idempotency.
         if epoch_store
-            .get_running_root_accumulator(checkpoint_seq_num)?
+            .get_running_root_state_hash(checkpoint_seq_num)?
             .is_some()
         {
             debug!(
@@ -338,7 +338,7 @@ impl StateAccumulator {
                 .expect("Expected checkpoint accumulator to exist")
         });
         running_root.union(&checkpoint_acc);
-        epoch_store.insert_running_root_accumulator(&checkpoint_seq_num, &running_root)?;
+        epoch_store.insert_running_root_state_hash(&checkpoint_seq_num, &running_root)?;
         debug!(
             "Accumulated checkpoint {} to running root accumulator",
             checkpoint_seq_num,
@@ -350,13 +350,13 @@ impl StateAccumulator {
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> IotaResult<Accumulator> {
+    ) -> IotaResult<GlobalStateHash> {
         let _scope = monitored_scope("AccumulateEpoch");
         let running_root = epoch_store
-            .get_running_root_accumulator(last_checkpoint_of_epoch)?
+            .get_running_root_state_hash(last_checkpoint_of_epoch)?
             .expect("Expected running root accumulator to exist up to last checkpoint of epoch");
 
-        self.store.insert_state_accumulator_for_epoch(
+        self.store.insert_state_hash_for_epoch(
             epoch_store.epoch(),
             &last_checkpoint_of_epoch,
             &running_root,
@@ -369,7 +369,7 @@ impl StateAccumulator {
         Ok(running_root)
     }
 
-    pub fn accumulate_effects(&self, effects: &[TransactionEffects]) -> Accumulator {
+    pub fn accumulate_effects(&self, effects: &[TransactionEffects]) -> GlobalStateHash {
         accumulate_effects(effects)
     }
 }

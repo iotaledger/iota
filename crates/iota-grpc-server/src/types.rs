@@ -28,8 +28,12 @@ use iota_types::{
     object::Object,
     storage::error::Kind,
 };
+use prometheus::IntGauge;
 use prost::Message;
-use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
+use tokio::sync::{
+    OwnedSemaphorePermit, Semaphore,
+    broadcast::{Receiver, Sender, error::RecvError},
+};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
@@ -79,23 +83,99 @@ pub type GetCheckpointStream = Pin<Box<dyn futures::Stream<Item = CheckpointStre
 pub type StreamCheckpointsStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
-/// Wrapper that converts native CheckpointData to gRPC type before broadcasting
+/// Broadcasts checkpoint data to subscribers, capping concurrent subscribers.
 #[derive(Clone)]
 pub struct GrpcCheckpointDataBroadcaster {
     sender: Sender<Arc<IotaTypesCheckpointData>>,
+    /// Semaphore enforcing the concurrent-subscriber cap. Each successful
+    /// `subscribe()` acquires one permit; dropping the returned
+    /// [`SubscriberGuard`] releases it. This makes the cap atomic (no
+    /// check-then-subscribe race).
+    subscription_semaphore: Arc<Semaphore>,
+    /// Optional gauge tracking the number of active subscribers. Incremented
+    /// on `subscribe()`, decremented when the subscriber's
+    /// [`SubscriberGuard`] drops — so the metric is always in sync with
+    /// actual subscriber count, including client disconnects between
+    /// broadcasts.
+    inflight_subscribers: Option<IntGauge>,
+}
+
+/// A broadcast [`Receiver`] bundled with the [`SubscriberGuard`] holding
+/// its slot in the subscriber cap. Bundling them at the `subscribe()`
+/// boundary makes it impossible for callers to acquire a receiver without
+/// also holding the cap/gauge lifetime.
+#[must_use = "dropping the SubscribedReceiver immediately releases the subscriber slot"]
+pub struct SubscribedReceiver {
+    pub(crate) rx: Receiver<Arc<IotaTypesCheckpointData>>,
+    pub(crate) guard: SubscriberGuard,
+}
+
+/// RAII guard that holds one slot in the subscriber cap and keeps the
+/// inflight gauge in sync: the gauge is incremented on construction and
+/// decremented on drop.
+pub struct SubscriberGuard {
+    _permit: OwnedSemaphorePermit,
+    gauge: Option<IntGauge>,
+}
+
+impl SubscriberGuard {
+    fn new(permit: OwnedSemaphorePermit, gauge: Option<IntGauge>) -> Self {
+        if let Some(g) = &gauge {
+            g.inc();
+        }
+        Self {
+            _permit: permit,
+            gauge,
+        }
+    }
+}
+
+impl Drop for SubscriberGuard {
+    fn drop(&mut self) {
+        if let Some(gauge) = &self.gauge {
+            gauge.dec();
+        }
+    }
 }
 
 impl GrpcCheckpointDataBroadcaster {
-    pub fn new(sender: Sender<Arc<IotaTypesCheckpointData>>) -> Self {
-        Self { sender }
+    pub fn new(
+        sender: Sender<Arc<IotaTypesCheckpointData>>,
+        max_subscribers: usize,
+        inflight_subscribers: Option<IntGauge>,
+    ) -> Self {
+        Self {
+            sender,
+            subscription_semaphore: Arc::new(Semaphore::new(max_subscribers)),
+            inflight_subscribers,
+        }
     }
 
-    /// Subscribe to checkpoint data broadcasts
-    pub fn subscribe(&self) -> Receiver<Arc<IotaTypesCheckpointData>> {
-        self.sender.subscribe()
+    /// Subscribe to checkpoint data broadcasts, enforcing the configured cap
+    /// on concurrent subscribers.
+    ///
+    /// Returns `None` when the cap has been reached. Callers should surface
+    /// this as `Unavailable` to the client (transient capacity, retryable).
+    pub fn subscribe(&self) -> Option<SubscribedReceiver> {
+        let permit = self
+            .subscription_semaphore
+            .clone()
+            .try_acquire_owned()
+            .ok()?;
+        let rx = self.sender.subscribe();
+        let guard = SubscriberGuard::new(permit, self.inflight_subscribers.clone());
+        Some(SubscribedReceiver { rx, guard })
     }
 
-    /// Get the number of active receivers
+    /// Get the number of active broadcast receivers.
+    ///
+    /// Counts every receiver on the underlying `broadcast::Sender`, including
+    /// any internal subscribers that did not go through [`subscribe`] and are
+    /// therefore not tracked by the subscriber cap or `inflight_subscribers`
+    /// gauge. Use this when deciding whether to send on the channel; use the
+    /// gauge when reporting externally-subscribed stream count.
+    ///
+    /// [`subscribe`]: Self::subscribe
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }
@@ -673,6 +753,7 @@ impl GrpcReader {
     fn create_generic_checkpoint_stream<T, S, R>(
         &self,
         mut rx: Receiver<Arc<T>>,
+        subscriber_guard: SubscriberGuard,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         cancellation_token: CancellationToken,
@@ -701,6 +782,9 @@ impl GrpcReader {
     {
         let state_reader = self.state_reader.clone();
         async_stream::try_stream! {
+            // Capture the guard so it drops (releasing the subscriber slot
+            // and decrementing the gauge) when the stream is dropped.
+            let _subscriber_guard = subscriber_guard;
             let mut latest = latest_checkpoint_seq(&*state_reader)
                 .map_err(|e| Status::internal(format!("Failed to get latest checkpoint: {e}")))?
                 .unwrap_or(0);
@@ -875,7 +959,7 @@ impl GrpcReader {
     /// Create a checkpoint stream implementation
     pub fn create_checkpoint_data_stream(
         &self,
-        rx: Receiver<Arc<IotaTypesCheckpointData>>,
+        subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         checkpoint_mask: FieldMaskTree,
@@ -903,7 +987,8 @@ impl GrpcReader {
         let event_filter_historical = event_filter.clone();
 
         Box::new(Box::pin(reader.create_generic_checkpoint_stream(
-            rx,
+            subscription.rx,
+            subscription.guard,
             start_sequence_number,
             end_sequence_number,
             cancellation_token,
