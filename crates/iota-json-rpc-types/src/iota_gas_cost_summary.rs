@@ -31,7 +31,6 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 /// rebate then is reduced by the "nonrefundable rate" such that:
 /// `potential_rebate(storage cost of deleted/mutated objects) =
 /// storage_rebate + non_refundable_storage_fee`
-/// ```
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
