@@ -175,40 +175,6 @@ impl BaseCommitter {
         round.saturating_sub(self.options.round_offset) / WAVE_LENGTH
     }
 
-    /// Find which block is supported at a slot (author, round) by the given
-    /// block. Blocks can indirectly reference multiple other blocks at a
-    /// slot, but only one block at a slot will be supported by the given
-    /// block. If block A supports B at a slot, it is guaranteed that any
-    /// processed block by the same author that directly or indirectly
-    /// includes A will also support B at that slot.
-    fn find_supported_block(
-        &self,
-        leader_slot: Slot,
-        from: &VerifiedBlockHeader,
-    ) -> Option<BlockRef> {
-        if from.round() < leader_slot.round {
-            return None;
-        }
-        for ancestor in from.ancestors() {
-            if Slot::from(*ancestor) == leader_slot {
-                return Some(*ancestor);
-            }
-            // Weak links may point to blocks with lower round numbers than strong links.
-            if ancestor.round <= leader_slot.round {
-                continue;
-            }
-            let ancestor = self
-                .dag_state
-                .read()
-                .get_verified_block_header(ancestor)
-                .unwrap_or_else(|| panic!("Block not found in storage: {ancestor:?}"));
-            if let Some(support) = self.find_supported_block(leader_slot, &ancestor) {
-                return Some(support);
-            }
-        }
-        None
-    }
-
     /// Check whether the specified block (`potential_vote`) is a vote for
     /// the specified leader (`leader_block`).
     fn is_vote(
@@ -216,9 +182,9 @@ impl BaseCommitter {
         potential_vote: &VerifiedBlockHeader,
         leader_block: &VerifiedBlockHeader,
     ) -> bool {
-        let reference = leader_block.reference();
-        let leader_slot = Slot::from(reference);
-        self.find_supported_block(leader_slot, potential_vote) == Some(reference)
+        potential_vote
+            .ancestors()
+            .contains(&leader_block.reference())
     }
 
     /// Check whether the specified block (`potential_certificate`) is a
