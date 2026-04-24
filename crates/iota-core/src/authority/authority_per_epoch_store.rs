@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     future::Future,
-    hash::Hasher as _,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -78,7 +77,6 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
-use twox_hash::XxHash64;
 use typed_store::{
     DBMapUtils, Map,
     rocks::{
@@ -130,6 +128,7 @@ use crate::{
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
+    overload_monitor::should_reject_tx,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     post_consensus_validation,
     signature_verifier::*,
@@ -3306,7 +3305,7 @@ impl AuthorityPerEpochStore {
         // Post-consensus load shedding: compute the drop percentage once before
         // the loop so user transactions can be dropped inline during categorization.
         let drop_percentage = if enable_white_flag {
-            self.get_quorum_load_shedding_percentage()? as u64
+            self.get_quorum_load_shedding_percentage()? as u32
         } else {
             0
         };
@@ -3322,10 +3321,7 @@ impl AuthorityPerEpochStore {
                 // quorum load shedding percentage.
                 if drop_percentage > 0 {
                     if let Some(digest) = tx.0.transaction.executable_transaction_digest() {
-                        let mut hasher = XxHash64::with_seed(drop_seed);
-                        hasher.write(digest.inner());
-                        let hash = hasher.finish();
-                        if hash % 100 < drop_percentage {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
                             continue;
                         }
                     }
