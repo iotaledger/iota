@@ -922,9 +922,7 @@ impl ConsensusAdapter {
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(async move {
                 if epoch_store
-                    .within_alive_epoch(
-                        adapter.submit_end_of_publish_with_retry(&epoch_store),
-                    )
+                    .within_alive_epoch(adapter.submit_end_of_publish_with_retry(&epoch_store))
                     .await
                     .is_err()
                 {
@@ -1249,9 +1247,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(async move {
                 if epoch_store
-                    .within_alive_epoch(
-                        adapter.submit_end_of_publish_with_retry(&epoch_store),
-                    )
+                    .within_alive_epoch(adapter.submit_end_of_publish_with_retry(&epoch_store))
                     .await
                     .is_err()
                 {
