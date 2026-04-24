@@ -80,22 +80,18 @@ impl UniversalCommitter {
                 // committed anchor's path can upgrade the metastate; for
                 // Undecided, indirect may resolve the slot entirely.
                 if !status.is_final() {
-                    let indirect =
-                        committer.try_indirect_decide(slot, leaders.iter().map(|(x, _)| x));
-                    tracing::debug!("Outcome of indirect rule: {indirect}");
-                    match (&status, &indirect) {
-                        (
-                            LeaderStatus::Commit(_, Some(CommitMetastate::Pending)),
-                            LeaderStatus::Commit(_, Some(m)),
-                        ) if *m != CommitMetastate::Pending => {
-                            status = indirect;
-                            decision = Decision::Upgraded;
-                        }
-                        (LeaderStatus::Undecided(_), _) => {
-                            status = indirect;
-                            decision = Decision::Indirect;
-                        }
-                        _ => {}
+                    let indirect = committer
+                        .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
+                    if indirect != status {
+                        tracing::debug!("Outcome of indirect rule: {indirect}");
+                        decision = match (&status, &indirect) {
+                            (
+                                LeaderStatus::Commit(_, Some(CommitMetastate::Pending)),
+                                LeaderStatus::Commit(_, Some(m)),
+                            ) if *m != CommitMetastate::Pending => Decision::Upgraded,
+                            _ => Decision::Indirect,
+                        };
+                        status = indirect;
                     }
                 }
                 leaders.push_front((status, decision));

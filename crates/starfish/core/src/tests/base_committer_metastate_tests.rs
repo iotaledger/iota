@@ -519,7 +519,8 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
         .accept_block_header(anchor.clone(), DataSource::Test);
 
     let anchor_status = LeaderStatus::Commit(anchor, None);
-    match committer.try_indirect_decide(leader_slot, std::iter::once(&anchor_status)) {
+    let current = LeaderStatus::Undecided(leader_slot);
+    match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
         LeaderStatus::Commit(block, metastate) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);
@@ -553,7 +554,8 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
         .accept_block_header(anchor.clone(), DataSource::Test);
 
     let anchor_status = LeaderStatus::Commit(anchor, None);
-    match committer.try_indirect_decide(leader_slot, std::iter::once(&anchor_status)) {
+    let current = LeaderStatus::Undecided(leader_slot);
+    match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
         LeaderStatus::Commit(block, metastate) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);

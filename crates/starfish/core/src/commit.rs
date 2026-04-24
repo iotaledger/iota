@@ -829,6 +829,14 @@ impl LeaderStatus {
         }
     }
 
+    /// Slot of the leader this status refers to.
+    pub(crate) fn slot(&self) -> Slot {
+        match self {
+            Self::Commit(block, _) => block.reference().into(),
+            Self::Skip(leader) | Self::Undecided(leader) => *leader,
+        }
+    }
+
     /// True when sequencing can proceed past this leader. `Commit(Pending)`
     /// and `Undecided` are non-final.
     pub(crate) fn is_final(&self) -> bool {

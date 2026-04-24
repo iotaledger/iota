@@ -117,33 +117,27 @@ impl BaseCommitter {
             .unwrap_or(LeaderStatus::Undecided(leader))
     }
 
-    /// Apply the indirect decision rule to the specified leader to see whether
-    /// we can indirect-commit or indirect-skip it.
-    #[tracing::instrument(skip_all, fields(leader = %leader_slot))]
+    /// Apply the indirect rule; return `current` unchanged if no committed
+    /// anchor is reachable.
+    #[tracing::instrument(skip_all, fields(leader = %current))]
     pub fn try_indirect_decide<'a>(
         &self,
-        leader_slot: Slot,
+        current: LeaderStatus,
         leaders: impl Iterator<Item = &'a LeaderStatus>,
     ) -> LeaderStatus {
-        // The anchor is the first committed leader with round higher than the decision
-        // round of the target leader. We must stop the iteration upon
-        // encountering an undecided leader.
-        let anchors = leaders.filter(|x| leader_slot.round + WAVE_LENGTH <= x.round());
-
+        let slot = current.slot();
+        let anchors = leaders.filter(|x| slot.round + WAVE_LENGTH <= x.round());
         for anchor in anchors {
-            tracing::trace!(
-                "[{self}] Trying to indirect-decide {leader_slot} using anchor {anchor}",
-            );
+            tracing::trace!("[{self}] Trying to indirect-decide {slot} using anchor {anchor}",);
             match anchor {
                 LeaderStatus::Commit(anchor, _) => {
-                    return self.decide_leader_from_anchor(anchor, leader_slot);
+                    return self.decide_leader_from_anchor(anchor, slot);
                 }
                 LeaderStatus::Skip(..) => (),
-                LeaderStatus::Undecided(..) => break,
+                LeaderStatus::Undecided(..) => return current,
             }
         }
-
-        LeaderStatus::Undecided(leader_slot)
+        current
     }
 
     pub fn elect_leader(&self, round: Round) -> Option<Slot> {
