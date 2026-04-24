@@ -1,4 +1,6 @@
 module a::m {
+    use std::ascii::{String, char};
+
     public struct Obj has key, store {
         id: iota::object::UID,
         value: u64,
@@ -75,6 +77,17 @@ module a::m {
         let _ = v;
         0
     }
+
+    #[view]
+    public fun update_string_by_value(mut name: String): String {
+        name.push_char(char(43));
+        name
+    }
+
+    #[view]
+    public fun generic_reference<T: key>(_o: &mut T): bool {
+        true
+    }
 }
 
 module iota::object {
@@ -108,3 +121,30 @@ module iota::transfer {
 
     native fun transfer_impl<T: key>(obj: T, recipient: address);
 }
+
+// module std::ascii {
+//     public struct String has copy, drop, store {
+//         bytes: vector<u8>,
+//     }
+//     /// An ASCII character.
+//     public struct Char has copy, drop, store {
+//         byte: u8,
+//     }
+
+//     /// Push a `Char` to the end of the `string`.
+//     public fun push_char(string: &mut String, char: Char) {
+//         string.bytes.push_back(char.byte);
+//     }
+
+//     /// Convert a `byte` into a `Char` that is checked to make sure it is valid ASCII.
+//     public fun char(byte: u8): Char {
+//         assert!(is_valid_char(byte), 0);
+//         Char { byte }
+//     }
+
+//     /// Returns `true` if `b` is a valid ASCII character.
+//     /// Returns `false` otherwise.
+//     public fun is_valid_char(b: u8): bool {
+//         b <= 0x7F
+//     }
+// }

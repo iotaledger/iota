@@ -14,10 +14,11 @@ use crate::{
     expansion::ast::{AbilitySet, Attribute_, Fields, ModuleIdent, Mutability, Visibility},
     iota_mode::{known_attributes as iota_known_attributes, *},
     naming::ast::{
-        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
+        self as N, BuiltinTypeName, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_,
+        TypeName_, Var,
     },
     parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
-    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
+    shared::{AstDebug, CompilationEnv, Identifier, program_info::TypingProgramInfo},
     typing::{
         ast::{self as T, ModuleCall},
         core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
@@ -640,8 +641,8 @@ fn view_signature(
         _ => parameters,
     };
 
-    for (_, param, param_ty) in all_non_ctx_parameters {
-        view_param_ty(context, view_loc, name, param, param_ty);
+    for (mutability, param, param_ty) in all_non_ctx_parameters {
+        view_param_ty(context, view_loc, name, mutability, param, param_ty);
     }
 
     view_return_ty(context, view_loc, name, return_type);
@@ -701,11 +702,26 @@ fn view_param_ty(
     context: &mut Context,
     view_loc: Loc,
     name: FunctionName,
+    mutability: &Mutability,
     param: &Var,
     param_ty: &Type,
 ) {
+    if matches!(mutability, Mutability::Mut(_)) {
+        let msg = format!("Invalid parameter type for view function '{}'", name);
+        let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (param_ty.loc, "View functions cannot accept mutable types",),
+            (param.loc, &param_msg)
+        ));
+    }
     match &param_ty.value {
         Type_::Ref(is_mut, _) => {
+            if matches!(mutability, Mutability::Mut(_)) && !*is_mut {
+                // what is happening here?
+                unreachable!("Mutable parameter cannot be an immutable reference")
+            }
             if *is_mut {
                 let msg = format!("Invalid parameter type for view function '{}'", name);
                 let param_msg = format!("Invalid view parameter '{}'", param.value.name);
@@ -752,29 +768,40 @@ fn view_param_ty(
     }
 }
 
+// this function checks if the type is a user defined type and is passed by value.
+// moreover, we want to exclude objects and possibly wrapped objects, so we exclude them by looking for drop and copy ability
 pub(crate) fn contains_user_defined_type_by_value(param_ty: &Type) -> bool {
     match &param_ty.value {
+        // reference types are ok since they are not by-value, we are not looking for this
         Type_::Ref(_, _) => false,
-        Type_::Apply(_, sp!(_, TypeName_::ModuleType(_, _)), _) => true,
-        Type_::Apply(_, sp!(_, TypeName_::Builtin(_)), targs) => {
+        Type_::Apply(Some(abilities), sp!(_, TypeName_::ModuleType(_, _)), _) => {
+            // Check if the type has the 'copy' and 'drop' abilities
+
+            !(abilities.has_ability_(Ability_::Copy) || abilities.has_ability_(Ability_::Drop))
+        }
+        Type_::Apply(_, sp!(_, TypeName_::Builtin(sp!(_, BuiltinTypeName_::Vector))), targs) => {
             targs.iter().any(contains_user_defined_type_by_value)
         }
         Type_::Apply(_, sp!(_, TypeName_::Multiple(_)), targs) => {
             targs.iter().any(contains_user_defined_type_by_value)
         }
+        Type_::Apply(_, _, _) => false,
         Type_::Param(_) => false,
         Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
-        Type_::Fun(_, _) => true,
+        Type_::Fun(_, _) => false,
     }
 }
 
 pub(crate) fn contains_paramtetric_object_ty(param_ty: &Type) -> bool {
     match &param_ty.value {
         Type_::Ref(_, _) => false,
-        Type_::Param(tp) => tp.abilities.has_ability_(Ability_::Key),
+        Type_::Param(tp) => {
+            !(tp.abilities.has_ability_(Ability_::Copy)
+                || tp.abilities.has_ability_(Ability_::Drop))
+        }
         Type_::Apply(_, _, targs) => targs.iter().any(contains_paramtetric_object_ty),
         Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
-        Type_::Fun(_, _) => true,
+        Type_::Fun(_, _) => false,
     }
 }
 
