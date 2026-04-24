@@ -49,12 +49,29 @@ fn default_ts(round: Round, author: u8) -> BlockTimestampMs {
     round as BlockTimestampMs * 1000 + author as BlockTimestampMs
 }
 
+/// Empty `AuthoritySet` — flags the carrier as a strong vote.
+fn strong_vote() -> Option<AuthoritySet> {
+    Some(AuthoritySet::new())
+}
+
 /// Non-empty `AuthoritySet` — flags the carrier as a strong blame. The
 /// specific authority is immaterial; only emptiness matters.
 fn strong_blame() -> Option<AuthoritySet> {
     let mut s = AuthoritySet::new();
     s.insert(AuthorityIndex::from(0u8));
     Some(s)
+}
+
+/// Assert that direct-committing `slot` yields `Commit(_, expected)`.
+fn assert_direct_commit_metastate(
+    committer: &crate::base_committer::BaseCommitter,
+    slot: Slot,
+    expected: Option<CommitMetastate>,
+) {
+    match committer.try_direct_decide(slot) {
+        LeaderStatus::Commit(_, metastate) => assert_eq!(metastate, expected),
+        status => panic!("expected Commit, got {status}"),
+    }
 }
 
 /// Fully-connected V2 layers from `start` (or genesis) through `stop`. V2
@@ -164,17 +181,8 @@ async fn determine_metastate_disabled_returns_none() {
     let (context, dag_state) = test_context_with_flag(false);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    let leader = build_metastate_dag(
-        context,
-        dag_state,
-        &committer,
-        [Some(AuthoritySet::new()); 4],
-    );
-
-    match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, metastate) => assert_eq!(metastate, None),
-        status => panic!("expected Commit, got {status}"),
-    }
+    let leader = build_metastate_dag(context, dag_state, &committer, [strong_vote(); 4]);
+    assert_direct_commit_metastate(&committer, leader, None);
 }
 
 #[tokio::test]
@@ -183,22 +191,10 @@ async fn determine_metastate_optimistic_when_strong_qc_quorum() {
     let (context, dag_state) = test_context_with_flag(true);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // All four voters carry strong_vote = Some(empty) → every certifier at r+2
-    // will observe four strong votes in its ancestry, so it is a StrongQC. The
-    // 2f+1 StrongQC quorum at r+2 is reached → Optimistic.
-    let leader = build_metastate_dag(
-        context,
-        dag_state,
-        &committer,
-        [Some(AuthoritySet::new()); 4],
-    );
-
-    match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, metastate) => {
-            assert_eq!(metastate, Some(CommitMetastate::Optimistic))
-        }
-        status => panic!("expected Commit, got {status}"),
-    }
+    // Four strong votes at r+1 → every r+2 certifier observes a StrongQC →
+    // 2f+1 StrongQC quorum → Optimistic.
+    let leader = build_metastate_dag(context, dag_state, &committer, [strong_vote(); 4]);
+    assert_direct_commit_metastate(&committer, leader, Some(CommitMetastate::Optimistic));
 }
 
 #[tokio::test]
@@ -207,23 +203,16 @@ async fn determine_metastate_standard_when_strong_blame_quorum() {
     let (context, dag_state) = test_context_with_flag(true);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // Three voters carry strong_vote = Some(nonempty) (strong blame). Only one
-    // voter is a strong vote → no StrongQC quorum possible. 2f+1 strong blames
-    // form a quorum → Standard.
+    // 3 strong blames + 1 strong vote → no StrongQC quorum, 2f+1 strong-blame
+    // quorum → Standard.
     let blame = strong_blame();
     let leader = build_metastate_dag(
         context,
         dag_state,
         &committer,
-        [Some(AuthoritySet::new()), blame, blame, blame],
+        [strong_vote(), blame, blame, blame],
     );
-
-    match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, metastate) => {
-            assert_eq!(metastate, Some(CommitMetastate::Standard))
-        }
-        status => panic!("expected Commit, got {status}"),
-    }
+    assert_direct_commit_metastate(&committer, leader, Some(CommitMetastate::Standard));
 }
 
 #[tokio::test]
@@ -232,27 +221,15 @@ async fn determine_metastate_pending_when_neither_quorum() {
     let (context, dag_state) = test_context_with_flag(true);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // Split: 2 strong votes, 2 strong blames. Neither side reaches the 2f+1 = 3
-    // threshold → Pending.
+    // 2 strong votes + 2 strong blames → neither side reaches 2f+1 = 3 → Pending.
     let blame = strong_blame();
     let leader = build_metastate_dag(
         context,
         dag_state,
         &committer,
-        [
-            Some(AuthoritySet::new()),
-            Some(AuthoritySet::new()),
-            blame,
-            blame,
-        ],
+        [strong_vote(), strong_vote(), blame, blame],
     );
-
-    match committer.try_direct_decide(leader) {
-        LeaderStatus::Commit(_, metastate) => {
-            assert_eq!(metastate, Some(CommitMetastate::Pending))
-        }
-        status => panic!("expected Commit, got {status}"),
-    }
+    assert_direct_commit_metastate(&committer, leader, Some(CommitMetastate::Pending));
 }
 
 /// Which equivocating leader a voter supports.
@@ -384,7 +361,7 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
     // and not `Standard` (no blames) → `Pending`. If the `is_vote()` filter
     // were missing, the `L_B`-directed strong vote would be miscounted for
     // `L_A`, reaching the threshold and yielding a wrong `Optimistic`.
-    let strong = Some(AuthoritySet::new());
+    let strong = strong_vote();
     let (leader_slot, leader_a_ref, _leader_b_ref) = build_equivocating_metastate_dag(
         context,
         dag_state,
@@ -488,41 +465,52 @@ fn certifier(
     v2_block(round, author, voter_refs, None, default_ts(round, author))
 }
 
+/// Wave-1 DAG with a single StrongQC at r+2 (the others are regular QCs).
+/// The direct rule classifies the round-3 leader as Pending under this
+/// setup. Returns `(leader_slot, [c0, c1, c2, c3])` where `c0` is the
+/// StrongQC and `c1..c3` are regular QCs.
+fn build_wave_one_with_single_strong_qc(
+    context: &Context,
+    dag_state: &Arc<RwLock<DagState>>,
+    committer: &crate::base_committer::BaseCommitter,
+) -> (Slot, [BlockRef; 4]) {
+    let (leader_slot, voters) = build_through_voting_round(
+        context,
+        dag_state,
+        committer,
+        [strong_vote(), strong_vote(), strong_vote(), None],
+    );
+    let c0 = certifier(committer, 0, vec![voters[0], voters[1], voters[2]]);
+    let c1 = certifier(committer, 1, vec![voters[0], voters[1], voters[3]]);
+    let c2 = certifier(committer, 2, vec![voters[0], voters[2], voters[3]]);
+    let c3 = certifier(committer, 3, vec![voters[1], voters[2], voters[3]]);
+    let refs = [
+        c0.reference(),
+        c1.reference(),
+        c2.reference(),
+        c3.reference(),
+    ];
+    for b in [c0, c1, c2, c3] {
+        dag_state.write().accept_block_header(b, DataSource::Test);
+    }
+    (leader_slot, refs)
+}
+
 #[tokio::test]
 async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context_with_flag(true);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // v0, v1, v2 are strong votes for L; v3 is a regular vote.
-    let strong = Some(AuthoritySet::new());
-    let (leader_slot, voters) = build_through_voting_round(
-        &context,
-        &dag_state,
-        &committer,
-        [strong, strong, strong, None],
-    );
+    let (leader_slot, [c0, c1, c2, _c3]) =
+        build_wave_one_with_single_strong_qc(&context, &dag_state, &committer);
 
-    // Round-5 certifiers:
-    // - c0 has 3 strong voters in ancestors → StrongQC for L.
-    // - c1, c2, c3 each have only 2 strong voters → regular QC, not StrongQC.
-    // Only one StrongQC exists globally, so the *direct* rule would say
-    // Pending (< 2f+1 StrongQCs, no blames).
-    let c0 = certifier(&committer, 0, vec![voters[0], voters[1], voters[2]]);
-    let c1 = certifier(&committer, 1, vec![voters[0], voters[1], voters[3]]);
-    let c2 = certifier(&committer, 2, vec![voters[0], voters[2], voters[3]]);
-    let c3 = certifier(&committer, 3, vec![voters[1], voters[2], voters[3]]);
-    let (c0_ref, c1_ref, c2_ref) = (c0.reference(), c1.reference(), c2.reference());
-    for b in [c0, c1, c2, c3] {
-        dag_state.write().accept_block_header(b, DataSource::Test);
-    }
-
-    // Anchor at round 6 includes c0 (StrongQC) in its round-5 ancestors.
+    // Anchor at round 6 includes the StrongQC c0 in its round-5 ancestors.
     let anchor_round = committer.certifying_round(1) + 1;
     let anchor = v2_block(
         anchor_round,
         0,
-        vec![c0_ref, c1_ref, c2_ref],
+        vec![c0, c1, c2],
         None,
         default_ts(anchor_round, 0),
     );
@@ -547,34 +535,16 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
     let (context, dag_state) = test_context_with_flag(true);
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
-    // Same round-4 setup as the Optimistic test: v0, v1, v2 are strong votes.
-    let strong = Some(AuthoritySet::new());
-    let (leader_slot, voters) = build_through_voting_round(
-        &context,
-        &dag_state,
-        &committer,
-        [strong, strong, strong, None],
-    );
+    let (leader_slot, [_c0, c1, c2, c3]) =
+        build_wave_one_with_single_strong_qc(&context, &dag_state, &committer);
 
-    // Same round-5 layout: c0 is the only StrongQC; c1, c2, c3 are regular
-    // QCs. StrongQC exists *globally* (but well below a 2f+1 quorum).
-    let c0 = certifier(&committer, 0, vec![voters[0], voters[1], voters[2]]);
-    let c1 = certifier(&committer, 1, vec![voters[0], voters[1], voters[3]]);
-    let c2 = certifier(&committer, 2, vec![voters[0], voters[2], voters[3]]);
-    let c3 = certifier(&committer, 3, vec![voters[1], voters[2], voters[3]]);
-    let (c1_ref, c2_ref, c3_ref) = (c1.reference(), c2.reference(), c3.reference());
-    for b in [c0, c1, c2, c3] {
-        dag_state.write().accept_block_header(b, DataSource::Test);
-    }
-
-    // Anchor excludes c0 — its round-5 path contains only regular QCs. The
-    // indirect rule must restrict its StrongQC search to this path and return
-    // Standard, even though a StrongQC exists elsewhere in the DAG.
+    // Anchor excludes the StrongQC c0. Indirect must still resolve from the
+    // restricted r+2 path and pick Standard, not Optimistic.
     let anchor_round = committer.certifying_round(1) + 1;
     let anchor = v2_block(
         anchor_round,
         1,
-        vec![c1_ref, c2_ref, c3_ref],
+        vec![c1, c2, c3],
         None,
         default_ts(anchor_round, 1),
     );
@@ -595,11 +565,7 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
 
 #[tokio::test]
 async fn leader_status_is_final_classification() {
-    use crate::block_header::Slot;
     let (context, dag_state) = test_context_with_flag(true);
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
-
-    // Build a minimal DAG to source a VerifiedBlockHeader for the Commit arms.
     let refs = build_v2_layers(&context, &dag_state, None, 1);
     let block = dag_state
         .read()
@@ -607,8 +573,6 @@ async fn leader_status_is_final_classification() {
         .expect("round-1 block exists");
 
     let slot = Slot::new(3, AuthorityIndex::from(0u8));
-    let _ = &committer; // keep committer alive for dag_state lifetime
-
     assert!(!LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending)).is_final());
     assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic)).is_final());
     assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard)).is_final());
@@ -654,74 +618,16 @@ async fn pending_leader_resolves_to_optimistic() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context_with_flag(true);
     let universal = build_universal_committer(context.clone(), dag_state.clone());
-
-    let round_3_refs = build_v2_layers(&context, &dag_state, None, 3);
-
-    // 3 strong + 1 regular voter at round 4 → one StrongQC at round 5 is
-    // reachable, but a StrongQC quorum (2f+1 = 3) is not. Direct → Pending.
-    let strong = Some(AuthoritySet::new());
-    let voter_configs = [strong, strong, strong, None];
-    let mut round_4_refs = Vec::new();
-    for (author, sv) in voter_configs.iter().enumerate() {
-        let author = author as u8;
-        let block = v2_block(
-            4,
-            author,
-            round_3_refs.clone(),
-            sv.clone(),
-            default_ts(4, author),
-        );
-        round_4_refs.push(block.reference());
-        dag_state
-            .write()
-            .accept_block_header(block, DataSource::Test);
-    }
-
-    // c0 is the only StrongQC (links to all 3 strong voters); others miss one.
-    let c0 = v2_block(
-        5,
-        0,
-        vec![round_4_refs[0], round_4_refs[1], round_4_refs[2]],
-        None,
-        default_ts(5, 0),
-    );
-    let c1 = v2_block(
-        5,
-        1,
-        vec![round_4_refs[0], round_4_refs[1], round_4_refs[3]],
-        None,
-        default_ts(5, 1),
-    );
-    let c2 = v2_block(
-        5,
-        2,
-        vec![round_4_refs[0], round_4_refs[2], round_4_refs[3]],
-        None,
-        default_ts(5, 2),
-    );
-    let c3 = v2_block(
-        5,
-        3,
-        vec![round_4_refs[1], round_4_refs[2], round_4_refs[3]],
-        None,
-        default_ts(5, 3),
-    );
-    let round_5_refs: Vec<BlockRef> = [&c0, &c1, &c2, &c3].iter().map(|b| b.reference()).collect();
-    for b in [c0, c1, c2, c3] {
-        dag_state.write().accept_block_header(b, DataSource::Test);
-    }
-
-    // Direct rule commits round 3 as Pending; no wave-2 anchor yet, so the
-    // upgrade can't happen.
     let base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
-    let round_3_slot = base.elect_leader(3).expect("round 3 has a leader");
-    match base.try_direct_decide(round_3_slot) {
-        LeaderStatus::Commit(_, m) => assert_eq!(m, Some(CommitMetastate::Pending)),
-        other => panic!("expected Commit(Pending), got {other}"),
-    }
 
-    // Add wave 2: the round-6 anchor's round-5 causal history contains c0.
-    build_v2_layers(&context, &dag_state, Some(round_5_refs), 8);
+    let (round_3_slot, round_5_refs) =
+        build_wave_one_with_single_strong_qc(&context, &dag_state, &base);
+
+    // No wave-2 anchor yet — direct says Pending and can't upgrade.
+    assert_direct_commit_metastate(&base, round_3_slot, Some(CommitMetastate::Pending));
+
+    // Wave 2 pulls the StrongQC (c0) into the round-6 anchor's r+2 path.
+    build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
 
     let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
     assert_eq!(
@@ -735,18 +641,14 @@ async fn pending_leader_resolves_to_standard() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context_with_flag(true);
     let universal = build_universal_committer(context.clone(), dag_state.clone());
-
-    // Wave 1 only — strong_vote = None everywhere → direct → Pending.
-    let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
     let base = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
-    let round_3_slot = base.elect_leader(3).expect("round 3 has a leader");
-    match base.try_direct_decide(round_3_slot) {
-        LeaderStatus::Commit(_, m) => assert_eq!(m, Some(CommitMetastate::Pending)),
-        other => panic!("expected Commit(Pending), got {other}"),
-    }
 
-    // Add wave 2. The round-6 anchor's round-5 path has only regular QCs
-    // → Standard.
+    // Wave 1 only — strong_vote = None everywhere → direct says Pending.
+    let round_5_refs = build_v2_layers(&context, &dag_state, None, 5);
+    let round_3_slot = base.elect_leader(3).expect("round 3 has a leader");
+    assert_direct_commit_metastate(&base, round_3_slot, Some(CommitMetastate::Pending));
+
+    // Wave 2 arrives. The round-6 anchor's r+2 path has only regular QCs.
     build_v2_layers(&context, &dag_state, Some(round_5_refs), 8);
 
     let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
