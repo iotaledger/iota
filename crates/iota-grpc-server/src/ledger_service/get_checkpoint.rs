@@ -411,12 +411,7 @@ pub(crate) fn stream_checkpoints(
     let subscription = service
         .checkpoint_data_broadcaster
         .subscribe()
-        .ok_or_else(|| {
-            Status::unavailable(format!(
-                "maximum concurrent stream subscribers reached ({})",
-                service.config.max_concurrent_stream_subscribers
-            ))
-        })?;
+        .ok_or_else(|| Status::unavailable("too many existing subscribers"))?;
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
         subscription,
         start_sequence_number,
