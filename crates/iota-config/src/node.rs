@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -311,9 +311,9 @@ pub struct GrpcApiConfig {
     /// Maximum number of concurrent subscribers to checkpoint streaming RPCs.
     /// Once the cap is reached, additional subscribe requests are rejected
     /// with `Unavailable` to protect the server from being overwhelmed by
-    /// unbounded streaming clients.
+    /// unbounded streaming clients. Must be non-zero.
     #[serde(default = "default_grpc_api_max_concurrent_stream_subscribers")]
-    pub max_concurrent_stream_subscribers: u32,
+    pub max_concurrent_stream_subscribers: NonZeroU32,
 
     /// Maximum size for Move values when rendering to JSON
     /// in bytes.
@@ -345,8 +345,8 @@ fn default_grpc_api_broadcast_buffer_size() -> u32 {
     100
 }
 
-fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
-    1024
+fn default_grpc_api_max_concurrent_stream_subscribers() -> NonZeroU32 {
+    NonZeroU32::new(1024).unwrap()
 }
 
 fn default_grpc_api_max_message_size_bytes() -> u32 {

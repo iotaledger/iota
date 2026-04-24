@@ -3,6 +3,7 @@
 mod common;
 use std::{
     collections::HashSet,
+    num::NonZeroU32,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -794,7 +795,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
     let (server_handle, client, _) = test_server_and_client_setup(
         0..=5,
         |config| {
-            config.max_concurrent_stream_subscribers = 2;
+            config.max_concurrent_stream_subscribers = NonZeroU32::new(2).unwrap();
         },
         None,
         None,
