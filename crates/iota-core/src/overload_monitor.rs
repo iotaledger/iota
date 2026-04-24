@@ -64,7 +64,7 @@ pub async fn overload_monitor(
     info!("Starting system overload monitor.");
 
     loop {
-        let authority_exist = check_authority_overload(&authority_state, &config);
+        let authority_exist = check_execution_overload(&authority_state, &config);
         if !authority_exist {
             // `authority_state` doesn't exist anymore. Quit overload monitor.
             break;
@@ -115,7 +115,7 @@ pub async fn consensus_queue_overload_monitor(
 
 // Checks authority overload signals, and updates authority's `overload_info`.
 // Returns whether the authority state exists.
-fn check_authority_overload(
+fn check_execution_overload(
     authority_state: &Weak<AuthorityState>,
     config: &AuthorityOverloadConfig,
 ) -> bool {
@@ -134,10 +134,11 @@ fn check_authority_overload(
         .unwrap_or_default();
     let txn_ready_rate = authority.metrics.txn_ready_rate_tracker.lock().rate();
     let execution_rate = authority.metrics.execution_rate_tracker.lock().rate();
+    let inflight_queue_len = authority.transaction_manager().inflight_queue_len();
 
     debug!(
-        "Check authority overload signal, queueing latency {:?}, ready rate {:?}, execution rate {:?}.",
-        queueing_latency, txn_ready_rate, execution_rate
+        "Check authority overload signal, queueing latency {:?}, ready rate {:?}, execution rate {:?}, inflight queue len {:?}.",
+        queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len
     );
 
     // Use the quorum load shedding percentage (from consensus) as the reference
@@ -147,13 +148,32 @@ fn check_authority_overload(
         .get_quorum_load_shedding_percentage()
         .unwrap_or(0) as u32;
 
-    let (is_overload, load_shedding_percentage) = check_overload_signals(
+    let (_, latency_based_percentage) = compute_latency_load_shedding_percentage(
         config,
         current_load_shedding_percentage,
         queueing_latency,
         txn_ready_rate,
         execution_rate,
     );
+
+    let queue_based_percentage = compute_queue_load_shedding_percentage(
+        inflight_queue_len,
+        config.max_transaction_manager_queue_length_soft_limit(),
+        config.max_transaction_manager_queue_length,
+        config.max_load_shedding_percentage,
+    );
+
+    // The final load shedding percentage combines the latency/rate-based
+    // shedding percentage with a queue length based percentage.
+    //
+    // The two signals are correlated — by Little's Law, `inflight_queue_len ≈
+    // txn_ready_rate × queueing_latency` in steady state — so they are combined
+    // with `max` rather than summed, to avoid double-counting. Under transients
+    // they diverge: queue length reacts to bursts before averaged latency does,
+    // while latency catches sustained slow execution even when queue depth is
+    // modest. Each therefore guards a different failure mode.
+    let load_shedding_percentage = max(latency_based_percentage, queue_based_percentage);
+    let is_overload = load_shedding_percentage > 0;
 
     if is_overload {
         authority
@@ -209,7 +229,7 @@ fn calculate_load_shedding_percentage(txn_ready_rate: f64, execution_rate: f64) 
 // outcome is that we need to shed 40% + (1 - 40%) * 10% = 46%.
 // When txn_ready_rate is less than execution_rate, we gradually reduce load
 // shedding percentage until the queueing latency is back to normal.
-fn check_overload_signals(
+fn compute_latency_load_shedding_percentage(
     config: &AuthorityOverloadConfig,
     current_load_shedding_percentage: u32,
     queueing_latency: Duration,
@@ -458,28 +478,52 @@ mod tests {
         // When execution queueing latency is within soft limit, don't start overload
         // protection.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_millis(500), 1000.0, 10.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_millis(500),
+                1000.0,
+                10.0
+            ),
             (false, 0)
         );
 
         // When execution queueing latency hits soft limit and execution rate is higher,
         // don't start overload protection.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(2), 100.0, 120.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(2),
+                100.0,
+                120.0
+            ),
             (false, 0)
         );
 
         // When execution queueing latency hits soft limit, but not hard limit, start
         // overload protection.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(2), 100.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(2),
+                100.0,
+                100.0
+            ),
             (true, 7)
         );
 
         // When execution queueing latency hits hard limit, start more aggressive
         // overload protection.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(11), 100.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(11),
+                100.0,
+                100.0
+            ),
             (true, 50)
         );
 
@@ -487,20 +531,38 @@ mod tests {
         // percentage is higher than
         // min_load_shedding_percentage_above_hard_limit.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(11), 240.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(11),
+                240.0,
+                100.0
+            ),
             (true, 62)
         );
 
         // When execution queueing latency hits hard limit, but transaction ready rate
         // is within safe_transaction_ready_rate, don't start overload protection.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(11), 20.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(11),
+                20.0,
+                100.0
+            ),
             (false, 0)
         );
 
         // Maximum transactions shed is cap by `max_load_shedding_percentage` config.
         assert_eq!(
-            check_overload_signals(&config, 0, Duration::from_secs(11), 100.0, 0.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                0,
+                Duration::from_secs(11),
+                100.0,
+                0.0
+            ),
             (true, 90)
         );
 
@@ -508,20 +570,38 @@ mod tests {
         // rate and execution rate require another 20%, the final shedding rate
         // is 60%.
         assert_eq!(
-            check_overload_signals(&config, 50, Duration::from_secs(2), 116.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                50,
+                Duration::from_secs(2),
+                116.0,
+                100.0
+            ),
             (true, 60)
         );
 
         // Load shedding percentage is gradually reduced when txn ready rate is lower
         // than execution rate.
         assert_eq!(
-            check_overload_signals(&config, 90, Duration::from_secs(2), 200.0, 300.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                90,
+                Duration::from_secs(2),
+                200.0,
+                300.0
+            ),
             (true, 80)
         );
 
         // When queueing delay is above hard limit, we shed additional 50% every time.
         assert_eq!(
-            check_overload_signals(&config, 50, Duration::from_secs(11), 100.0, 100.0),
+            compute_latency_load_shedding_percentage(
+                &config,
+                50,
+                Duration::from_secs(11),
+                100.0,
+                100.0
+            ),
             (true, 75)
         );
     }
@@ -633,7 +713,7 @@ mod tests {
         // Creates a simple case to see if authority state overload_info can be updated
         // correctly by check_authority_overload.
         let authority = Arc::downgrade(&state);
-        assert!(check_authority_overload(&authority, &config));
+        assert!(check_execution_overload(&authority, &config));
         assert!(state.overload_info.is_overload.load(Ordering::Relaxed));
         assert_eq!(
             state
@@ -647,7 +727,7 @@ mod tests {
         // authority state doesn't exist.
         let authority = Arc::downgrade(&state);
         drop(state);
-        assert!(!check_authority_overload(&authority, &config));
+        assert!(!check_execution_overload(&authority, &config));
     }
 
     // Creates an AuthorityState and starts an overload monitor that monitors its

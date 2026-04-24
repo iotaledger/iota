@@ -1205,10 +1205,26 @@ pub struct AuthorityOverloadConfig {
     #[serde(default = "default_max_transaction_manager_queue_length")]
     pub max_transaction_manager_queue_length: usize,
 
+    /// Inflight execution queue length at which graduated load shedding begins
+    /// in the certificate-less (white-flag) mode. Defaults to
+    /// `max_transaction_manager_queue_length / 2`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_transaction_manager_queue_length_soft_limit: Option<usize>,
+
     /// Reject a transaction if the number of pending transactions depending on
     /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
+}
+
+impl AuthorityOverloadConfig {
+    /// Returns the inflight execution queue length at which graduated load
+    /// shedding begins in the certificate-less (white-flag) mode. Defaults
+    /// to `max_transaction_manager_queue_length / 2`.
+    pub fn max_transaction_manager_queue_length_soft_limit(&self) -> usize {
+        self.max_transaction_manager_queue_length_soft_limit
+            .unwrap_or(self.max_transaction_manager_queue_length / 2)
+    }
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -1265,6 +1281,7 @@ impl Default for AuthorityOverloadConfig {
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
+            max_transaction_manager_queue_length_soft_limit: None,
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
         }
