@@ -80,8 +80,8 @@ impl UniversalCommitter {
                 // committed anchor's path can upgrade the metastate; for
                 // Undecided, indirect may resolve the slot entirely.
                 if !status.is_final() {
-                    let indirect = committer
-                        .try_indirect_decide(slot, leaders.iter().map(|(x, _)| x));
+                    let indirect =
+                        committer.try_indirect_decide(slot, leaders.iter().map(|(x, _)| x));
                     tracing::debug!("Outcome of indirect rule: {indirect}");
                     match (&status, &indirect) {
                         (

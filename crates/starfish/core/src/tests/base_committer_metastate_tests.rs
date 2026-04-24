@@ -678,10 +678,34 @@ async fn pending_leader_resolves_to_optimistic() {
     }
 
     // c0 is the only StrongQC (links to all 3 strong voters); others miss one.
-    let c0 = v2_block(5, 0, vec![round_4_refs[0], round_4_refs[1], round_4_refs[2]], None, default_ts(5, 0));
-    let c1 = v2_block(5, 1, vec![round_4_refs[0], round_4_refs[1], round_4_refs[3]], None, default_ts(5, 1));
-    let c2 = v2_block(5, 2, vec![round_4_refs[0], round_4_refs[2], round_4_refs[3]], None, default_ts(5, 2));
-    let c3 = v2_block(5, 3, vec![round_4_refs[1], round_4_refs[2], round_4_refs[3]], None, default_ts(5, 3));
+    let c0 = v2_block(
+        5,
+        0,
+        vec![round_4_refs[0], round_4_refs[1], round_4_refs[2]],
+        None,
+        default_ts(5, 0),
+    );
+    let c1 = v2_block(
+        5,
+        1,
+        vec![round_4_refs[0], round_4_refs[1], round_4_refs[3]],
+        None,
+        default_ts(5, 1),
+    );
+    let c2 = v2_block(
+        5,
+        2,
+        vec![round_4_refs[0], round_4_refs[2], round_4_refs[3]],
+        None,
+        default_ts(5, 2),
+    );
+    let c3 = v2_block(
+        5,
+        3,
+        vec![round_4_refs[1], round_4_refs[2], round_4_refs[3]],
+        None,
+        default_ts(5, 3),
+    );
     let round_5_refs: Vec<BlockRef> = [&c0, &c1, &c2, &c3].iter().map(|b| b.reference()).collect();
     for b in [c0, c1, c2, c3] {
         dag_state.write().accept_block_header(b, DataSource::Test);
