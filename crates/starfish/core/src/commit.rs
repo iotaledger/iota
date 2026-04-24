@@ -802,7 +802,13 @@ fn format_block_digests(blocks: &[BlockRef]) -> String {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Decision {
+    /// Direct rule produced the final status.
     Direct,
+    /// Direct rule produced `Commit(Pending)`; indirect rule later examined
+    /// an anchor's path and upgraded the metastate to Optimistic/Standard.
+    Upgraded,
+    /// Direct rule left the slot Undecided; indirect rule produced the
+    /// final status.
     Indirect,
 }
 
@@ -827,6 +833,18 @@ impl LeaderStatus {
         match self {
             Self::Commit(..) => true,
             Self::Skip(_) => true,
+            Self::Undecided(_) => false,
+        }
+    }
+
+    /// A leader decision is *final* if sequencing can proceed past it.
+    /// `Commit(Pending)` is decided (the slot won't flip to Skip) but not
+    /// final — its metastate has not yet been resolved, so sequencing waits
+    /// until the indirect rule upgrades it.
+    pub(crate) fn is_final(&self) -> bool {
+        match self {
+            Self::Commit(_, Some(CommitMetastate::Pending)) => false,
+            Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
     }
