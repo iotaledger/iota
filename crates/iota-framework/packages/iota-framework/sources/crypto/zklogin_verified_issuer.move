@@ -9,10 +9,6 @@ use std::string::String;
 
 const EFunctionDisabled: u64 = 0;
 
-/// Error if the proof consisting of the inputs provided to the verification function is invalid.
-#[deprecated]
-const EInvalidProof: u64 = 1;
-
 /// Possession of a VerifiedIssuer proves that the user's address was created using zklogin and with the given issuer
 /// (identity provider).
 #[deprecated]

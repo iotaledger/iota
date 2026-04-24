@@ -80,6 +80,8 @@ const IOTA_CLOCK_CREATE: FunctionIdent = (
     CLOCK_MODULE_NAME,
     ident_str!("create"),
 );
+// Kept for bytecode snapshot compatibility (snapshots v1-v24 still contain
+// authenticator_state::create which uses a special UID).
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("authenticator_state"),

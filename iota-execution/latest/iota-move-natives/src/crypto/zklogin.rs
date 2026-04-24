@@ -16,6 +16,11 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 
+// The 20001 was chosen so it doesn't conflict with any existing error codes in
+// the Move VM (which are all < 10000) and is clearly identifiable as a
+// custom error code.
+pub const NOT_SUPPORTED_ERROR: u64 = 20001;
+
 #[deprecated(
     note = "zklogin natives have been removed; kept only for old bytecode snapshot compatibility"
 )]
@@ -24,7 +29,7 @@ pub fn check_zklogin_id_internal(
     _ty_args: Vec<Type>,
     _args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    Ok(NativeResult::err(context.gas_used(), 0))
+    Ok(NativeResult::err(context.gas_used(), NOT_SUPPORTED_ERROR))
 }
 
 #[deprecated(
@@ -35,5 +40,5 @@ pub fn check_zklogin_issuer_internal(
     _ty_args: Vec<Type>,
     _args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    Ok(NativeResult::err(context.gas_used(), 0))
+    Ok(NativeResult::err(context.gas_used(), NOT_SUPPORTED_ERROR))
 }

@@ -274,7 +274,6 @@ pub struct DecodedMultiSigOutput {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-#[allow(clippy::large_enum_variant)]
 pub enum DecodedSigOutput {
     Signature {
         scheme: String,
@@ -287,7 +286,7 @@ pub enum DecodedSigOutput {
         threshold: usize,
         participating_signatures: Vec<DecodedMultiSig>,
     },
-    Passkey(PasskeyAuthenticator),
+    Passkey(Box<PasskeyAuthenticator>),
     MoveAuthenticator {
         call_arguments: Vec<String>,
         type_arguments: serde_json::Value,
@@ -544,7 +543,7 @@ impl KeyToolCommand {
                         anyhow::bail!("zkLogin is not supported");
                     }
                     GenericSignature::PasskeyAuthenticator(passkey) => {
-                        DecodedSigOutput::Passkey(passkey)
+                        DecodedSigOutput::Passkey(Box::new(passkey))
                     }
                     GenericSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth

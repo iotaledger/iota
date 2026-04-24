@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Allow deprecated zkLogin types — this module defines and must handle them
-// for serialization compatibility.
+// This module broadly handles cryptographic types and operations.
+// Deprecated zkLogin types are intentionally retained for serialization
+// compatibility.
 
 use std::{
     collections::BTreeMap,

@@ -3,8 +3,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Allow deprecated zkLogin/JWK types — this module defines and must handle them
-// for BCS serialization compatibility.
+// zkLogin/AuthenticatorStateUpdate types are kept (deprecated) for
+// serialization compatibility only.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
