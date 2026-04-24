@@ -6475,6 +6475,15 @@ async fn setup_move_authenticator_account(
         IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
     ));
 
+    // Add the AA to the keystore so the CLI can build `MoveAuthenticator`
+    // signatures for it.
+    IotaClientCommands::AddAccount {
+        alias: None,
+        address: account_address.into(),
+    }
+    .execute(context)
+    .await?;
+
     Ok(account_address)
 }
 
@@ -6499,13 +6508,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    // Add and switch to account
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: account_address.into(),
-    }
-    .execute(context)
-    .await?;
+    // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
         address: Some(IotaAddress::from(account_address).into()),
         env: None,
@@ -6618,13 +6621,7 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    // Add and switch to account
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: account_address.into(),
-    }
-    .execute(context)
-    .await?;
+    // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
         address: Some(IotaAddress::from(account_address).into()),
         env: None,
@@ -6699,15 +6696,6 @@ async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
         "authenticate",
         2_000_000_000,
     )
-    .await?;
-
-    // Add the AA address to the keystore so the CLI can look it up when
-    // building the sponsor's `MoveAuthenticator` signature.
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: account_address.into(),
-    }
-    .execute(context)
     .await?;
 
     // Find an object owned by `sender` that we can transfer.
@@ -6800,21 +6788,6 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
     )
     .await?;
     assert_ne!(sender_aa, sponsor_aa);
-
-    // Both AA addresses must be in the keystore so the CLI can build their
-    // `MoveAuthenticator` signatures.
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: sender_aa.into(),
-    }
-    .execute(context)
-    .await?;
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: sponsor_aa.into(),
-    }
-    .execute(context)
-    .await?;
 
     // Sponsored PTB splitting a nano off the sponsor's gas and transferring it
     // to `recipient`. Sender is authenticated via `--auth-call-args`, sponsor
