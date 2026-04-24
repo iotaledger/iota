@@ -344,8 +344,10 @@ async fn indirect_commit() {
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.
     tracing::info!("Try indirect commit for leader {leader_wave_1}",);
-    let leader_status = committer
-        .try_indirect_decide(LeaderStatus::Undecided(leader_wave_1), decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_1),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
@@ -460,8 +462,10 @@ async fn indirect_skip() {
 
     // 3. Ensure we skip leader of wave 2 indirectly.
     tracing::info!("Try indirect commit for leader {leader_wave_2}",);
-    let leader_status = committer
-        .try_indirect_decide(LeaderStatus::Undecided(leader_wave_2), decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_2),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Skip(skipped_slot) = leader_status {
