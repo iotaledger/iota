@@ -759,6 +759,10 @@ impl ConsensusCommitInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use arc_swap::ArcSwap;
+    use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
         base_types::{AuthorityName, IotaAddress, random_object_ref},
@@ -766,6 +770,7 @@ mod tests {
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
+        object::Object,
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
@@ -773,32 +778,25 @@ mod tests {
             CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         },
     };
+    use prometheus::Registry;
+    use starfish_core::{
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        VerifiedBlockHeader, VerifiedTransactions,
+    };
 
     use super::*;
-    use crate::post_consensus_tx_reorder::PostConsensusTxReorder;
+    use crate::{
+        authority::{
+            AuthorityMetrics, authority_per_epoch_store::ConsensusStatsAPI,
+            backpressure::BackpressureManager, test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::CheckpointServiceNoop,
+        consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
+        post_consensus_tx_reorder::PostConsensusTxReorder,
+    };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_consensus_handler() {
-        use std::time::Duration;
-
-        use arc_swap::ArcSwap;
-        use futures::pin_mut;
-        use iota_types::object::Object;
-        use prometheus::Registry;
-        use starfish_core::{
-            BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
-            VerifiedBlockHeader, VerifiedTransactions,
-        };
-
-        use crate::{
-            authority::{
-                AuthorityMetrics, authority_per_epoch_store::ConsensusStatsAPI,
-                backpressure::BackpressureManager, test_authority_builder::TestAuthorityBuilder,
-            },
-            checkpoints::CheckpointServiceNoop,
-            consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
-        };
-
         // GIVEN
         let mut objects = test_gas_objects();
         let shared_object = Object::shared_for_testing();
