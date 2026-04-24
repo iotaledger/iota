@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use std::{collections::HashSet, fmt::Display, sync::Arc};
 
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Stake};
@@ -187,51 +187,36 @@ impl BaseCommitter {
             .contains(&leader_block.reference())
     }
 
-    /// Check whether the specified block (`potential_certificate`) is a
-    /// certificate for the specified leader (`leader_block`). An
-    /// `all_votes` map can be provided as a cache to quickly skip checking
-    /// against the block store on whether a reference is a vote. This is
-    /// done for efficiency. Bear in mind that the `all_votes` should refer
-    /// to votes considered to the same `leader_block` and it can't be
-    /// reused for different leaders.
+    /// Return the set of refs of blocks at `leader_block.round() + 1` that
+    /// directly include `leader_block` as an ancestor — i.e. the set of votes
+    /// for this specific leader block.
+    fn vote_refs_for_leader(&self, leader_block: &VerifiedBlockHeader) -> HashSet<BlockRef> {
+        let voting_round = leader_block.round() + 1;
+        self.dag_state
+            .read()
+            .get_uncommitted_block_headers_at_round(voting_round)
+            .into_iter()
+            .filter(|voting_block| self.is_vote(voting_block, leader_block))
+            .map(|voting_block| voting_block.reference())
+            .collect()
+    }
+
+    /// Check whether `potential_certificate` is a certificate for the leader
+    /// whose votes are captured in `vote_refs` — i.e. its ancestors include
+    /// a quorum of vote refs.
     fn is_certificate(
         &self,
         potential_certificate: &VerifiedBlockHeader,
-        leader_block: &VerifiedBlockHeader,
-        all_votes: &mut HashMap<BlockRef, bool>,
+        vote_refs: &HashSet<BlockRef>,
     ) -> bool {
         let mut votes_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for reference in potential_certificate.ancestors() {
-            let is_vote = if let Some(is_vote) = all_votes.get(reference) {
-                *is_vote
-            } else {
-                let potential_vote = self.dag_state.read().get_verified_block_header(reference);
-
-                let is_vote = {
-                    let potential_vote = potential_vote
-                        .unwrap_or_else(|| panic!("Block not found in storage: {reference:?}"));
-                    self.is_vote(&potential_vote, leader_block)
-                };
-
-                all_votes.insert(*reference, is_vote);
-                is_vote
-            };
-
-            if is_vote {
-                tracing::trace!("[{self}] {reference} is a vote for {leader_block}");
-                if votes_stake_aggregator.add(reference.author, &self.context.committee) {
-                    tracing::trace!(
-                        "[{self}] {potential_certificate} is a certificate for leader {leader_block}"
-                    );
-                    return true;
-                }
-            } else {
-                tracing::trace!("[{self}] {reference} is not a vote for {leader_block}",);
+            if vote_refs.contains(reference)
+                && votes_stake_aggregator.add(reference.author, &self.context.committee)
+            {
+                return true;
             }
         }
-        tracing::trace!(
-            "[{self}] {potential_certificate} is not a certificate for leader {leader_block}"
-        );
         false
     }
 
@@ -274,9 +259,9 @@ impl BaseCommitter {
         let mut certified_leader_blocks: Vec<_> = leader_blocks
             .into_iter()
             .filter(|leader_block| {
-                let mut all_votes = HashMap::new();
+                let vote_refs = self.vote_refs_for_leader(leader_block);
                 potential_certificates.iter().any(|potential_certificate| {
-                    self.is_certificate(potential_certificate, leader_block, &mut all_votes)
+                    self.is_certificate(potential_certificate, &vote_refs)
                 })
             })
             .collect();
@@ -355,10 +340,10 @@ impl BaseCommitter {
         }
 
         let mut certificate_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        let mut all_votes = HashMap::new();
+        let vote_refs = self.vote_refs_for_leader(leader_block);
         for decision_block in &decision_blocks {
             let authority = decision_block.reference().author;
-            if self.is_certificate(decision_block, leader_block, &mut all_votes)
+            if self.is_certificate(decision_block, &vote_refs)
                 && certificate_stake_aggregator.add(authority, &self.context.committee)
             {
                 return true;
