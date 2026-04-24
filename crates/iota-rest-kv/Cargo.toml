@@ -16,6 +16,7 @@ base64-url.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 clap = { workspace = true, features = ["env"] }
+futures.workspace = true
 object_store.workspace = true
 rustls.workspace = true
 serde.workspace = true
