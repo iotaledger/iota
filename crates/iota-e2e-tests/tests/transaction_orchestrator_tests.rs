@@ -8,6 +8,7 @@ use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::TransactionExpiration;
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -21,8 +22,9 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
-        FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
+        EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
+        ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
+        QuorumDriverError,
     },
     transaction::{Transaction, TransactionDataAPI},
 };
@@ -363,6 +365,145 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .collect::<Vec<_>>();
     actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
+
+    Ok(())
+}
+
+/// With the white-flag flow enabled, `WaitForLocalExecution` takes the
+/// skip-effect-certification path inside the orchestrator. The single-
+/// validator response tagged `UncertifiedSingleValidator` must be upgraded
+/// to `Checkpointed(epoch, seq)` by the local-cache reconciliation before
+/// being returned to the caller — otherwise the safety guard at the end of
+/// `execute_transaction_block` would reject the response as
+/// `QuorumDriverInternal`.
+fn enable_white_flag_env() {
+    // SAFETY: set before spawning the test cluster; env vars are the only
+    // reliable way to flip the white-flag protocol flag inside validator
+    // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
+    // does not propagate to spawned tasks outside msim).
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            "true",
+        );
+    }
+}
+
+#[sim_test]
+async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
+    enable_white_flag_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let (response, executed_locally) = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: true,
+                include_input_objects: true,
+                include_output_objects: true,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("skip-cert execution failed for {digest:?}: {e:?}"));
+
+    assert!(executed_locally, "tx should be executed locally");
+
+    // The strong signal that reconcile ran: the TD skip-cert path never
+    // produces `Certified` (no 2f+1 broadcast happened) and never produces
+    // `QuorumExecuted` (that's the pre-reconcile TD output). Only the
+    // reconcile step upgrades to `Checkpointed(epoch, seq)`. If the safety
+    // guard had fired instead, `execute_transaction_block` would have
+    // returned a `QuorumDriverInternal` error.
+    match response.effects.finality_info {
+        EffectsFinalityInfo::Checkpointed(_epoch, seq) => {
+            assert!(seq > 0, "checkpoint sequence should be populated");
+        }
+        other => panic!(
+            "skip-cert reconciliation should upgrade finality to Checkpointed, got {other:?}"
+        ),
+    }
+    // Request flags were set — the reconcile path must populate the object
+    // fields rather than dropping them. (Events are skipped: a transfer
+    // tx does not emit any; the negative-case is covered by
+    // `test_skip_effect_cert_respects_request_flags`.)
+    assert!(response.input_objects.is_some());
+    assert!(response.output_objects.is_some());
+
+    Ok(())
+}
+
+/// With the white-flag flow enabled, a caller that did *not* ask for events
+/// or input/output objects must not receive them.
+#[sim_test]
+async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
+    enable_white_flag_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    let (response, _) = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await?;
+
+    assert!(
+        matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "skip-cert response should always be Checkpointed, got {:?}",
+        response.effects.finality_info
+    );
+    assert!(
+        response.events.is_none(),
+        "events must not leak when include_events=false"
+    );
+    assert!(
+        response.input_objects.is_none(),
+        "input_objects must not leak when include_input_objects=false"
+    );
+    assert!(
+        response.output_objects.is_none(),
+        "output_objects must not leak when include_output_objects=false"
+    );
 
     Ok(())
 }
