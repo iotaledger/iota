@@ -829,18 +829,8 @@ impl LeaderStatus {
         }
     }
 
-    pub(crate) fn is_decided(&self) -> bool {
-        match self {
-            Self::Commit(..) => true,
-            Self::Skip(_) => true,
-            Self::Undecided(_) => false,
-        }
-    }
-
-    /// A leader decision is *final* if sequencing can proceed past it.
-    /// `Commit(Pending)` is decided (the slot won't flip to Skip) but not
-    /// final — its metastate has not yet been resolved, so sequencing waits
-    /// until the indirect rule upgrades it.
+    /// True when sequencing can proceed past this leader. `Commit(Pending)`
+    /// and `Undecided` are non-final.
     pub(crate) fn is_final(&self) -> bool {
         match self {
             Self::Commit(_, Some(CommitMetastate::Pending)) => false,
