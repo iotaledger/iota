@@ -4,7 +4,6 @@
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     env,
@@ -12,7 +11,8 @@ use std::{
     fs::{self, read_dir},
     io::{self, Read, Seek, SeekFrom, Write as IoWrite},
     path::{Path, PathBuf},
-    str, thread,
+    str::{self, FromStr},
+    thread,
     time::Duration,
 };
 
