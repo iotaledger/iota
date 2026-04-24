@@ -36,7 +36,7 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
-    backward_consistency::{BackwardView, build_backward_objects_query},
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
@@ -530,13 +530,9 @@ impl IotaNames {
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_backward_objects_query(
-                    BackwardView::Consistent {
-                        checkpoint_viewed_at,
-                    },
-                    &page,
-                    move |query| filter.apply(query),
-                );
+                let sql = consistent::query(checkpoint_viewed_at, &page, move |query| {
+                    filter.apply(query)
+                });
 
                 let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;

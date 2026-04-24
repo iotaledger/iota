@@ -19,9 +19,8 @@ use crate::{
 /// The checkpoint sequence number for entities not available for view.
 pub(crate) const UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER: u64 = u64::MAX;
 
-/// View mode for forward diff queries. Currently only `Consistent` is used
-/// (by dynamic fields). Historical lookups have moved to the backward diff
-/// path in `backward_consistency.rs`.
+/// View mode for forward diff queries. Only used by dynamic fields.
+/// Historical lookups use `backward_view` instead.
 #[derive(Copy, Clone)]
 pub(crate) enum View {
     /// Return objects that fulfill the filtering criteria and are the most

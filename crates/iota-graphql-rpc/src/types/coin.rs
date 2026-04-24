@@ -10,7 +10,7 @@ use iota_indexer::types::OwnerType;
 use iota_types::{TypeTag, coin::Coin as NativeCoin};
 
 use crate::{
-    backward_consistency::{BackwardView, build_backward_objects_query},
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     data::{Db, QueryExecutor},
@@ -424,13 +424,9 @@ fn coins_query(
     checkpoint_viewed_at: u64,
     page: &Page<object::Cursor>,
 ) -> RawQuery {
-    build_backward_objects_query(
-        BackwardView::Consistent {
-            checkpoint_viewed_at,
-        },
-        page,
-        move |query| apply_filter(query, &coin_type, owner),
-    )
+    consistent::query(checkpoint_viewed_at, page, move |query| {
+        apply_filter(query, &coin_type, owner)
+    })
 }
 
 fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddress>) -> RawQuery {

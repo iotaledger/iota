@@ -34,7 +34,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backward_consistency::{BackwardView, build_backward_objects_query},
+    backward_view::{consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
@@ -1721,10 +1721,8 @@ impl Loader<LatestAtKey> for Db {
                         };
 
                         let results: Vec<StoredBackwardObject> = conn.results(move || {
-                            build_backward_objects_query(
-                                BackwardView::Consistent {
-                                    checkpoint_viewed_at,
-                                },
+                            consistent::query(
+                                checkpoint_viewed_at,
                                 &Page::bounded(ids.len() as u64),
                                 |q| filter.apply(q),
                             )
@@ -1821,20 +1819,16 @@ pub(crate) async fn deserialize_move_struct(
 
 /// Constructs a backward diff query for objects.
 ///
-/// Uses `BackwardView::Consistent` for most queries to ensure point-in-time
-/// correctness. Falls back to `BackwardView::Historical` only for object-key
-/// lookups (specific id+version pairs) which don't need consistency filtering.
-/// When both `object_ids` and `object_keys` are provided, the results from
-/// both views are unioned.
+/// Uses consistent view for most queries to ensure point-in-time correctness.
+/// Falls back to historical view only for object-key lookups (specific
+/// id+version pairs) which don't need consistency filtering. When both
+/// `object_ids` and `object_keys` are provided, the results from both views
+/// are unioned.
 fn backward_objects_query(
     filter: &ObjectFilter,
     checkpoint_viewed_at: u64,
     page: &Page<Cursor>,
 ) -> RawQuery {
-    let consistent_view = BackwardView::Consistent {
-        checkpoint_viewed_at,
-    };
-
     if let (Some(_), Some(_)) = (&filter.object_ids, &filter.object_keys) {
         // If both object IDs and object keys are specified, then we need to query in
         // both historical and consistent views, and then union the results.
@@ -1842,21 +1836,17 @@ fn backward_objects_query(
             object_keys: None,
             ..filter.clone()
         };
-        let (id_query, id_bindings) =
-            build_backward_objects_query(consistent_view, page, move |query| {
-                ids_only_filter.apply(query)
-            })
-            .finish();
+        let (id_query, id_bindings) = consistent::query(checkpoint_viewed_at, page, move |query| {
+            ids_only_filter.apply(query)
+        })
+        .finish();
 
         let keys_only_filter = ObjectFilter {
             object_ids: None,
             ..filter.clone()
         };
         let (key_query, key_bindings) =
-            build_backward_objects_query(BackwardView::Historical, page, move |query| {
-                keys_only_filter.apply(query)
-            })
-            .finish();
+            historical::query(page, move |query| keys_only_filter.apply(query)).finish();
 
         RawQuery::new(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
@@ -1864,18 +1854,10 @@ fn backward_objects_query(
         )
         .order_by("object_id")
         .limit(page.limit() as i64)
+    } else if filter.object_keys.is_some() {
+        historical::query(page, move |query| filter.apply(query))
     } else {
-        // Only one of object IDs or object keys is specified, or neither are specified.
-        // Use Historical view only for object-key lookups (specific id+version pairs).
-        // All other queries use Consistent view since the backward diff is designed
-        // for consistent point-in-time snapshots.
-        let view = if filter.object_keys.is_some() {
-            BackwardView::Historical
-        } else {
-            consistent_view
-        };
-
-        build_backward_objects_query(view, page, move |query| filter.apply(query))
+        consistent::query(checkpoint_viewed_at, page, move |query| filter.apply(query))
     }
 }
 

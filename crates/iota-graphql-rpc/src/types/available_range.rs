@@ -127,10 +127,7 @@ impl AvailableRange {
         let watermark_first: Option<i64> = conn
             .results(|| {
                 wm::watermarks
-                    .filter(
-                        wm::entity
-                            .eq(crate::backward_consistency::BACKWARD_HISTORY_WATERMARK_ENTITY),
-                    )
+                    .filter(wm::entity.eq(crate::backward_view::BACKWARD_HISTORY_WATERMARK_ENTITY))
                     .select(wm::min_available_cp)
                     .limit(1)
                     .into_boxed()
