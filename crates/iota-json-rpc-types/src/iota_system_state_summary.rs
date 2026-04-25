@@ -210,6 +210,7 @@ pub struct IotaSystemStateSummaryV1 {
     /// Removal requests from the validators. Each element is an index
     /// pointing to `active_validators`.
     #[schemars(with = "Vec<String>")]
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
@@ -238,6 +239,7 @@ pub struct IotaSystemStateSummaryV1 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
+    #[serde_as(as = "Vec<(_, DisplayFromStr)>")]
     pub at_risk_validators: Vec<(IotaAddress, u64)>,
     /// A map storing the records of validator reporting each other.
     #[schemars(with = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
@@ -485,6 +487,7 @@ pub struct IotaSystemStateSummaryV2 {
     /// List of committee validators in the current epoch. Each element is an
     /// index pointing to `active_validators`.
     #[schemars(with = "Vec<String>")]
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub committee_members: Vec<u64>,
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<IotaValidatorSummary>,
@@ -499,6 +502,7 @@ pub struct IotaSystemStateSummaryV2 {
     /// Removal requests from the validators. Each element is an index
     /// pointing to `active_validators`.
     #[schemars(with = "Vec<String>")]
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
@@ -527,6 +531,7 @@ pub struct IotaSystemStateSummaryV2 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
+    #[serde_as(as = "Vec<(_, DisplayFromStr)>")]
     pub at_risk_validators: Vec<(IotaAddress, u64)>,
     /// A map storing the records of validator reporting each other.
     #[schemars(with = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
@@ -705,6 +710,7 @@ pub struct IotaValidatorSummary {
     #[serde_as(as = "DisplayFromStr")]
     pub commission_rate: u64,
     #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<DisplayFromStr>")]
     pub effective_commission_rate: Option<u64>,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
@@ -722,10 +728,12 @@ pub struct IotaValidatorSummary {
     pub staking_pool_id: ObjectID,
     /// The epoch at which this pool became active.
     #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<DisplayFromStr>")]
     pub staking_pool_activation_epoch: Option<u64>,
     /// The epoch at which this staking pool ceased to be active. `None` =
     /// {pre-active, active},
     #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<DisplayFromStr>")]
     pub staking_pool_deactivation_epoch: Option<u64>,
     /// The total number of IOTA tokens in this pool.
     #[schemars(with = "String")]

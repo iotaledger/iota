@@ -42,6 +42,7 @@ pub struct IotaEventID {
     #[schemars(with = "Base58Schema")]
     pub tx_digest: TransactionDigest,
     #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub event_seq: u64,
 }
 
