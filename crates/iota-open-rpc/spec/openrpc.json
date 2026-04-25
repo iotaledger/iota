@@ -9355,6 +9355,7 @@
             "type": "string"
           },
           "effectiveCommissionRate": {
+            "default": null,
             "type": [
               "string",
               "null"
@@ -9497,6 +9498,7 @@
           },
           "stakingPoolActivationEpoch": {
             "description": "The epoch at which this pool became active.",
+            "default": null,
             "type": [
               "string",
               "null"
@@ -9504,6 +9506,7 @@
           },
           "stakingPoolDeactivationEpoch": {
             "description": "The epoch at which this staking pool ceased to be active. `None` = {pre-active, active},",
+            "default": null,
             "type": [
               "string",
               "null"
