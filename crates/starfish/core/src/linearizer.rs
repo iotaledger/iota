@@ -1272,10 +1272,9 @@ mod tests {
         let leader_a = dag_builder
             .leader_block(4)
             .expect("Leader at round 4 should exist");
-        let target_ack = *leader_a
-            .acknowledgments()
-            .first()
-            .expect("L_a should have acks in fully-linked DAG");
+        let optimistic_set: Vec<BlockRef> = std::iter::once(leader_a.reference())
+            .chain(leader_a.acknowledgments().iter().copied())
+            .collect();
         let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
             refs.iter()
                 .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
@@ -1284,24 +1283,28 @@ mod tests {
         let commits_a =
             linearizer.get_pending_sub_dags(vec![(leader_a, Some(CommitMetastate::Optimistic))]);
         assert_eq!(commits_a.len(), 1);
-        assert!(
-            contains_block(&commits_a[0].committed_transaction_refs, &target_ack),
-            "Optimistic commit of L_a should include target_ack {target_ack:?}"
-        );
+        for block_ref in &optimistic_set {
+            assert!(
+                contains_block(&commits_a[0].committed_transaction_refs, block_ref),
+                "Optimistic commit of L_a should include {block_ref:?}"
+            );
+        }
 
         // Second commit: L_b at round 7 standardly. Its causal history
-        // accumulates 2f+1 acks for target_ack, but `mark_committed` from
-        // L_a's Optimistic commit must suppress the re-commit.
+        // accumulates 2f+1 acks for L_a's optimistically-committed refs, but
+        // `mark_committed` from L_a's commit must suppress the re-commit.
         let leader_b = dag_builder
             .leader_block(7)
             .expect("Leader at round 7 should exist");
         let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None)]);
         assert_eq!(commits_b.len(), 1);
-        assert!(
-            !contains_block(&commits_b[0].committed_transaction_refs, &target_ack),
-            "Standard commit of L_b should NOT re-include target_ack {target_ack:?} \
-             already committed by L_a's Optimistic commit"
-        );
+        for block_ref in &optimistic_set {
+            assert!(
+                !contains_block(&commits_b[0].committed_transaction_refs, block_ref),
+                "Standard commit of L_b should NOT re-include {block_ref:?} \
+                 already committed by L_a's Optimistic commit"
+            );
+        }
 
         // Sanity: the standard flow still commits refs L_a never touched.
         let has_round_5_ref = commits_b[0]
