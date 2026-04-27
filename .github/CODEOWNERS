@@ -121,8 +121,8 @@
 /examples/ @iotaledger/devrel
 
 # CI Taskforce
-/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
-/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/actions/ @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/workflows/ @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
