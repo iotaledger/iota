@@ -11069,6 +11069,7 @@
         "type": "string"
       },
       "SequenceNumberU64": {
+        "description": "Sequence number as a u64 integer",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0

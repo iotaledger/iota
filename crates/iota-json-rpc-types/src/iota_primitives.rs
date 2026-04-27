@@ -129,12 +129,16 @@ impl JsonSchema for SequenceNumberU64 {
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         SchemaObject {
-            instance_type: Some(InstanceType::Integer.into()),
+            metadata: Some(Box::new(Metadata {
+                description: Some("Sequence number as a u64 integer".to_owned()),
+                ..Default::default()
+            })),
             format: Some("uint64".to_owned()),
             number: Some(Box::new(NumberValidation {
                 minimum: Some(0.0),
                 ..Default::default()
             })),
+            instance_type: Some(InstanceType::Integer.into()),
             ..Default::default()
         }
         .into()
