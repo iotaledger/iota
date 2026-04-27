@@ -3625,7 +3625,7 @@ impl InputObjects {
             })
             .chain(receiving_objects.iter().map(|object_ref| object_ref.1));
 
-        SequenceNumber::lamport_increment(input_versions).unwrap()
+        SequenceNumber::lamport_increment(input_versions).expect("Lamport timestamp overflow")
     }
 
     pub fn object_kinds(&self) -> impl Iterator<Item = &InputObjectKind> {

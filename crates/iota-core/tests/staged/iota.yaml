@@ -111,7 +111,7 @@ ChangeEpochV4:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
