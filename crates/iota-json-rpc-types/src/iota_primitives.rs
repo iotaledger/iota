@@ -17,7 +17,7 @@ use iota_types::iota_serde::{IotaStructTag, IotaTypeTag};
 use move_core_types::language_storage::{StructTag as NativeStructTag, TypeTag as NativeTypeTag};
 use schemars::{
     JsonSchema,
-    schema::{InstanceType, Metadata, SchemaObject},
+    schema::{InstanceType, Metadata, NumberValidation, SchemaObject},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
@@ -120,20 +120,21 @@ impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for Sequenc
 /// A schema type that defines the JSON representation of the
 /// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a u64
 /// integer and uses the default serialization.
-pub struct SequenceNumberU64;
+pub struct SequenceNumber;
 
-impl JsonSchema for SequenceNumberU64 {
+impl JsonSchema for SequenceNumber {
     fn schema_name() -> String {
-        "SequenceNumberU64".to_owned()
+        "SequenceNumber".to_owned()
     }
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         SchemaObject {
-            metadata: Some(Box::new(Metadata {
-                description: Some("Sequence number as a u64 integer".to_owned()),
+            instance_type: Some(InstanceType::Integer.into()),
+            format: Some("uint64".to_owned()),
+            number: Some(Box::new(NumberValidation {
+                minimum: Some(0.0),
                 ..Default::default()
             })),
-            instance_type: Some(InstanceType::Integer.into()),
             ..Default::default()
         }
         .into()

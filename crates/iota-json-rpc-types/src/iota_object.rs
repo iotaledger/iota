@@ -44,8 +44,8 @@ use crate::{
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
         IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
-        SequenceNumberString as SequenceNumberStringSchema,
-        SequenceNumberU64 as SequenceNumberU64Schema, StructTag as StructTagSchema,
+        SequenceNumber as SequenceNumberSchema, SequenceNumberString as SequenceNumberStringSchema,
+        StructTag as StructTagSchema,
     },
 };
 
@@ -649,7 +649,7 @@ pub struct ObjectRefSchema {
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     #[schemars(with = "Base58Schema")]
@@ -975,7 +975,7 @@ pub struct IotaRawMoveObject {
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
@@ -1078,7 +1078,7 @@ pub struct IotaUpgradeInfo {
     #[schemars(with = "ObjectIDSchema")]
     pub upgraded_id: ObjectID,
     /// The version of the package at `upgraded_id`.
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub upgraded_version: SequenceNumber,
 }
 
@@ -1106,7 +1106,7 @@ impl From<IotaUpgradeInfo> for UpgradeInfo {
 pub struct IotaRawMovePackage {
     #[schemars(with = "ObjectIDSchema")]
     pub id: ObjectID,
-    #[schemars(with = "SequenceNumberU64Schema")]
+    #[schemars(with = "SequenceNumberSchema")]
     pub version: SequenceNumber,
     #[schemars(with = "BTreeMap<String, Base64Schema>")]
     #[serde_as(as = "BTreeMap<_, Base64>")]
@@ -1163,15 +1163,15 @@ pub enum IotaPastObjectResponse {
     /// The object exists but not found with this version
     VersionNotFound(
         #[schemars(with = "ObjectIDSchema")] ObjectID,
-        #[schemars(with = "SequenceNumberU64Schema")] SequenceNumber,
+        #[schemars(with = "SequenceNumberSchema")] SequenceNumber,
     ),
     /// The asked object version is higher than the latest
     VersionTooHigh {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
-        #[schemars(with = "SequenceNumberU64Schema")]
+        #[schemars(with = "SequenceNumberSchema")]
         asked_version: SequenceNumber,
-        #[schemars(with = "SequenceNumberU64Schema")]
+        #[schemars(with = "SequenceNumberSchema")]
         latest_version: SequenceNumber,
     },
 }
