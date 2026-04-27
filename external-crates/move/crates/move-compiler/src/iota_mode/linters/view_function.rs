@@ -8,12 +8,8 @@ use super::{LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode}
 use crate::{
     diag,
     diagnostics::codes::{DiagnosticInfo, Severity, custom},
-    expansion::ast::{ModuleIdent, Mutability, Visibility},
-    iota_mode::{
-        known_attributes::view::ViewAttribute,
-        typing::{TxContextKind, contains_object_ty_shallow, tx_context_kind},
-    },
-    naming::ast::{Type, Type_, Var},
+    expansion::ast::ModuleIdent,
+    iota_mode::{known_attributes::view::ViewAttribute, typing::is_valid_view_signature},
     parser::ast::FunctionName,
     shared::Identifier,
     typing::{ast as T, visitor::simple_visitor},
@@ -43,11 +39,7 @@ simple_visitor!(
             return false;
         }
 
-        if !is_valid_view_signature(
-            &fdef.visibility,
-            &fdef.signature.parameters,
-            &fdef.signature.return_type,
-        ) {
+        if !is_valid_view_signature(&fdef.visibility, &fdef.signature) {
             return false;
         }
 
@@ -64,44 +56,3 @@ simple_visitor!(
         true
     }
 );
-
-fn is_valid_view_signature(
-    visibility: &Visibility,
-    parameters: &[(Mutability, Var, Type)],
-    return_ty: &Type,
-) -> bool {
-    if !matches!(visibility, Visibility::Public(_)) {
-        return false;
-    }
-    if !is_valid_view_return_type(return_ty) {
-        return false;
-    }
-
-    parameters
-        .iter()
-        .all(|(_, _, param_ty)| is_valid_view_param_type(param_ty))
-}
-
-fn is_valid_view_return_type(return_ty: &Type) -> bool {
-    if matches!(return_ty.value, Type_::Unit) {
-        return false;
-    }
-    !contains_object_ty_shallow(return_ty)
-}
-
-fn is_valid_view_param_type(param_ty: &Type) -> bool {
-    if tx_context_kind(param_ty) == TxContextKind::Mutable {
-        return false;
-    }
-
-    match &param_ty.value {
-        Type_::Ref(is_mut, inner) => {
-            let contains_obj = contains_object_ty_shallow(inner);
-            if *is_mut && contains_obj {
-                return false;
-            }
-            true
-        }
-        _ => !contains_object_ty_shallow(param_ty),
-    }
-}

@@ -10,6 +10,10 @@ module a::m {
         obj: Obj,
     }
 
+    public struct StoreOnly has store {
+        value: u64,
+    }
+
     #[view]
     fun private_view(): u64 {
         0
@@ -45,6 +49,22 @@ module a::m {
     #[view]
     public fun object_by_value(_o: Obj): u64 {
         abort 0
+    }
+
+    #[view]
+    public fun wrapper_by_value(_w: Wrapper): u64 {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_wrapper(): Wrapper {
+        abort 0
+    }
+
+    #[view]
+    public fun store_only_by_value(s: StoreOnly): u64 {
+        let StoreOnly { value } = s;
+        value
     }
 
     #[view]
@@ -88,6 +108,20 @@ module a::m {
     public fun generic_reference<T: key>(_o: &mut T): bool {
         true
     }
+
+    #[view]
+    public fun unused_unconstrained_type_param<T>(): u64 {
+        0
+    }
+
+    #[view]
+    public native fun store_only_type_param<T: store>(x: T): u64;
+
+    #[view]
+    public native fun native_bad_type_param<T: key>(): u64;
+
+    #[view]
+    public native fun native_mut_ref(x: &mut u64): u64;
 }
 
 module iota::object {

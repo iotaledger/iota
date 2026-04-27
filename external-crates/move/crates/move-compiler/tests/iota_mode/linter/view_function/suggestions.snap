@@ -1,12 +1,13 @@
 ---
 source: crates/move-compiler/tests/move_check_testsuite.rs
+assertion_line: 253
 info:
   flavor: iota
   edition: legacy
   lint: true
 ---
 warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/view_function_suggestions.move:18:16
+   ┌─ tests/iota_mode/linter/view_function/suggestions.move:18:16
    │
 18 │     public fun maybe_view(a: u64, o: &Obj): u64 {
    │                ^^^^^^^^^^ Function 'maybe_view' satisfies view constraints and can be annotated with '#[view]'
@@ -15,7 +16,7 @@ warning[Lint W99010]: function can be marked '#[view]'
    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/view_function_suggestions.move:24:16
+   ┌─ tests/iota_mode/linter/view_function/suggestions.move:24:16
    │
 24 │     public fun get_value(data: &Data): u64 {
    │                ^^^^^^^^^ Function 'get_value' satisfies view constraints and can be annotated with '#[view]'
@@ -24,19 +25,10 @@ warning[Lint W99010]: function can be marked '#[view]'
    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/view_function_suggestions.move:29:16
+   ┌─ tests/iota_mode/linter/view_function/suggestions.move:29:16
    │
 29 │     public fun multiply(a: u64, b: u64): u64 {
    │                ^^^^^^^^ Function 'multiply' satisfies view constraints and can be annotated with '#[view]'
-   │
-   = Add '#[view]' to make the function explicitly callable as a view function.
-   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/view_function_suggestions.move:33:16
-   │
-33 │     public fun wrapper_ref(w: &mut Wrapper): u64 {
-   │                ^^^^^^^^^^^ Function 'wrapper_ref' satisfies view constraints and can be annotated with '#[view]'
    │
    = Add '#[view]' to make the function explicitly callable as a view function.
    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
