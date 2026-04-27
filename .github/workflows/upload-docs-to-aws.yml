@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Build Rust documentation
         run: UPDATE=1 cargo test --manifest-path crates/iota-framework/Cargo.toml

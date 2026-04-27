@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.generate-tag.outputs.iota_ref }}
@@ -216,7 +216,7 @@ jobs:
     needs: generate-tag
     steps:
       - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.generate-tag.outputs.iota_ref }}
@@ -275,7 +275,7 @@ jobs:
         shell: bash
         run: |
           echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Get binary checksums
         uses: thewh1teagle/checksum@6577963a29f57d780d12a2e5495601298ba739d1 # v2
         with:

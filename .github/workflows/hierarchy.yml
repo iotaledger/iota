@@ -30,7 +30,7 @@ jobs:
       isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
       isStarfishSynchronization: ${{ steps.diff.outputs.isStarfishSynchronization }}
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Detect Changes (diff)
         uses: "./.github/actions/diffs"
         id: diff
@@ -42,7 +42,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - run: |
           cd scripts/release_notes
           ./run.sh check-pr ${{ github.event.pull_request.number }}
@@ -54,7 +54,7 @@ jobs:
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check dprint formatting
         run: dprint check
 
@@ -71,7 +71,7 @@ jobs:
     if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run license check
         run: cargo ci-license
