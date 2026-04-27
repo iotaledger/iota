@@ -357,9 +357,7 @@ impl MovePackage {
         let runtime_id = ObjectID::from(*module.address());
         let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
-        new_version
-            .increment()
-            .expect("Version overflow when incrementing the version for the upgraded package");
+        new_version.increment().unwrap();
         Self::from_module_iter_with_type_origin_table(
             storage_id,
             runtime_id,
@@ -522,11 +520,11 @@ impl MovePackage {
     }
 
     pub fn decrement_version(&mut self) {
-        self.version.decrement().expect("Version underflow");
+        self.version.decrement().unwrap();
     }
 
     pub fn increment_version(&mut self) {
-        self.version.increment().expect("Version overflow");
+        self.version.increment().unwrap();
     }
 
     /// Approximate size of the package in bytes. This is used for gas metering.
