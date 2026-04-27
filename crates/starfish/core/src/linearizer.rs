@@ -16,7 +16,9 @@ use crate::{
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, VerifiedBlockHeader,
     },
-    commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
+    commit::{
+        Commit, CommitAPI, CommitMetastate, PendingSubDag, TrustedCommit, sort_sub_dag_blocks,
+    },
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -77,6 +79,7 @@ impl Linearizer {
     fn collect_sub_dag_and_commit(
         &mut self,
         leader_block: VerifiedBlockHeader,
+        metastate: Option<CommitMetastate>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> (PendingSubDag, TrustedCommit) {
         let _s = self
@@ -123,7 +126,7 @@ impl Linearizer {
 
         // Collect all block references for transactions that reached quorum after
         // adding acknowledgments
-        let committed_transactions = to_commit
+        let mut committed_transactions = to_commit
             .iter()
             // Add the acknowledgments to the tracker and collect the ones that reached quorum.
             // This will return a vector of block references that reached the quorum threshold, so
@@ -136,6 +139,26 @@ impl Linearizer {
                 )
             })
             .collect::<Vec<BlockRef>>();
+
+        // Optimistic: emit the leader's ref and its acks, marking each in the
+        // tracker so neither path re-emits them.
+        if metastate == Some(CommitMetastate::Optimistic) {
+            let leader_ref = leader_block.reference();
+            let refs =
+                std::iter::once(leader_ref).chain(leader_block.acknowledgments().iter().copied());
+            for block_ref in refs {
+                let entry = self
+                    .transactions_ack_tracker
+                    .entry(block_ref)
+                    .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
+                if entry.reached_threshold(&self.context.committee) {
+                    continue;
+                }
+                entry.mark_committed();
+                committed_transactions.push(block_ref);
+            }
+        }
+
         // Check that there are no duplicates in the committed transactions
         assert_eq!(
             committed_transactions.len(),
@@ -265,7 +288,7 @@ impl Linearizer {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn get_pending_sub_dags(
         &mut self,
-        committed_leaders: Vec<VerifiedBlockHeader>,
+        committed_leaders: Vec<(VerifiedBlockHeader, Option<CommitMetastate>)>,
     ) -> Vec<PendingSubDag> {
         if committed_leaders.is_empty() {
             return vec![];
@@ -279,7 +302,7 @@ impl Linearizer {
 
         let mut pending_sub_dags = vec![];
 
-        for (i, leader_block) in committed_leaders.into_iter().enumerate() {
+        for (i, (leader_block, metastate)) in committed_leaders.into_iter().enumerate() {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
                     .leader_swap_table
@@ -291,7 +314,7 @@ impl Linearizer {
             };
 
             let (sub_dag, commit) =
-                self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
+                self.collect_sub_dag_and_commit(leader_block, metastate, reputation_scores_desc);
 
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
@@ -510,7 +533,7 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
-        commit::{CommitDigest, WAVE_LENGTH},
+        commit::{CommitDigest, WAVE_LENGTH, with_no_metastate},
         context::Context,
         dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -549,7 +572,7 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let commits = linearizer.get_pending_sub_dags(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders.clone()));
         for (idx, subdag) in commits.into_iter().enumerate() {
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
@@ -631,7 +654,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.get_pending_sub_dags(leaders);
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
         {
             // Write them in DagState
             let mut write = dag_state.write();
@@ -653,7 +676,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.get_pending_sub_dags(leaders);
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -766,7 +789,7 @@ mod tests {
             vec![],
         );
 
-        let commit = linearizer.get_pending_sub_dags(vec![leader.clone()]);
+        let commit = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
         assert_eq!(commit.len(), 1);
 
         let subdag = &commit[0];
@@ -860,7 +883,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for (idx, leader) in leaders.iter().enumerate() {
-            let subdags = linearizer.get_pending_sub_dags(vec![leader.clone()]);
+            let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
             assert_eq!(subdags.len(), 1);
             let subdag = &subdags[0];
 
@@ -979,7 +1002,7 @@ mod tests {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        linearizer.get_pending_sub_dags(leaders);
+        linearizer.get_pending_sub_dags(with_no_metastate(leaders));
         // Check that before eviction acknowledgements for all rounds up to num_rounds-2
         // are stored
         for round in 1..=num_rounds - 2 {

@@ -636,13 +636,12 @@ mod tests {
     use super::*;
     use crate::{
         block_header::BlockRef,
+        commit::with_no_metastate,
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
-
-    use crate::commit::with_no_metastate;
 
     #[tokio::test]
     async fn test_handle_commit() {
@@ -685,7 +684,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(with_no_metastate(leaders.clone()), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(leaders.clone()),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
@@ -1266,7 +1268,10 @@ mod tests {
         // Commit first 3 leaders (rounds 1-3)
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (_, _) = observer
-            .handle_committed_leaders(with_no_metastate(all_leaders[0..3].to_vec()), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(all_leaders[0..3].to_vec()),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Count transactions: with 4 authorities and standard DAG, each commit includes
@@ -1307,7 +1312,10 @@ mod tests {
         // Process new blocks - they acknowledge transactions from rounds 5-6
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
-            .handle_committed_leaders(with_no_metastate(new_leaders), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(new_leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Count transactions from new commits: new leaders in rounds 7-8 will process
