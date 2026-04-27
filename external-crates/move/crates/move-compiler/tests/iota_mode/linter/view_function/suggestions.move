@@ -35,6 +35,19 @@ module a::view_suggestions {
         w.obj.value = 42;
         old
     }
+
+    public native fun returns_object(): Obj;
+
+    public fun takes_mut_ref(x: &mut u64): u64 {
+        *x
+    }
+
+    public fun generic_key<T: key>(x: &T): u64 {
+        let _ = x;
+        0
+    }
+
+    public native fun wrapper_value(w: Wrapper): u64;
 }
 
 module iota::object {

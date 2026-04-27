@@ -1,5 +1,6 @@
 ---
 source: crates/move-compiler/tests/move_check_testsuite.rs
+assertion_line: 253
 info:
   flavor: iota
   edition: legacy
@@ -58,15 +59,6 @@ warning[Lint W99005]: possibly useless collections compare
    │
    = Equality for collections of type 'iota::table::Table' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/collection_equality.move:29:16
-   │
-29 │     public fun obj_table_eq<K: copy + drop + store, V: key + store>(
-   │                ^^^^^^^^^^^^ Function 'obj_table_eq' satisfies view constraints and can be annotated with '#[view]'
-   │
-   = Add '#[view]' to make the function explicitly callable as a view function.
-   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:33:20
