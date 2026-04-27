@@ -12,8 +12,9 @@ use std::{
 
 use pin_project_lite::pin_project;
 use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 use tonic::{Code, Status};
 use tower::{Layer, Service};
@@ -33,6 +34,7 @@ pub struct GrpcServerMetrics {
     inflight_requests: IntGaugeVec,
     num_requests: IntCounterVec,
     request_latency: HistogramVec,
+    inflight_checkpoint_stream_subscribers: IntGauge,
 }
 
 impl GrpcServerMetrics {
@@ -60,7 +62,19 @@ impl GrpcServerMetrics {
                 registry,
             )
             .unwrap(),
+            inflight_checkpoint_stream_subscribers: register_int_gauge_with_registry!(
+                "node_grpc_inflight_checkpoint_stream_subscribers",
+                "Number of active subscribers to the checkpoint data broadcast",
+                registry,
+            )
+            .unwrap(),
         }
+    }
+
+    /// Gauge tracking the number of active subscribers to the checkpoint
+    /// data broadcast. Cheap to clone (wraps an `Arc` internally).
+    pub fn inflight_checkpoint_stream_subscribers(&self) -> IntGauge {
+        self.inflight_checkpoint_stream_subscribers.clone()
     }
 }
 

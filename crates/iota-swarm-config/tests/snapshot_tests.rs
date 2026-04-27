@@ -120,10 +120,10 @@ fn network_config_snapshot_matches() {
 
     use iota_swarm_config::network_config_builder::ConfigBuilder;
 
-    let temp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let committee_size = 7;
     let rng = StdRng::from_seed([0; 32]);
-    let mut network_config = ConfigBuilder::new(temp_dir)
+    let mut network_config = ConfigBuilder::new(tmp_dir)
         .committee_size(NonZeroUsize::new(committee_size).unwrap())
         .rng(rng)
         .build();

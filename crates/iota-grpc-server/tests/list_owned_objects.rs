@@ -28,7 +28,7 @@ use iota_types::{
     digests::TransactionDigest,
     gas_coin::GasCoin,
     object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
-    storage::{AccountOwnedObjectInfo, OwnedObjectV2Cursor},
+    storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
 use tonic::transport::Channel;
@@ -77,7 +77,7 @@ fn make_large_gas_coin(
     )
 }
 
-/// Build an `(AccountOwnedObjectInfo, OwnedObjectV2Cursor)` entry for the
+/// Build an `(AccountOwnedObjectInfo, OwnedObjectCursor)` entry for the
 /// mock, with the cursor sorted by `(type_id_hash, params_hash,
 /// inverted_balance, object_id)`.
 fn make_owned_entry(
@@ -87,14 +87,14 @@ fn make_owned_entry(
     type_id_hash: u64,
     params_hash: u64,
     balance: Option<u64>,
-) -> (AccountOwnedObjectInfo, OwnedObjectV2Cursor) {
+) -> (AccountOwnedObjectInfo, OwnedObjectCursor) {
     let info = AccountOwnedObjectInfo {
         owner,
         object_id,
         version: OBJECT_START_VERSION,
         type_,
     };
-    let cursor = OwnedObjectV2Cursor {
+    let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,
         object_type_params: params_hash,
         inverted_balance: balance.map(|b| !b),
@@ -159,8 +159,8 @@ fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec
     let params_hash = 99u64; // arbitrary stable hash for <IOTA>
 
     let mut ids: Vec<ObjectID> = (0..count).map(|_| ObjectID::random()).collect();
-    // Sort IDs so the v2 key ordering is deterministic (same type hash →
-    // sorted by inverted_balance then object_id).
+    // Sort IDs so the owner-index key ordering is deterministic (same type
+    // hash → sorted by inverted_balance then object_id).
     ids.sort();
 
     let mut objects = HashMap::new();
@@ -181,7 +181,8 @@ fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec
         ));
     }
 
-    // Sort owned_objects by v2 key order (type_id, params, inv_balance, id).
+    // Sort owned_objects by owner-index key order (type_id, params,
+    // inv_balance, id).
     owned_objects.sort_by(|(_, a), (_, b)| {
         (
             a.object_type_identifier,

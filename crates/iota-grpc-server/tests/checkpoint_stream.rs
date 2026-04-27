@@ -786,6 +786,89 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
 }
 
 #[tokio::test]
+async fn test_stream_checkpoints_subscriber_cap() {
+    // Configure a small cap so we can hit it in the test without opening
+    // dozens of streams. Storage has checkpoints 0..=5; each stream drains
+    // these and then parks in the live phase, keeping its broadcast
+    // receiver alive.
+    let (server_handle, client, _) = test_server_and_client_setup(
+        0..=5,
+        |config| {
+            config.max_concurrent_stream_subscribers = 2;
+        },
+        None,
+        None,
+    )
+    .await;
+
+    let range = (Some(0), None);
+
+    // Open two streams up to the cap.
+    let mut stream1 = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .expect("first subscribe should succeed");
+    stream1
+        .body_mut()
+        .next()
+        .await
+        .expect("first stream should yield an item")
+        .expect("first stream item should not be an error");
+
+    let mut stream2 = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .expect("second subscribe should succeed");
+    stream2
+        .body_mut()
+        .next()
+        .await
+        .expect("second stream should yield an item")
+        .expect("second stream item should not be an error");
+
+    // A third subscribe must be rejected with Unavailable.
+    match client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+    {
+        Err(iota_grpc_client::Error::Grpc(status)) => {
+            assert_eq!(status.code(), tonic::Code::Unavailable);
+        }
+        Err(other) => panic!("expected Unavailable, got: {other:?}"),
+        Ok(_) => panic!("expected Unavailable, got Ok"),
+    }
+
+    // Dropping a stream releases its subscriber slot. Retry until a fresh
+    // subscribe succeeds, to avoid depending on the drop order of locals
+    // inside the server-side stream generator.
+    drop(stream1);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let _stream3 = loop {
+        match client
+            .stream_checkpoints(range.0, range.1, None, None, None)
+            .await
+        {
+            Ok(s) => break s,
+            Err(iota_grpc_client::Error::Grpc(status))
+                if status.code() == tonic::Code::Unavailable =>
+            {
+                if tokio::time::Instant::now() >= deadline {
+                    panic!("subscriber slot did not free within timeout");
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    };
+
+    drop(stream2);
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
 async fn test_stream_checkpoint_pruned_start_returns_not_found() {
     // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
     let mock =

@@ -14,8 +14,8 @@ async fn test_manage_package_update() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "basic_no_deps"]);
 
-    let tmp = tempfile::tempdir().expect("Could not create temp dir for Move.lock");
-    let lock_file_path = tmp.path().join("Move.lock");
+    let tmp_dir = iota_common::tempdir();
+    let lock_file_path = tmp_dir.path().join("Move.lock");
 
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.lock_file = Some(lock_file_path.clone());

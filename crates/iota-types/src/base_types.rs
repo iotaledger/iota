@@ -16,7 +16,6 @@ use fastcrypto::{
     hash::HashFunction,
     traits::AllowedRng,
 };
-use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
@@ -64,7 +63,6 @@ use crate::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{Transaction, VerifiedTransaction},
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 pub use crate::{
     committee::EpochId,
@@ -683,25 +681,6 @@ impl IotaAddress {
             .map_err(|_| IotaError::InvalidAddress)
             .map(IotaAddress)
     }
-
-    /// This derives a zkLogin address by parsing the iss and address_seed from
-    /// [struct ZkLoginAuthenticator]. Define as iss_bytes_len || iss_bytes
-    /// || padded_32_byte_address_seed. This is to be differentiated with
-    /// try_from_unpadded defined below.
-    pub fn try_from_padded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        Ok((&PublicKey::from_zklogin_inputs(inputs)?).into())
-    }
-
-    /// Define as iss_bytes_len || iss_bytes || unpadded_32_byte_address_seed.
-    pub fn try_from_unpadded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        let mut hasher = DefaultHash::default();
-        hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-        let iss_bytes = inputs.get_iss().as_bytes();
-        hasher.update([iss_bytes.len() as u8]);
-        hasher.update(iss_bytes);
-        hasher.update(inputs.get_address_seed().unpadded());
-        Ok(IotaAddress(hasher.finalize().digest))
-    }
 }
 
 impl From<ObjectID> for IotaAddress {
@@ -773,9 +752,6 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     /// threshold, concatenation of all n flag, public keys and
     /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
     /// || ... || flag_n || pk_n || weight_n`.
-    ///
-    /// When flag_i is ZkLogin, pk_i refers to [struct ZkLoginPublicIdentifier]
-    /// derived from padded address seed in bytes and iss.
     fn from(multisig_pk: &MultiSigPublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::MultiSig.flag()]);
@@ -786,16 +762,6 @@ impl From<&MultiSigPublicKey> for IotaAddress {
             hasher.update(w.to_le_bytes());
         });
         IotaAddress(hasher.finalize().digest)
-    }
-}
-
-/// IOTA address for [struct ZkLoginAuthenticator] is defined as the black2b
-/// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
-/// unpadded_address_seed_in_bytes].
-impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
-    type Error = IotaError;
-    fn try_from(authenticator: &ZkLoginAuthenticator) -> IotaResult<Self> {
-        IotaAddress::try_from_unpadded(&authenticator.inputs)
     }
 }
 
@@ -816,8 +782,11 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::ZkLoginAuthenticator(zklogin) => {
-                IotaAddress::try_from_unpadded(&zklogin.inputs)
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
             GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),

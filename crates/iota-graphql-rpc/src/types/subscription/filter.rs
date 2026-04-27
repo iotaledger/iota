@@ -88,9 +88,6 @@ impl From<&TransactionBlockKindInput> for IotaTransactionKind {
             TransactionBlockKindInput::ConsensusCommitPrologueV1 => {
                 IotaTransactionKind::ConsensusCommitPrologueV1
             }
-            TransactionBlockKindInput::AuthenticatorStateUpdateV1 => {
-                IotaTransactionKind::AuthenticatorStateUpdateV1
-            }
             TransactionBlockKindInput::RandomnessStateUpdate => {
                 IotaTransactionKind::RandomnessStateUpdate
             }

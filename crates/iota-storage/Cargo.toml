@@ -60,6 +60,7 @@ once_cell.workspace = true
 tempfile.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-test-transaction-builder.workspace = true
 

@@ -94,9 +94,13 @@ impl IotaTxValidator {
                         });
                     }
                 }
-
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                    return Err(IotaError::UnsupportedFeature {
+                        error: "NewJWKFetched (zkLogin) is deprecated and not supported".into(),
+                    });
+                }
                 ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }
@@ -320,7 +324,6 @@ mod tests {
     /// so the developer must explicitly map each variant to its gating flag.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
-        use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
         use iota_protocol_config::ProtocolConfig;
         use iota_types::crypto::AuthorityPublicKeyBytes;
 
@@ -347,6 +350,7 @@ mod tests {
         // Returns the feature flag value that gates a variant, or `None` if the
         // variant is always allowed. The exhaustive match ensures this function
         // must be updated when new variants are added to ConsensusTransactionKind.
+        #[allow(deprecated)]
         fn is_feature_gated(
             kind: &ConsensusTransactionKind,
             config: &ProtocolConfig,
@@ -358,7 +362,6 @@ mod tests {
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
@@ -366,6 +369,11 @@ mod tests {
                 ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
                     Some(config.calculate_validator_scores())
                 }
+
+                // Always rejected: zkLogin JWK support was never enabled on
+                // IOTA and the variant is retained only for serialization
+                // compatibility.
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
             }
         }
 
@@ -374,26 +382,15 @@ mod tests {
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
         // gate check; their gating is verified by the exhaustive match above.
+        #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
                 "EndOfPublish",
                 ConsensusTransactionKind::EndOfPublish(authority),
             ),
             (
-                "NewJWKFetched",
-                ConsensusTransactionKind::NewJWKFetched(
-                    authority,
-                    JwkId {
-                        iss: "test".into(),
-                        kid: "test".into(),
-                    },
-                    JWK {
-                        kty: "RSA".into(),
-                        e: "AQAB".into(),
-                        n: "test".into(),
-                        alg: "RS256".into(),
-                    },
-                ),
+                "NewJWKFetchedDeprecated",
+                ConsensusTransactionKind::NewJWKFetchedDeprecated,
             ),
             (
                 "CapabilityNotificationV1",

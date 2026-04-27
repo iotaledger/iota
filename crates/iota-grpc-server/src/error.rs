@@ -248,41 +248,6 @@ impl From<TransactionNotFoundError> for RpcError {
     }
 }
 
-/// Returned when an index table has not yet finished its background backfill.
-/// Clients should retry after the suggested delay.
-#[derive(Debug, Clone)]
-pub struct IndexBackfillInProgressError {
-    pub index_name: &'static str,
-}
-
-impl std::fmt::Display for IndexBackfillInProgressError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} index backfill in progress, try again later",
-            self.index_name
-        )
-    }
-}
-
-impl std::error::Error for IndexBackfillInProgressError {}
-
-impl From<IndexBackfillInProgressError> for RpcError {
-    fn from(e: IndexBackfillInProgressError) -> Self {
-        let details = ErrorDetails::new().with_retry_info(RetryInfo {
-            retry_delay: Some(prost_types::Duration {
-                seconds: 30,
-                nanos: 0,
-            }),
-        });
-        RpcError {
-            code: Code::Unavailable,
-            message: Some(e.to_string()),
-            details: Some(Box::new(details)),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct MissingIndexesError;
 

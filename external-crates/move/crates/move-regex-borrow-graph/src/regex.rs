@@ -4,12 +4,13 @@
 
 use std::fmt::{Debug, Display};
 
-/// An edge in the graph contains a set of these simple regular expressions. For now, this is
-/// just a (potentially empty) list of labels, and a flag indicating if the last label is a dot
-/// star. This is overly constrained to the current limitations in Move. When we add support for
-/// recursive types, we will need a more general regular expression. Particularly, we will need to
-/// be able to have regular expressions after the dot star. And we will need to star regular
-/// expressions other than dot.
+/// An edge in the graph contains a set of these simple regular expressions. For
+/// now, this is just a (potentially empty) list of labels, and a flag
+/// indicating if the last label is a dot star. This is overly constrained to
+/// the current limitations in Move. When we add support for recursive types, we
+/// will need a more general regular expression. Particularly, we will need to
+/// be able to have regular expressions after the dot star. And we will need to
+/// star regular expressions other than dot.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Regex<Lbl> {
     labels: Vec<Lbl>,
@@ -60,9 +61,10 @@ impl<Lbl> Regex<Lbl> {
         self.labels.is_empty() && !self.ends_in_dot_star
     }
 
-    /// Used internally for metering of the graph within the bytecode verifier. We consider even
-    /// an empty regex to be of size 1. Then we add one for each label and one for the dot star.
-    /// In short, `abstract_size` is an abstraction over the Rust allocation size of the regex.
+    /// Used internally for metering of the graph within the bytecode verifier.
+    /// We consider even an empty regex to be of size 1. Then we add one for
+    /// each label and one for the dot star. In short, `abstract_size` is an
+    /// abstraction over the Rust allocation size of the regex.
     pub(crate) fn abstract_size(&self) -> usize {
         1 + self.labels.len() + (self.ends_in_dot_star as usize)
     }
@@ -76,9 +78,9 @@ impl<Lbl> Regex<Lbl> {
     }
 
     /// This concatenates an extension onto the end of the regular expression.
-    /// If the regular expression ends in dot star, then there is no current need to keep track of
-    /// the labels after. The additional precision of having labels after the dot star is not
-    /// needed currently in Move.
+    /// If the regular expression ends in dot star, then there is no current
+    /// need to keep track of the labels after. The additional precision of
+    /// having labels after the dot star is not needed currently in Move.
     pub(crate) fn extend(mut self, ext: &Extension<Lbl>) -> Self
     where
         Lbl: Clone,
@@ -99,8 +101,8 @@ impl<Lbl> Regex<Lbl> {
 
     /// If self = pq, then remove_prefix(p) returns Some(q) for all possible q.
     ///
-    /// The input `p` is restricted to being an `Extension`. This is a practical limitation that
-    /// makes writing the algorithm easier.
+    /// The input `p` is restricted to being an `Extension`. This is a practical
+    /// limitation that makes writing the algorithm easier.
     ///
     /// Examples where there is a prefix, p:
     /// Remove epsilon
@@ -124,7 +126,8 @@ impl<Lbl> Regex<Lbl> {
     /// "abc".remove_prefix(".*") = ["abc", "bc", "c", ""]
     /// ".*".remove_prefix(".*") = [".*"]
     /// "a.*".remove_prefix(".*") = ["a.*", ".*", ""] ==> optimized to [".*"]
-    /// "ab.*".remove_prefix(".*") = ["ab.*", "b.*", ".*", ""] ==> optimized to [".*"]
+    /// "ab.*".remove_prefix(".*") = ["ab.*", "b.*", ".*", ""] ==> optimized to
+    /// [".*"]
     ///
     /// Cases where there is no prefix:
     /// "".remove_prefix("a") = []
@@ -204,7 +207,8 @@ impl<Lbl> Regex<Lbl> {
 impl<Lbl> Extension<Lbl> {
     /// If self = pq, then remove_prefix(p) returns Some(q) for all possible q.
     ///
-    /// This is similar to `Regex::remove_prefix`, but with the restrictions flipped.
+    /// This is similar to `Regex::remove_prefix`, but with the restrictions
+    /// flipped.
     ///
     /// Cases where there is a prefix, p:
     /// Removing from epsilon
@@ -384,8 +388,8 @@ impl<Lbl> Walk<'_, Lbl> {
 // traits
 //**************************************************************************************************
 
-/// Helper macro to help with Debug and Display. Cannot be a function since we cannot write
-/// `Lbl: Display OR Debug`
+/// Helper macro to help with Debug and Display. Cannot be a function since we
+/// cannot write `Lbl: Display OR Debug`
 macro_rules! fmt_regex {
     ($f:expr, $path:expr) => {{
         let f = $f;

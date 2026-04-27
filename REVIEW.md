@@ -70,9 +70,9 @@ Core protocol types and the Move language implementation. API stability, correct
 
 Bugs affect users but not consensus. Review for correctness, error handling, and API consistency.
 
-**Tier 4 — Moderate (TypeScript SDK, apps, dApps):**
+**Tier 4 — Moderate (TypeScript):**
 
-- `sdk/`, `apps/`, `dapps/`, `kiosk/`
+- `kiosk/`
 
 Review for correctness, API consistency, and security (XSS, injection). Documentation and minor style issues are non-blocking.
 
@@ -106,8 +106,6 @@ Files originating from Mysten Labs must add a modification line:
 ```
 
 Valid years: 2024 through the current year. This is enforced by `linting/license-check/` for TypeScript; apply the same standard to Rust and Move files manually.
-
-**Changesets (blocking for publishable SDK packages):** PRs modifying publishable packages under `sdk/` must include a `.changeset/` file with the correct semver bump. The following packages are excluded from this requirement: iota-wallet, iota-explorer, wallet-dashboard, apps-backend, iota-evm-bridge, @iota/core, sponsored-transactions, kiosk-demo, kiosk-cli, @iota/examples.
 
 **PR description (blocking if absent):** Must explain _why_ the change was made. A reviewer cannot assess correctness without understanding intent. If the reason is not obvious from the code and the description is missing, note this explicitly.
 
@@ -146,25 +144,14 @@ Apply all rules from `RUST_CONVENTIONS.md`. The following are additional review-
 
 **Blocking:**
 
-- `Buffer` usage in browser code outside `sdk/ledgerjs-hw-app-iota/` and `apps/wallet/` (causes bundle bloat, breaks web compatibility)
 - Missing license headers on new files
-- Circular imports in SDK packages (`import/no-cycle` is enforced)
-- Missing `.js` file extensions in `sdk/` package imports (ESM requirement enforced by `import/extensions`)
 - `dangerouslySetInnerHTML` usage in explorer (XSS risk)
 
 **Non-blocking:**
 
-- `any` type usage in SDK code — flag gratuitous cases
 - Inconsistent type imports — should use `import type` or `import { type X }`
-- Explorer components: prefer function declarations over arrow functions; use `LinkWithQuery` / `useSearchParamsMerged` / `useNavigateWithQuery` over bare react-router-dom equivalents
-- `console.log` / `console.warn` / `console.error` in wallet production code
-- Missing input validation in SDK public functions
-- Bundle size regressions from new dependencies in `apps/`
-- Test framework consistency: Vitest for `sdk/` and `apps/`, Jest for `apps-backend`
 
 **Not a review concern:** Prettier formatting (printWidth 100, tabWidth 4, singleQuote, trailingComma all) and Tailwind class sorting are enforced by CI.
-
-**SDK API design:** New exports should follow the existing subpath pattern (`./bcs`, `./client`, `./transaction`, etc.). Type-only exports should use `export type`.
 
 ---
 

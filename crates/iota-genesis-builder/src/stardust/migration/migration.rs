@@ -207,7 +207,7 @@ impl Migration {
             })
             .collect::<Result<Vec<_>>>()?;
         self.output_objects_map
-            .extend(self.executor.create_foundries(compiled.into_iter())?);
+            .extend(self.executor.create_foundries(compiled)?);
         Ok(())
     }
 

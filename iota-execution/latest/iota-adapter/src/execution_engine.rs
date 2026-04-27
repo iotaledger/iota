@@ -19,18 +19,13 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
+        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        IOTA_SYSTEM_PACKAGE_ID, Identifier,
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
         auth_context::AuthContext,
-        authenticator_state::{
-            AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
-            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
-            AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
-        },
         balance::{
             BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             BALANCE_MODULE_NAME,
@@ -57,10 +52,10 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
-            EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+            CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
+            InputObjects, ObjectArg, ProgrammableTransaction, RandomnessStateUpdate,
+            TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1250,9 +1245,10 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                let mut builder = ProgrammableTransactionBuilder::new();
+                let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
-                for (i, tx) in txns.into_iter().enumerate() {
+
+                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1314,35 +1310,21 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
-                        EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-                            builder = setup_authenticator_state_create(builder);
-                        }
-                        EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-
-                            // TODO: it would be nice if a failure of this function didn't cause
-                            // safe mode.
-                            builder = setup_authenticator_state_expire(builder, expire);
-                        }
                     }
                 }
                 unreachable!(
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
-                setup_authenticator_state_update(
-                    auth_state_update,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                    trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                return Err(ExecutionError::new(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 setup_randomness_state_update(
@@ -1913,101 +1895,6 @@ mod checked {
             pt,
             trace_builder_opt,
         )
-    }
-
-    /// This function adds a Move call to the IOTA framework's
-    /// `authenticator_state_create` function, preparing the transaction for
-    /// execution.
-    fn setup_authenticator_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    /// Sets up and executes a `ProgrammableTransaction` to update the
-    /// authenticator state. This function constructs a transaction that
-    /// invokes the `authenticator_state_update` function from the IOTA
-    /// framework, passing the authenticator state object and new active JWKS as
-    /// arguments. It then executes the transaction using the system
-    /// execution mode.
-    fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdateV1,
-        temporary_store: &mut TemporaryStore<'_>,
-        tx_ctx: Rc<RefCell<TxContext>>,
-        move_vm: &Arc<MoveVM>,
-        gas_charger: &mut GasCharger,
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
-        trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: update.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&update.new_active_jwks).unwrap()),
-                ],
-            );
-            assert_invariant!(
-                res.is_ok(),
-                "Unable to generate authenticator_state_update transaction!"
-            );
-            builder.finish()
-        };
-        programmable_transactions::execution::execute::<execution_mode::System>(
-            protocol_config,
-            metrics,
-            move_vm,
-            temporary_store,
-            tx_ctx,
-            gas_charger,
-            pt,
-            trace_builder_opt,
-        )
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to expire authenticator
-    /// state by invoking the `authenticator_state_expire_jwks` function
-    /// from the IOTA framework. The function adds the necessary Move call
-    /// with the authenticator state object and the minimum epoch as arguments.
-    fn setup_authenticator_state_expire(
-        mut builder: ProgrammableTransactionBuilder,
-        expire: AuthenticatorStateExpire,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),
-                ],
-            )
-            .expect("Unable to generate authenticator_state_expire transaction!");
-        builder
     }
 
     /// The function constructs a transaction that invokes

@@ -6,19 +6,14 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
-use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId},
-    zk_login_api::ZkLoginEnv,
-};
 use futures::pin_mut;
-use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
     crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
-    digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
+    digests::{CertificateDigest, SenderSignedDataDigest},
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
@@ -28,7 +23,7 @@ use iota_types::{
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
 use itertools::{Itertools as _, izip};
-use parking_lot::{Mutex, MutexGuard, RwLock};
+use parking_lot::{Mutex, MutexGuard};
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tokio::{
@@ -36,7 +31,7 @@ use tokio::{
     sync::oneshot,
     time::{Duration, timeout},
 };
-use tracing::{Instrument, debug, instrument, trace_span};
+use tracing::{Instrument, instrument, trace_span};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -102,38 +97,12 @@ pub struct SignatureVerifier {
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
     authority_capability_cache: VerifiedDigestCache<AuthorityCapabilitiesDigest>,
-    zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 
-    /// Map from JwkId (iss, kid) to the fetched JWK for that key.
-    /// We use an immutable data structure because verification of ZKLogins may
-    /// be slow, so we don't want to pass a reference to the map to the
-    /// verify method, since that would lead to a lengthy critical section.
-    /// Instead, we use an immutable data structure which can be cloned very
-    /// cheaply.
-    jwks: RwLock<ImHashMap<JwkId, JWK>>,
-
-    /// Params that contains a list of supported providers for ZKLogin and the
-    /// environment (prod/test) the code runs in.
-    zk_login_params: ZkLoginParams,
+    /// Params for signature verification.
+    verify_params: VerifyParams,
 
     queue: Mutex<CertBuffer>,
     pub metrics: Arc<SignatureVerifierMetrics>,
-}
-
-/// Contains two parameters to pass in to verify a ZkLogin signature.
-#[derive(Clone)]
-struct ZkLoginParams {
-    /// The environment (prod/test) the code runs in. It decides which verifying
-    /// key to use in fastcrypto.
-    pub env: ZkLoginEnv,
-    // Flag to determine whether zkLogin inside multisig is accepted.
-    pub accept_zklogin_in_multisig: bool,
-    // Flag to determine whether passkey inside multisig is accepted.
-    pub accept_passkey_in_multisig: bool,
-    /// Value that sets the upper bound for max_epoch in zkLogin signature.
-    pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
-    /// Flag to determine whether additional multisig checks are performed.
-    pub additional_multisig_checks: bool,
 }
 
 impl SignatureVerifier {
@@ -142,10 +111,7 @@ impl SignatureVerifier {
         non_committee_validators: BTreeSet<AuthorityName>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
-        env: ZkLoginEnv,
-        accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
-        zklogin_max_epoch_upper_bound_delta: Option<u64>,
         additional_multisig_checks: bool,
     ) -> Self {
         Self {
@@ -166,21 +132,12 @@ impl SignatureVerifier {
                 metrics.authority_capabilities_cache_misses.clone(),
                 metrics.authority_capabilities_cache_evictions.clone(),
             ),
-            zklogin_inputs_cache: Arc::new(VerifiedDigestCache::new(
-                metrics.zklogin_inputs_cache_hits.clone(),
-                metrics.zklogin_inputs_cache_misses.clone(),
-                metrics.zklogin_inputs_cache_evictions.clone(),
-            )),
-            jwks: Default::default(),
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
-            zk_login_params: ZkLoginParams {
-                env,
-                accept_zklogin_in_multisig,
+            verify_params: VerifyParams::new(
                 accept_passkey_in_multisig,
-                zklogin_max_epoch_upper_bound_delta,
                 additional_multisig_checks,
-            },
+            ),
         }
     }
 
@@ -188,10 +145,7 @@ impl SignatureVerifier {
         committee: Arc<Committee>,
         non_committee_validators: BTreeSet<AuthorityName>,
         metrics: Arc<SignatureVerifierMetrics>,
-        zklogin_env: ZkLoginEnv,
-        accept_zklogin_in_multisig: bool,
         accept_passkey_in_multisig: bool,
-        zklogin_max_epoch_upper_bound_delta: Option<u64>,
         additional_multisig_checks: bool,
     ) -> Self {
         Self::new_with_batch_size(
@@ -199,10 +153,7 @@ impl SignatureVerifier {
             non_committee_validators,
             MAX_BATCH_SIZE,
             metrics,
-            zklogin_env,
-            accept_zklogin_in_multisig,
             accept_passkey_in_multisig,
-            zklogin_max_epoch_upper_bound_delta,
             additional_multisig_checks,
         )
     }
@@ -337,11 +288,8 @@ impl SignatureVerifier {
     async fn process_queue(&self, buffer: CertBuffer) {
         let committee = self.committee.clone();
         let metrics = self.metrics.clone();
-        let zklogin_inputs_cache = self.zklogin_inputs_cache.clone();
         Handle::current()
-            .spawn_blocking(move || {
-                Self::process_queue_sync(committee, metrics, buffer, zklogin_inputs_cache)
-            })
+            .spawn_blocking(move || Self::process_queue_sync(committee, metrics, buffer))
             .await
             .expect("Spawn blocking should not fail");
     }
@@ -351,15 +299,10 @@ impl SignatureVerifier {
         committee: Arc<Committee>,
         metrics: Arc<SignatureVerifierMetrics>,
         buffer: CertBuffer,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) {
         let _scope = monitored_scope("BatchCertificateVerifier::process_queue");
 
-        let results = batch_verify_certificates(
-            &committee,
-            &buffer.certs.iter().collect_vec(),
-            zklogin_inputs_cache,
-        );
+        let results = batch_verify_certificates(&committee, &buffer.certs.iter().collect_vec());
         izip!(
             results.into_iter(),
             buffer.certs.into_iter(),
@@ -380,51 +323,11 @@ impl SignatureVerifier {
         });
     }
 
-    /// Insert a JWK into the verifier state. Pre-existing entries for a given
-    /// JwkId will not be overwritten.
-    pub(crate) fn insert_jwk(&self, jwk_id: &JwkId, jwk: &JWK) {
-        let mut jwks = self.jwks.write();
-        match jwks.entry(jwk_id.clone()) {
-            im::hashmap::Entry::Occupied(_) => {
-                debug!("JWK with kid {:?} already exists", jwk_id);
-            }
-            im::hashmap::Entry::Vacant(entry) => {
-                debug!("inserting JWK with kid: {:?}", jwk_id);
-                entry.insert(jwk.clone());
-            }
-        }
-    }
-
-    pub fn has_jwk(&self, jwk_id: &JwkId, jwk: &JWK) -> bool {
-        let jwks = self.jwks.read();
-        jwks.get(jwk_id) == Some(jwk)
-    }
-
-    pub fn get_jwks(&self) -> ImHashMap<JwkId, JWK> {
-        self.jwks.read().clone()
-    }
-
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?signed_tx.digest()))]
     pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> IotaResult {
         self.signed_data_cache.is_verified(
             signed_tx.full_message_digest(),
-            || {
-                let jwks = self.jwks.read().clone();
-                let verify_params = VerifyParams::new(
-                    jwks,
-                    self.zk_login_params.env,
-                    self.zk_login_params.accept_zklogin_in_multisig,
-                    self.zk_login_params.accept_passkey_in_multisig,
-                    self.zk_login_params.zklogin_max_epoch_upper_bound_delta,
-                    self.zk_login_params.additional_multisig_checks,
-                );
-                verify_sender_signed_data_message_signatures(
-                    signed_tx,
-                    self.committee.epoch(),
-                    &verify_params,
-                    self.zklogin_inputs_cache.clone(),
-                )
-            },
+            || verify_sender_signed_data_message_signatures(signed_tx, &self.verify_params),
             || Ok(()),
         )
     }
@@ -485,7 +388,6 @@ impl SignatureVerifier {
         self.certificate_cache.clear();
         self.authority_capability_cache.clear();
         self.signed_data_cache.clear();
-        self.zklogin_inputs_cache.clear();
     }
 }
 
@@ -496,9 +398,6 @@ pub struct SignatureVerifierMetrics {
     pub signed_data_cache_hits: IntCounter,
     pub signed_data_cache_misses: IntCounter,
     pub signed_data_cache_evictions: IntCounter,
-    pub zklogin_inputs_cache_hits: IntCounter,
-    pub zklogin_inputs_cache_misses: IntCounter,
-    pub zklogin_inputs_cache_evictions: IntCounter,
     pub authority_capabilities_cache_hits: IntCounter,
     pub authority_capabilities_cache_misses: IntCounter,
     pub authority_capabilities_cache_evictions: IntCounter,
@@ -545,24 +444,6 @@ impl SignatureVerifierMetrics {
             signed_data_cache_evictions: register_int_counter_with_registry!(
                 "signed_data_cache_evictions",
                 "Number of times we evict a pre-existing signed data were known to be verified because of signature cache.",
-                registry
-            )
-            .unwrap(),
-            zklogin_inputs_cache_hits: register_int_counter_with_registry!(
-                "zklogin_inputs_cache_hits",
-                "Number of zklogin signature which were known to be partially verified because of zklogin inputs cache.",
-                registry
-            )
-            .unwrap(),
-            zklogin_inputs_cache_misses: register_int_counter_with_registry!(
-                "zklogin_inputs_cache_misses",
-                "Number of zklogin signatures which missed the zklogin inputs cache.",
-                registry
-            )
-            .unwrap(),
-            zklogin_inputs_cache_evictions: register_int_counter_with_registry!(
-                "zklogin_inputs_cache_evictions",
-                "Number of times we evict a pre-existing zklogin inputs digest that was known to be verified because of zklogin inputs cache.",
                 registry
             )
             .unwrap(),
@@ -640,7 +521,6 @@ pub fn batch_verify_all_certificates_and_checkpoints(
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
-    zk_login_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 ) -> Vec<IotaResult> {
     // certs.data() is assumed to be verified already by the caller.
     let verify_params = VerifyParams::default();
@@ -652,9 +532,7 @@ pub fn batch_verify_certificates(
             .iter()
             // TODO: verify_signature currently checks the tx sig as well, which might be cached
             // already.
-            .map(|c| {
-                c.verify_signatures_authenticated(committee, &verify_params, zk_login_cache.clone())
-            })
+            .map(|c| c.verify_signatures_authenticated(committee, &verify_params))
             .collect(),
 
         Err(e) => vec![Err(e)],

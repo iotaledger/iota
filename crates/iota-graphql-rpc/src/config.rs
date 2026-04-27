@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use iota_graphql_config::GraphQLConfig;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
@@ -69,7 +68,6 @@ pub struct ServiceConfig {
     pub experiments: Experiments,
     pub iota_names: IotaNamesConfig,
     pub background_tasks: BackgroundTasksConfig,
-    pub zklogin: ZkLoginConfig,
 }
 
 #[GraphQLConfig]
@@ -211,12 +209,6 @@ pub struct TxExecFullNodeConfig {
     /// RPC URL for the fullnode to send transactions to execute and dry-run.
     #[arg(long)]
     pub(crate) node_rpc_url: Option<String>,
-}
-
-#[GraphQLConfig]
-#[derive(Default)]
-pub struct ZkLoginConfig {
-    pub env: ZkLoginEnv,
 }
 
 /// The enabled features and service limits configured by the server.
@@ -427,9 +419,6 @@ impl ServiceConfig {
     pub fn test_defaults() -> Self {
         Self {
             background_tasks: BackgroundTasksConfig::test_defaults(),
-            zklogin: ZkLoginConfig {
-                env: ZkLoginEnv::Test,
-            },
             ..Default::default()
         }
     }

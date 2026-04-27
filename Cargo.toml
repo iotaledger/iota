@@ -59,7 +59,6 @@ exclude = [
   "external-crates/move/crates/move-vm-types",
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
-  "sdk/move-bytecode-template",
 ]
 members = [
   "consensus/config",
@@ -182,7 +181,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.21.1-beta"
+version = "1.22.0-beta"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -314,7 +313,7 @@ mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
 more-asserts = "0.3.1"
 msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.49.0", package = "msim" }
-multiaddr = "0.17.0"
+multiaddr = "0.18.2"
 nom = "7.1.3"
 nonempty = "0.9.0"
 num-bigint = "0.4.4"
@@ -464,7 +463,7 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e19c78a1bee17e0bf85fcd5b16a2f080cef26274", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7c1434aabb2e7b11681722edaf1a51ac52941b84", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

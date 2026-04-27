@@ -9,16 +9,9 @@ This document contains a list of research papers that are relevant to IOTA.
 
 - **Link:** https://eprint.iacr.org/2025/567
 - **Publication:** not published yet
-- **Relevance:** The IOTA consensus developers are currently working on porting Starfish to the production code to improve liveness of the consensus protocol.
+- **Relevance:** Starfish is the consensus protocol used by IOTA in production.
 - **Summary:** Starfish is a partially synchronous DAG-based BFT protocol that achieves the security properties of certified DAGs, the efficiency of uncertified approaches and linear amortized communication complexity. The key innovation is Encoded Cordial Dissemination, a push-based dissemination strategy that combines Reed-Solomon erasure coding with Data Availability Certificates (DACs). Starfish decouples the transaction data from the block header information in the block structure, enabling push-based dissemination of block headers. Building on the previous uncertified DAG BFT commit rule, Starfish extends it to efficiently verify data availability through committed leader blocks serving as DACs.
 
-
-## Mysticeti: Reaching the Limits of Latency with Uncertified DAGs {#mysticeti}
-
-- **Link:** https://arxiv.org/pdf/2310.14821
-- **Publication:** Network and Distributed System Security Symposium (NDSS), accepted for 2025
-- **Relevance:** The production IOTA code currently employs Mysticeti-C with one leader in each round as a consensus mechanism.
-- **Summary:** Mysticeti is a partially synchronous DAG-based BFT protocol that is built over an uncertified DAG allowing for high resource efficiency. Mysticeti-C achieves a significant latency improvement compared to certified DAG BFTs by avoiding explicit certification of the DAG blocks and deriving certificates from the DAG structure.
 
 ## FastPay: High-Performance Byzantine Fault Tolerant Settlement {#fastpay}
 
@@ -36,8 +29,7 @@ This document contains a list of research papers that are relevant to IOTA.
 
 - **Link:** https://arxiv.org/pdf/2309.12713
 - **Publication:** IEEE International Conference on Distributed Computing Systems (ICDCS), 2024
-- **Relevance:** The IOTA consensus protocol uses a variant of the Mysticeti consensus
-algorithm due to its lower latency and leader scoring strategy stemming from the HammerHead's approach to update the leader scheduler in Mysticeti.
+- **Relevance:** IOTA's Starfish consensus protocol uses HammerHead's score-based leader scheduler for lower latency and improved leader utilization.
 - **Summary:** We explore the ideas pioneered by Carousel on providing Leader-Utilization and present HammerHead. Unlike Carousel, which is built with a chained
 and pipelined consensus protocol in mind, HammerHead does not need to worry about chain quality as it is directly provided by the DAG, but
 needs to make sure that even though validators might commit blocks in different views the safety and liveness is preserved. Our implementation of HammerHead shows a slight performance increase in a faultless

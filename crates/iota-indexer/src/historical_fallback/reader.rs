@@ -156,7 +156,7 @@ impl HistoricalFallbackReader {
 
         let checkpoints_map = summaries
             .into_iter()
-            .zip(contents.into_iter())
+            .zip(contents)
             .filter_map(|(summary, contents)| {
                 summary.and_then(|summary| contents.map(|contents| (summary.sequence_number, (summary, contents))))
             })

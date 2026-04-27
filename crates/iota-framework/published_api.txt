@@ -1822,48 +1822,6 @@ native_tx_inputs
 native_tx_commands
 	fun
 	0x2::auth_context
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
 AuthenticatorState
 	public struct
 	0x2::authenticator_state
@@ -1878,45 +1836,6 @@ JwkId
 	0x2::authenticator_state
 ActiveJwk
 	public struct
-	0x2::authenticator_state
-active_jwk_equal
-	fun
-	0x2::authenticator_state
-jwk_equal
-	fun
-	0x2::authenticator_state
-jwk_id_equal
-	fun
-	0x2::authenticator_state
-string_bytes_lt
-	fun
-	0x2::authenticator_state
-jwk_lt
-	fun
-	0x2::authenticator_state
-create
-	fun
-	0x2::authenticator_state
-load_inner_mut
-	fun
-	0x2::authenticator_state
-load_inner
-	fun
-	0x2::authenticator_state
-check_sorted
-	fun
-	0x2::authenticator_state
-update_authenticator_state
-	fun
-	0x2::authenticator_state
-deduplicate
-	fun
-	0x2::authenticator_state
-expire_jwks
-	fun
-	0x2::authenticator_state
-get_active_jwks
-	fun
 	0x2::authenticator_state
 Bag
 	public struct
@@ -2326,6 +2245,48 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+Receiving
+	public struct
+	0x2::transfer
+transfer
+	public fun
+	0x2::transfer
+public_transfer
+	public fun
+	0x2::transfer
+freeze_object
+	public fun
+	0x2::transfer
+public_freeze_object
+	public fun
+	0x2::transfer
+share_object
+	public fun
+	0x2::transfer
+public_share_object
+	public fun
+	0x2::transfer
+receive
+	public fun
+	0x2::transfer
+public_receive
+	public fun
+	0x2::transfer
+receiving_object_id
+	public fun
+	0x2::transfer
+freeze_object_impl
+	public(package) fun
+	0x2::transfer
+share_object_impl
+	public(package) fun
+	0x2::transfer
+transfer_impl
+	public(package) fun
+	0x2::transfer
+receive_impl
+	fun
+	0x2::transfer
 Clock
 	public struct
 	0x2::clock
@@ -3892,9 +3853,6 @@ verify_zklogin_id
 check_zklogin_id
 	public fun
 	0x2::zklogin_verified_id
-check_zklogin_id_internal
-	fun
-	0x2::zklogin_verified_id
 VerifiedIssuer
 	public struct
 	0x2::zklogin_verified_issuer
@@ -3912,9 +3870,6 @@ verify_zklogin_issuer
 	0x2::zklogin_verified_issuer
 check_zklogin_issuer
 	public fun
-	0x2::zklogin_verified_issuer
-check_zklogin_issuer_internal
-	fun
 	0x2::zklogin_verified_issuer
 to_bytes
 	public fun

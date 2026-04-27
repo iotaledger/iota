@@ -32,9 +32,7 @@ use crate::{
 pub mod error;
 
 pub mod account_abstraction;
-pub mod accumulator;
 pub mod auth_context;
-pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
 pub mod clock;
@@ -60,6 +58,7 @@ pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;
 pub mod gas_model;
+pub mod global_state_hash;
 pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
@@ -99,8 +98,6 @@ pub mod transaction_executor;
 pub mod transfer;
 pub mod type_input;
 pub mod versioned;
-pub mod zk_login_authenticator;
-pub mod zk_login_util;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
