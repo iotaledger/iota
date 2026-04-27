@@ -1182,4 +1182,153 @@ mod tests {
         let err = median_timestamp_by_stake(&context, vec![block].into_iter()).unwrap_err();
         assert_eq!(err, "Total stake 1 < quorum threshold 3");
     }
+
+    #[tokio::test]
+    async fn test_optimistic_emits_leader_ref_and_acknowledgments() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new(context.clone())),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+        assert!(
+            !leader_ack_refs.is_empty(),
+            "fully-linked round-5 leader should have acknowledgments"
+        );
+
+        let commits =
+            linearizer.get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Optimistic))]);
+        assert_eq!(commits.len(), 1);
+        let optimistic_refs = &commits[0].committed_transaction_refs;
+        // Compare on (round, author): committed_transaction_refs may carry the
+        // BlockRef or TransactionRef variant depending on protocol config, but
+        // both expose round() and author() via GenericTransactionRefAPI.
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        // Optimistic emits the leader's own ref.
+        assert!(
+            contains_block(optimistic_refs, &leader_ref),
+            "Optimistic should include leader's own ref {leader_ref:?}"
+        );
+
+        // Optimistic emits every ack of the leader.
+        for ack_ref in &leader_ack_refs {
+            assert!(
+                contains_block(optimistic_refs, ack_ref),
+                "Optimistic should include leader's ack ref {ack_ref:?}"
+            );
+        }
+
+        // Optimistic is additive over the standard flow: leader_ref + acks
+        // alone account for 1 + leader_ack_refs.len() refs, but the standard
+        // causal walk also emits round-(R-2) and earlier blocks that reach
+        // 2f+1 quorum. Strictly more than the optimistic-only contribution
+        // means the standard flow ran and was preserved.
+        assert!(
+            optimistic_refs.len() > 1 + leader_ack_refs.len(),
+            "Optimistic should additively include standard-flow refs; \
+             got {} refs, optimistic-only would give {}",
+            optimistic_refs.len(),
+            1 + leader_ack_refs.len()
+        );
+
+        // No-duplicate property is also enforced by the production assert at
+        // collect_sub_dag_and_commit (`assert_eq!(committed_transactions.len(),
+        // …HashSet…len())`); a regression there would panic this test.
+    }
+
+    #[tokio::test]
+    async fn test_optimistic_does_not_double_emit_across_sub_dags() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new(context.clone())),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=7)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        // First commit: L_a at round 4 with Optimistic metastate. L_a's first
+        // ack (a round-3 block) is the target ref T whose tracker entry will
+        // be `mark_committed`'d.
+        let leader_a = dag_builder
+            .leader_block(4)
+            .expect("Leader at round 4 should exist");
+        let target_ack = *leader_a
+            .acknowledgments()
+            .first()
+            .expect("L_a should have acks in fully-linked DAG");
+        // Compare on (round, author): committed_transaction_refs may carry
+        // either GenericTransactionRef variant depending on protocol config.
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        let commits_a =
+            linearizer.get_pending_sub_dags(vec![(leader_a, Some(CommitMetastate::Optimistic))]);
+        assert_eq!(commits_a.len(), 1);
+        assert!(
+            contains_block(&commits_a[0].committed_transaction_refs, &target_ack),
+            "Optimistic commit of L_a should emit target_ack {target_ack:?}"
+        );
+
+        // Second commit: L_b at round 7 with no metastate (standard flow).
+        // L_b's causal history accumulates 2f+1 acks for target_ack, but the
+        // `mark_committed` flag set by L_a's Optimistic commit must suppress
+        // re-emission.
+        let leader_b = dag_builder
+            .leader_block(7)
+            .expect("Leader at round 7 should exist");
+        let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None)]);
+        assert_eq!(commits_b.len(), 1);
+        assert!(
+            !contains_block(&commits_b[0].committed_transaction_refs, &target_ack),
+            "Standard commit of L_b should NOT re-emit target_ack {target_ack:?} \
+             already emitted by L_a's Optimistic commit"
+        );
+
+        // Sanity: the standard flow still emits refs that L_a never touched.
+        // L_b's commit should produce non-empty round-5 refs (R_b - 2 = 5);
+        // these are blocks the optimistic path never marked committed.
+        let has_round_5_ref = commits_b[0]
+            .committed_transaction_refs
+            .iter()
+            .any(|r| r.round() == 5);
+        assert!(
+            has_round_5_ref,
+            "Standard commit of L_b should still emit round-5 refs"
+        );
+    }
 }
