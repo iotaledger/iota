@@ -1316,4 +1316,53 @@ mod tests {
             "Standard commit of L_b should still include round-5 refs"
         );
     }
+
+    #[tokio::test]
+    async fn test_standard_metastate_does_not_commit_leader_ref_or_acks() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new(context.clone())),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+
+        let commits =
+            linearizer.get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Standard))]);
+        assert_eq!(commits.len(), 1);
+        let standard_refs = &commits[0].committed_transaction_refs;
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        // Standard metastate must not trigger the Optimistic shortcut.
+        assert!(
+            !contains_block(standard_refs, &leader_ref),
+            "Standard should not include leader's own ref {leader_ref:?}"
+        );
+        for ack_ref in &leader_ack_refs {
+            assert!(
+                !contains_block(standard_refs, ack_ref),
+                "Standard should not include leader's ack ref {ack_ref:?}"
+            );
+        }
+    }
 }
