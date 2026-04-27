@@ -247,7 +247,7 @@ where
         client_addr: Option<SocketAddr>,
     ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
         // Reject malformed transactions before any code path inspects shared
-        // inputs or `MoveAuthenticator` 
+        // inputs or `MoveAuthenticator`
         request
             .transaction
             .validity_check(epoch_store.protocol_config(), epoch_store.epoch())
