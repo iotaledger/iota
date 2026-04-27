@@ -885,11 +885,13 @@ impl DecidedLeader {
         }
     }
 
-    // Converts to committed block if the decision is to commit. Returns None
-    // otherwise.
-    pub(crate) fn into_committed_block(self) -> Option<VerifiedBlockHeader> {
+    // Converts a Commit decision into the committed block plus its metastate.
+    // Returns None for Skip.
+    pub(crate) fn into_committed_block(
+        self,
+    ) -> Option<(VerifiedBlockHeader, Option<CommitMetastate>)> {
         match self {
-            Self::Commit(block, _) => Some(block),
+            Self::Commit(block, metastate) => Some((block, metastate)),
             Self::Skip(_) => None,
         }
     }

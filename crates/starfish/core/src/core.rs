@@ -1145,7 +1145,7 @@ impl Core {
                 sequenced_leaders.len(),
                 sequenced_leaders
                     .iter()
-                    .map(|b| b.reference().to_string())
+                    .map(|(b, _)| b.reference().to_string())
                     .join(",")
             );
 
