@@ -3078,7 +3078,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         },
         {
@@ -6359,7 +6359,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber"
+                            "$ref": "#/components/schemas/SequenceNumberU64"
                           }
                         ],
                         "maxItems": 2,
@@ -6723,7 +6723,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         }
       },
@@ -10301,7 +10301,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ],
                 "maxItems": 2,
@@ -10332,10 +10332,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -10380,7 +10380,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
@@ -10454,7 +10454,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ]
               }
@@ -10592,7 +10592,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber"
+                        "$ref": "#/components/schemas/SequenceNumberU64"
                       }
                     ]
                   }
@@ -11015,7 +11015,7 @@
                 "$ref": "#/components/schemas/StructTag"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             }
           },
@@ -11058,20 +11058,20 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             }
           }
         ]
       },
-      "SequenceNumber": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
-      },
       "SequenceNumberString": {
         "description": "Sequence number as a string",
         "type": "string"
+      },
+      "SequenceNumberU64": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
       },
       "Stake": {
         "type": "object",
@@ -12239,7 +12239,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }

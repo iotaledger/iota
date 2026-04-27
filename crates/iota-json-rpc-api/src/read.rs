@@ -8,7 +8,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
     ProtocolConfigResponse,
     iota_primitives::{
-        Base58 as Base58Schema, ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema,
+        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        SequenceNumberU64 as SequenceNumberU64Schema,
     },
 };
 use iota_open_rpc_macros::open_rpc;
@@ -97,7 +98,7 @@ pub trait ReadApi {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
         /// the version of the queried object. If None, default to the latest known version
-        #[schemars(with = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         version: SequenceNumber,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,

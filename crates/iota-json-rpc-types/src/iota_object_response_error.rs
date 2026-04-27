@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::iota_primitives::{
-    Base58 as Base58Schema, ObjectID as ObjectIDSchema, SequenceNumber as SequenceNumberSchema,
+    Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+    SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
 #[serde_as]
@@ -30,7 +31,7 @@ pub enum IotaObjectResponseError {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
         /// Object version.
-        #[schemars(with = "SequenceNumberSchema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
         version: SequenceNumber,
         /// Base64 string representing the object digest
         #[schemars(with = "Base58Schema")]

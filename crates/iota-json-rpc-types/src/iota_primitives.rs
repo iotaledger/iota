@@ -120,11 +120,11 @@ impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for Sequenc
 /// A schema type that defines the JSON representation of the
 /// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a u64
 /// integer and uses the default serialization.
-pub struct SequenceNumber;
+pub struct SequenceNumberU64;
 
-impl JsonSchema for SequenceNumber {
+impl JsonSchema for SequenceNumberU64 {
     fn schema_name() -> String {
-        "SequenceNumber".to_owned()
+        "SequenceNumberU64".to_owned()
     }
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
