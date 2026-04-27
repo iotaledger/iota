@@ -950,6 +950,14 @@ impl Display for CommitMetastate {
     }
 }
 
+/// Test helper: pair each leader with `None` metastate.
+#[cfg(test)]
+pub(crate) fn with_no_metastate(
+    blocks: Vec<VerifiedBlockHeader>,
+) -> Vec<(VerifiedBlockHeader, Option<CommitMetastate>)> {
+    blocks.into_iter().map(|b| (b, None)).collect()
+}
+
 /// Per-commit properties that can be regenerated from past values, and do not
 /// need to be part of the Commit struct.
 /// Only the latest version is needed for recovery, but more versions are stored

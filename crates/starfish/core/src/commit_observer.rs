@@ -642,14 +642,7 @@ mod tests {
         test_dag_builder::DagBuilder,
     };
 
-    /// Pair every leader with `None` metastate to drive the historical
-    /// (Standard) sequencing path; existing tests don't exercise the
-    /// Optimistic ack-inclusion branch.
-    fn with_no_metastate(
-        blocks: Vec<VerifiedBlockHeader>,
-    ) -> Vec<(VerifiedBlockHeader, Option<CommitMetastate>)> {
-        blocks.into_iter().map(|b| (b, None)).collect()
-    }
+    use crate::commit::with_no_metastate;
 
     #[tokio::test]
     async fn test_handle_commit() {
