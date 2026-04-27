@@ -18,7 +18,8 @@ use crate::{
     CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{
-        CommitAPI, CommitIndex, PendingSubDag, TrustedCommit, load_pending_subdag_from_store,
+        CommitAPI, CommitIndex, CommitMetastate, PendingSubDag, TrustedCommit,
+        load_pending_subdag_from_store,
     },
     commit_solidifier::CommitSolidifier,
     context::Context,
@@ -146,7 +147,7 @@ impl CommitObserver {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_committed_leaders(
         &mut self,
-        committed_leaders: Vec<VerifiedBlockHeader>,
+        committed_leaders: Vec<(VerifiedBlockHeader, Option<CommitMetastate>)>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
@@ -641,6 +642,15 @@ mod tests {
         test_dag_builder::DagBuilder,
     };
 
+    /// Pair every leader with `None` metastate to drive the historical
+    /// (Standard) sequencing path; existing tests don't exercise the
+    /// Optimistic ack-inclusion branch.
+    fn with_no_metastate(
+        blocks: Vec<VerifiedBlockHeader>,
+    ) -> Vec<(VerifiedBlockHeader, Option<CommitMetastate>)> {
+        blocks.into_iter().map(|b| (b, None)).collect()
+    }
+
     #[tokio::test]
     async fn test_handle_commit() {
         telemetry_subscribers::init_for_testing();
@@ -682,7 +692,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(leaders.clone()), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
@@ -803,11 +813,13 @@ mod tests {
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                leaders
-                    .clone()
-                    .into_iter()
-                    .take(expected_last_processed_index)
-                    .collect::<Vec<_>>(),
+                with_no_metastate(
+                    leaders
+                        .clone()
+                        .into_iter()
+                        .take(expected_last_processed_index)
+                        .collect::<Vec<_>>(),
+                ),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -840,10 +852,12 @@ mod tests {
         created_commits.append(
             &mut observer
                 .handle_committed_leaders(
-                    leaders
-                        .into_iter()
-                        .skip(expected_last_processed_index)
-                        .collect::<Vec<_>>(),
+                    with_no_metastate(
+                        leaders
+                            .into_iter()
+                            .skip(expected_last_processed_index)
+                            .collect::<Vec<_>>(),
+                    ),
                     CommittedSubDagSource::Consensus,
                 )
                 .unwrap()
@@ -949,7 +963,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -1044,7 +1058,7 @@ mod tests {
         assert_eq!(leaders.len(), num_rounds as usize);
 
         let _ = observer
-            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Drain the receiver to simulate consumer processing commits before crash.
@@ -1259,7 +1273,7 @@ mod tests {
         // Commit first 3 leaders (rounds 1-3)
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (_, _) = observer
-            .handle_committed_leaders(all_leaders[0..3].to_vec(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(all_leaders[0..3].to_vec()), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Count transactions: with 4 authorities and standard DAG, each commit includes
@@ -1300,7 +1314,7 @@ mod tests {
         // Process new blocks - they acknowledge transactions from rounds 5-6
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
-            .handle_committed_leaders(new_leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(new_leaders), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Count transactions from new commits: new leaders in rounds 7-8 will process
