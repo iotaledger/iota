@@ -46,7 +46,7 @@ const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 
 /// A single streamed item in a V2 RPC response. The `Weight` is the per-item
-/// spam-policy contribution decided by domain logic (see `weight_for_update`).
+/// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
 
 use iota_metrics::spawn_monitored_task;
@@ -56,18 +56,6 @@ use crate::{
     authority_server::{StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize},
     consensus_adapter::ConsensusAdapter,
 };
-
-/// Spam weight for a submission outcome. `wait_for_tx_finality` decides its
-/// weight per code path because the `Executed` variant has different meaning
-/// there (duplicate query vs legitimate polling completion).
-fn weight_for_update(update: &TxStatusUpdate) -> Weight {
-    match update {
-        TxStatusUpdate::Submitted => Weight::zero(),
-        TxStatusUpdate::Executed { .. } => Weight::one(),
-        TxStatusUpdate::Rejected { error } => normalize(error),
-        TxStatusUpdate::Expired { .. } => Weight::zero(),
-    }
-}
 
 impl ValidatorService {
     async fn submit_tx_impl(
@@ -142,7 +130,10 @@ impl ValidatorService {
     /// Handles submission of a single transaction. Validates, checks for prior
     /// execution, verifies signature, runs deny checks, and submits to
     /// consensus. Returns the terminal status together with the per-item
-    /// traffic weight derived from the outcome.
+    /// traffic weight derived from the outcome: `Weight::one()` for an
+    /// already-executed duplicate (spam-like), `normalize(&error)` for a
+    /// rejection (signature/epoch errors weigh, others don't), and
+    /// `Weight::zero()` for a successful submission.
     async fn submit_single_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -150,25 +141,6 @@ impl ValidatorService {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         transaction: Transaction,
     ) -> (TxStatusUpdate, Weight) {
-        let update = Self::submit_single_tx_inner(
-            state,
-            consensus_adapter,
-            metrics,
-            epoch_store,
-            transaction,
-        )
-        .await;
-        let weight = weight_for_update(&update);
-        (update, weight)
-    }
-
-    async fn submit_single_tx_inner(
-        state: &Arc<AuthorityState>,
-        consensus_adapter: &Arc<ConsensusAdapter>,
-        metrics: &Arc<ValidatorServiceMetrics>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        transaction: Transaction,
-    ) -> TxStatusUpdate {
         let tx_digest = *transaction.digest();
 
         let build_executed = |effects: TransactionEffects| -> TxStatusUpdate {
@@ -189,14 +161,16 @@ impl ValidatorService {
                 .num_rejected_tx_during_overload
                 .with_label_values(&[e.as_ref()])
                 .inc();
-            return TxStatusUpdate::Rejected { error: e };
+            let weight = normalize(&e);
+            return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
         // Validate transaction.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
-            return TxStatusUpdate::Rejected { error: e };
+            let weight = normalize(&e);
+            return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
         // Check if already executed. Transient cache errors are treated as
@@ -208,7 +182,7 @@ impl ValidatorService {
             .ok()
             .flatten()
         {
-            return build_executed(effects);
+            return (build_executed(effects), Weight::one());
         }
 
         // Verify user signature.
@@ -217,7 +191,8 @@ impl ValidatorService {
             Ok(verified) => verified,
             Err(e) => {
                 metrics.signature_errors.inc();
-                return TxStatusUpdate::Rejected { error: e };
+                let weight = normalize(&e);
+                return (TxStatusUpdate::Rejected { error: e }, weight);
             }
         };
         drop(tx_verif_guard);
@@ -228,9 +203,9 @@ impl ValidatorService {
             .should_accept_user_certs()
         {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return TxStatusUpdate::Rejected {
-                error: IotaError::ValidatorHaltedAtEpochEnd,
-            };
+            let error = IotaError::ValidatorHaltedAtEpochEnd;
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
         }
 
         // Content validation: deny checks + owned object version validation.
@@ -239,7 +214,10 @@ impl ValidatorService {
             .await
         {
             Ok(objs) => objs,
-            Err(e) => return TxStatusUpdate::Rejected { error: e },
+            Err(e) => {
+                let weight = normalize(&e);
+                return (TxStatusUpdate::Rejected { error: e }, weight);
+            }
         };
         if let Err(e) = state
             .get_cache_writer()
@@ -252,18 +230,19 @@ impl ValidatorService {
                 .ok()
                 .flatten()
             {
-                return build_executed(effects);
+                return (build_executed(effects), Weight::one());
             }
-            return TxStatusUpdate::Rejected { error: e };
+            let weight = normalize(&e);
+            return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return TxStatusUpdate::Rejected {
-                error: IotaError::ValidatorHaltedAtEpochEnd,
-            };
+            let error = IotaError::ValidatorHaltedAtEpochEnd;
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
         }
 
         // Submit to consensus.
@@ -272,10 +251,11 @@ impl ValidatorService {
             Some(&reconfiguration_lock),
             epoch_store,
         ) {
-            return TxStatusUpdate::Rejected { error: e };
+            let weight = normalize(&e);
+            return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
-        TxStatusUpdate::Submitted
+        (TxStatusUpdate::Submitted, Weight::zero())
     }
 
     /// Waits for one or more previously submitted transactions to reach
