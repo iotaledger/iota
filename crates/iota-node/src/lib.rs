@@ -166,7 +166,6 @@ pub struct ValidatorComponents {
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
     soft_locks: Arc<PreConsensusSoftLocks>,
-    validator_service_metrics: Arc<ValidatorServiceMetrics>,
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -1192,7 +1191,7 @@ impl IotaNode {
         // `abort()` is needed. The same `Arc<PreConsensusSoftLocks>` is reused
         // across epoch transitions (see `start_epoch_specific_validator_components`),
         // so the task keeps running uninterrupted while the node remains a validator.
-        let soft_lock_sweep_handle = ValidatorService::spawn_soft_lock_sweep(
+        let soft_lock_sweep_handle = PreConsensusSoftLocks::spawn_sweep(
             Arc::downgrade(&soft_locks),
             validator_service_metrics.clone(),
         );
@@ -1243,7 +1242,6 @@ impl IotaNode {
             soft_lock_sweep_handle,
             checkpoint_metrics,
             iota_tx_validator_metrics,
-            validator_service_metrics,
             validator_registry_id,
         )
         .await
@@ -1269,7 +1267,6 @@ impl IotaNode {
         soft_lock_sweep_handle: JoinHandle<()>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
-        validator_service_metrics: Arc<ValidatorServiceMetrics>,
         validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
         let checkpoint_service = Self::build_checkpoint_service(
@@ -1346,7 +1343,6 @@ impl IotaNode {
             consensus_store_pruner,
             consensus_adapter,
             soft_locks,
-            validator_service_metrics,
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1839,7 +1835,6 @@ impl IotaNode {
                 consensus_store_pruner,
                 consensus_adapter,
                 soft_locks,
-                validator_service_metrics,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
@@ -1902,7 +1897,6 @@ impl IotaNode {
                             soft_lock_sweep_handle,
                             checkpoint_metrics,
                             iota_tx_validator_metrics,
-                            validator_service_metrics,
                             validator_registry_id,
                         )
                         .await?,

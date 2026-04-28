@@ -32,6 +32,10 @@
 
 use std::{
     collections::HashMap,
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -41,6 +45,8 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use tracing::{debug, error, trace};
+
+use crate::authority_server::metrics::ValidatorServiceMetrics;
 
 /// Default soft-lock TTL: `gc_depth(60) × 4 / ~20 rounds/sec = 12 s`.
 const DEFAULT_SOFT_LOCK_TTL: Duration = Duration::from_secs(12);
@@ -74,6 +80,11 @@ pub struct PreConsensusSoftLocks {
     inner: Mutex<Inner>,
     /// How long a lock remains valid before it is considered expired.
     lock_ttl: Duration,
+    /// Atomic mirror of `inner.locks.len()` so metrics readers don't have to
+    /// take the mutex. Updated under the inner lock by every mutation, so its
+    /// value is always consistent with the map at the moment the lock is
+    /// released.
+    lock_count: AtomicUsize,
 }
 
 impl Default for PreConsensusSoftLocks {
@@ -93,6 +104,7 @@ impl PreConsensusSoftLocks {
         Self {
             inner: Mutex::new(Inner::default()),
             lock_ttl,
+            lock_count: AtomicUsize::new(0),
         }
     }
 
@@ -133,6 +145,7 @@ impl PreConsensusSoftLocks {
                             }
                         }
                     }
+                    self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
                     return Err(e);
                 }
             }
@@ -164,6 +177,7 @@ impl PreConsensusSoftLocks {
             }
         }
 
+        self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
         Ok(())
     }
 
@@ -173,6 +187,25 @@ impl PreConsensusSoftLocks {
     /// consensus submission failure.
     pub fn release(&self, tx_digest: &TransactionDigest) {
         let mut inner = self.inner.lock();
+        Self::release_one(&mut inner, tx_digest);
+        self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
+    }
+
+    /// Releases all soft locks held by every digest in `tx_digests` under a
+    /// single mutex acquisition. Equivalent to calling `release` for each
+    /// digest, but avoids `N` lock/unlock cycles per consensus commit.
+    pub fn release_for_batch(&self, tx_digests: &[TransactionDigest]) {
+        if tx_digests.is_empty() {
+            return;
+        }
+        let mut inner = self.inner.lock();
+        for tx_digest in tx_digests {
+            Self::release_one(&mut inner, tx_digest);
+        }
+        self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
+    }
+
+    fn release_one(inner: &mut Inner, tx_digest: &TransactionDigest) {
         if let Some(obj_refs) = inner.tx_to_objects.remove(tx_digest) {
             for obj_ref in &obj_refs {
                 // Only remove if still owned by this transaction (the lock may
@@ -213,11 +246,17 @@ impl PreConsensusSoftLocks {
                 .iter()
                 .any(|obj_ref| locks.get(obj_ref).is_some_and(|r| r.digest == *tx_digest))
         });
+
+        self.lock_count.store(inner.locks.len(), Ordering::Relaxed);
     }
 
     /// Returns the current number of locked object refs (for metrics).
+    ///
+    /// Reads an atomic counter so callers don't have to take the inner mutex —
+    /// safe to call from a metrics scrape without contending with acquire /
+    /// release on the hot path.
     pub fn lock_count(&self) -> usize {
-        self.inner.lock().locks.len()
+        self.lock_count.load(Ordering::Relaxed)
     }
 
     /// Drops all entries.  Called at epoch boundary.
@@ -225,6 +264,46 @@ impl PreConsensusSoftLocks {
         let mut inner = self.inner.lock();
         inner.locks.clear();
         inner.tx_to_objects.clear();
+        self.lock_count.store(0, Ordering::Relaxed);
+    }
+
+    /// Spawns a background task that periodically sweeps expired soft locks
+    /// and refreshes the `soft_lock_table_size` gauge, so Prometheus scrapes
+    /// see a fresh value even under low transaction load.
+    ///
+    /// The task holds only a `Weak` reference to the lock table and exits
+    /// automatically once all strong `Arc` owners have been dropped (e.g. when
+    /// the node stops being a validator). No explicit `abort()` is needed.
+    pub fn spawn_sweep(
+        soft_locks: Weak<PreConsensusSoftLocks>,
+        metrics: Arc<ValidatorServiceMetrics>,
+    ) -> tokio::task::JoinHandle<()> {
+        iota_metrics::spawn_monitored_task!(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+                let Some(soft_locks) = soft_locks.upgrade() else {
+                    // All strong references have been dropped. The intended
+                    // cause is that the validator stopped being active (node
+                    // shutdown or left the committee). If the node is still
+                    // serving, this indicates a leaked `Weak` from a refactor
+                    // that accidentally dropped every strong `Arc`, in which
+                    // case the `soft_lock_table_size` gauge will freeze and
+                    // memory will grow unbounded — hence `warn!` so log-based
+                    // alerts can fire.
+                    tracing::warn!(
+                        "soft-lock sweep task exiting: no strong \
+                         `PreConsensusSoftLocks` references remain (expected \
+                         during validator shutdown; unexpected otherwise)"
+                    );
+                    break;
+                };
+                soft_locks.sweep_expired();
+                metrics
+                    .soft_lock_table_size
+                    .set(soft_locks.lock_count() as i64);
+            }
+        })
     }
 
     // -- private helpers -----------------------------------------------------
@@ -538,6 +617,134 @@ mod tests {
         // Re-acquire — the mismatch path detects it and `debug_assert_eq!`
         // fires under test builds.
         table.try_acquire(tx, &[obj_a]).unwrap();
+    }
+
+    /// Concurrent `release` and `try_acquire` for distinct digests must not
+    /// corrupt the table. Regression guard for future refactors that might
+    /// split the inner mutex.
+    #[test]
+    fn test_concurrent_release_and_acquire() {
+        use std::{
+            sync::{Arc, Barrier},
+            thread,
+        };
+
+        let table = Arc::new(PreConsensusSoftLocks::with_ttl(Duration::from_secs(60)));
+        let n = 16;
+        // Pre-populate locks held by digests 1..=n on object refs 1..=n.
+        let objs: Vec<_> = (0..n).map(|i| obj_ref(i as u8 + 1, 1)).collect();
+        let digests: Vec<_> = (0..n).map(|i| digest(i as u8 + 1)).collect();
+        for i in 0..n {
+            table.try_acquire(digests[i], &[objs[i]]).unwrap();
+        }
+        assert_eq!(table.lock_count(), n);
+
+        // Half the threads release pre-existing locks; the other half acquire
+        // brand-new locks on disjoint object refs. Disjoint key sets mean no
+        // conflict is expected — every operation should succeed.
+        let barrier = Arc::new(Barrier::new(2 * n));
+        let mut handles = Vec::with_capacity(2 * n);
+
+        for i in 0..n {
+            let table = table.clone();
+            let barrier = barrier.clone();
+            let d = digests[i];
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                table.release(&d);
+            }));
+        }
+        for i in 0..n {
+            let table = table.clone();
+            let barrier = barrier.clone();
+            let new_obj = obj_ref(100 + i as u8, 1);
+            let new_digest = digest(100 + i as u8);
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                table.try_acquire(new_digest, &[new_obj]).unwrap();
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // After all releases + acquires: original n locks gone, n new locks held.
+        assert_eq!(table.lock_count(), n);
+        let inner = table.inner.lock();
+        for d in &digests {
+            assert!(
+                !inner.tx_to_objects.contains_key(d),
+                "released digest must not retain reverse-index entry"
+            );
+        }
+    }
+
+    /// `sweep_expired` must respect a non-zero TTL: locks younger than the
+    /// TTL stay, older ones are removed. The existing zero-TTL test cannot
+    /// distinguish `>=` from `>` in the comparison.
+    #[test]
+    fn test_sweep_expired_with_nonzero_ttl() {
+        let ttl = Duration::from_millis(50);
+        let table = PreConsensusSoftLocks::with_ttl(ttl);
+        let old = obj_ref(1, 1);
+        let tx_old = digest(1);
+
+        table.try_acquire(tx_old, &[old]).unwrap();
+
+        // Wait past TTL so the first lock is definitely expired.
+        std::thread::sleep(ttl * 3);
+
+        // Acquire a fresh lock right before the sweep — this one must survive.
+        let fresh = obj_ref(2, 1);
+        let tx_fresh = digest(2);
+        table.try_acquire(tx_fresh, &[fresh]).unwrap();
+
+        table.sweep_expired();
+
+        let inner = table.inner.lock();
+        assert!(
+            !inner.locks.contains_key(&old),
+            "expired lock must be swept"
+        );
+        assert!(
+            inner.locks.contains_key(&fresh),
+            "fresh lock must survive sweep"
+        );
+        assert!(!inner.tx_to_objects.contains_key(&tx_old));
+        assert!(inner.tx_to_objects.contains_key(&tx_fresh));
+    }
+
+    #[test]
+    fn test_release_for_batch() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let tx_a = digest(1);
+        let tx_b = digest(2);
+        let tx_c = digest(3);
+
+        table.try_acquire(tx_a, &[obj_ref(1, 1)]).unwrap();
+        table
+            .try_acquire(tx_b, &[obj_ref(2, 1), obj_ref(3, 1)])
+            .unwrap();
+        table.try_acquire(tx_c, &[obj_ref(4, 1)]).unwrap();
+        assert_eq!(table.lock_count(), 4);
+
+        table.release_for_batch(&[tx_a, tx_b]);
+
+        assert_eq!(table.lock_count(), 1);
+        let inner = table.inner.lock();
+        assert!(!inner.tx_to_objects.contains_key(&tx_a));
+        assert!(!inner.tx_to_objects.contains_key(&tx_b));
+        assert!(inner.tx_to_objects.contains_key(&tx_c));
+    }
+
+    #[test]
+    fn test_release_for_batch_empty_is_noop() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let tx = digest(1);
+        table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
+        table.release_for_batch(&[]);
+        assert_eq!(table.lock_count(), 1);
     }
 
     #[test]

@@ -100,6 +100,7 @@ use crate::{
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
+    authority_server::soft_lock::PreConsensusSoftLocks,
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
         PendingCheckpoint, PendingCheckpointContentsV1, PendingCheckpointInfo,
@@ -1675,15 +1676,13 @@ impl AuthorityPerEpochStore {
     }
 
     /// Sets the pre-consensus soft lock table. Called once during validator
-    /// setup when white-flag flow is enabled.
+    /// setup. Gating on `enable_white_flag_flow` is the caller's
+    /// responsibility — when the flow is disabled, releases simply produce no
+    /// digests so the `OnceCell` may stay empty harmlessly.
     ///
     /// # Panics
-    /// Panics if called more than once on the same instance when
-    /// white-flag flow is enabled.
-    pub fn set_soft_locks(
-        &self,
-        soft_locks: Arc<PreConsensusSoftLocks>,
-    ) {
+    /// Panics if called more than once on the same instance.
+    pub fn set_soft_locks(&self, soft_locks: Arc<PreConsensusSoftLocks>) {
         self.soft_locks
             .set(soft_locks)
             .expect("soft_locks should only be set once");
@@ -3430,9 +3429,7 @@ impl AuthorityPerEpochStore {
         // harmlessly.
         if !soft_lock_release_tx_digests.is_empty() {
             if let Some(soft_locks) = self.soft_locks.get() {
-                for digest in &soft_lock_release_tx_digests {
-                    soft_locks.release(digest);
-                }
+                soft_locks.release_for_batch(&soft_lock_release_tx_digests);
             } else {
                 error!(
                     count = soft_lock_release_tx_digests.len(),
