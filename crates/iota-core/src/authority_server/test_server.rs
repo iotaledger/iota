@@ -85,7 +85,6 @@ impl AuthorityServer {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            100,
         ));
         Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
     }
