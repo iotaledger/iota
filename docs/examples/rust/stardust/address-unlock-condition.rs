@@ -18,7 +18,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS, TypeTag,
+        IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -215,7 +215,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    (*IOTA_FRAMEWORK_ADDRESS).into(),
+                    IOTA_FRAMEWORK_PACKAGE_ID,
                     ident_str!("coin").to_owned(),
                     ident_str!("from_balance").to_owned(),
                     type_arguments,
@@ -228,7 +228,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    (*IOTA_FRAMEWORK_ADDRESS).into(),
+                    IOTA_FRAMEWORK_PACKAGE_ID,
                     ident_str!("bag").to_owned(),
                     ident_str!("destroy_empty").to_owned(),
                     vec![],
