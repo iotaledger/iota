@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviors;
 
 /// Identifies which set of misbehavior categories and report format is active.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Version {
     V1,
 }
@@ -67,7 +67,7 @@ impl MisbehaviorConfig {
 /// removed or reordered, because existing encoded data (e.g.,
 /// `LegacyReportPayload`) relies on stable positional indices. New variants
 /// must be introduced via a new `ReportedMisbehaviors` version.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Misbehaviors {
     FaultyBlocksProvable,
     FaultyBlocksUnprovable,
@@ -75,15 +75,13 @@ pub enum Misbehaviors {
     Equivocations,
 }
 
-impl Misbehaviors {
-    pub(crate) fn from(output_misbehavior: &ConsensusOutputMisbehaviors) -> Option<Self> {
+impl From<&ConsensusOutputMisbehaviors> for Misbehaviors {
+    fn from(output_misbehavior: &ConsensusOutputMisbehaviors) -> Self {
         match output_misbehavior {
-            ConsensusOutputMisbehaviors::FaultyBlocksProvable => Some(Self::FaultyBlocksProvable),
-            ConsensusOutputMisbehaviors::FaultyBlocksUnprovable => {
-                Some(Self::FaultyBlocksUnprovable)
-            }
-            ConsensusOutputMisbehaviors::MissingProposals => Some(Self::MissingProposals),
-            ConsensusOutputMisbehaviors::Equivocations => Some(Self::Equivocations),
+            ConsensusOutputMisbehaviors::FaultyBlocksProvable => Self::FaultyBlocksProvable,
+            ConsensusOutputMisbehaviors::FaultyBlocksUnprovable => Self::FaultyBlocksUnprovable,
+            ConsensusOutputMisbehaviors::MissingProposals => Self::MissingProposals,
+            ConsensusOutputMisbehaviors::Equivocations => Self::Equivocations,
         }
     }
 }
@@ -135,8 +133,7 @@ impl MisbehaviorCounts {
                     output_misbehavior_counts
                         .iter()
                         .position(|(output_misbehavior, _)| {
-                            Misbehaviors::from(output_misbehavior)
-                                .is_some_and(|x| x == *misbehavior)
+                            Misbehaviors::from(output_misbehavior) == *misbehavior
                         })
                         .map(|i| output_misbehavior_counts.swap_remove(i).1)
                         .unwrap_or_default()
@@ -162,11 +159,7 @@ impl MisbehaviorCounts {
     }
 
     pub(crate) fn get_value(&self, metric_index: usize, authority: usize) -> u64 {
-        self.0
-            .get(metric_index)
-            .and_then(|metric_counts| metric_counts.get(authority))
-            .copied()
-            .expect("Invalid metric index {metric_index} or authority index {authority} for misbehavior counts")
+        self.0[metric_index][authority]
     }
 
     /// Returns a new `MisbehaviorCounts` where each cell is the element-wise
@@ -190,9 +183,7 @@ impl MisbehaviorCounts {
     }
 
     pub fn get_metric(&self, index: usize) -> &[u64] {
-        self.0
-            .get(index)
-            .expect("Invalid metric index {index} for misbehavior counts")
+        &self.0[index]
     }
 }
 
