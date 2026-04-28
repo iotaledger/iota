@@ -2830,8 +2830,6 @@ impl AuthorityPerEpochStore {
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         authority.concise()
                     );
-                    self.report_aggregator
-                        .increment_invalid_reports_count(transaction.certificate_author_index);
                     return None;
                 }
                 // Check validity of the report.
@@ -4187,20 +4185,14 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
 
-                // Safe: verify_consensus_transaction already confirmed that the
-                // report's authority matches the consensus block author, who is
-                // always a committee member.
+                // Safe: verify_consensus_transaction already validated the
+                // report and confirmed the sender matches the consensus block
+                // author (a committee member). The reconfig guard above
+                // covers the end-of-epoch lock-out.
                 let authority_index = self
                     .committee
                     .authority_index(authority)
                     .expect("authority in committee");
-                // TODO: revisit the relationship between report verification
-                // (now done in `verify_consensus_transaction` via
-                // `report_aggregator.validate_report`) and report processing
-                // here. The current split assumes any report reaching this
-                // point has already been validated; reconcile the two paths
-                // and decide whether processing should also be guarded by a
-                // reconfig-state check.
                 self.report_aggregator
                     .process_report(authority_index, report);
 
