@@ -27,11 +27,10 @@ use iota_types::{
 };
 use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    database::Database,
     rocks::{DBMap, MetricConf},
     traits::Map,
 };
@@ -351,13 +350,6 @@ struct IndexStoreTables {
     /// the main database.
     transaction_checkpoints: DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
-    /// Deprecated: migrated to `owner`.
-    // TODO(cleanup): Remove this field and `migrate_owner_v2_to_owner` in the
-    // next release once all nodes have migrated.
-    #[allow(dead_code)]
-    #[deprecated_db_map(migration = "migrate_owner_v2_to_owner")]
-    owner_v2: Option<DBMap<OwnerIndexKey, OwnerIndexInfo>>,
-
     /// An index of object ownership.
     ///
     /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
@@ -369,27 +361,12 @@ struct IndexStoreTables {
     /// address-owned object).
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
-    /// Deprecated: migrated to `dynamic_field`.
-    // TODO(cleanup): Remove this field and
-    // `migrate_dynamic_field_v2_to_dynamic_field` in the next release once
-    // all nodes have migrated.
-    #[allow(dead_code)]
-    #[deprecated_db_map(migration = "migrate_dynamic_field_v2_to_dynamic_field")]
-    dynamic_field_v2: Option<DBMap<DynamicFieldKey, ()>>,
-
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectID. Only the key is stored; field metadata is loaded
     /// on demand from the object store.
     dynamic_field: DBMap<DynamicFieldKey, ()>,
-
-    /// Deprecated: migrated to `coin`.
-    // TODO(cleanup): Remove this field and `migrate_coin_v2_to_coin` in the
-    // next release once all nodes have migrated.
-    #[allow(dead_code)]
-    #[deprecated_db_map(migration = "migrate_coin_v2_to_coin")]
-    coin_v2: Option<DBMap<CoinIndexKey, CoinIndexInfo>>,
 
     /// Coin info with regulated coin metadata.
     /// Bounded by the live object set (one entry per coin type).
@@ -405,102 +382,6 @@ struct IndexStoreTables {
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
-}
-
-// ---------------------------------------------------------------------------
-// CF migrations: owner_v2 → owner, dynamic_field_v2 → dynamic_field,
-// coin_v2 → coin.
-//
-// TODO(cleanup): Remove these functions in the next release once all nodes
-// have migrated.
-// ---------------------------------------------------------------------------
-
-/// Copy all entries from the `old_cf` column family into `new_cf`, applying
-/// `map_fn` to each `(key, value)` pair along the way. Writes are flushed in
-/// chunks of 10,000 entries.
-///
-/// Returns the number of entries copied.
-fn migrate_cf<K1, V1, K2, V2, F>(
-    db: &std::sync::Arc<Database>,
-    old_cf: &str,
-    new_cf: &str,
-    mut map_fn: F,
-) -> Result<usize, TypedStoreError>
-where
-    K1: Serialize + DeserializeOwned,
-    V1: Serialize + DeserializeOwned,
-    K2: Serialize,
-    V2: Serialize,
-    F: FnMut((K1, V1)) -> (K2, V2),
-{
-    const BATCH_SIZE: usize = 10_000;
-    let old = DBMap::<K1, V1>::reopen(
-        db,
-        Some(old_cf),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        true,
-    )?;
-    let new = DBMap::<K2, V2>::reopen(
-        db,
-        Some(new_cf),
-        &typed_store::rocks::ReadWriteOptions::default(),
-        false,
-    )?;
-
-    let mut batch = new.batch();
-    let mut count = 0usize;
-    for item in old.safe_iter() {
-        let mapped = map_fn(item?);
-        batch.insert_batch(&new, std::iter::once(mapped))?;
-        count += 1;
-        if count.is_multiple_of(BATCH_SIZE) {
-            batch.write()?;
-            batch = new.batch();
-        }
-    }
-    if !count.is_multiple_of(BATCH_SIZE) {
-        batch.write()?;
-    }
-    Ok(count)
-}
-
-/// Migration: copy entries from the deprecated `owner_v2` CF into `owner`.
-fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
-    let count = migrate_cf::<OwnerIndexKey, OwnerIndexInfo, _, _, _>(
-        db,
-        "owner_v2",
-        "owner",
-        std::convert::identity,
-    )?;
-    info!("migrated owner_v2 -> owner ({count} entries)");
-    Ok(())
-}
-
-/// Migration: copy entries from the deprecated `dynamic_field_v2` CF into
-/// `dynamic_field`.
-fn migrate_dynamic_field_v2_to_dynamic_field(
-    db: &std::sync::Arc<Database>,
-) -> Result<(), TypedStoreError> {
-    let count = migrate_cf::<DynamicFieldKey, (), _, _, _>(
-        db,
-        "dynamic_field_v2",
-        "dynamic_field",
-        std::convert::identity,
-    )?;
-    info!("migrated dynamic_field_v2 -> dynamic_field ({count} entries)");
-    Ok(())
-}
-
-/// Migration: copy entries from the deprecated `coin_v2` CF into `coin`.
-fn migrate_coin_v2_to_coin(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
-    let count = migrate_cf::<CoinIndexKey, CoinIndexInfo, _, _, _>(
-        db,
-        "coin_v2",
-        "coin",
-        std::convert::identity,
-    )?;
-    info!("migrated coin_v2 -> coin ({count} entries)");
-    Ok(())
 }
 
 impl IndexStoreTables {

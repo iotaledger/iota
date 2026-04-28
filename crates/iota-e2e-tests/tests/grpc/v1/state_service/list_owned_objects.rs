@@ -451,8 +451,8 @@ async fn list_owned_objects_cursor_pagination_e2e() {
     );
 
     // The set of IDs must match the single-page response (order may differ
-    // because page_size=1 walks in v2-key order while the full page may use
-    // a different natural order, but the *set* must be identical).
+    // because page_size=1 walks in owner-index key order while the full page
+    // may use a different natural order, but the *set* must be identical).
     let expected_set: std::collections::HashSet<_> = expected_ids.iter().collect();
     assert_eq!(
         unique, expected_set,
@@ -668,7 +668,7 @@ async fn list_owned_objects_filter_by_type() {
     .await;
     let package_id = package_ref.0;
 
-    // Wait for the publish tx to land in a checkpoint so the owner_v2 index
+    // Wait for the publish tx to land in a checkpoint so the owner index
     // reflects the newly-created TreasuryCap.
     test_cluster.wait_for_checkpoint(2, None).await;
 
@@ -750,7 +750,7 @@ async fn list_owned_objects_filter_by_type() {
         .unwrap();
     assert!(mint_effects.status().is_ok(), "mint tx must succeed");
 
-    // Wait for the mint tx to land in a checkpoint so the owner_v2 index and
+    // Wait for the mint tx to land in a checkpoint so the owner index and
     // the treasury supply reflect the new coin.
     test_cluster.wait_for_checkpoint(3, None).await;
 
