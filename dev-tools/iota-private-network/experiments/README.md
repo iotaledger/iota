@@ -263,7 +263,6 @@ All drops installed by the fuzz script are tagged with\
 ```
 ./run-all-fuzz.sh \
   -n 10 \
-  -p starfish \
   -b false \
   -t true \
   -d 3600
@@ -276,7 +275,6 @@ Here `-t true` maps to `geo-high`.
 ```
 ./run-all-fuzz.sh \
   -n 19 \
-  -p starfish \
   -b true \
   -t geo-high \
   -x 10 \
@@ -297,7 +295,6 @@ HEAL_EVERY_ROUND=3 \
 HEAL_NUM_ROUNDS=1 \
 ./run-all-fuzz.sh \
   -n 19 \
-  -p starfish \
   -t geo-high \
   -x 10 \
   -l 5 \
