@@ -1448,4 +1448,98 @@ mod tests {
             );
         }
     }
+
+    /// A leader-ack that is not among the leader's ancestors never enters
+    /// the traversed-headers tracker, so the Optimistic path must not commit
+    /// it when `consensus_commit_transactions_only_for_traversed_headers` is
+    /// on.
+    #[tokio::test]
+    async fn test_optimistic_path_respects_traversed_headers_gate() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let (mut ctx, _) = Context::new_for_test(num_authorities);
+        ctx.protocol_config
+            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
+        let context = Arc::new(ctx);
+
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new(context.clone())),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let all_authorities: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        // Pick an authority that is neither the local node (own_index = 0) nor
+        // the round-5 leader. Their round-3 block will be the orphaned ref.
+        let orphan_author = AuthorityIndex::new_for_test(2);
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=3)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        // Round 4: every authority builds, but no round-4 block references the
+        // orphan author's round-3 block as either ancestor or ack. The orphan's
+        // round-3 block stays in dag_state but is not in the transitive
+        // ancestry of any round-5 block.
+        dag_builder
+            .layers(4..=4)
+            .authorities(all_authorities.clone())
+            .skip_ancestor_links(vec![orphan_author])
+            .skip_acknowledgements(vec![orphan_author])
+            .build()
+            .persist_layers(dag_state.clone());
+
+        dag_builder
+            .layers(5..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let orphan_block = dag_builder
+            .block_headers(3..=3)
+            .into_iter()
+            .find(|b| b.author() == orphan_author)
+            .expect("orphan round-3 block should exist");
+        let orphan_ref = orphan_block.reference();
+
+        let leader_orig = dag_builder
+            .leader_block(5)
+            .expect("leader at round 5 should exist");
+        let leader_author = leader_orig.author();
+        let leader_ancestors: Vec<BlockRef> = leader_orig.ancestors().to_vec();
+        let mut modified_acks = leader_orig.acknowledgments().to_vec();
+        modified_acks.push(orphan_ref);
+        let leader_modified = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, leader_author.value() as u8)
+                .set_ancestors(leader_ancestors)
+                .set_acknowledgments(modified_acks)
+                .build(),
+        );
+        dag_state
+            .write()
+            .accept_block_header(leader_modified.clone(), DataSource::Test);
+
+        let subdags = linearizer.get_pending_sub_dags(vec![(
+            leader_modified,
+            Some(CommitMetastate::Optimistic),
+            all_authorities,
+        )]);
+        assert_eq!(subdags.len(), 1);
+
+        let contains_orphan = subdags[0]
+            .committed_transaction_refs
+            .iter()
+            .any(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author);
+        assert!(
+            !contains_orphan,
+            "Optimistic path must not commit a ref whose header is not traversed"
+        );
+    }
 }
