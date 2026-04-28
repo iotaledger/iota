@@ -251,7 +251,7 @@ where
         request
             .transaction
             .validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
+            .map_err(QuorumDriverError::InvalidTransaction)?;
         let transaction = epoch_store
             .verify_transaction(request.transaction.clone())
             .map_err(QuorumDriverError::InvalidUserSignature)?;

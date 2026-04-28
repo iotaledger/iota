@@ -40,6 +40,8 @@ pub enum QuorumDriverError {
     QuorumDriverInternal(IotaError),
     #[error("Invalid user signature: {0}.")]
     InvalidUserSignature(IotaError),
+    #[error("Invalid transaction: {0}.")]
+    InvalidTransaction(IotaError),
     #[error(
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
@@ -78,6 +80,9 @@ impl QuorumDriverError {
         match self {
             QuorumDriverError::InvalidUserSignature(err) => {
                 format!("Invalid user signature: {err}")
+            }
+            QuorumDriverError::InvalidTransaction(err) => {
+                format!("Invalid transaction: {err}")
             }
             QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
                 "The transaction is already finalized but with different user signatures"
