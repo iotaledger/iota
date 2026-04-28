@@ -16,7 +16,6 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::Address;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
@@ -5690,7 +5689,7 @@ async fn test_function_not_found() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            Address::STD.into(),
+            ObjectID::STD_PACKAGE,
             ident_str!("option").to_owned(),
             ident_str!("bad_function").to_owned(),
             vec![],
@@ -5746,7 +5745,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            Address::STD.into(),
+            ObjectID::STD_PACKAGE,
             ident_str!("option").to_owned(),
             ident_str!("is_none").to_owned(),
             vec![TypeTag::U64],

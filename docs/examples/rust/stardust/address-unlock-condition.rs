@@ -18,7 +18,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
+        IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS, TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -154,7 +154,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                (*IOTA_FRAMEWORK_ADDRESS).into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("coin").to_owned(),
                 ident_str!("from_balance").to_owned(),
                 type_arguments,
@@ -167,7 +167,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                (*IOTA_FRAMEWORK_ADDRESS).into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("bag").to_owned(),
                 ident_str!("destroy_empty").to_owned(),
                 vec![],
@@ -182,7 +182,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ];
 
             let nft_output = builder.programmable_move_call(
-                (*STARDUST_ADDRESS).into(),
+                STARDUST_PACKAGE_ID,
                 ident_str!("address_unlock_condition").to_owned(),
                 ident_str!("unlock_alias_address_owned_nft").to_owned(),
                 type_arguments,
@@ -197,7 +197,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-                (*STARDUST_ADDRESS).into(),
+                STARDUST_PACKAGE_ID,
                 ident_str!("nft_output").to_owned(),
                 ident_str!("extract_assets").to_owned(),
                 type_arguments,
