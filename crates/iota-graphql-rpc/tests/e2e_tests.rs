@@ -416,6 +416,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore = "https://github.com/iotaledger/iota/issues/11354"]
     async fn test_transaction_execution() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
