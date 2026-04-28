@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
@@ -195,6 +195,33 @@ async fn determine_metastate_optimistic_when_strong_qc_quorum() {
     // 2f+1 StrongQC quorum → Optimistic.
     let leader = build_metastate_dag(context, dag_state, &committer, [strong_vote(); 4]);
     assert_direct_commit_metastate(&committer, leader, Some(CommitMetastate::Optimistic));
+}
+
+#[tokio::test]
+async fn strong_qc_quorum_collects_strong_voter_authorities_from_dag() {
+    telemetry_subscribers::init_for_testing();
+    let (context, dag_state) = test_context_with_flag(true);
+    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+
+    // 3 strong votes + 1 strong blame: every r+2 certifier still observes a
+    // 2f+1 strong-vote quorum at r+1 (Optimistic), but the strong-voter list
+    // returned by `strong_qc_quorum` must contain exactly authors {0, 1, 2}
+    // and exclude the strong-blamer at author 3.
+    let blame = strong_blame();
+    let leader = build_metastate_dag(
+        context,
+        dag_state,
+        &committer,
+        [strong_vote(), strong_vote(), strong_vote(), blame],
+    );
+
+    let strong_voters = match committer.try_direct_decide(leader) {
+        LeaderStatus::Commit(_, Some(CommitMetastate::Optimistic), strong_voters) => strong_voters,
+        other => panic!("expected Commit(Optimistic), got {other}"),
+    };
+    let collected: BTreeSet<AuthorityIndex> = strong_voters.into_iter().collect();
+    let expected: BTreeSet<AuthorityIndex> = (0..3u8).map(AuthorityIndex::from).collect();
+    assert_eq!(collected, expected);
 }
 
 #[tokio::test]
