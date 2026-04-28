@@ -80,6 +80,7 @@ impl Linearizer {
         &mut self,
         leader_block: VerifiedBlockHeader,
         metastate: Option<CommitMetastate>,
+        strong_voters: Vec<AuthorityIndex>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> (PendingSubDag, TrustedCommit) {
         let _s = self
@@ -140,8 +141,9 @@ impl Linearizer {
             })
             .collect::<Vec<BlockRef>>();
 
-        // Optimistic: commit the leader's ref and its acks, marking each in
-        // the tracker so neither path re-commits them.
+        // Optimistic: record the leader's r+1 strong-voters as acks for the
+        // leader's ref and each of its acknowledgments. Crossing 2f+1 commits
+        // the ref through the standard quorum path.
         if metastate == Some(CommitMetastate::Optimistic) {
             let leader_ref = leader_block.reference();
             let refs =
@@ -151,11 +153,13 @@ impl Linearizer {
                     .transactions_ack_tracker
                     .entry(block_ref)
                     .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
-                if entry.reached_threshold(&self.context.committee) {
-                    continue;
+                let was_at_threshold = entry.reached_threshold(&self.context.committee);
+                for authority in &strong_voters {
+                    entry.add(*authority, &self.context.committee);
                 }
-                entry.mark_committed();
-                committed_transactions.push(block_ref);
+                if !was_at_threshold && entry.reached_threshold(&self.context.committee) {
+                    committed_transactions.push(block_ref);
+                }
             }
         }
 
@@ -288,7 +292,11 @@ impl Linearizer {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn get_pending_sub_dags(
         &mut self,
-        committed_leaders: Vec<(VerifiedBlockHeader, Option<CommitMetastate>)>,
+        committed_leaders: Vec<(
+            VerifiedBlockHeader,
+            Option<CommitMetastate>,
+            Vec<AuthorityIndex>,
+        )>,
     ) -> Vec<PendingSubDag> {
         if committed_leaders.is_empty() {
             return vec![];
@@ -302,7 +310,9 @@ impl Linearizer {
 
         let mut pending_sub_dags = vec![];
 
-        for (i, (leader_block, metastate)) in committed_leaders.into_iter().enumerate() {
+        for (i, (leader_block, metastate, strong_voters)) in
+            committed_leaders.into_iter().enumerate()
+        {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
                     .leader_swap_table
@@ -313,8 +323,12 @@ impl Linearizer {
                 vec![]
             };
 
-            let (sub_dag, commit) =
-                self.collect_sub_dag_and_commit(leader_block, metastate, reputation_scores_desc);
+            let (sub_dag, commit) = self.collect_sub_dag_and_commit(
+                leader_block,
+                metastate,
+                strong_voters,
+                reputation_scores_desc,
+            );
 
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
@@ -1214,8 +1228,16 @@ mod tests {
             "fully-linked round-5 leader should have acknowledgments"
         );
 
-        let commits =
-            linearizer.get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Optimistic))]);
+        // Synthetic strong-voter set: every authority. Carries 2f+1 stake so
+        // the per-ref tracker reaches quorum once these votes are added.
+        let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Optimistic),
+            strong_voters,
+        )]);
         assert_eq!(commits.len(), 1);
         let optimistic_refs = &commits[0].committed_transaction_refs;
         let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
@@ -1280,8 +1302,14 @@ mod tests {
                 .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
         };
 
-        let commits_a =
-            linearizer.get_pending_sub_dags(vec![(leader_a, Some(CommitMetastate::Optimistic))]);
+        let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let commits_a = linearizer.get_pending_sub_dags(vec![(
+            leader_a,
+            Some(CommitMetastate::Optimistic),
+            strong_voters,
+        )]);
         assert_eq!(commits_a.len(), 1);
         for block_ref in &optimistic_set {
             assert!(
@@ -1292,11 +1320,12 @@ mod tests {
 
         // Second commit: L_b at round 7 standardly. Its causal history
         // accumulates 2f+1 acks for L_a's optimistically-committed refs, but
-        // `mark_committed` from L_a's commit must suppress the re-commit.
+        // the votes already recorded for L_a's commit must keep the per-ref
+        // tracker at threshold so the standard path skips re-commit.
         let leader_b = dag_builder
             .leader_block(7)
             .expect("Leader at round 7 should exist");
-        let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None)]);
+        let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None, vec![])]);
         assert_eq!(commits_b.len(), 1);
         for block_ref in &optimistic_set {
             assert!(
@@ -1344,8 +1373,8 @@ mod tests {
         let leader_ref = leader.reference();
         let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
 
-        let commits =
-            linearizer.get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Standard))]);
+        let commits = linearizer
+            .get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Standard), vec![])]);
         assert_eq!(commits.len(), 1);
         let standard_refs = &commits[0].committed_transaction_refs;
         let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {

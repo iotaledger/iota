@@ -101,8 +101,8 @@ impl BaseCommitter {
             .into_iter()
             .filter(|l| self.enough_leader_support(certifying_round, l))
             .map(|leader_block| {
-                let metastate = self.determine_metastate_direct(&leader_block);
-                LeaderStatus::Commit(leader_block, metastate)
+                let (metastate, strong_voters) = self.determine_metastate_direct(&leader_block);
+                LeaderStatus::Commit(leader_block, metastate, strong_voters)
             })
             .collect();
 
@@ -130,7 +130,7 @@ impl BaseCommitter {
         for anchor in anchors {
             tracing::trace!("[{self}] Trying to indirect-decide {slot} using anchor {anchor}",);
             match anchor {
-                LeaderStatus::Commit(anchor, _) => {
+                LeaderStatus::Commit(anchor, _, _) => {
                     return self.decide_leader_from_anchor(anchor, slot);
                 }
                 LeaderStatus::Skip(..) => (),
@@ -313,10 +313,13 @@ impl BaseCommitter {
         // classify the metastate in the same walk. When the flag is off we
         // stick to the cheap regular-certificate-only check.
         let starfish_speed = self.context.protocol_config.consensus_starfish_speed();
-        let mut certified_leader_blocks: Vec<(VerifiedBlockHeader, Option<CommitMetastate>)> =
-            Vec::new();
+        let mut certified_leader_blocks: Vec<(
+            VerifiedBlockHeader,
+            Option<CommitMetastate>,
+            Vec<AuthorityIndex>,
+        )> = Vec::new();
         for leader_block in leader_blocks {
-            let (any_cert, metastate) = if starfish_speed {
+            let (any_cert, metastate, strong_voters) = if starfish_speed {
                 let (vote_refs, strong_vote_refs) =
                     self.vote_and_strong_vote_refs_for_leader(&leader_block);
                 let mut any_cert = false;
@@ -342,16 +345,21 @@ impl BaseCommitter {
                 } else {
                     None
                 };
-                (any_cert, metastate)
+                let strong_voters = if any_strong {
+                    strong_vote_refs.iter().map(|r| r.author).collect()
+                } else {
+                    Vec::new()
+                };
+                (any_cert, metastate, strong_voters)
             } else {
                 let mut all_votes = HashMap::new();
                 let any_cert = potential_certificates.iter().any(|potential_certificate| {
                     self.is_certificate(potential_certificate, &leader_block, &mut all_votes)
                 });
-                (any_cert, None)
+                (any_cert, None, Vec::new())
             };
             if any_cert {
-                certified_leader_blocks.push((leader_block, metastate));
+                certified_leader_blocks.push((leader_block, metastate, strong_voters));
             }
         }
 
@@ -362,8 +370,8 @@ impl BaseCommitter {
         }
 
         match certified_leader_blocks.pop() {
-            Some((certified_leader_block, metastate)) => {
-                LeaderStatus::Commit(certified_leader_block, metastate)
+            Some((certified_leader_block, metastate, strong_voters)) => {
+                LeaderStatus::Commit(certified_leader_block, metastate, strong_voters)
             }
             None => LeaderStatus::Skip(leader_slot),
         }
@@ -443,23 +451,26 @@ impl BaseCommitter {
 
     /// Direct-commit metastate: StrongQC quorum → `Optimistic`, strong-blame
     /// quorum → `Standard`, else `Pending`. `None` when the flag is off.
+    /// The returned `Vec<AuthorityIndex>` carries the leader's strong-voter
+    /// authorities for the Optimistic case (used by the linearizer to seed
+    /// the per-ref ack tracker); empty otherwise.
     fn determine_metastate_direct(
         &self,
         leader_block: &VerifiedBlockHeader,
-    ) -> Option<CommitMetastate> {
+    ) -> (Option<CommitMetastate>, Vec<AuthorityIndex>) {
         if !self.context.protocol_config.consensus_starfish_speed() {
-            return None;
+            return (None, Vec::new());
         }
 
-        if self.has_strong_qc_quorum(leader_block) {
-            return Some(CommitMetastate::Optimistic);
+        if let Some(strong_voters) = self.strong_qc_quorum(leader_block) {
+            return (Some(CommitMetastate::Optimistic), strong_voters);
         }
 
         if self.has_strong_blame_quorum(leader_block) {
-            return Some(CommitMetastate::Standard);
+            return (Some(CommitMetastate::Standard), Vec::new());
         }
 
-        Some(CommitMetastate::Pending)
+        (Some(CommitMetastate::Pending), Vec::new())
     }
 
     /// `(vote_refs, strong_vote_refs)` at r+1 for `leader_block`, built in a
@@ -489,8 +500,9 @@ impl BaseCommitter {
         (vote_refs, strong_vote_refs)
     }
 
-    /// 2f+1 StrongQCs at `r+2` for `leader_block`.
-    fn has_strong_qc_quorum(&self, leader_block: &VerifiedBlockHeader) -> bool {
+    /// `Some(strong-voter authorities)` when 2f+1 StrongQCs exist at `r+2`
+    /// for `leader_block`; `None` otherwise.
+    fn strong_qc_quorum(&self, leader_block: &VerifiedBlockHeader) -> Option<Vec<AuthorityIndex>> {
         let voting_round = leader_block.round() + 1;
         let certifying_round = leader_block.round() + 2;
 
@@ -514,10 +526,10 @@ impl BaseCommitter {
             if self.is_strong_certificate(decision_block, &strong_vote_refs)
                 && strong_qc_stake_aggregator.add(authority, &self.context.committee)
             {
-                return true;
+                return Some(strong_vote_refs.iter().map(|r| r.author).collect());
             }
         }
-        false
+        None
     }
 
     /// True if `potential_certificate` carries a StrongQC for the leader

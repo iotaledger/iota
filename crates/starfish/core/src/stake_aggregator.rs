@@ -38,11 +38,6 @@ impl CommitteeThreshold for ValidityThreshold {
 pub(crate) struct StakeAggregator<T> {
     votes: BTreeSet<AuthorityIndex>,
     stake: Stake,
-    /// External marker that forces `reached_threshold` to return true
-    /// regardless of stake. Used by callers that have an out-of-band reason
-    /// to consider this aggregator settled (e.g. starfish-speed Optimistic
-    /// commits that bypass the 2f+1 ack-quorum).
-    committed: bool,
     _phantom: PhantomData<T>,
 }
 
@@ -51,7 +46,6 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         Self {
             votes: Default::default(),
             stake: 0,
-            committed: false,
             _phantom: Default::default(),
         }
     }
@@ -63,7 +57,7 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         if self.votes.insert(vote) {
             self.stake += committee.stake(vote);
         }
-        self.reached_threshold(committee)
+        T::is_threshold(committee, self.stake)
     }
 
     pub(crate) fn stake(&self) -> Stake {
@@ -75,12 +69,7 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
     }
 
     pub(crate) fn reached_threshold(&self, committee: &Committee) -> bool {
-        self.committed || T::is_threshold(committee, self.stake)
-    }
-
-    /// Force `reached_threshold` to true without recording any votes.
-    pub(crate) fn mark_committed(&mut self) {
-        self.committed = true;
+        T::is_threshold(committee, self.stake)
     }
 
     pub(crate) fn threshold(&self, committee: &Committee) -> Stake {
@@ -90,7 +79,6 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
     pub(crate) fn clear(&mut self) {
         self.votes.clear();
         self.stake = 0;
-        self.committed = false;
     }
 }
 

@@ -69,7 +69,7 @@ fn assert_direct_commit_metastate(
     expected: Option<CommitMetastate>,
 ) {
     match committer.try_direct_decide(slot) {
-        LeaderStatus::Commit(_, metastate) => assert_eq!(metastate, expected),
+        LeaderStatus::Commit(_, metastate, _) => assert_eq!(metastate, expected),
         status => panic!("expected Commit, got {status}"),
     }
 }
@@ -375,7 +375,7 @@ async fn determine_metastate_pending_when_equivocating_strong_vote_is_filtered()
     );
 
     match committer.try_direct_decide(leader_slot) {
-        LeaderStatus::Commit(block, metastate) => {
+        LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference(), leader_a_ref);
             assert_eq!(metastate, Some(CommitMetastate::Pending));
         }
@@ -413,7 +413,7 @@ async fn determine_metastate_pending_when_equivocating_strong_blame_is_filtered(
     );
 
     match committer.try_direct_decide(leader_slot) {
-        LeaderStatus::Commit(block, metastate) => {
+        LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference(), leader_a_ref);
             assert_eq!(metastate, Some(CommitMetastate::Pending));
         }
@@ -518,10 +518,10 @@ async fn indirect_metastate_optimistic_when_anchor_path_contains_strong_qc() {
         .write()
         .accept_block_header(anchor.clone(), DataSource::Test);
 
-    let anchor_status = LeaderStatus::Commit(anchor, None);
+    let anchor_status = LeaderStatus::Commit(anchor, None, vec![]);
     let current = LeaderStatus::Undecided(leader_slot);
     match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
-        LeaderStatus::Commit(block, metastate) => {
+        LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);
             assert_eq!(metastate, Some(CommitMetastate::Optimistic));
@@ -553,10 +553,10 @@ async fn indirect_metastate_standard_when_strong_qc_outside_anchor_path() {
         .write()
         .accept_block_header(anchor.clone(), DataSource::Test);
 
-    let anchor_status = LeaderStatus::Commit(anchor, None);
+    let anchor_status = LeaderStatus::Commit(anchor, None, vec![]);
     let current = LeaderStatus::Undecided(leader_slot);
     match committer.try_indirect_decide(current, std::iter::once(&anchor_status)) {
-        LeaderStatus::Commit(block, metastate) => {
+        LeaderStatus::Commit(block, metastate, _) => {
             assert_eq!(block.reference().round, leader_slot.round);
             assert_eq!(block.reference().author, leader_slot.authority);
             assert_eq!(metastate, Some(CommitMetastate::Standard));
@@ -575,10 +575,10 @@ async fn leader_status_is_final_classification() {
         .expect("round-1 block exists");
 
     let slot = Slot::new(3, AuthorityIndex::from(0u8));
-    assert!(!LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending)).is_final());
-    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic)).is_final());
-    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard)).is_final());
-    assert!(LeaderStatus::Commit(block, None).is_final());
+    assert!(!LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_final());
+    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![]).is_final());
+    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_final());
+    assert!(LeaderStatus::Commit(block, None, vec![]).is_final());
     assert!(LeaderStatus::Skip(slot).is_final());
     assert!(!LeaderStatus::Undecided(slot).is_final());
 }
@@ -610,7 +610,7 @@ fn round_3_metastate(
         .find(|d| d.slot() == slot)
         .expect("round-3 leader should be decided");
     match decided {
-        DecidedLeader::Commit(_, m) => *m,
+        DecidedLeader::Commit(_, m, _) => *m,
         other => panic!("expected round-3 Commit, got {other:?}"),
     }
 }
