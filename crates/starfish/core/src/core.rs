@@ -852,11 +852,14 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self.dag_state.write().take_acknowledgments(
-            self.context
-                .protocol_config
-                .consensus_max_acknowledgments_per_block_or_default() as usize,
-        );
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(self.context.committee.size());
+        let acknowledgments = self
+            .dag_state
+            .write()
+            .take_acknowledgments(max_acknowledgments);
 
         self.context
             .metrics
@@ -1879,11 +1882,11 @@ mod test {
             }
         }
 
-        // Second set dummy acknowledgments in DagState. First 200 acknowledgments are
-        // from eligible round; the rest are from the clock round, thereby they
-        // will not be taken when creating a block
+        // Second set dummy acknowledgments in DagState. First `num_acks`
+        // acknowledgments are from an eligible round; the rest are from the
+        // clock round, thereby they will not be taken when creating a block.
         let mut acknowledgments = vec![];
-        let num_acks = 200;
+        let num_acks = 2 * context.committee.size();
         let mut num_pending_acks = 0;
         let mut rng = &mut rand::thread_rng();
         loop {
