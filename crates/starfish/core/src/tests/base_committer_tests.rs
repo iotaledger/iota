@@ -55,7 +55,7 @@ async fn try_direct_commit() {
         tracing::info!("Leader commit status: {leader_status}");
 
         if round < incomplete_wave_leader_round {
-            if let LeaderStatus::Commit(ref committed_block) = leader_status {
+            if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
                 assert_eq!(committed_block.author(), leader.authority)
             } else {
                 panic!("Expected a committed leader at round {round}")
@@ -99,7 +99,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref block) = leader_status {
+    if let LeaderStatus::Commit(ref block, _) = leader_status {
         assert_eq!(block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -110,7 +110,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -150,7 +150,7 @@ async fn multiple_direct_commit() {
         let leader_status = committer.try_direct_decide(leader);
         tracing::info!("Leader commit status: {leader_status}");
 
-        if let LeaderStatus::Commit(ref committed_block) = leader_status {
+        if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
             assert_eq!(committed_block.author(), leader.authority)
         } else {
             panic!("Expected a committed leader")
@@ -314,7 +314,7 @@ async fn indirect_commit() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_2.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -344,10 +344,13 @@ async fn indirect_commit() {
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.
     tracing::info!("Try indirect commit for leader {leader_wave_1}",);
-    let leader_status = committer.try_indirect_decide(leader_wave_1, decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_1),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority)
     } else {
         panic!("Expected a committed leader")
@@ -433,7 +436,7 @@ async fn indirect_skip() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -459,7 +462,10 @@ async fn indirect_skip() {
 
     // 3. Ensure we skip leader of wave 2 indirectly.
     tracing::info!("Try indirect commit for leader {leader_wave_2}",);
-    let leader_status = committer.try_indirect_decide(leader_wave_2, decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_2),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Skip(skipped_slot) = leader_status {
@@ -477,7 +483,7 @@ async fn indirect_skip() {
     let leader_status = committer.try_direct_decide(leader_wave_1);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority);
     } else {
         panic!("Expected a committed leader")
@@ -560,7 +566,8 @@ async fn undecided() {
     // Ensure we indirectly mark leader of wave 1 undecided as there is no anchor
     // to make an indirect decision.
     tracing::info!("Try indirect commit for leader {leader_wave_1}");
-    let leader_status = committer.try_indirect_decide(leader_wave_1, [].iter());
+    let leader_status =
+        committer.try_indirect_decide(LeaderStatus::Undecided(leader_wave_1), [].iter());
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Undecided(undecided_slot) = leader_status {
@@ -729,7 +736,7 @@ async fn test_byzantine_direct_commit() {
     let leader_status = committer.try_direct_decide(leader_wave_4);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_4.authority);
     } else {
         panic!("Expected a committed leader")
