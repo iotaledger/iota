@@ -155,11 +155,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                     >= highest_verified_checkpoint)
                 || should_send_last_report)
         {
-            let misbehavior_report = epoch_store
-                .misbehavior_monitor
-                .current_local_metrics_count
-                .load()
-                .to_report();
+            let misbehavior_report = epoch_store.misbehavior_monitor.generate_report();
             let new_report_summary = misbehavior_report.summary();
             if new_report_summary != epoch_store.scorer.last_report_summary()
                 || should_send_last_report
