@@ -55,16 +55,19 @@ impl ReportAggregator {
     /// Processes a validated report from a peer: converts it to
     /// `MisbehaviorCounts` and performs a monotone merge (element-wise max)
     /// with any previously received counts from the same authority.
+    ///
+    /// Uses `rcu` so the load + merge + store is atomic against concurrent
+    /// callers; the closure may run more than once under contention.
     pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
         let incoming_counts =
             MisbehaviorCounts::from_report(report, self.config.reported_misbehaviors());
         let state = &self.received_reports_state[authority as usize];
-        let current = state.received_metrics.load();
-        let updated = match current.as_deref() {
-            Some(counts) => counts.merge_max(&incoming_counts),
-            None => incoming_counts,
-        };
-        state.received_metrics.store(Some(Arc::new(updated)));
+        state.received_metrics.rcu(|current| {
+            Some(Arc::new(match current.as_deref() {
+                Some(counts) => counts.merge_max(&incoming_counts),
+                None => incoming_counts.clone(),
+            }))
+        });
     }
 
     /// Increments the invalid report counter for the given authority.
