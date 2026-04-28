@@ -90,9 +90,9 @@ impl ValidatorService {
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
 
-        // Drive up to `MAX_CONCURRENT_SUBMIT_TASKS` per-tx futures concurrently
-        // on a single task; the rest wait in the iterator. Results are forwarded
-        // to the client stream in completion order.
+        // Run per-tx tasks concurrently, capped by `MAX_CONCURRENT_SUBMIT_TASKS`.
+        // Spawning lets CPU-heavy work run across worker threads; `buffer_unordered`
+        // forwards results as tasks complete.
         spawn_monitored_task!(async move {
             let mut in_flight = stream::iter(transactions)
                 .map(move |transaction| {
@@ -100,7 +100,7 @@ impl ValidatorService {
                     let epoch_store = epoch_store.clone();
                     let consensus_adapter = consensus_adapter.clone();
                     let metrics = metrics.clone();
-                    async move {
+                    spawn_monitored_task!(async move {
                         let tx_digest = *transaction.digest();
                         let (update, weight) = Self::submit_single_tx(
                             &state,
@@ -110,14 +110,19 @@ impl ValidatorService {
                             transaction,
                         )
                         .await;
-                        Ok(((tx_digest, update), weight))
-                    }
+                        ((tx_digest, update), weight)
+                    })
                 })
-                .buffer_unordered(MAX_CONCURRENT_SUBMIT_TASKS);
+                .buffer_unordered(MAX_CONCURRENT_SUBMIT_TASKS)
+                .map(|join_res| {
+                    join_res.map_err(|e| {
+                        tonic::Status::internal(format!("submit_single_tx task failed: {e}"))
+                    })
+                });
 
             while let Some(item) = in_flight.next().await {
-                // Stop on client disconnect; remaining in-flight futures are
-                // dropped when this task ends.
+                // Stop forwarding on client disconnect; in-flight tasks still
+                // run to completion (dropping a JoinHandle doesn't cancel).
                 if tx_sender.send(item).await.is_err() {
                     break;
                 }
