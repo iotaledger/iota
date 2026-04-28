@@ -24,7 +24,8 @@ use iota_types::{
     is_system_package,
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun, is_view_function_from_fn_info
+        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        is_view_function_from_fn_info,
     },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
