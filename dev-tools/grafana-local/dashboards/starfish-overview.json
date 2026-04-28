@@ -784,7 +784,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.05, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -795,7 +795,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.5, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -806,7 +806,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.95, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -900,7 +900,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p5",
           "range": true,
           "refId": "A"
@@ -911,7 +911,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p50",
           "range": true,
           "refId": "B"
@@ -922,7 +922,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_commit_latency_sum[5m]) / rate(consensus_block_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
           "legendFormat": "p95",
           "range": true,
           "refId": "C"
@@ -1015,7 +1015,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
+          "expr": "quantile(0.5, rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
           "legendFormat": "p50",
           "range": true,
           "refId": "A"
@@ -1026,7 +1026,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
+          "expr": "quantile(0.05, rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
           "legendFormat": "p5",
           "range": true,
           "refId": "C"
@@ -2634,7 +2634,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[2m]) or rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -2733,7 +2733,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[2m])\n  or rate(consensus_accepted_block_headers{source=\"own\"}[2m])\n",
+              "expr": "rate(consensus_accepted_block_headers{source=\"own\"}[2m])\n",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -2933,7 +2933,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -3029,7 +3029,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -6691,7 +6691,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m])",
+              "expr": "rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -7488,7 +7488,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"own\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -7586,7 +7586,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[2m]) or rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
