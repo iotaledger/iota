@@ -6024,10 +6024,7 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_types::{
-        base_types::{AuthorityName, ObjectID},
-        is_system_package,
-    };
+    use iota_types::base_types::{AuthorityName, ObjectID};
     use move_binary_format::CompiledModule;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
