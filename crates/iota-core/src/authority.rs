@@ -1150,9 +1150,12 @@ impl AuthorityState {
                     self.update_overload_metrics("consensus");
                 })?;
 
-            // Binary hard cutoff as defense-in-depth: graduated shedding at 100%
-            // already rejects everything at or above `max_pending_transactions`,
-            // so this check is redundant but kept as a safeguard.
+            // NOTE: graduated shedding at 100% already rejects everything at or above
+            // `max_pending_transactions`, so the queue-length part of the check below
+            // is redundant but harmless. But `check_consensus_overload()` should be
+            // kept here because it also verifies that `submit_semaphore` has permits
+            // (see `check_consensus_limits` in consensus_adapter.rs), which is a
+            // separate concurrency limit not covered by the graduated shedding.
             consensus_adapter.check_consensus_overload().tap_err(|_| {
                 self.update_overload_metrics("consensus");
             })?;
