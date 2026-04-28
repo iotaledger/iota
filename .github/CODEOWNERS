@@ -116,16 +116,12 @@
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
 
-# Docs and examples are for DevRel to approve upon
-/docs/ @iotaledger/devrel
-/examples/ @iotaledger/devrel
-
 # CI Taskforce
-/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
-/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/actions/ @alexsporn @thibault-martinez @DaughterOfMars @muXxer
+/.github/workflows/ @alexsporn @thibault-martinez @DaughterOfMars @muXxer
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
-/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn @muXxer
 
 # Scripts
 /scripts/cargo_sort/ @muXxer
@@ -141,3 +137,7 @@
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml
+
+# Disable fallback code ownership for docs and examples
+/docs/
+/examples/
