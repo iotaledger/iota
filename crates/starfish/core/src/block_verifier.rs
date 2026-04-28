@@ -150,13 +150,33 @@ impl BlockVerifier for SignedBlockVerifier {
                 });
             }
         }
+        let block_restrictions = self.context.protocol_config.consensus_block_restrictions();
+        let gc_depth = self.context.protocol_config.gc_depth();
+        let min_ref_round = block.round().saturating_sub(gc_depth);
         for acknowledgment in block.acknowledgments() {
             ConsensusError::quick_validation_authority_indices(
                 &[acknowledgment.author],
                 committee,
             )?;
+            if block_restrictions {
+                if acknowledgment.round >= block.round() {
+                    return Err(ConsensusError::InvalidAcknowledgmentRound {
+                        acknowledgment: acknowledgment.round,
+                        block: block.round(),
+                    });
+                }
+                if acknowledgment.round < min_ref_round {
+                    return Err(ConsensusError::AcknowledgmentRoundTooOld {
+                        acknowledgment: acknowledgment.round,
+                        block: block.round(),
+                        gc_depth,
+                    });
+                }
+            }
         }
 
+        let check_ancestor_lower_bound =
+            block_restrictions && self.context.protocol_config.consensus_fast_commit_sync();
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
@@ -174,6 +194,16 @@ impl BlockVerifier for SignedBlockVerifier {
                 return Err(ConsensusError::InvalidAncestorRound {
                     ancestor: ancestor.round,
                     block: block.round(),
+                });
+            }
+            // Skip the gc_depth lower bound for the author's own ancestor
+            // (i == 0): the proposer always includes its last proposed block
+            // regardless of gap so a recovered node can catch up.
+            if check_ancestor_lower_bound && i > 0 && ancestor.round < min_ref_round {
+                return Err(ConsensusError::AncestorRoundTooOld {
+                    ancestor: ancestor.round,
+                    block: block.round(),
+                    gc_depth,
                 });
             }
             if ancestor.round == GENESIS_ROUND && !self.genesis.contains(ancestor) {
@@ -500,6 +530,97 @@ pub(crate) mod test {
                 verifier.verify(&signed_block),
                 Err(ConsensusError::DuplicatedAncestorsAuthority(_))
             ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_block_round_gap() {
+        let (mut context, keypairs) = Context::new_for_test(4);
+        // Small gc_depth so we can construct violations without huge round
+        // numbers. consensus_fast_commit_sync must be on for the ancestor
+        // lower-bound check to fire.
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(5);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        let context = Arc::new(context);
+        let authority_2_protocol_keypair = &keypairs[2].1;
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
+
+        // Acknowledgment at the block's round.
+        {
+            let block = test_block
+                .clone()
+                .set_acknowledgments(vec![BlockRef::new(
+                    10,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                )])
+                .build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::InvalidAcknowledgmentRound { .. })
+            ));
+        }
+
+        // Acknowledgment older than gc_depth (block 10 - gc_depth 5 = 5).
+        {
+            let block = test_block
+                .clone()
+                .set_acknowledgments(vec![BlockRef::new(
+                    4,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                )])
+                .build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::AcknowledgmentRoundTooOld { .. })
+            ));
+        }
+
+        // Non-own ancestor older than gc_depth.
+        {
+            let block = test_block
+                .clone()
+                .set_ancestors(vec![
+                    BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                    BlockRef::new(2, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+                ])
+                .build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::AncestorRoundTooOld { .. })
+            ));
+        }
+
+        // Author's own ancestor older than gc_depth is allowed (catch-up).
+        {
+            let block = test_block
+                .clone()
+                .set_ancestors(vec![
+                    BlockRef::new(2, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                    BlockRef::new(9, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+                ])
+                .build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            verifier.verify(&signed_block).unwrap();
         }
     }
 }
