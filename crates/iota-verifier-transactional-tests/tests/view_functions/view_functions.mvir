@@ -1,0 +1,122 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// View function attributes can be injected into MVIR tests with
+// --view-functions so the bytecode verifier sees the same metadata produced
+// by source #[view] attributes.
+
+//# publish --view-functions valid_view
+module 0x0.m {
+    public valid_view(value: u64): u64 {
+        label l0:
+        return move(value);
+    }
+}
+
+//# publish --view-functions private_view
+module 0x0.m {
+    private_view(): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions no_return
+module 0x0.m {
+    public no_return() {
+        label l0:
+        return;
+    }
+}
+
+//# publish --view-functions store_type_parameter
+module 0x0.m {
+    public store_type_parameter<T:store>(value: T): bool {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions mutable_reference_parameter
+module 0x0.m {
+    public mutable_reference_parameter(value: &mut u64): bool {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public object_by_value(object: Self.Object): bool {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions immutable_object_reference
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public immutable_object_reference(object: &Self.Object): bool {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions nested_object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public nested_object_by_value(objects: vector<vector<Self.Object>>): bool {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions object_return
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public object_return(): Self.Object {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions store_only_return
+module 0x0.m {
+    struct StoreOnly has store {
+        value: u64,
+    }
+
+    public store_only_return(): Self.StoreOnly {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions missing_view
+module 0x0.m {
+    public existing_function(): u64 {
+        label l0:
+        abort 0;
+    }
+}

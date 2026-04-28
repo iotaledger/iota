@@ -1,0 +1,60 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 11 tasks
+
+task 0, lines 8-14:
+//# publish --view-functions valid_view
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3769600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 1, lines 16-22:
+//# publish --view-functions private_view
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("View function 'private_view' must be public"), command: Some(0) } }
+
+task 2, lines 24-30:
+//# publish --view-functions no_return
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("View function 'no_return' must return at least one value"), command: Some(0) } }
+
+task 3, lines 32-38:
+//# publish --view-functions store_type_parameter
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("View function 'store_type_parameter' type parameter 0 must have the 'copy' or 'drop' ability"), command: Some(0) } }
+
+task 4, lines 40-46:
+//# publish --view-functions mutable_reference_parameter
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function parameter type: &mut u64. View functions cannot accept mutable references."), command: Some(0) } }
+
+task 5, lines 48-60:
+//# publish --view-functions object_by_value
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function parameter type: _::m::Object. View functions cannot accept objects or values that could contain objects by value."), command: Some(0) } }
+
+task 6, lines 62-74:
+//# publish --view-functions immutable_object_reference
+created: object(7,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4985600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 7, lines 76-88:
+//# publish --view-functions nested_object_by_value
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function parameter type: vector<vector<_::m::Object>>. View functions cannot accept objects or values that could contain objects by value."), command: Some(0) } }
+
+task 8, lines 90-102:
+//# publish --view-functions object_return
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function return type: _::m::Object. View functions cannot return objects or values that could contain objects."), command: Some(0) } }
+
+task 9, lines 104-114:
+//# publish --view-functions store_only_return
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function return type: _::m::StoreOnly. View functions cannot return objects or values that could contain objects."), command: Some(0) } }
+
+task 10, lines 116-122:
+//# publish --view-functions missing_view
+Error: Could not find function 'missing_view' requested by --view-functions
