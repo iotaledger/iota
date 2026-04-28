@@ -1315,6 +1315,7 @@ pub struct ProtocolConfig {
     /// component is created, having access to metrics and being able to expose
     /// validator scores.
     scorer_version: Option<u16>,
+    misbehavior_monitor_version: Option<u16>,
 
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
@@ -2247,6 +2248,7 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             scorer_version: None,
+            misbehavior_monitor_version: None,
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
