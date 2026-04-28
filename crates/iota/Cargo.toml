@@ -17,7 +17,8 @@ anyhow.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
 aws-config.workspace = true
-aws-sdk-kms = { version = "1.44.0", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-kms = { version = "1.44.0", default-features = false, features = ["rt-tokio"] }
+aws-smithy-http-client.workspace = true
 bcs.workspace = true
 bip32.workspace = true
 blake2 = { version = "0.10", optional = true }
