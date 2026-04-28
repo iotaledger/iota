@@ -666,7 +666,7 @@ pub struct AuthorityPerEpochStore {
     /// and persists across epochs, while a new `AuthorityPerEpochStore` is
     /// created on each epoch change — so the wiring happens after construction
     /// in `start_epoch_specific_validator_components`. Left empty in tests.
-    soft_locks: OnceCell<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
+    soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
@@ -1676,9 +1676,13 @@ impl AuthorityPerEpochStore {
 
     /// Sets the pre-consensus soft lock table. Called once during validator
     /// setup when white-flag flow is enabled.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance when
+    /// white-flag flow is enabled.
     pub fn set_soft_locks(
         &self,
-        soft_locks: Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
     ) {
         self.soft_locks
             .set(soft_locks)
@@ -3425,20 +3429,17 @@ impl AuthorityPerEpochStore {
         // white-flag path without a validator service take this branch
         // harmlessly.
         if !soft_lock_release_tx_digests.is_empty() {
-            match self.soft_locks.get() {
-                Some(soft_locks) => {
-                    for digest in &soft_lock_release_tx_digests {
-                        soft_locks.release(digest);
-                    }
+            if let Some(soft_locks) = self.soft_locks.get() {
+                for digest in &soft_lock_release_tx_digests {
+                    soft_locks.release(digest);
                 }
-                None => {
-                    error!(
-                        count = soft_lock_release_tx_digests.len(),
-                        "white-flag flow produced soft-lock release digests but \
+            } else {
+                error!(
+                    count = soft_lock_release_tx_digests.len(),
+                    "white-flag flow produced soft-lock release digests but \
                          soft_locks OnceCell was never set — wiring bug in \
                          start_epoch_specific_validator_components"
-                    );
-                }
+                );
             }
         }
 

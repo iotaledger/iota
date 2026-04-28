@@ -102,7 +102,7 @@ pub async fn validate_and_resolve_conflicts(
     let mut keep = vec![true; transactions.len()];
     // All UserTransactionV1 digests seen in this commit (both kept and dropped),
     // used by the caller to release pre-consensus soft locks.
-    let mut all_user_tx_digests: Vec<TransactionDigest> = Vec::new();
+    let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
