@@ -602,9 +602,15 @@ async fn leader_status_is_final_classification() {
         .expect("round-1 block exists");
 
     let slot = Slot::new(3, AuthorityIndex::from(0u8));
-    assert!(!LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_final());
-    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![]).is_final());
-    assert!(LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_final());
+    assert!(
+        !LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Pending), vec![]).is_final()
+    );
+    assert!(
+        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Optimistic), vec![]).is_final()
+    );
+    assert!(
+        LeaderStatus::Commit(block.clone(), Some(CommitMetastate::Standard), vec![]).is_final()
+    );
     assert!(LeaderStatus::Commit(block, None, vec![]).is_final());
     assert!(LeaderStatus::Skip(slot).is_final());
     assert!(!LeaderStatus::Undecided(slot).is_final());

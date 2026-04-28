@@ -976,7 +976,11 @@ impl Display for CommitMetastate {
 #[cfg(test)]
 pub(crate) fn with_no_metastate(
     blocks: Vec<VerifiedBlockHeader>,
-) -> Vec<(VerifiedBlockHeader, Option<CommitMetastate>, Vec<AuthorityIndex>)> {
+) -> Vec<(
+    VerifiedBlockHeader,
+    Option<CommitMetastate>,
+    Vec<AuthorityIndex>,
+)> {
     blocks.into_iter().map(|b| (b, None, Vec::new())).collect()
 }
 

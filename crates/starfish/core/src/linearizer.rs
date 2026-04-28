@@ -1212,11 +1212,8 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=5)
-            .build()
-            .persist_layers(dag_state.clone());
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
 
         let leader = dag_builder
             .leader_block(5)
@@ -1284,11 +1281,8 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=7)
-            .build()
-            .persist_layers(dag_state.clone());
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=7).build().persist_layers(dag_state);
 
         // First commit: L_a at round 4 with Optimistic metastate.
         let leader_a = dag_builder
@@ -1361,11 +1355,8 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=5)
-            .build()
-            .persist_layers(dag_state.clone());
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
 
         let leader = dag_builder
             .leader_block(5)
@@ -1373,8 +1364,11 @@ mod tests {
         let leader_ref = leader.reference();
         let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
 
-        let commits = linearizer
-            .get_pending_sub_dags(vec![(leader, Some(CommitMetastate::Standard), vec![])]);
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Standard),
+            vec![],
+        )]);
         assert_eq!(commits.len(), 1);
         let standard_refs = &commits[0].committed_transaction_refs;
         let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
@@ -1410,11 +1404,8 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder
-            .layers(1..=5)
-            .build()
-            .persist_layers(dag_state.clone());
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
 
         let leader = dag_builder
             .leader_block(5)
@@ -1426,9 +1417,8 @@ mod tests {
         // should land in the tracker as actual votes for the leader's ref and
         // for every block the leader acknowledges, so that
         // `get_transaction_ack_authors` returns them as fetch sources.
-        let strong_voters: BTreeSet<AuthorityIndex> = (0..3u8)
-            .map(AuthorityIndex::new_for_test)
-            .collect();
+        let strong_voters: BTreeSet<AuthorityIndex> =
+            (0..3u8).map(AuthorityIndex::new_for_test).collect();
         let commits = linearizer.get_pending_sub_dags(vec![(
             leader,
             Some(CommitMetastate::Optimistic),
@@ -1436,8 +1426,8 @@ mod tests {
         )]);
         assert_eq!(commits.len(), 1);
 
-        let ack_authors = linearizer
-            .get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
+        let ack_authors =
+            linearizer.get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
 
         let leader_generic = ack_authors
             .iter()
