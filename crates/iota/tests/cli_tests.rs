@@ -3888,7 +3888,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
 }
 
 async fn test_with_iota_binary(args: &[&str]) -> Result<(), anyhow::Error> {
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("iota");
+    let mut cmd = assert_cmd::Command::cargo_bin("iota").unwrap();
     let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     // test cluster will not response if this call is in the same thread
     let out = thread::spawn(move || cmd.args(args).assert());
@@ -3969,7 +3969,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
 #[tokio::test]
 async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
     const LINTER_MSG: &str = "Total number of linter warnings suppressed: 5 (unique lints: 3)";
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("iota");
+    let mut cmd = assert_cmd::Command::cargo_bin("iota").unwrap();
     let args = vec!["move", "test", "--path", "tests/data/linter"];
     let output = cmd
         .args(&args)
