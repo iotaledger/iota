@@ -13,7 +13,6 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentScope;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -334,14 +333,6 @@ impl VersionedMisbehaviorReport {
         summary
     }
 
-    pub fn is_valid_version(&self, protocol_config: &ProtocolConfig) -> bool {
-        let scorer_version = protocol_config.scorer_version_as_option();
-        match (self, scorer_version) {
-            (VersionedMisbehaviorReport::V1(_, _), None) => true,
-            (VersionedMisbehaviorReport::V1(_, _), Some(1)) => true,
-            (VersionedMisbehaviorReport::V1(_, _), _) => false,
-        }
-    }
 }
 
 // MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
