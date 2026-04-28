@@ -161,6 +161,7 @@ impl From<Error> for RpcError {
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
+                    | QuorumDriverError::InvalidTransaction { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned::<()>(

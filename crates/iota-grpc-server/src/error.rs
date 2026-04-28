@@ -293,6 +293,16 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 };
                 RpcError::new(Code::InvalidArgument, message)
             }
+            InvalidTransaction(err) => {
+                let message = {
+                    let err = match err {
+                        IotaError::UserInput { error } => error.to_string(),
+                        _ => err.to_string(),
+                    };
+                    format!("Invalid transaction: {err}")
+                };
+                RpcError::new(Code::InvalidArgument, message)
+            }
             QuorumDriverInternal(err) => RpcError::new(Code::Internal, err.to_string()),
             ObjectsDoubleUsed { conflicting_txes } => {
                 let new_map = conflicting_txes
