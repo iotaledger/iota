@@ -392,45 +392,6 @@ On exit, `run-all-fuzz.sh`:
 
 ---
 
-## Batch Script: `dual-run.sh`
-
-`dual-run.sh` runs a sweep of fuzz experiments over a list of disruption parameters.
-
-It:
-
-- Builds all Docker images once (`iota-node`, `iota-tools`, `iota-indexer`)
-- Runs several steps defined by parameter lists:
-
-  ```bash
-  R_LIST=(25 26 33 33)   # % restarts
-  X_LIST=(10 15 10 10)   # % blocked pairs
-  L_LIST=(10 15 10 10)   # % packet loss
-  ```
-
-Each step executes one run with `(r, x, l)`, then pauses before the next step.
-
-Global defaults (inside the script):
-
-```bash
-NUM_VALIDATORS=10
-TOPOLOGY="ring"
-DURATION=3600
-SPAMMER=true
-SPAMMER_TPS=100
-FUZZ_ROUND_SPAN=300
-HEAL_EVERY_ROUND=2
-```
-
-Run from `experiments/`:
-
-```bash
-./dual-run.sh
-```
-
-This produces a sequence of fuzz experiments covering the configured disruption settings.
-
----
-
 ## Rolling Migration Test: `run-migration-test.py`
 
 `run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies network latency, performs a mid-epoch rolling upgrade, and then stress-tests restarts (keep-DB and wipe-DB) over multiple epochs.
