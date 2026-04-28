@@ -16,7 +16,7 @@ use tokio::{
     process::Command,
     sync::Mutex,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::types::{BuildCacheResponse, BuildJob, BuildResponse, BuildStatus};
 
@@ -696,6 +696,23 @@ impl BuildCache {
         } else {
             None
         };
+
+        // Ensure rustfmt is installed for the current toolchain (some build.rs
+        // scripts need it)
+        let rustfmt_output = Command::new("rustup")
+            .args(["component", "add", "rustfmt"])
+            .current_dir(repo_path)
+            .output()
+            .await;
+
+        if let Ok(output) = rustfmt_output {
+            if !output.status.success() {
+                warn!(
+                    "Failed to install rustfmt: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
 
         // Build each binary
         for binary in binaries {
