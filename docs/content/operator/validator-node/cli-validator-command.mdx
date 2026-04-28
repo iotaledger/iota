@@ -297,4 +297,99 @@ sleep 2
 iota validator display-metadata
 ```
 
+## Run the Validator Node and Earn Rewards
+
+The flow above only registers the candidate on-chain. To enter the committee and earn rewards, an `iota-node` process must run with the keys from `make-validator-info` and be online at the next epoch boundary. This requires two adjustments: persistent genesis (so the node can load `genesis.blob` from disk), and splitting the stake into a separate coin so the minimum joining stake (2,000,000 IOTA) is paid exactly and gas is available.
+
+**Prerequisite:** `iota-node` must be on your `PATH`. Build and install it from the iota monorepo root with `cargo install --path crates/iota-node`.
+
+See [Validator Node Configuration](configuration.mdx) for the full `validator.yaml` reference.
+
+**First terminal — localnet:**
+
+```bash
+WORK=/tmp/iota-localnet-validator
+rm -rf $WORK
+mkdir -p $WORK/keys $WORK/db $WORK/iota-config
+iota-localnet genesis -f --working-dir $WORK/iota-config \
+  --with-faucet --committee-size 1 --epoch-duration-ms 10000
+RUST_LOG="info,starfish_core=warn,iota_core=warn" iota-localnet start --network.config $WORK/iota-config \
+  --with-faucet --faucet-amount 2600000000000000
+```
+
+**Second terminal — register, run, verify.** The whole block is wrapped in `( ... )` so `set -e` aborts only the subshell on error.
+
+```bash
+WORK=/tmp/iota-localnet-validator
+(
+set -euo pipefail
+
+# Fund the candidate, register, stake exactly 2,000,000 IOTA.
+iota client switch --env localnet
+iota client faucet --url http://127.0.0.1:9123/gas
+sleep 3
+( cd $WORK/keys && iota validator make-validator-info validator0 description \
+    https://iota.org/logo.png https://www.iota.org 127.0.0.1 )
+( cd $WORK/keys && iota validator become-candidate validator.info )
+GAS=$(iota client gas --json | jq -r '.[0].gasCoinId')
+STAKE_COIN=$(iota client split-coin --coin-id $GAS --amounts 2000000000000000 \
+    --gas-budget 10000000 --json \
+    | jq -r '.objectChanges[] | select(.type == "created") | .objectId' | head -n1)
+ADDR=$(iota client active-address)
+iota client call --package 0x3 --module iota_system --function request_add_stake \
+    --args 0x5 $STAKE_COIN $ADDR --gas-budget 10000000
+
+# Materialise validator.yaml. make-validator-info hard-codes 8080/8084;
+# 9100/9194/1338 avoid the localnet fullnode's 9000/9184/1337 defaults.
+GEN_VAL=$(find $WORK/iota-config -maxdepth 1 -type f -name "*.yaml" \
+    ! -name "client.yaml" ! -name "fullnode.yaml" ! -name "network.yaml" | head -n1)
+SEED=$(yq -r '.p2p-config.external-address' "$GEN_VAL")
+cat > $WORK/validator.yaml <<EOF
+authority-key-pair: { path: $WORK/keys/authority.key }
+protocol-key-pair:  { path: $WORK/keys/protocol.key }
+network-key-pair:   { path: $WORK/keys/network.key }
+account-key-pair:   { path: $WORK/keys/account.key }
+db-path: $WORK/db/authorities_db
+consensus-config: { db-path: $WORK/db/consensus_db }
+network-address: /ip4/0.0.0.0/tcp/8080/http
+p2p-config:
+  listen-address: 0.0.0.0:8084
+  external-address: /ip4/127.0.0.1/udp/8084
+  seed-peers:
+    - address: $SEED
+json-rpc-address: 127.0.0.1:9100
+metrics-address: 127.0.0.1:9194
+admin-interface-address: 127.0.0.1:1338
+genesis: { genesis-file-location: $WORK/iota-config/genesis.blob }
+EOF
+
+# Start the node before joining so it is online when the candidate is promoted.
+RUST_LOG="info,starfish_core=warn,iota_core=warn" \
+  iota-node --config-path "$WORK/validator.yaml" &
+sleep 5
+iota validator join-validators
+
+# Validator activates at the next epoch boundary; rewards land at the boundary
+# after that. With a 60s epoch this takes roughly two minutes.
+state() { curl -s -X POST -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"iotax_getLatestIotaSystemState","params":[]}' \
+  http://127.0.0.1:9000; }
+BASE=$(state | jq -r '.result.epoch'); LAST=-1
+while :; do
+  S=$(state); E=$(echo "$S" | jq -r '.result.epoch')
+  BAL=$(echo "$S" | jq -r --arg a "$ADDR" '.result.activeValidators[]
+    | select(.iotaAddress == $a) | .stakingPoolIotaBalance // "0"')
+  [ "$E" != "$LAST" ] && { echo "epoch=$E stakingPoolIotaBalance=$BAL"; LAST=$E; }
+  [ "$BAL" -gt 2000000000000000 ] && { echo "PASS"; break; }
+  [ $((E - BASE)) -ge 4 ] && { echo "FAIL: no rewards"; break; }
+  sleep 3
+done
+)
+
+# Stop the node when done; localnet keeps running in terminal 1.
+# pkill -f "iota-node --config-path $WORK/validator.yaml"
+```
+
+A successful run prints `epoch=` lines and ends with `PASS` once the validator's `stakingPoolIotaBalance` grows past the initial 2,000,000 IOTA. You can also view the validator set in the [explorer](https://explorer.iota.org/validators?network=http%3A%2F%2F127.0.0.1%3A9000).
+
 <Quiz questions={questions} />
