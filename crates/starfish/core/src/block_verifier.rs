@@ -128,6 +128,18 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
+        if self.context.protocol_config.consensus_block_restrictions() {
+            let max_acknowledgments = self
+                .context
+                .protocol_config
+                .max_acknowledgments_per_block(committee.size());
+            if block.acknowledgments().len() > max_acknowledgments {
+                return Err(ConsensusError::TooManyAcknowledgments {
+                    count: block.acknowledgments().len(),
+                    max: max_acknowledgments,
+                });
+            }
+        }
         for acknowledgment in block.acknowledgments() {
             ConsensusError::quick_validation_authority_indices(
                 &[acknowledgment.author],
@@ -378,6 +390,32 @@ pub(crate) mod test {
             assert!(matches!(
                 verifier.verify(&signed_block),
                 Err(ConsensusError::TooManyAncestors(_, _))
+            ));
+        }
+
+        // Block with too many acknowledgments.
+        {
+            let committee_size = 4u8;
+            let max_acknowledgments = 2 * committee_size;
+            // Build acknowledgments at rounds (1..) that don't overlap with the
+            // ancestors above (rounds 7 and 9).
+            let acknowledgments = (0..=max_acknowledgments)
+                .map(|i| {
+                    BlockRef::new(
+                        (i / committee_size + 1) as u32,
+                        AuthorityIndex::new_for_test(i % committee_size),
+                        BlockHeaderDigest::MIN,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let block = test_block
+                .clone()
+                .set_acknowledgments(acknowledgments)
+                .build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::TooManyAcknowledgments { .. })
             ));
         }
 

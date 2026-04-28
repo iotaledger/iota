@@ -142,6 +142,9 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
