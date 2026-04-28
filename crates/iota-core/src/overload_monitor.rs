@@ -58,7 +58,7 @@ const SEED_UPDATE_DURATION_SECS: u64 = 30;
 /// Maximum shedding percentage for consensus queue length at the hard
 /// limit. Hard-coded to 100%: at or above the consensus queue hard
 /// limit, all transactions are rejected.
-const MAX_CONSENSUS_LOAD_SHED_PCT: u32 = 100;
+pub(super) const MAX_CONSENSUS_LOAD_SHED_PCT: u32 = 100;
 
 // Monitors the overload signals in `authority_state` periodically, and updates
 // its `overload_info` when the signals indicates overload.

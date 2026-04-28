@@ -72,6 +72,7 @@ use crate::{
         ConnectionMonitorStatusForTests, ConsensusAdapterMetrics, MockConsensusClient,
     },
     consensus_handler::SequencedConsensusTransaction,
+    overload_monitor::MAX_CONSENSUS_LOAD_SHED_PCT,
     test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
     transaction_input_loader::TransactionInputLoader,
 };
@@ -7091,7 +7092,7 @@ async fn test_single_authority_reconfigure() {
 
 /// Tests graduated load shedding based on the consensus queue length
 /// in the white-flag (certificate-less) path of
-/// `AuthorityState::check_system_overload()`. Verifies that:
+/// [`AuthorityState::check_system_overload`]. Verifies that:
 /// - below soft limit: all transactions are accepted
 /// - between soft and hard limit: some transactions are rejected
 /// - at/above hard limit: almost all transactions are rejected
@@ -7106,7 +7107,6 @@ async fn test_consensus_queue_graduated_load_shedding() {
 
     let hard_limit = 20_000;
     let soft_limit = hard_limit / 2;
-    let max_shedding_pct = 100;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
     authority_state
@@ -7158,15 +7158,15 @@ async fn test_consensus_queue_graduated_load_shedding() {
     }
 
     // Below, at, and above hard limit: metric should report the graduated
-    // percentage (capped at `max_shedding_pct` at/above hard limit).
+    // percentage (capped at `MAX_CONSENSUS_LOAD_SHED_PCT` at/above hard limit).
     // At 15_000: 100 * 5_000 / 10_000 = 50%. At/above 20_000: capped at 100%.
     // At 15_000, whether a specific tx is rejected depends on its digest, so
     // we check the metric instead. At/above the hard limit, rejection is
     // deterministic (100% graduated shedding, plus the binary cutoff above).
     for (num_inflight_txs, expected_pct, expect_err) in [
-        (15_000, 50, false),                      // graduated, non-deterministic
-        (hard_limit, max_shedding_pct, true),     // at hard limit: 100% shedding
-        (hard_limit + 1, max_shedding_pct, true), // above hard limit: binary cutoff rejects
+        (15_000, 50, false),                             // graduated, non-deterministic
+        (hard_limit, MAX_CONSENSUS_LOAD_SHED_PCT, true), // at hard limit: 100% shedding
+        (hard_limit + 1, MAX_CONSENSUS_LOAD_SHED_PCT, true), // above hard limit: 100% shedding
     ] {
         consensus_adapter.set_num_inflight_transactions_for_testing(num_inflight_txs as u64);
         let result = authority_state.check_system_overload(
