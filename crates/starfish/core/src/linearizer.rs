@@ -146,20 +146,15 @@ impl Linearizer {
         // the ref through the standard quorum path.
         if metastate == Some(CommitMetastate::Optimistic) {
             let leader_ref = leader_block.reference();
-            let refs =
-                std::iter::once(leader_ref).chain(leader_block.acknowledgments().iter().copied());
-            for block_ref in refs {
-                let entry = self
-                    .transactions_ack_tracker
-                    .entry(block_ref)
-                    .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
-                let was_at_threshold = entry.reached_threshold(&self.context.committee);
-                for authority in &strong_voters {
-                    entry.add(*authority, &self.context.committee);
-                }
-                if !was_at_threshold && entry.reached_threshold(&self.context.committee) {
-                    committed_transactions.push(block_ref);
-                }
+            let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                .chain(leader_block.acknowledgments().iter().copied())
+                .collect();
+            for strong_voter in &strong_voters {
+                committed_transactions.extend(self.add_committed_transaction_acks(
+                    leader_block.round() + 1,
+                    *strong_voter,
+                    refs.clone(),
+                ));
             }
         }
 
