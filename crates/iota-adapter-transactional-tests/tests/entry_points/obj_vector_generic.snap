@@ -38,7 +38,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, lines 125-129:
 //# run Test::M::child_access_any --sender A --type-args Test::M::Any --args object(4,0) vector[object(5,0)]
-Error: Error checking transaction input objects: Object object(5,0) is owned by object object(5,1). Objects owned by other objects cannot be used as input arguments
+Error: Error checking transaction input objects: Object ObjectId("object(5,0)") is owned by object ObjectId("object(5,1)"). Objects owned by other objects cannot be used as input arguments
 
 task 7, line 131:
 //# run Test::M::mint_another_any --type-args Test::M::Any --sender A --args 42

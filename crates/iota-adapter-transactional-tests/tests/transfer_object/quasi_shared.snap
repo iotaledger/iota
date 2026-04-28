@@ -44,7 +44,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 5, line 32:
 //# transfer-object 3,0 --sender A --recipient B
-Error: Error checking transaction input objects: Object object(3,0) is owned by object object(2,0). Objects owned by other objects cannot be used as input arguments
+Error: Error checking transaction input objects: Object ObjectId("object(3,0)") is owned by object ObjectId("object(2,0)"). Objects owned by other objects cannot be used as input arguments
 
 task 6, line 34:
 //# view-object 3,0
