@@ -56,7 +56,8 @@ impl ReportAggregator {
     /// `MisbehaviorCounts` and performs a monotone merge (element-wise max)
     /// with any previously received counts from the same authority.
     pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
-        let incoming_counts = MisbehaviorCounts::from(report);
+        let incoming_counts =
+            MisbehaviorCounts::from_report(report, self.config.reported_misbehaviors());
         let state = &self.received_reports_state[authority as usize];
         let current = state.received_metrics.load();
         let updated = match current.as_deref() {

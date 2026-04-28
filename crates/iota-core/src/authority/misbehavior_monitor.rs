@@ -85,7 +85,7 @@ impl MisbehaviorMonitor {
     pub fn generate_report(&self) -> VersionedMisbehaviorReport {
         self.current_local_counts
             .load()
-            .to_report(self.config.version())
+            .to_report(self.config.version(), self.config.reported_misbehaviors())
     }
 
     pub fn update_from_consensus_output(
