@@ -1394,4 +1394,73 @@ mod tests {
             );
         }
     }
+
+    #[tokio::test]
+    async fn test_optimistic_records_strong_voters_in_ack_tracker() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new(context.clone())),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+
+        // Synthetic strong-voter set: exactly 2f+1 (= 3) authorities. These
+        // should land in the tracker as actual votes for the leader's ref and
+        // for every block the leader acknowledges, so that
+        // `get_transaction_ack_authors` returns them as fetch sources.
+        let strong_voters: BTreeSet<AuthorityIndex> = (0..3u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Optimistic),
+            strong_voters.iter().copied().collect(),
+        )]);
+        assert_eq!(commits.len(), 1);
+
+        let ack_authors = linearizer
+            .get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
+
+        let leader_generic = ack_authors
+            .iter()
+            .find(|(r, _)| r.round() == leader_ref.round && r.author() == leader_ref.author)
+            .map(|(_, authors)| authors)
+            .expect("leader ref must be present in ack tracker");
+        assert!(
+            strong_voters.is_subset(leader_generic),
+            "leader ref tracker should record the strong-voter authorities; \
+             got {leader_generic:?}, expected superset of {strong_voters:?}"
+        );
+
+        for ack_ref in &leader_ack_refs {
+            let recorded = ack_authors
+                .iter()
+                .find(|(r, _)| r.round() == ack_ref.round && r.author() == ack_ref.author)
+                .map(|(_, authors)| authors)
+                .unwrap_or_else(|| panic!("ack ref {ack_ref:?} must be in tracker"));
+            assert!(
+                strong_voters.is_subset(recorded),
+                "ack ref {ack_ref:?} tracker should record the strong-voter authorities; \
+                 got {recorded:?}, expected superset of {strong_voters:?}"
+            );
+        }
+    }
 }
