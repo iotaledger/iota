@@ -52,6 +52,7 @@ use super::{BenchmarkStats, Interval, StressStats};
 use crate::{
     ExecutionEffects, ValidatorProxy,
     drivers::{HistogramWrapper, driver::Driver},
+    options::RateMode,
     system_state_observer::SystemStateObserver,
     workloads::{GroupID, WorkloadInfo, payload::Payload, workload::ExpectedFailureType},
 };
@@ -214,6 +215,7 @@ pub struct BenchWorker {
     pub proxy: Arc<dyn ValidatorProxy + Send + Sync>,
     pub group: u32,
     pub duration: Interval,
+    pub rate_mode: RateMode,
 }
 
 impl Debug for BenchWorker {
@@ -233,15 +235,32 @@ pub struct BenchDriver {
     pub stress_stat_collection: bool,
     pub start_time: Instant,
     pub token: CancellationToken,
+    pub rate_mode: RateMode,
+    /// When set, all group-0 workers use this proxy instead of a randomly
+    /// chosen one from the pool. Used by ResilienceBench to pin injection
+    /// traffic to a single focal node's gRPC endpoint.
+    pub focal_proxy: Option<Arc<dyn ValidatorProxy + Send + Sync>>,
+    /// When true, all benchmark groups start concurrently rather than
+    /// sequentially (group 0 finishes → group 1 starts).
+    /// Used by ResilienceBench so the baseline workload (group 1, quorum proxy)
+    /// runs alongside the injection workload (group 0, DirectValidatorProxy).
+    pub concurrent_groups: bool,
 }
 
 impl BenchDriver {
-    pub fn new(stat_collection_interval: u64, stress_stat_collection: bool) -> BenchDriver {
+    pub fn new(
+        stat_collection_interval: u64,
+        stress_stat_collection: bool,
+        rate_mode: RateMode,
+    ) -> BenchDriver {
         BenchDriver {
             stat_collection_interval,
             stress_stat_collection,
             start_time: Instant::now(),
             token: CancellationToken::new(),
+            rate_mode,
+            focal_proxy: None,
+            concurrent_groups: false,
         }
     }
     pub fn terminate(&self) {
@@ -301,6 +320,7 @@ impl BenchDriver {
                     proxy: proxy.clone(),
                     group: workload_info.workload_params.group,
                     duration: workload_info.workload_params.duration,
+                    rate_mode: self.rate_mode,
                 });
                 payloads = remaining;
                 qps -= target_qps;
@@ -349,18 +369,32 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
         let mut worker_id = 0;
         let mut num_workers = 0;
 
-        for (_, workloads) in workloads_by_group_id.iter() {
+        for (group_id, workloads) in workloads_by_group_id.iter() {
             let mut workers = vec![];
 
             for workload in workloads {
-                let proxy = proxies
-                    .choose(&mut rand::thread_rng())
-                    .context("Failed to get proxy for bench driver")?;
+                // Group 0 uses the focal proxy when one is configured (ResilienceBench),
+                // all other groups pick a proxy randomly from the pool.
+                let proxy = if *group_id == 0 {
+                    if let Some(ref ap) = self.focal_proxy {
+                        ap.clone()
+                    } else {
+                        proxies
+                            .choose(&mut rand::thread_rng())
+                            .context("Failed to get proxy for bench driver")?
+                            .clone()
+                    }
+                } else {
+                    proxies
+                        .choose(&mut rand::thread_rng())
+                        .context("Failed to get proxy for bench driver")?
+                        .clone()
+                };
                 workers.extend(
                     self.make_workers(
                         &mut worker_id,
                         workload,
-                        proxy.clone(),
+                        proxy,
                         system_state_observer.clone(),
                     )
                     .await,
@@ -390,6 +424,7 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
             metrics.clone(),
             total_benchmark_run_interval,
             stat_delay_micros,
+            self.concurrent_groups,
         )
         .await;
 
@@ -574,13 +609,14 @@ async fn spawn_workers_scheduler(
     metrics_cloned: Arc<BenchMetrics>,
     total_benchmark_run_interval: Interval,
     stat_delay_micros: u64,
+    concurrent_groups: bool,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("Spawn up scheduler task...");
 
         let mut running_workers: JoinSet<Option<BenchWorker>> = JoinSet::new();
         let mut finished_workers = Vec::new();
-        let (tx_workers_to_run, mut rx_workers_to_run) = channel(1);
+        let (tx_workers_to_run, mut rx_workers_to_run) = channel(bench_workers.len().max(1));
 
         let mut check_interval = time::interval(Duration::from_millis(500));
         check_interval.set_missed_tick_behavior(time::MissedTickBehavior::Burst);
@@ -588,11 +624,20 @@ async fn spawn_workers_scheduler(
         // Set the total benchmark start time
         let total_benchmark_start_time = print_and_start_benchmark().await;
 
-        // Initially bootstrap the first tasks
-        tx_workers_to_run
-            .send(bench_workers.pop_front().unwrap())
-            .await
-            .expect("Should be able to send next workers to run");
+        if concurrent_groups {
+            while let Some(group) = bench_workers.pop_front() {
+                tx_workers_to_run
+                    .send(group)
+                    .await
+                    .expect("Should be able to send workers to run");
+            }
+        } else {
+            // Initially bootstrap the first tasks
+            tx_workers_to_run
+                .send(bench_workers.pop_front().unwrap())
+                .await
+                .expect("Should be able to send next workers to run");
+        }
 
         loop {
             tokio::select! {
@@ -745,7 +790,10 @@ async fn run_bench_worker(
 
     let mut latency_histogram = hdrhistogram::Histogram::<u64>::new_with_max(120_000, 3).unwrap();
     let mut request_interval = time::interval(Duration::from_micros(request_delay_micros));
-    request_interval.set_missed_tick_behavior(time::MissedTickBehavior::Burst);
+    request_interval.set_missed_tick_behavior(match worker.rate_mode {
+        RateMode::Exact => time::MissedTickBehavior::Skip,
+        RateMode::Flow => time::MissedTickBehavior::Burst,
+    });
     let mut stat_interval = time::interval(Duration::from_micros(stat_delay_micros));
 
     let mut retry_queue: VecDeque<RetryType> = VecDeque::new();

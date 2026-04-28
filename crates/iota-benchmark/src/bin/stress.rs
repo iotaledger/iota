@@ -7,11 +7,12 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{Context, Result, bail};
 use clap::*;
 use iota_benchmark::{
+    DirectValidatorProxy,
     benchmark_setup::Env,
     drivers::{
         BenchmarkCmp, BenchmarkMetadata, BenchmarkStats, bench_driver::BenchDriver, driver::Driver,
     },
-    options::Opts,
+    options::{Opts, RunSpec},
     system_state_observer::SystemStateObserver,
     workloads::workload_configuration::WorkloadConfiguration,
 };
@@ -140,7 +141,39 @@ async fn main() -> Result<()> {
             // otherwise summarized benchmark results are
             // published in the end
             let show_progress = interval.is_unbounded();
-            let driver = BenchDriver::new(opts.stat_collection_interval, stress_stat_collection);
+            let mut driver = BenchDriver::new(
+                opts.stat_collection_interval,
+                stress_stat_collection,
+                opts.run_spec.rate_mode(),
+            );
+
+            // For ResilienceBench, build a DirectValidatorProxy that pins all
+            // injection traffic (group 0) to the focal node's gRPC endpoint,
+            // and enable concurrent_groups so the baseline workload (group 1,
+            // quorum proxy) starts at the same time as the injection workload.
+            if let RunSpec::ResilienceBench { focal_validator, .. } = &opts.run_spec {
+                driver.concurrent_groups = true;
+                if let Some(genesis) = &bench_setup.genesis {
+                    match DirectValidatorProxy::from_genesis(genesis, focal_validator.as_str()) {
+                        Ok(proxy) => {
+                            driver.focal_proxy = Some(Arc::new(proxy));
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Could not build DirectValidatorProxy for focal_validator={:?}: {e:#}. \
+                                 Falling back to shared proxy pool.",
+                                focal_validator,
+                            );
+                        }
+                    }
+                } else {
+                    tracing::warn!(
+                        "ResilienceBench: genesis not available (remote mode?). \
+                         DirectValidatorProxy not configured; injection traffic will use shared pool."
+                    );
+                }
+            }
+
             driver
                 .run(
                     bench_setup.proxies,

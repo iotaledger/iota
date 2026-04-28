@@ -17,13 +17,15 @@ use super::{
 use crate::{
     bank::BenchmarkBank,
     drivers::Interval,
-    options::{Opts, RunSpec},
+    options::{FaultScenario, Opts, RunSpec},
     system_state_observer::SystemStateObserver,
     workloads::{
         ExpectedFailureType, GroupID, WorkloadBuilderInfo, WorkloadInfo,
-        abstract_account::AbstractAccountWorkloadBuilder,
-        batch_payment::BatchPaymentWorkloadBuilder, delegation::DelegationWorkloadBuilder,
-        shared_counter::SharedCounterWorkloadBuilder, slow::SlowWorkloadBuilder,
+        abstract_account::{AbstractAccountWorkloadBuilder, AuthenticatorKind, TxPayloadObjType},
+        batch_payment::BatchPaymentWorkloadBuilder,
+        delegation::DelegationWorkloadBuilder,
+        shared_counter::SharedCounterWorkloadBuilder,
+        slow::SlowWorkloadBuilder,
         transfer_object::TransferObjectWorkloadBuilder,
     },
 };
@@ -145,6 +147,107 @@ impl WorkloadConfiguration {
                 )
                 .await
             }
+            RunSpec::ResilienceBench {
+                fault_scenario,
+                focal_validator: _,
+                injection_qps,
+                baseline_qps,
+                rate_mode: _,
+                duration,
+                split_amount,
+                num_workers,
+                in_flight_ratio,
+            } => {
+                info!(
+                    "Resilience bench: fault_scenario={:?}, injection_qps={}, baseline_qps={}, \
+                     num_workers={}, in_flight_ratio={}, duration={:?}",
+                    fault_scenario,
+                    injection_qps,
+                    num_workers,
+                    in_flight_ratio,
+                    baseline_qps,
+                    duration,
+                );
+
+                // Group 0: injection workload — all traffic goes to the focal node
+                // (DirectValidatorProxy is wired in by stress.rs for group 0;
+                // falls back to the shared pool when not configured).
+                let injection_builder = match fault_scenario {
+                    FaultScenario::AuthBasic => AbstractAccountWorkloadBuilder::from(
+                        1.0,
+                        injection_qps,
+                        num_workers,
+                        in_flight_ratio,
+                        AuthenticatorKind::Ed25519,
+                        TxPayloadObjType::OwnedObject,
+                        split_amount,
+                        // should_fail=true: invalid signature; node runs one
+                        // ed25519_verify then aborts on assert.
+                        true,
+                        duration,
+                        0, // group 0 = focal node proxy
+                    ),
+                    FaultScenario::AuthComputeHeavy => AbstractAccountWorkloadBuilder::from(
+                        1.0,
+                        injection_qps,
+                        num_workers,
+                        in_flight_ratio,
+                        AuthenticatorKind::SuperHeavy,
+                        TxPayloadObjType::OwnedObject,
+                        split_amount,
+                        // should_fail=true: invalid signature; node exhausts
+                        // max_auth_gas regardless. Client pays no IOTA tokens.
+                        true,
+                        duration,
+                        0, // group 0 = focal node proxy
+                    ),
+                    FaultScenario::StdInvalid => ExpectedFailureWorkloadBuilder::from(
+                        1.0,
+                        injection_qps,
+                        num_workers,
+                        in_flight_ratio,
+                        opts.num_transfer_accounts,
+                        ExpectedFailurePayloadCfg {
+                            failure_type: ExpectedFailureType::InvalidSignature,
+                        },
+                        duration,
+                        0, // group 0 = focal node proxy
+                    ),
+                };
+
+                if injection_builder.is_none() {
+                    anyhow::bail!(
+                        "ResilienceBench produced no injection workload \
+                         (injection_qps={}, num_workers={}, in_flight_ratio={})",
+                        injection_qps,
+                        num_workers,
+                        in_flight_ratio,
+                    );
+                }
+
+                // Baseline workload — plain TransferObject through the full quorum
+                // (LocalValidatorAggregatorProxy). Group 1 ensures the scheduler
+                // picks a quorum proxy rather than the focal proxy (which is pinned
+                // to group 0 / DirectValidatorProxy).
+                let baseline_builder = TransferObjectWorkloadBuilder::from(
+                    1.0,
+                    baseline_qps,
+                    4, // 4 workers is ample for a 30–100 TPS baseline
+                    5,
+                    opts.num_transfer_accounts,
+                    duration,
+                    1, // group 1 = quorum proxy, runs concurrently with group 0
+                );
+
+                Self::build(
+                    vec![injection_builder, baseline_builder],
+                    bank,
+                    system_state_observer,
+                    opts.gas_request_chunk_size,
+                )
+                .await
+            }
+
             RunSpec::AbstractAccountBench {
                 authenticator,
                 should_fail,

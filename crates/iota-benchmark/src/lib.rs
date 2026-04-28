@@ -23,7 +23,7 @@ use futures::TryStreamExt;
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-    authority_client::NetworkAuthorityClient,
+    authority_client::{AuthorityAPI, NetworkAuthorityClient},
     quorum_driver::{
         QuorumDriver, QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::ReconfigObserver,
@@ -35,7 +35,9 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{
+        AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+    },
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -569,6 +571,136 @@ impl ValidatorProxy for FullNodeProxy {
             .iter_committee_members()
             .map(|v| v.iota_address)
             .collect())
+    }
+}
+
+/// A proxy that sends transactions directly to a single validator via its gRPC
+/// `handle_transaction` endpoint, bypassing quorum. Used by `ResilienceBench`
+/// to concentrate injection traffic on one focal node.
+pub struct DirectValidatorProxy {
+    client: NetworkAuthorityClient,
+    committee: Arc<Committee>,
+}
+
+impl DirectValidatorProxy {
+    /// Build a proxy targeting the focal validator selected by `selector`.
+    ///
+    /// `selector` is either:
+    /// - a decimal integer → 0-based index into the genesis committee order
+    /// - a key substring → matched against each validator's concise authority
+    ///   key (e.g. `"8dcff6"` matches `"k#8dcff6d1.."`).
+    pub fn from_genesis(genesis: &Genesis, selector: &str) -> anyhow::Result<Self> {
+        let (_, clients) =
+            AuthorityAggregatorBuilder::from_genesis(genesis).build_network_clients();
+        let committee = genesis.committee()?;
+        let committee_size = committee.num_members();
+
+        let (resolved_idx, target_name, client) = if let Ok(idx) = selector.parse::<usize>() {
+            // Integer index: pick the nth entry in committee order.
+            clients
+                .into_iter()
+                .enumerate()
+                .nth(idx)
+                .map(|(i, (name, client))| (i, name, client))
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "focal_validator index {} out of range (committee size {})",
+                        idx,
+                        committee_size
+                    )
+                })?
+        } else {
+            // Key substring: find the first validator whose concise key contains
+            // the selector string (e.g. "8dcff6" matches "k#8dcff6d1..").
+            clients
+                .into_iter()
+                .enumerate()
+                .find(|(_, (name, _))| format!("{}", name.concise()).contains(selector))
+                .map(|(i, (name, client))| (i, name, client))
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "focal_validator {:?} did not match any validator key \
+                         (hint: use a substring of the key printed as \
+                         'Metric address for validator <KEY>: ...' in the log)",
+                        selector
+                    )
+                })?
+        };
+
+        // Print the authority key so the monitoring scripts can correlate it
+        // with the metric address logged by benchmark_setup.rs.
+        // benchmark_setup.rs prints "Metric address for validator <CONCISE>: <ADDR>"
+        // using the same concise format, making the mapping unambiguous.
+        eprintln!(
+            "ResilienceBench focal node: validator_index={} authority={}",
+            resolved_idx,
+            target_name.concise(),
+        );
+
+        Ok(Self {
+            client,
+            committee: Arc::new(committee),
+        })
+    }
+}
+
+#[async_trait]
+impl ValidatorProxy for DirectValidatorProxy {
+    async fn get_object(&self, _object_id: ObjectID) -> Result<Object, anyhow::Error> {
+        unimplemented!(
+            "DirectValidatorProxy: object reads go through LocalValidatorAggregatorProxy during setup"
+        )
+    }
+
+    async fn get_owned_objects(
+        &self,
+        _account_address: IotaAddress,
+    ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
+        unimplemented!(
+            "DirectValidatorProxy: object reads go through LocalValidatorAggregatorProxy during setup"
+        )
+    }
+
+    async fn get_latest_system_state_object(
+        &self,
+    ) -> Result<IotaSystemStateSummary, anyhow::Error> {
+        unimplemented!(
+            "DirectValidatorProxy: system state goes through LocalValidatorAggregatorProxy during setup"
+        )
+    }
+
+    /// Submits the transaction to the focal validator's handle_transaction
+    /// endpoint. Always returns Err because injected TXs are expected to fail.
+    async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects> {
+        // Fire-and-forget: send to focal node, ignore the (error) response.
+        // Propagate the error so bench_driver counts it as a failed TX,
+        // which is the expected outcome for injection workloads.
+        let _ = self.client.handle_transaction(tx, None).await?;
+        // If the node somehow accepted it (unexpected for injection TXs),
+        // return an error anyway — DirectValidatorProxy never produces effects.
+        anyhow::bail!("DirectValidatorProxy: handle_transaction unexpectedly succeeded")
+    }
+
+    fn clone_committee(&self) -> Arc<Committee> {
+        self.committee.clone()
+    }
+
+    fn get_current_epoch(&self) -> EpochId {
+        self.committee.epoch
+    }
+
+    fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync> {
+        Box::new(Self {
+            client: self.client.clone(),
+            committee: self.committee.clone(),
+        })
+    }
+
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+        unimplemented!(
+            "DirectValidatorProxy: committee address lookup not supported \
+             (only used by delegation workload, which ResilienceBench does not run)"
+        )
     }
 }
 

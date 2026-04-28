@@ -11,6 +11,72 @@ use crate::{
     workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType},
 };
 
+/// Fault scenario to inject into the target node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaultScenario {
+    /// AA authenticator: plain ed25519_verify + assert.
+    /// Minimal AA variant — one verify, aborts immediately on invalid sig.
+    /// Submitted with `should_fail=true` so the client pays no IOTA tokens.
+    AuthBasic,
+    /// AA authenticator: ed25519 loop (no assert) + 122 BenchObject reads.
+    /// Submitted with `should_fail=true` — the validator exhausts
+    /// `max_auth_gas` regardless of signature validity; client pays no IOTA
+    /// tokens.
+    AuthComputeHeavy,
+    /// Standard TransferObject TX with a zeroed (invalid) Ed25519 signature.
+    /// Rejected at pre-consensus signature verification.
+    StdInvalid,
+}
+
+impl FromStr for FaultScenario {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "auth-basic" | "authbasic" | "aa-ed25519" | "aaed25519" => Ok(FaultScenario::AuthBasic),
+            "auth-compute-heavy" | "authcomputeheavy" | "aa-super-heavy" | "aasuperheavy" => {
+                Ok(FaultScenario::AuthComputeHeavy)
+            }
+            "std-invalid" | "stdinvalid" => Ok(FaultScenario::StdInvalid),
+            _ => anyhow::bail!(
+                "unknown FaultScenario '{}' \
+                 (expected: auth-basic / aa-ed25519, auth-compute-heavy / aa-super-heavy, std-invalid)",
+                s
+            ),
+        }
+    }
+}
+
+/// Controls how the bench driver handles scheduling when it falls behind the
+/// target send rate (i.e. which [`tokio::time::MissedTickBehavior`] to use).
+///
+/// * `Flow`  (default) — `MissedTickBehavior::Burst`: fires all missed ticks
+///   immediately, allowing the driver to catch up. Good for throughput
+///   benchmarks where you want maximum offered load.
+/// * `Exact` — `MissedTickBehavior::Skip`: drops missed ticks, keeping the
+///   *offered load* at exactly the specified QPS.  Use this for DoS experiments
+///   where a precise, reproducible load level is required.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RateMode {
+    /// Drop missed ticks — offered load stays at exactly the specified QPS.
+    Exact,
+    /// Burst through missed ticks — maximise offered load.
+    #[default]
+    Flow,
+}
+
+impl FromStr for RateMode {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "exact" => Ok(RateMode::Exact),
+            "flow" => Ok(RateMode::Flow),
+            _ => anyhow::bail!("unknown RateMode '{}' (expected: exact, flow)", s),
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "Stress Testing Framework")]
 pub struct Opts {
@@ -252,6 +318,56 @@ pub enum RunSpec {
         duration: Vec<Interval>,
     },
 
+    /// Resilience benchmark: one injection worker targets a single node while a
+    /// second worker maintains a baseline load through the full quorum.
+    ResilienceBench {
+        /// Fault scenario to inject into the focal node.
+        #[arg(long, default_value = "auth-compute-heavy")]
+        fault_scenario: FaultScenario,
+
+        /// Which validator to use as the focal node. Accepts either:
+        ///   - a 0-based integer index into the genesis committee order (e.g.
+        ///     `0`)
+        ///   - a key prefix that uniquely matches one validator's concise
+        ///     authority key as printed in the log (e.g. `8dcff6` matches
+        ///     `k#8dcff6d1..`)
+        /// Injection traffic is routed directly to that node's
+        /// `handle_transaction` endpoint, bypassing quorum.
+        #[arg(long, default_value = "0")]
+        focal_validator: String,
+
+        /// Target offered load (TPS) for the injection workload.
+        #[arg(long, default_value = "100")]
+        injection_qps: u64,
+
+        /// Target offered load (TPS) for the baseline workload
+        /// (TransferObject).
+        #[arg(long, default_value = "30")]
+        baseline_qps: u64,
+
+        /// How to handle missed ticks in the scheduler.
+        /// `exact` = drop missed ticks (steady load); `flow` = burst catch-up.
+        #[arg(long, default_value = "exact")]
+        rate_mode: RateMode,
+
+        /// Benchmark duration. Leave as "unbounded" and use `--run-duration`.
+        #[arg(long, default_value = "unbounded")]
+        duration: Interval,
+
+        // -- AA-specific (ignored when fault_scenario = std-invalid) --
+        /// Split amount used in OwnedObject AA transactions.
+        #[arg(long, default_value = "1000")]
+        split_amount: u64,
+
+        /// Concurrent worker tasks for the injection workload.
+        #[arg(long, default_value = "12")]
+        num_workers: u64,
+
+        /// In-flight pipeline depth ratio.
+        #[arg(long, default_value = "5")]
+        in_flight_ratio: u64,
+    },
+
     AbstractAccountBench {
         #[arg(long, default_value = "ed25519")]
         authenticator: AuthenticatorKind,
@@ -314,6 +430,16 @@ pub enum RunSpec {
 }
 
 impl RunSpec {
+    /// Returns the [`RateMode`] for this run spec.
+    /// Only `ResilienceBench` sets a non-default value; all other specs use
+    /// `Flow` (burst catch-up, the historical default).
+    pub fn rate_mode(&self) -> RateMode {
+        match self {
+            RunSpec::ResilienceBench { rate_mode, .. } => *rate_mode,
+            _ => RateMode::Flow,
+        }
+    }
+
     pub fn get_setup_info(&self) -> SetupInfo {
         match self {
             RunSpec::Bench {
@@ -347,6 +473,24 @@ impl RunSpec {
                 target_qps: target_qps.clone(),
                 workers: num_workers.clone(),
                 in_flight_ratio: in_flight_ratio.clone(),
+            },
+            RunSpec::ResilienceBench {
+                fault_scenario,
+                injection_qps,
+                baseline_qps,
+                num_workers,
+                in_flight_ratio,
+                rate_mode,
+                ..
+            } => SetupInfo {
+                test_type: "resilience_bench".to_string(),
+                scenario: format!(
+                    "fault_scenario={:?} injection_qps={} baseline_qps={} rate_mode={:?}",
+                    fault_scenario, injection_qps, baseline_qps, rate_mode,
+                ),
+                target_qps: vec![*injection_qps + *baseline_qps],
+                workers: vec![*num_workers + 4],
+                in_flight_ratio: vec![*in_flight_ratio],
             },
             RunSpec::AbstractAccountBench {
                 target_qps,

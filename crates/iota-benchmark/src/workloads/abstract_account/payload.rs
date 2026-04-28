@@ -315,6 +315,27 @@ fn build_move_auth_args(
                 auth_args.push(CallArg::ImmutableOrOwned(*obj));
             }
         }
+
+        AuthenticatorKind::SuperHeavy => {
+            let digest = tx_data.digest().into_inner();
+            let sig: Ed25519Signature = owner.1.sign(&digest);
+
+            let mut sig_bytes = sig.as_ref().to_vec();
+            if should_fail {
+                sig_bytes[0] ^= 0x01;
+            }
+
+            let hex_encoded = Hex::encode(sig_bytes)
+                .chars()
+                .take(Ed25519Signature::LENGTH * 2)
+                .collect::<String>();
+
+            auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded)?));
+
+            for obj in bench_objects.iter() {
+                auth_args.push(CallArg::Object(ObjectArg::ImmOrOwnedObject(*obj)));
+            }
+        }
     }
 
     Ok(auth_args)

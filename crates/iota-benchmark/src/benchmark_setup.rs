@@ -42,6 +42,7 @@ pub struct BenchmarkSetup {
     pub shutdown_notifier: oneshot::Sender<()>,
     pub bank: BenchmarkBank,
     pub proxies: Vec<Arc<dyn ValidatorProxy + Send + Sync>>,
+    pub genesis: Option<iota_config::genesis::Genesis>,
 }
 
 impl Env {
@@ -135,6 +136,41 @@ impl Env {
         // Wait for the embedded reconfig observer.
         sleep(Duration::from_secs(5)).await;
         let (genesis, primary_gas) = genesis_recv.await.unwrap();
+
+        // Write genesis, keypair, and gas object ID to well-known paths so that
+        // a second stress process can connect to this cluster in remote mode.
+        let genesis_path = std::path::Path::new("/tmp/iota-bench-genesis.blob");
+        if let Err(e) = genesis.save(genesis_path) {
+            eprintln!("Warning: could not write genesis blob: {e}");
+        } else {
+            eprintln!("Genesis blob written to {}", genesis_path.display());
+        }
+
+        // Write keystore (base64-encoded keypair) for remote bench process.
+        let keystore_path = std::path::Path::new("/tmp/iota-bench.keystore");
+        {
+            use fastcrypto::traits::KeyPair as _;
+            use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+            let kp = IotaKeyPair::Ed25519(keypair.copy());
+            let encoded = kp.encode_base64();
+            if let Err(e) = std::fs::write(keystore_path, format!("[\"{encoded}\"]")) {
+                eprintln!("Warning: could not write keystore: {e}");
+            } else {
+                eprintln!("Keystore written to {}", keystore_path.display());
+            }
+        }
+
+        // Write primary gas owner address for remote bench process.
+        let gas_info_path = std::path::Path::new("/tmp/iota-bench-gas.txt");
+        if let Err(e) = std::fs::write(
+            gas_info_path,
+            format!("{}\n{}\n", primary_gas_owner, primary_gas.0),
+        ) {
+            eprintln!("Warning: could not write gas info: {e}");
+        } else {
+            eprintln!("Gas info written to {} (address / object-id)", gas_info_path.display());
+        }
+
         let proxy: Arc<dyn ValidatorProxy + Send + Sync> =
             Arc::new(LocalValidatorAggregatorProxy::from_genesis(&genesis, registry, None).await);
         Ok(BenchmarkSetup {
@@ -142,6 +178,7 @@ impl Env {
             shutdown_notifier: shutdown_sender,
             bank: BenchmarkBank::new(proxy.clone(), (primary_gas, primary_gas_owner, keypair)),
             proxies: vec![proxy],
+            genesis: Some(genesis),
         })
     }
 
@@ -295,6 +332,9 @@ impl Env {
             shutdown_notifier: sender,
             bank: BenchmarkBank::new(proxy.clone(), current_gas),
             proxies,
+            // Expose genesis so ResilienceBench can build a DirectValidatorProxy
+            // targeting a specific node even when connecting to a remote cluster.
+            genesis: Some(genesis.clone()),
         })
     }
 }
