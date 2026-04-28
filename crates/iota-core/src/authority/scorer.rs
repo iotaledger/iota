@@ -1,8 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 
 use crate::authority::authority_per_epoch_store::{
@@ -21,7 +22,9 @@ const SCALE_FACTOR: u64 = 2_u64.pow(16);
 /// aggregated counts from a `ReportAggregator` when updating scores.
 pub struct Scorer {
     // The current scores of the authorities, updated after each scoring round.
-    current_scores: Vec<AtomicU64>,
+    // Published as a single `Arc<Vec<u64>>` so readers always see a consistent
+    // snapshot across all authorities (no torn reads mixing old and new scores).
+    current_scores: ArcSwap<Vec<u64>>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
     // The version of the scorer being used with its parameters.
@@ -37,9 +40,7 @@ impl Scorer {
         let committee_size = voting_power.len();
         let version =
             ScorerVersion::from_protocol(protocol_config, misbehavior_config.num_metrics());
-        let current_scores: Vec<AtomicU64> = (0..committee_size)
-            .map(|_| AtomicU64::new(MAX_SCORE))
-            .collect();
+        let current_scores = ArcSwap::from_pointee(vec![MAX_SCORE; committee_size]);
 
         Self {
             current_scores,
@@ -57,10 +58,7 @@ impl Scorer {
     }
 
     pub(crate) fn current_scores(&self) -> Vec<u64> {
-        self.current_scores
-            .iter()
-            .map(|x| x.load(Ordering::Relaxed))
-            .collect()
+        self.current_scores.load().as_ref().clone()
     }
 
     fn get_parameters(&self) -> &Parameters {
@@ -178,14 +176,9 @@ impl Scorer {
     fn update_scores_v1(&self, aggregator: &ReportAggregator) {
         if let Some(median_counts) = self.calculate_median_report(aggregator) {
             let scores = self.calculate_scores_v1(median_counts);
-            // Relaxed: current_scores is read from the checkpoint service thread, but
-            // each score is an independent value with no causality chain between entries.
-            // Reading a mix of old and new scores is no worse than reading at two
-            // different instants. At epoch end (the only point scores affect staking),
-            // consensus processing has stopped so there is no active writer.
-            for (i, &score) in scores.iter().enumerate() {
-                self.current_scores[i].store(score, Ordering::Relaxed);
-            }
+            // Single pointer swap publishes the whole vector; checkpoint readers
+            // never observe a mix of old and new scores.
+            self.current_scores.store(Arc::new(scores));
         }
     }
 }
@@ -332,8 +325,6 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
-
     use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
@@ -387,10 +378,9 @@ mod tests {
         let committee_size = voting_power.len();
         let scorer = mock_scorer(voting_power);
 
-        assert_eq!(scorer.current_scores.len(), committee_size);
-        for score in scorer.current_scores.iter() {
-            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE);
-        }
+        let scores = scorer.current_scores();
+        assert_eq!(scores.len(), committee_size);
+        assert!(scores.iter().all(|&s| s == MAX_SCORE));
     }
 
     #[test]
@@ -415,10 +405,12 @@ mod tests {
         let aggregator = mock_aggregator(committee_size);
         let scorer = mock_scorer(voting_power);
 
-        scorer
-            .current_scores
-            .iter()
-            .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
+        assert!(
+            scorer
+                .current_scores()
+                .iter()
+                .all(|&s| s == MAX_SCORE)
+        );
 
         set_reports(
             &aggregator,
