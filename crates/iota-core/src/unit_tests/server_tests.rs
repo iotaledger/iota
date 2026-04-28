@@ -829,7 +829,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
 /// V2 mirror of `test_submit_transaction_gas_object_validation`: a transaction
 /// referencing a non-existent gas object fails during validation checks.
 /// In V2, per-transaction errors from `handle_transaction_validation_checks`
-/// are surfaced as stream-level `Err` items (tonic::Status).
+/// are surfaced as `TxStatusUpdate::Rejected` stream items.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_gas_object_validation() {
     telemetry_subscribers::init_for_testing();
@@ -883,22 +883,14 @@ async fn test_v2_submit_tx_gas_object_validation() {
         .await
         .expect("stream should open successfully");
 
-    // In V2, validation errors from spawned tasks surface as stream-level errors.
-    let items = collect_v2_stream_raw(response).await;
-    assert_eq!(items.len(), 1);
-    // The non-existent gas object may surface as either a Rejected status or a
-    // stream-level error depending on which validation step catches it.
-    match &items[0] {
-        V2StreamItem::Ok(_, TxStatusUpdate::Rejected { .. }) => {}
-        V2StreamItem::Err(_) => {}
-        other => panic!(
-            "Expected Rejected or stream error for non-existent gas, got {:?}",
-            match other {
-                V2StreamItem::Ok(_, r) => format!("Ok({:?})", r),
-                V2StreamItem::Err(s) => format!("Err({:?})", s),
-            }
-        ),
-    }
+    // Per-transaction validation errors are surfaced as `Rejected` stream items.
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    assert!(
+        matches!(&results[0].1, TxStatusUpdate::Rejected { .. }),
+        "Expected Rejected for non-existent gas object, got {:?}",
+        results[0].1
+    );
 }
 
 /// V2 mirror of `test_submit_transactions_different_gas_prices_accepted`:
@@ -1415,8 +1407,8 @@ async fn test_v2_get_tx_status_too_many_queries() {
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
     ));
 
-    // Build 257 queries (exceeds MAX_QUERIES_PER_GET_TX_STATUS = 256).
-    let queries: Vec<_> = (0..257)
+    // Build 33 queries (exceeds MAX_QUERIES_PER_GET_TX_STATUS = 32).
+    let queries: Vec<_> = (0..33)
         .map(|_| (iota_types::digests::TransactionDigest::random(), false))
         .collect();
 
