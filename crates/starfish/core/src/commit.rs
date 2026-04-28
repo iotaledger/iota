@@ -802,14 +802,20 @@ fn format_block_digests(blocks: &[BlockRef]) -> String {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Decision {
+    /// Direct rule produced the final status.
     Direct,
+    /// Direct rule produced `Commit(Pending)`; indirect rule later examined
+    /// an anchor's path and upgraded the metastate to Optimistic/Standard.
+    Upgraded,
+    /// Direct rule left the slot Undecided; indirect rule produced the
+    /// final status.
     Indirect,
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(VerifiedBlockHeader),
+    Commit(VerifiedBlockHeader, Option<CommitMetastate>),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -817,23 +823,33 @@ pub(crate) enum LeaderStatus {
 impl LeaderStatus {
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _) => block.round(),
             Self::Skip(leader) => leader.round,
             Self::Undecided(leader) => leader.round,
         }
     }
 
-    pub(crate) fn is_decided(&self) -> bool {
+    /// Slot of the leader this status refers to.
+    pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(_) => true,
-            Self::Skip(_) => true,
+            Self::Commit(block, _) => block.reference().into(),
+            Self::Skip(leader) | Self::Undecided(leader) => *leader,
+        }
+    }
+
+    /// True when sequencing can proceed past this leader. `Commit(Pending)`
+    /// and `Undecided` are non-final.
+    pub(crate) fn is_final(&self) -> bool {
+        match self {
+            Self::Commit(_, Some(CommitMetastate::Pending)) => false,
+            Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
     }
 
     pub(crate) fn into_decided_leader(self) -> Option<DecidedLeader> {
         match self {
-            Self::Commit(block) => Some(DecidedLeader::Commit(block)),
+            Self::Commit(block, metastate) => Some(DecidedLeader::Commit(block, metastate)),
             Self::Skip(slot) => Some(DecidedLeader::Skip(slot)),
             Self::Undecided(..) => None,
         }
@@ -843,7 +859,10 @@ impl LeaderStatus {
 impl Display for LeaderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate)) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
             Self::Undecided(slot) => write!(f, "Undecided({slot})"),
         }
@@ -853,7 +872,7 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(VerifiedBlockHeader),
+    Commit(VerifiedBlockHeader, Option<CommitMetastate>),
     Skip(Slot),
 }
 
@@ -861,7 +880,7 @@ impl DecidedLeader {
     // Slot where the leader is decided.
     pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(block) => block.reference().into(),
+            Self::Commit(block, _) => block.reference().into(),
             Self::Skip(slot) => *slot,
         }
     }
@@ -870,7 +889,7 @@ impl DecidedLeader {
     // otherwise.
     pub(crate) fn into_committed_block(self) -> Option<VerifiedBlockHeader> {
         match self {
-            Self::Commit(block) => Some(block),
+            Self::Commit(block, _) => Some(block),
             Self::Skip(_) => None,
         }
     }
@@ -878,7 +897,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _) => block.round(),
             Self::Skip(leader) => leader.round,
         }
     }
@@ -886,7 +905,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn authority(&self) -> AuthorityIndex {
         match self {
-            Self::Commit(block) => block.author(),
+            Self::Commit(block, _) => block.author(),
             Self::Skip(leader) => leader.authority,
         }
     }
@@ -895,8 +914,36 @@ impl DecidedLeader {
 impl Display for DecidedLeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate)) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
+        }
+    }
+}
+
+/// Refined commit state for StarfishSpeed leaders, determined at commit time
+/// from the strong-vote evidence at rounds r+1 (voting) and r+2 (certifying).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub(crate) enum CommitMetastate {
+    /// Strong-vote quorum at r+1 AND StrongQC quorum at r+2.
+    /// Sequence histDA(L) + leader acknowledgment blocks.
+    Optimistic,
+    /// Strong-blame quorum observed at r+1 (no StrongQC quorum possible).
+    /// Sequence histDA(L) only (same as base Starfish).
+    Standard,
+    /// Neither a strong-vote nor a strong-blame quorum observed.
+    /// Metastate is resolved later (by the indirect rule).
+    Pending,
+}
+
+impl Display for CommitMetastate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Optimistic => write!(f, "optimistic"),
+            Self::Standard => write!(f, "standard"),
+            Self::Pending => write!(f, "pending"),
         }
     }
 }
