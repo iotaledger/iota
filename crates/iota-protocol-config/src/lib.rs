@@ -1492,6 +1492,14 @@ impl ProtocolConfig {
         }
     }
 
+    pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
+        if self.consensus_block_restrictions() {
+            committee_size
+        } else {
+            100
+        }
+    }
+
     pub fn variant_nodes(&self) -> bool {
         self.feature_flags.variant_nodes
     }
