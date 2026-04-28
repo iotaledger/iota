@@ -144,17 +144,63 @@ impl MisbehaviorCounts {
 
     /// Converts the local counts into the wire/storage representation that is
     /// broadcast to peers as a `MisbehaviorReport` transaction.
-    pub fn to_report(&self, version: Version) -> VersionedMisbehaviorReport {
+    ///
+    /// Rows are matched to wire fields by `Misbehaviors` variant rather than
+    /// positional index, so reordering `reported_misbehaviors` cannot silently
+    /// swap categories — adding/removing a variant is caught at compile time.
+    pub fn to_report(
+        &self,
+        version: Version,
+        reported_misbehaviors: &ReportedMisbehaviors,
+    ) -> VersionedMisbehaviorReport {
         match version {
             Version::V1 => {
+                let mut faulty_blocks_provable = Vec::new();
+                let mut faulty_blocks_unprovable = Vec::new();
+                let mut missing_proposals = Vec::new();
+                let mut equivocations = Vec::new();
+                for (row, misbehavior) in self.0.iter().zip(reported_misbehaviors.iter()) {
+                    match misbehavior {
+                        Misbehaviors::FaultyBlocksProvable => faulty_blocks_provable = row.clone(),
+                        Misbehaviors::FaultyBlocksUnprovable => {
+                            faulty_blocks_unprovable = row.clone()
+                        }
+                        Misbehaviors::MissingProposals => missing_proposals = row.clone(),
+                        Misbehaviors::Equivocations => equivocations = row.clone(),
+                    }
+                }
                 let payload = LegacyReportPayload {
-                    faulty_blocks_provable: self.0[0].clone(),
-                    faulty_blocks_unprovable: self.0[1].clone(),
-                    missing_proposals: self.0[2].clone(),
-                    equivocations: self.0[3].clone(),
+                    faulty_blocks_provable,
+                    faulty_blocks_unprovable,
+                    missing_proposals,
+                    equivocations,
                 };
                 VersionedMisbehaviorReport::V1(payload, OnceCell::new())
             }
+        }
+    }
+
+    /// Builds `MisbehaviorCounts` from a peer's report. Row order follows
+    /// `reported_misbehaviors`; the `match` on `Misbehaviors` enforces that
+    /// every locally tracked variant maps to a known V1 wire field.
+    pub fn from_report(
+        report: &VersionedMisbehaviorReport,
+        reported_misbehaviors: &ReportedMisbehaviors,
+    ) -> Self {
+        match report {
+            VersionedMisbehaviorReport::V1(payload, _) => Self(
+                reported_misbehaviors
+                    .iter()
+                    .map(|misbehavior| match misbehavior {
+                        Misbehaviors::FaultyBlocksProvable => payload.faulty_blocks_provable.clone(),
+                        Misbehaviors::FaultyBlocksUnprovable => {
+                            payload.faulty_blocks_unprovable.clone()
+                        }
+                        Misbehaviors::MissingProposals => payload.missing_proposals.clone(),
+                        Misbehaviors::Equivocations => payload.equivocations.clone(),
+                    })
+                    .collect(),
+            ),
         }
     }
 
@@ -184,19 +230,6 @@ impl MisbehaviorCounts {
 
     pub fn get_metric(&self, index: usize) -> &[u64] {
         &self.0[index]
-    }
-}
-
-impl From<&VersionedMisbehaviorReport> for MisbehaviorCounts {
-    fn from(report: &VersionedMisbehaviorReport) -> Self {
-        match report {
-            VersionedMisbehaviorReport::V1(payload, _) => Self(vec![
-                payload.faulty_blocks_provable.clone(),
-                payload.faulty_blocks_unprovable.clone(),
-                payload.missing_proposals.clone(),
-                payload.equivocations.clone(),
-            ]),
-        }
     }
 }
 
