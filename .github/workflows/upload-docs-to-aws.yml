@@ -27,7 +27,10 @@ jobs:
           node-version: "24"
 
       - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@10.30.0 --activate
+        uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+
+      - name: Enable corepack
+        run: corepack enable
 
       - name: Install dependencies
         run: pnpm install
