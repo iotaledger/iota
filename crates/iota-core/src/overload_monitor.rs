@@ -55,6 +55,11 @@ const ADDITIONAL_LOAD_SHEDDING: f64 = 0.02;
 // be rejected.
 const SEED_UPDATE_DURATION_SECS: u64 = 30;
 
+/// Maximum shedding percentage for consensus queue length at the hard
+/// limit. Hard-coded to 100%: at or above the consensus queue hard
+/// limit, all transactions are rejected.
+const MAX_CONSENSUS_LOAD_SHED_PCT: u32 = 100;
+
 // Monitors the overload signals in `authority_state` periodically, and updates
 // its `overload_info` when the signals indicates overload.
 pub async fn overload_monitor(
@@ -272,15 +277,15 @@ pub fn overload_monitor_accept_tx(
 
 /// Computes the percentage of transactions to shed based on consensus queue
 /// length. Returns 0 if `num_inflight_txs` is below or equal `soft_limit`,
-/// linearly scales to `max_shedding_pct` between soft and hard limits,
-/// and caps at `max_shedding_pct` if `num_inflight_txs` is above or equal
-/// `hard_limit`. Used in the certificate-less (white-flag) flow for graduated
-/// pre-consensus load shedding.
+/// linearly scales to [`MAX_CONSENSUS_LOAD_SHED_PCT`] (100%) between soft
+/// and hard limits, and caps at [`MAX_CONSENSUS_LOAD_SHED_PCT`] if
+/// `num_inflight_txs` is above or equal `hard_limit`. Used in the
+/// certificate-less (white-flag) flow for graduated pre-consensus load
+/// shedding.
 pub(crate) fn compute_consensus_load_shedding_percentage(
     num_inflight_txs: usize,
     soft_limit: usize,
     hard_limit: usize,
-    max_shedding_pct: u32,
 ) -> u32 {
     // No shedding below soft limit, or if limits are misconfigured (soft >= hard).
     if num_inflight_txs <= soft_limit || soft_limit >= hard_limit {
@@ -290,7 +295,7 @@ pub(crate) fn compute_consensus_load_shedding_percentage(
     // At or above hard limit, shed at maximum rate. The binary hard cutoff
     // in check_consensus_overload() serves as a backstop after this.
     if num_inflight_txs >= hard_limit {
-        return max_shedding_pct;
+        return MAX_CONSENSUS_LOAD_SHED_PCT;
     }
 
     debug_assert!(
@@ -305,8 +310,10 @@ pub(crate) fn compute_consensus_load_shedding_percentage(
     );
     let excess = num_inflight_txs - soft_limit;
 
-    // Linear interpolation: 0% at `soft_limit`, `max_shedding_pct` at `hard_limit`.
-    ((excess as u64 * max_shedding_pct as u64) / range as u64).min(max_shedding_pct as u64) as u32
+    // Linear interpolation: 0% at `soft_limit`, `MAX_CONSENSUS_LOAD_SHED_PCT` at
+    // `hard_limit`.
+    ((excess as u64 * MAX_CONSENSUS_LOAD_SHED_PCT as u64) / range as u64)
+        .min(MAX_CONSENSUS_LOAD_SHED_PCT as u64) as u32
 }
 
 #[cfg(test)]
@@ -471,13 +478,12 @@ mod tests {
 
     /// Tests that the consensus load shedding percentage is 0 below soft limit,
     /// scales linearly between soft and hard limits, and caps at
-    /// `max_shedding_pct` at and above the hard limit. Also covers
+    /// [`MAX_CONSENSUS_LOAD_SHED_PCT`] at and above the hard limit. Also covers
     /// misconfigured limits and edge cases.
     #[test]
     fn test_compute_consensus_load_shedding_percentage() {
         let soft_limit = 10_000;
         let hard_limit = 20_000;
-        let max_shedding_pct = 95;
 
         // Below and at soft limit: no shedding.
         for num_inflight_txs in [0, soft_limit - 1, soft_limit] {
@@ -486,7 +492,6 @@ mod tests {
                     num_inflight_txs,
                     soft_limit,
                     hard_limit,
-                    max_shedding_pct
                 ),
                 0,
                 "no shedding expected below/at soft limit ({num_inflight_txs} <= {soft_limit}): \
@@ -495,40 +500,38 @@ mod tests {
         }
 
         // Linear scaling between soft and hard limits:
-        //  - At 25% of range (12_500): 95 * 2_500 / 10_000 = 23
-        //  - At midpoint (15_000):     95 * 5_000 / 10_000 = 47
-        //  - At 75% of range (17_500): 95 * 7_500 / 10_000 = 71
-        //  - Just below hard limit:    95 * 9_999 / 10_000 = 94
+        //  - At 25% of range (12_500): 100 * 2_500 / 10_000 = 25
+        //  - At midpoint (15_000):     100 * 5_000 / 10_000 = 50
+        //  - At 75% of range (17_500): 100 * 7_500 / 10_000 = 75
+        //  - Just below hard limit:    100 * 9_999 / 10_000 = 99
         for (num_inflight_txs, expected_pct) in [
-            (12_500, 23),
-            (15_000, 47),
-            (17_500, 71),
-            (hard_limit - 1, 94),
+            (12_500, 25),
+            (15_000, 50),
+            (17_500, 75),
+            (hard_limit - 1, 99),
         ] {
             assert_eq!(
                 compute_consensus_load_shedding_percentage(
                     num_inflight_txs,
                     soft_limit,
                     hard_limit,
-                    max_shedding_pct
                 ),
                 expected_pct,
                 "expected consensus queue load shedding percentage to be {expected_pct}%",
             );
         }
 
-        // At and above hard limit: capped at `max_shedding_pct`.
+        // At and above hard limit: capped at `MAX_CONSENSUS_LOAD_SHED_PCT`.
         for num_inflight_txs in [hard_limit, hard_limit + 1, 30_000] {
             assert_eq!(
                 compute_consensus_load_shedding_percentage(
                     num_inflight_txs,
                     soft_limit,
                     hard_limit,
-                    max_shedding_pct
                 ),
-                max_shedding_pct,
+                MAX_CONSENSUS_LOAD_SHED_PCT,
                 "at/above hard limit ({num_inflight_txs} >= {hard_limit}), consensus queue load \
-                    shedding percentage should be capped at {max_shedding_pct}%",
+                    shedding percentage should be capped at {MAX_CONSENSUS_LOAD_SHED_PCT}%",
             );
         }
 
@@ -539,46 +542,10 @@ mod tests {
             (20_000, hard_limit, soft_limit), // soft > hard (swapped)
         ] {
             assert_eq!(
-                compute_consensus_load_shedding_percentage(
-                    num_inflight_txs,
-                    soft,
-                    hard,
-                    max_shedding_pct
-                ),
+                compute_consensus_load_shedding_percentage(num_inflight_txs, soft, hard),
                 0,
                 "no shedding expected with misconfigured limits (soft={soft} >= hard={hard}): \
                     consensus queue load shedding percentage should be 0%",
-            );
-        }
-
-        // Edge case: `max_shedding_pct` is 100.
-        for (num_inflight_txs, expected_pct) in
-            [(15_000, 50), (hard_limit, 100), (hard_limit + 1, 100)]
-        {
-            assert_eq!(
-                compute_consensus_load_shedding_percentage(
-                    num_inflight_txs,
-                    soft_limit,
-                    hard_limit,
-                    100,
-                ),
-                expected_pct,
-                "expected consensus queue load shedding percentage to be {expected_pct}%",
-            );
-        }
-
-        // Edge case: `max_shedding_pct` is 0 - never sheds.
-        for num_inflight_txs in [15_000, hard_limit, hard_limit + 1] {
-            assert_eq!(
-                compute_consensus_load_shedding_percentage(
-                    num_inflight_txs,
-                    soft_limit,
-                    hard_limit,
-                    0,
-                ),
-                0,
-                "no shedding expected with max_shedding_pct=0: consensus queue load shedding \
-                    percentage should be 0%",
             );
         }
     }

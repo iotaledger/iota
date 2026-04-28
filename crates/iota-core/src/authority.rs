@@ -1209,7 +1209,6 @@ impl AuthorityState {
             num_inflight_txs,
             consensus_adapter.graduated_load_shedding_soft_limit(),
             consensus_adapter.max_pending_transactions(),
-            consensus_adapter.graduated_load_shedding_max_percentage(),
         );
 
         self.metrics

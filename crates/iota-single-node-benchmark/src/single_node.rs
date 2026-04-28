@@ -73,7 +73,6 @@ impl SingleValidator {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            100,
         ));
         // TODO: for validator benchmarking purposes, we should allow for traffic
         // control to be configurable and introduce traffic control benchmarks

@@ -268,10 +268,6 @@ pub struct ConsensusAdapter {
     /// Consensus queue length at which graduated load shedding begins.
     /// Used in the certificate-less (white-flag) mode.
     graduated_load_shedding_soft_limit: usize,
-
-    /// Max percentage of transactions to shed due to consensus queue
-    /// overload. Used in the certificate-less (white-flag) mode.
-    graduated_load_shedding_max_percentage: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -305,7 +301,6 @@ impl ConsensusAdapter {
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
         graduated_load_shedding_soft_limit: usize,
-        graduated_load_shedding_max_percentage: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -324,7 +319,6 @@ impl ConsensusAdapter {
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
             graduated_load_shedding_soft_limit,
-            graduated_load_shedding_max_percentage,
         }
     }
 
@@ -343,7 +337,6 @@ impl ConsensusAdapter {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            100,
         )
     }
 
@@ -638,12 +631,6 @@ impl ConsensusAdapter {
     /// begins. Used in the certificate-less (white-flag) mode.
     pub(super) fn graduated_load_shedding_soft_limit(&self) -> usize {
         self.graduated_load_shedding_soft_limit
-    }
-
-    /// Returns the max percentage of transactions to shed due to consensus
-    /// queue overload. Used in the certificate-less (white-flag) mode.
-    pub(super) fn graduated_load_shedding_max_percentage(&self) -> u32 {
-        self.graduated_load_shedding_max_percentage
     }
 
     /// Returns the number of transactions currently in-flight in consensus.
@@ -1517,7 +1504,6 @@ mod adapter_tests {
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            100,
         );
 
         // transaction to submit
@@ -1549,7 +1535,6 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50_000,
-            100,
         );
 
         let (delay_step, position, positions_moved, _) =
