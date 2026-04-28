@@ -248,7 +248,7 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
-        // Reconfig check.
+        // Reconfig check. The guard is held through consensus submission below.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
@@ -270,15 +270,6 @@ impl ValidatorService {
         metrics
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
-
-        // Reconfig check.
-        let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-        if !reconfiguration_lock.should_accept_user_certs() {
-            metrics.num_rejected_tx_in_epoch_boundary.inc();
-            let error = IotaError::ValidatorHaltedAtEpochEnd;
-            let weight = normalize(&error);
-            return (TxStatusUpdate::Rejected { error }, weight);
-        }
 
         // Submit to consensus.
         if let Err(e) = consensus_adapter.submit(

@@ -369,8 +369,8 @@ mod tests {
     use super::*;
 
     fn obj_ref(id: u8, version: u64) -> ObjectRef {
-        (
-            ObjectID::from_single_byte(id),
+        ObjectRef::new(
+            ObjectID::new([id; ObjectID::LENGTH]),
             SequenceNumber::from_u64(version),
             ObjectDigest::random(),
         )
@@ -634,8 +634,8 @@ mod tests {
         // Pre-populate locks held by digests 1..=n on object refs 1..=n.
         let objs: Vec<_> = (0..n).map(|i| obj_ref(i as u8 + 1, 1)).collect();
         let digests: Vec<_> = (0..n).map(|i| digest(i as u8 + 1)).collect();
-        for i in 0..n {
-            table.try_acquire(digests[i], &[objs[i]]).unwrap();
+        for (d, o) in digests.iter().zip(objs.iter()) {
+            table.try_acquire(*d, &[*o]).unwrap();
         }
         assert_eq!(table.lock_count(), n);
 
@@ -645,10 +645,9 @@ mod tests {
         let barrier = Arc::new(Barrier::new(2 * n));
         let mut handles = Vec::with_capacity(2 * n);
 
-        for i in 0..n {
+        for &d in &digests {
             let table = table.clone();
             let barrier = barrier.clone();
-            let d = digests[i];
             handles.push(thread::spawn(move || {
                 barrier.wait();
                 table.release(&d);
