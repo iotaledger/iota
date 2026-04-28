@@ -50,7 +50,7 @@ impl MisbehaviorCounts {
 
     /// Converts the local counts into the wire/storage representation that is
     /// broadcast to peers as a `MisbehaviorReport` transaction.
-    pub fn to_report(&self) -> VersionedMisbehaviorReport {
+    pub fn to_report_v1(&self) -> VersionedMisbehaviorReport {
         let payload = LegacyReportPayload {
             faulty_blocks_provable: self.0[0].clone(),
             faulty_blocks_unprovable: self.0[1].clone(),
@@ -119,6 +119,14 @@ impl MisbehaviorMonitor {
         Self {
             current_local_metrics_count,
             version,
+        }
+    }
+
+    pub fn generate_report(&self) -> VersionedMisbehaviorReport {
+        match &self.version {
+            MisbehaviorMonitorVersion::V1(_) => {
+                self.current_local_metrics_count.load().to_report_v1()
+            }
         }
     }
 }
