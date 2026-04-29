@@ -14,6 +14,30 @@ use crate::authority::authority_per_epoch_store::misbehavior::{
     MisbehaviorCounts, MisbehaviorSchemaVersion,
 };
 
+/// Reasons a peer-submitted report fails `validate_report`. Surfaced in the
+/// caller's warn log so operators can distinguish wire/schema drift from
+/// malformed payloads without re-deriving the failure from generic logs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReportValidationError {
+    /// The report's wire-format variant doesn't match the schema version this
+    /// epoch is configured for (e.g. local schema is V1 but report is V2).
+    WrongSchemaVersion,
+    /// The payload's per-metric vector lengths don't match the committee size
+    /// (i.e. the report is malformed at the wire level).
+    PayloadShape,
+}
+
+impl std::fmt::Display for ReportValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WrongSchemaVersion => {
+                f.write_str("report wire-format version does not match local schema")
+            }
+            Self::PayloadShape => f.write_str("report payload has wrong vector lengths"),
+        }
+    }
+}
+
 pub struct ReportAggregator {
     schema_version: MisbehaviorSchemaVersion,
     received_reports_state: ReceivedReportsState,
@@ -41,12 +65,18 @@ impl ReportAggregator {
         &self,
         report: &VersionedMisbehaviorReport,
         committee_size: usize,
-    ) -> bool {
+    ) -> Result<(), ReportValidationError> {
         if !self.schema_version.accepts_report(report) {
-            return false;
+            return Err(ReportValidationError::WrongSchemaVersion);
         }
         match &report.payload {
-            ReportPayload::V1(payload) => payload.verify(committee_size),
+            ReportPayload::V1(payload) => {
+                if payload.verify(committee_size) {
+                    Ok(())
+                } else {
+                    Err(ReportValidationError::PayloadShape)
+                }
+            }
         }
     }
 
@@ -176,7 +206,9 @@ mod tests {
 
     use crate::authority::authority_per_epoch_store::{
         misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorSchemaVersion},
-        report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
+        report_aggregator::{
+            DBReceivedReportsStatePerAuthority, ReportAggregator, ReportValidationError,
+        },
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -288,7 +320,7 @@ mod tests {
     fn test_validate_report_valid() {
         let aggregator = mock_aggregator(3);
         let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
-        assert!(aggregator.validate_report(&report, 3));
+        assert!(aggregator.validate_report(&report, 3).is_ok());
     }
 
     #[test]
@@ -296,6 +328,9 @@ mod tests {
         let aggregator = mock_aggregator(3);
         // Report has 3 entries per metric but we validate against committee_size=4
         let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
-        assert!(!aggregator.validate_report(&report, 4));
+        assert_eq!(
+            aggregator.validate_report(&report, 4),
+            Err(ReportValidationError::PayloadShape)
+        );
     }
 }
