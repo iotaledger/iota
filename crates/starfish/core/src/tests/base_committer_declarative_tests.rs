@@ -237,7 +237,7 @@ async fn indirect_commit() {
     tracing::info!("Leader index wave 2: {leader_index_wave2}");
 
     let leader_status_wave_2 = committer.try_direct_decide(leader_wave2);
-    if let LeaderStatus::Commit(committed, _) = leader_status_wave_2.clone() {
+    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave_2.clone() {
         tracing::info!("Direct committed leader at wave 2: {committed}");
     } else {
         panic!(
@@ -250,7 +250,7 @@ async fn indirect_commit() {
         [leader_status_wave_2].iter(),
     );
 
-    if let LeaderStatus::Commit(committed, _) = leader_status_wave1_indirect {
+    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave1_indirect {
         tracing::info!("Indirect committed leader at wave 1: {committed}");
     } else {
         panic!(
@@ -304,7 +304,7 @@ async fn indirect_skip() {
     tracing::info!("Leader index wave 1: {leader_index}");
 
     let leader_status_wave1 = committer.try_direct_decide(leader);
-    if let LeaderStatus::Commit(committed, _) = leader_status_wave1 {
+    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave1 {
         tracing::info!("Direct undecided leader at wave 1: {committed}");
     } else {
         panic!(
@@ -341,7 +341,7 @@ async fn indirect_skip() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block, _) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
         decided_leaders.push(leader_status);
     } else {
