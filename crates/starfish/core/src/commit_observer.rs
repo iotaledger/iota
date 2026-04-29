@@ -1457,18 +1457,15 @@ mod tests {
         while receiver.try_recv().is_ok() {}
         drop(observer);
         let mut observer_after = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            mem_store.clone(),
+            mem_store,
             leader_schedule,
         );
         while receiver.try_recv().is_ok() {}
 
-        builder
-            .layers(6..=8)
-            .build()
-            .persist_layers(dag_state.clone());
+        builder.layers(6..=8).build().persist_layers(dag_state);
         let later_leaders: Vec<_> = builder.leader_blocks(6..=8).into_iter().flatten().collect();
         let (later_commits, _) = observer_after
             .handle_committed_leaders(
