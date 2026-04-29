@@ -23,20 +23,36 @@ use crate::object_store::{
 };
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
+pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
 
 #[derive(Serialize, Deserialize)]
-
 pub struct Manifest {
     pub available_epochs: Vec<u64>,
+    #[serde(default)]
+    pub epoch_start_timestamps_ms: BTreeMap<u64, u64>,
 }
 
 impl Manifest {
     pub fn new(available_epochs: Vec<u64>) -> Self {
-        Manifest { available_epochs }
+        Manifest {
+            available_epochs,
+            epoch_start_timestamps_ms: BTreeMap::new(),
+        }
     }
 
     pub fn epoch_exists(&self, epoch: u64) -> bool {
         self.available_epochs.contains(&epoch)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EpochMetadata {
+    pub epoch_start_timestamp_ms: u64,
+}
+
+impl EpochMetadata {
+    pub fn to_bytes(&self) -> Result<Bytes> {
+        Ok(Bytes::from(serde_json::to_vec(self)?))
     }
 }
 
@@ -296,8 +312,27 @@ pub async fn run_manifest_update_loop(
         tokio::select! {
             _now = update_interval.tick() => {
                 if let Ok(epochs) = list_all_epochs(store.clone()).await {
+                    let mut epoch_start_timestamps_ms = BTreeMap::new();
+                    // Get epoch started time from EPOCH_METADATA_FILENAME file in each epoch dir and write to the root MANIFEST file.
+                    for epoch in &epochs {
+                        let metadata_path = Path::from(format!("epoch_{epoch}/{EPOCH_METADATA_FILENAME}"));
+                        if let Ok(bytes) = store.get_bytes(&metadata_path).await {
+                            match serde_json::from_slice::<EpochMetadata>(&bytes) {
+                                Ok(metadata) => {
+                                    epoch_start_timestamps_ms
+                                        .insert(*epoch, metadata.epoch_start_timestamp_ms);
+                                }
+                                Err(err) => {
+                                    warn!("Failed to parse epoch metadata for epoch {epoch}: {err}");
+                                }
+                            }
+                        }
+                    }
                     let manifest_path = Path::from(MANIFEST_FILENAME);
-                    let manifest = Manifest::new(epochs);
+                    let manifest = Manifest {
+                        available_epochs: epochs,
+                        epoch_start_timestamps_ms,
+                    };
                     let bytes = serde_json::to_string(&manifest)?;
                     put(&store, &manifest_path, Bytes::from(bytes)).await?;
                 }
