@@ -332,7 +332,6 @@ impl VersionedMisbehaviorReport {
         }
         summary
     }
-
 }
 
 // MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
