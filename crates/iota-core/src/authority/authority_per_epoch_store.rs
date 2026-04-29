@@ -92,7 +92,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         authority_per_epoch_store::{
-            misbehavior::MisbehaviorSchemaVersion, misbehavior_monitor::MisbehaviorMonitor,
+            misbehavior::MisbehaviorReportVersion, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
@@ -1079,11 +1079,11 @@ impl AuthorityPerEpochStore {
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let committee_size = committee.num_members();
-        let schema_version = MisbehaviorSchemaVersion::from_protocol(&protocol_config);
-        let misbehavior_monitor = MisbehaviorMonitor::new(schema_version, committee_size);
-        let report_aggregator = ReportAggregator::new(schema_version, committee_size);
+        let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
+        let misbehavior_monitor = MisbehaviorMonitor::new(report_version, committee_size);
+        let report_aggregator = ReportAggregator::new(report_version, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
-        let scorer = Scorer::new(voting_power, &protocol_config, schema_version);
+        let scorer = Scorer::new(voting_power, &protocol_config, report_version);
 
         let s = Arc::new(Self {
             name,

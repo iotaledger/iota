@@ -18,15 +18,15 @@ use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
 /// named-field types `MisbehaviorCountsV1` / `ReportPayloadV1`; this enum only
 /// versions the wire format and gates acceptance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MisbehaviorSchemaVersion {
+pub enum MisbehaviorReportVersion {
     V1,
 }
 
-impl MisbehaviorSchemaVersion {
+impl MisbehaviorReportVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.misbehavior_monitor_version_as_option() {
             None | Some(1) => Self::V1,
-            Some(version) => panic!("Unsupported misbehavior schema version {version}"),
+            Some(version) => panic!("Unsupported misbehavior report version {version}"),
         }
     }
 
@@ -156,9 +156,9 @@ impl From<&ReportPayloadV1> for MisbehaviorCountsV1 {
 }
 
 impl MisbehaviorCounts {
-    pub(crate) fn new(version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
+    pub(crate) fn new(version: MisbehaviorReportVersion, committee_size: usize) -> Self {
         match version {
-            MisbehaviorSchemaVersion::V1 => Self::V1(MisbehaviorCountsV1::zeros(committee_size)),
+            MisbehaviorReportVersion::V1 => Self::V1(MisbehaviorCountsV1::zeros(committee_size)),
         }
     }
 
@@ -169,12 +169,12 @@ impl MisbehaviorCounts {
     /// that schema/protocol drift is visible in operator output.
     pub(crate) fn from_consensus_output(
         output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
-        version: MisbehaviorSchemaVersion,
+        version: MisbehaviorReportVersion,
         committee_size: usize,
     ) -> Self {
         match version {
             // TODO: verify this logic
-            MisbehaviorSchemaVersion::V1 => {
+            MisbehaviorReportVersion::V1 => {
                 let mut counts = MisbehaviorCountsV1::zeros(committee_size);
                 let mut seen = HashSet::new();
                 for (output_misbehavior, row) in output_misbehavior_counts {
