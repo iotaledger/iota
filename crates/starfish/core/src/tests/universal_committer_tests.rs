@@ -52,7 +52,7 @@ async fn direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
     // The decided leaders should be all from round 1 to round 5
     assert_eq!(sequence.len(), 5);
-    if let DecidedLeader::Commit(ref block, _) = sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
         assert_eq!(
             block.author(),
             test_setup
@@ -84,7 +84,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
     assert_eq!(first_sequence.len(), 1);
 
-    if let DecidedLeader::Commit(ref block, _) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -99,7 +99,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
 
     assert_eq!(first_sequence.len(), 1);
-    if let DecidedLeader::Commit(ref block, _) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -132,7 +132,7 @@ async fn idempotence() {
     // Expect that all leaders between round 2 and round 5 are committed.
     // The last one is a block of leader from round 5
     assert_eq!(second_sequence.len(), 4);
-    if let DecidedLeader::Commit(ref block, _) = second_sequence[3] {
+    if let DecidedLeader::Commit(ref block, _, _) = second_sequence[3] {
         assert_eq!(block.round(), round_5);
         assert_eq!(block.author(), committer.get_leaders(round_5)[0]);
     } else {
@@ -164,7 +164,7 @@ async fn multiple_direct_commit() {
         let sequence = committer.try_decide(last_decided);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert_eq!(sequence.len(), 3);
-        if let DecidedLeader::Commit(ref block, _) = sequence[2] {
+        if let DecidedLeader::Commit(ref block, _, _) = sequence[2] {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -198,7 +198,7 @@ async fn direct_commit_late_call() {
     assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
     for (i, leader_block) in sequence.iter().enumerate() {
         let leader_round = committer.committers[(i + 1) % 3].leader_round((i as u32 + 1) / 3);
-        if let DecidedLeader::Commit(ref block, _) = leader_block {
+        if let DecidedLeader::Commit(ref block, _, _) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -394,7 +394,7 @@ async fn indirect_commit() {
         let leader_round =
             committer.committers[(idx + 1) % 3].leader_round(((idx + 1) / 3) as WaveNumber);
         let expected_leader = committer.get_leaders(leader_round)[0];
-        if let DecidedLeader::Commit(ref block, _) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
         } else {
@@ -469,7 +469,7 @@ async fn indirect_skip() {
     assert_eq!(sequence.len(), 7);
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
-        if let DecidedLeader::Commit(ref block, _) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), (idx + 1) as Round);
             assert_eq!(
                 block.author(),
@@ -699,7 +699,7 @@ async fn test_byzantine_direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 12);
-    if let DecidedLeader::Commit(ref block, _) = sequence[11] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[11] {
         assert_eq!(block.author(), committer.get_leaders(round_12)[0])
     } else {
         panic!("Expected a committed leader")

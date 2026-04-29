@@ -86,8 +86,8 @@ impl UniversalCommitter {
                         tracing::debug!("Outcome of indirect rule: {indirect}");
                         decision = match (&status, &indirect) {
                             (
-                                LeaderStatus::Commit(_, Some(CommitMetastate::Pending)),
-                                LeaderStatus::Commit(_, Some(m)),
+                                LeaderStatus::Commit(_, Some(CommitMetastate::Pending), _),
+                                LeaderStatus::Commit(_, Some(m), _),
                             ) if *m != CommitMetastate::Pending => Decision::Upgraded,
                             _ => Decision::Indirect,
                         };
@@ -141,8 +141,8 @@ impl UniversalCommitter {
             Decision::Indirect => "indirect",
         };
         let status = match decided_leader {
-            DecidedLeader::Commit(_, None) => format!("{decision_str}-commit"),
-            DecidedLeader::Commit(_, Some(metastate)) => {
+            DecidedLeader::Commit(_, None, _) => format!("{decision_str}-commit"),
+            DecidedLeader::Commit(_, Some(metastate), _) => {
                 format!("{decision_str}-commit-{metastate}")
             }
             DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
