@@ -11,17 +11,18 @@ use iota_types::messages_consensus::{ReportPayload, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior::{
-    MisbehaviorCounts, MisbehaviorSchemaVersion,
+    MisbehaviorCounts, MisbehaviorReportVersion,
 };
 
 /// Reasons a peer-submitted report fails `validate_report`. Surfaced in the
-/// caller's warn log so operators can distinguish wire/schema drift from
+/// caller's warn log so operators can distinguish wire-version drift from
 /// malformed payloads without re-deriving the failure from generic logs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReportValidationError {
-    /// The report's wire-format variant doesn't match the schema version this
-    /// epoch is configured for (e.g. local schema is V1 but report is V2).
-    WrongSchemaVersion,
+    /// The report's wire-format variant doesn't match the
+    /// `MisbehaviorReportVersion` this epoch is configured for (e.g. locally
+    /// V1 but the report is V2).
+    WrongReportVersion,
     /// The payload's per-metric vector lengths don't match the committee size
     /// (i.e. the report is malformed at the wire level).
     PayloadShape,
@@ -30,8 +31,8 @@ pub(crate) enum ReportValidationError {
 impl std::fmt::Display for ReportValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::WrongSchemaVersion => {
-                f.write_str("report wire-format version does not match local schema")
+            Self::WrongReportVersion => {
+                f.write_str("report wire-format version does not match the local report version")
             }
             Self::PayloadShape => f.write_str("report payload has wrong vector lengths"),
         }
@@ -39,12 +40,12 @@ impl std::fmt::Display for ReportValidationError {
 }
 
 pub struct ReportAggregator {
-    schema_version: MisbehaviorSchemaVersion,
+    report_version: MisbehaviorReportVersion,
     received_reports_state: ReceivedReportsState,
 }
 
 impl ReportAggregator {
-    pub fn new(schema_version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
+    pub fn new(report_version: MisbehaviorReportVersion, committee_size: usize) -> Self {
         let received_reports_state = (0..committee_size)
             .map(|_| ReceivedReportsStatePerAuthority {
                 received_metrics: ArcSwapOption::empty(),
@@ -53,7 +54,7 @@ impl ReportAggregator {
             .collect::<ReceivedReportsState>();
 
         Self {
-            schema_version,
+            report_version,
             received_reports_state,
         }
     }
@@ -66,8 +67,8 @@ impl ReportAggregator {
         report: &VersionedMisbehaviorReport,
         committee_size: usize,
     ) -> Result<(), ReportValidationError> {
-        if !self.schema_version.accepts_report(report) {
-            return Err(ReportValidationError::WrongSchemaVersion);
+        if !self.report_version.accepts_report(report) {
+            return Err(ReportValidationError::WrongReportVersion);
         }
         match &report.payload {
             ReportPayload::V1(payload) => {
@@ -205,7 +206,7 @@ mod tests {
     use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorSchemaVersion},
+        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
         report_aggregator::{
             DBReceivedReportsStatePerAuthority, ReportAggregator, ReportValidationError,
         },
@@ -215,12 +216,12 @@ mod tests {
         ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
-    fn mock_schema_version() -> MisbehaviorSchemaVersion {
-        MisbehaviorSchemaVersion::from_protocol(&mock_protocol_config())
+    fn mock_report_version() -> MisbehaviorReportVersion {
+        MisbehaviorReportVersion::from_protocol(&mock_protocol_config())
     }
 
     fn mock_aggregator(committee_size: usize) -> ReportAggregator {
-        ReportAggregator::new(mock_schema_version(), committee_size)
+        ReportAggregator::new(mock_report_version(), committee_size)
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {

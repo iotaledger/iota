@@ -7,7 +7,7 @@ use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 
 use crate::authority::authority_per_epoch_store::{
-    misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorSchemaVersion},
+    misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
     report_aggregator::ReportAggregator,
 };
 
@@ -37,7 +37,7 @@ impl Scorer {
     pub fn new(
         voting_power: Vec<u64>,
         protocol_config: &ProtocolConfig,
-        _schema_version: MisbehaviorSchemaVersion,
+        _report_version: MisbehaviorReportVersion,
     ) -> Self {
         let committee_size = voting_power.len();
         let version = VersionedScorer::from_protocol(protocol_config);
@@ -383,7 +383,7 @@ mod tests {
     use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorSchemaVersion},
+        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
         report_aggregator::ReportAggregator,
         scorer::{MAX_SCORE, Scorer},
     };
@@ -392,16 +392,16 @@ mod tests {
         ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
-    fn mock_schema_version() -> MisbehaviorSchemaVersion {
-        MisbehaviorSchemaVersion::from_protocol(&mock_protocol_config())
+    fn mock_report_version() -> MisbehaviorReportVersion {
+        MisbehaviorReportVersion::from_protocol(&mock_protocol_config())
     }
 
     fn mock_scorer(voting_power: Vec<u64>) -> Scorer {
-        Scorer::new(voting_power, &mock_protocol_config(), mock_schema_version())
+        Scorer::new(voting_power, &mock_protocol_config(), mock_report_version())
     }
 
     fn mock_aggregator(committee_size: usize) -> ReportAggregator {
-        ReportAggregator::new(mock_schema_version(), committee_size)
+        ReportAggregator::new(mock_report_version(), committee_size)
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {

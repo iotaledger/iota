@@ -11,7 +11,7 @@ use iota_types::messages_consensus::VersionedMisbehaviorReport;
 
 use crate::{
     authority::authority_per_epoch_store::misbehavior::{
-        MisbehaviorCounts, MisbehaviorSchemaVersion,
+        MisbehaviorCounts, MisbehaviorReportVersion,
     },
     consensus_types::consensus_output_api::ConsensusOutputMisbehavior,
 };
@@ -23,7 +23,7 @@ use crate::{
 /// them as `MisbehaviorReport` transactions submitted to consensus at
 /// checkpoint boundaries.
 pub struct MisbehaviorMonitor {
-    schema_version: MisbehaviorSchemaVersion,
+    report_version: MisbehaviorReportVersion,
     committee_size: usize,
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
@@ -49,14 +49,14 @@ pub struct MisbehaviorMonitor {
 }
 
 impl MisbehaviorMonitor {
-    pub fn new(schema_version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
+    pub fn new(report_version: MisbehaviorReportVersion, committee_size: usize) -> Self {
         let current_local_counts = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
-            schema_version,
+            report_version,
             committee_size,
         )));
 
         Self {
-            schema_version,
+            report_version,
             committee_size,
             current_local_counts,
             last_report_summary: AtomicU64::new(0),
@@ -101,7 +101,7 @@ impl MisbehaviorMonitor {
     ) {
         let new_counts = MisbehaviorCounts::from_consensus_output(
             output_misbehavior_counts,
-            self.schema_version,
+            self.report_version,
             self.committee_size,
         );
         self.current_local_counts.store(Arc::new(new_counts));
