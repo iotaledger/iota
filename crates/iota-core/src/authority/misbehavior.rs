@@ -1,9 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{ReportPayload, ReportPayloadV1, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
 
@@ -54,11 +57,18 @@ impl MisbehaviorSchemaVersion {
 
 /// A single misbehavior category tracked by the monitor.
 ///
-/// This enum is **append-only**: once a variant is added it must never be
-/// removed or reordered, because existing encoded data (e.g.,
-/// `ReportPayloadV1`) relies on stable positional indices. New variants
-/// must be introduced via a new `MisbehaviorSchemaVersion`.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+/// Variants are not serialized — the wire format uses named-field
+/// `ReportPayloadV1` (and future `ReportPayloadVN`) structs, and the
+/// in-memory `MisbehaviorCountsV1` mirrors that layout. Reordering or
+/// renaming variants is therefore safe at the type level.
+///
+/// What *is* load-bearing is the order of the slice returned by
+/// `MisbehaviorSchemaVersion::reported_misbehaviors()`, because the
+/// `Scorer`'s `Parameters` arrays (allowances, maximums, weights) are
+/// positionally aligned with it. Any change to that slice for an existing
+/// schema version must be paired with a matching update to `Parameters`,
+/// or — preferably — accompanied by a new `MisbehaviorSchemaVersion`.
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 pub enum Misbehavior {
     FaultyBlocksProvable,
     FaultyBlocksUnprovable,
@@ -176,17 +186,35 @@ impl MisbehaviorCounts {
     /// Builds counts from a consensus-output payload, projecting it onto the
     /// locally tracked schema. Categories the local schema tracks but consensus
     /// did not report are zero-filled; categories consensus reported but the
-    /// local schema does not track are silently ignored.
+    /// local schema does not track are dropped. Both projections are logged so
+    /// that schema/protocol drift is visible in operator output.
     pub(crate) fn from_consensus_output(
         output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
         version: MisbehaviorSchemaVersion,
         committee_size: usize,
     ) -> Self {
         match version {
+            // TODO: verify this logic
             MisbehaviorSchemaVersion::V1 => {
                 let mut counts = MisbehaviorCountsV1::zeros(committee_size);
+                let mut seen = HashSet::new();
                 for (output_misbehavior, row) in output_misbehavior_counts {
-                    match Misbehavior::from(&output_misbehavior) {
+                    if row.len() != committee_size {
+                        warn!(
+                            "consensus output row for {output_misbehavior:?} has length {}, \
+                             expected committee_size {committee_size}; dropping row",
+                            row.len()
+                        );
+                        continue;
+                    }
+                    let category = Misbehavior::from(&output_misbehavior);
+                    if !seen.insert(category) {
+                        warn!(
+                            "consensus output contained duplicate row for {category:?}; \
+                             overwriting earlier value"
+                        );
+                    }
+                    match category {
                         Misbehavior::FaultyBlocksProvable => counts.faulty_blocks_provable = row,
                         Misbehavior::FaultyBlocksUnprovable => {
                             counts.faulty_blocks_unprovable = row
@@ -195,35 +223,35 @@ impl MisbehaviorCounts {
                         Misbehavior::Equivocations => counts.equivocations = row,
                     }
                 }
+                for &expected in version.reported_misbehaviors() {
+                    if !seen.contains(&expected) {
+                        warn!(
+                            "consensus output omitted misbehavior category {expected:?}; \
+                             zero-filling locally"
+                        );
+                    }
+                }
                 Self::V1(counts)
             }
         }
     }
 
     /// Converts the local counts into the wire/storage representation that is
-    /// broadcast to peers as a `MisbehaviorReport` transaction.
-    pub fn to_report(&self, version: MisbehaviorSchemaVersion) -> VersionedMisbehaviorReport {
-        match (version, self) {
-            (MisbehaviorSchemaVersion::V1, Self::V1(c)) => {
-                VersionedMisbehaviorReport::new_v1(ReportPayloadV1::from(c))
-            }
+    /// broadcast to peers as a `MisbehaviorReport` transaction. Each
+    /// `MisbehaviorCounts` variant maps 1:1 to a `ReportPayload` variant — the
+    /// version is implicit in `self`, no separate version argument needed.
+    pub fn to_report(&self) -> VersionedMisbehaviorReport {
+        match self {
+            Self::V1(c) => VersionedMisbehaviorReport::new_v1(ReportPayloadV1::from(c)),
         }
     }
 
-    /// Builds `MisbehaviorCounts` from a peer's report.
-    pub fn from_report(
-        report: &VersionedMisbehaviorReport,
-        version: MisbehaviorSchemaVersion,
-    ) -> Self {
-        debug_assert!(
-            version.accepts_report(report),
-            "from_report called with a report whose wire-format version does not match the schema; \
-             callers must validate via MisbehaviorSchemaVersion::accepts_report first"
-        );
-        match (version, &report.payload) {
-            (MisbehaviorSchemaVersion::V1, ReportPayload::V1(payload)) => {
-                Self::V1(MisbehaviorCountsV1::from(payload))
-            }
+    /// Builds `MisbehaviorCounts` from a peer's report. The output variant is
+    /// derived from the report's payload variant; mismatch with a local
+    /// schema is therefore not representable through this function.
+    pub fn from_report(report: &VersionedMisbehaviorReport) -> Self {
+        match &report.payload {
+            ReportPayload::V1(payload) => Self::V1(MisbehaviorCountsV1::from(payload)),
         }
     }
 

@@ -19,6 +19,7 @@ type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransactio
 // `MisbehaviorCounts::from_consensus_output`) compiles and exhaustively
 // matches before Starfish populates it.
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum ConsensusOutputMisbehavior {
     FaultyBlocksProvable,
     FaultyBlocksUnprovable,

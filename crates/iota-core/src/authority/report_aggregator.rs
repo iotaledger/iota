@@ -57,7 +57,7 @@ impl ReportAggregator {
     /// Uses `rcu` so the load + merge + store is atomic against concurrent
     /// callers; the closure may run more than once under contention.
     pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
-        let incoming_counts = MisbehaviorCounts::from_report(report, self.schema_version);
+        let incoming_counts = MisbehaviorCounts::from_report(report);
         let state = &self.received_reports_state[authority as usize];
         state.received_metrics.rcu(|current| {
             Some(Arc::new(match current.as_deref() {
