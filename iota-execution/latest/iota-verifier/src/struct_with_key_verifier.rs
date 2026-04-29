@@ -8,8 +8,7 @@
 //! - The first field has type `iota::object::UID`
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::StructTag,
+    base_types::{IotaAddress, StructTag},
     error::ExecutionError,
     fp_ensure,
 };
@@ -68,7 +67,7 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
         let uid_type_module_name = module.identifier_at(uid_type_module.name);
         fp_ensure!(
             uid_type_struct_name == ident_str!("UID")
-                && *uid_type_module_address == IOTA_FRAMEWORK_ADDRESS
+                && uid_type_module_address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
                 && uid_type_module_name == ident_str!("object"),
             verification_failure(format!(
                 "First field of struct {name} must be of type {}, \

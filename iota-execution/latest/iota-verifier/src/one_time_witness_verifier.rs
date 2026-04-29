@@ -22,6 +22,7 @@
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
+    base_types::IotaAddress,
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
@@ -187,7 +188,7 @@ fn verify_init_single_param(
              single field of type bool",
             module.self_id(),
             INIT_FN_NAME,
-            IOTA_FRAMEWORK_ADDRESS,
+            IotaAddress::FRAMEWORK,
             ident_str!("tx_context"),
             ident_str!("TxContext"),
             module.self_id(),

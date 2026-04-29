@@ -102,12 +102,12 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
             let mhandle = view.module_handle_at(fhandle.module);
 
             let type_arguments = &view.signature_at(*type_parameters).0;
-            let (maddr, mname) = addr_module(view, mhandle);
-            if maddr == IotaAddress::FRAMEWORK && mname == TRANSFER_MODULE {
+            let ident = addr_module(view, mhandle);
+            if ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
                 verify_private_transfer_module_functions(view, fhandle, type_arguments)?
-            } else if maddr == IotaAddress::FRAMEWORK && mname == EVENT_MODULE {
+            } else if ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
-            } else if maddr == IotaAddress::FRAMEWORK && mname == ACCOUNT_MODULE {
+            } else if ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
                 verify_private_account_module_functions(view, fhandle, type_arguments)?
             }
         }
@@ -121,8 +121,7 @@ fn verify_private_transfer_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    let (self_addr, self_name) = addr_module(view, self_handle);
-    if self_addr == IotaAddress::FRAMEWORK && self_name == TRANSFER_MODULE {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
@@ -163,8 +162,7 @@ fn verify_private_account_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    let (self_addr, self_name) = addr_module(view, self_handle);
-    if self_addr == IotaAddress::FRAMEWORK && self_name == ACCOUNT_MODULE {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
