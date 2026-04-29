@@ -229,7 +229,7 @@ impl IotaEvent {
         };
 
         let move_value = BoundedVisitor::deserialize_value(&contents, &layout.into_layout())
-            .map_err(|e| iota_types::error::IotaError::ObjectSerialization {
+            .map_err(|e| iota_types::error::IotaError::ObjectDeserialization {
                 error: e.to_string(),
             })?;
         let (type_, fields) = type_and_fields_from_move_event_data(move_value)?;
