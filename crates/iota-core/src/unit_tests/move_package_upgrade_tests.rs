@@ -460,6 +460,23 @@ async fn test_upgrade_incompatible() {
 }
 
 #[tokio::test]
+async fn test_upgrade_cannot_remove_view_attribute() {
+    let mut runner = UpgradeStateRunner::new("move_upgrade/view_base").await;
+
+    let (digest, modules) = build_upgrade_test_modules("view_removed");
+    let effects = runner
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![])
+        .await;
+
+    assert_eq!(
+        effects.into_status().unwrap_err().0,
+        ExecutionFailureStatus::PackageUpgradeError {
+            upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+        },
+    )
+}
+
+#[tokio::test]
 async fn test_upgrade_package_incorrect_digest() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
