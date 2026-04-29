@@ -721,7 +721,7 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            Identifier::new(e.transaction_module.as_str()).unwrap(),
+                            Identifier::new(e.module.as_str()).unwrap(),
                         ),
                     )
                 })
