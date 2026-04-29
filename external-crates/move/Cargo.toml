@@ -80,7 +80,7 @@ primitive-types = { version = "0.10.1", features = ["impl-serde"] }
 proc-macro2 = "1.0.24"
 proptest = "1.6.0"
 proptest-derive = "0.5.1"
-quote = "1.0.9"
+quote = "1.0.45"
 rand = "0.8.0"
 ratatui = "0.29.0"
 rayon = "1.10.0"
