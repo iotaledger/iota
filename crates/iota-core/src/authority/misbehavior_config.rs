@@ -163,6 +163,11 @@ impl MisbehaviorCounts {
         report: &VersionedMisbehaviorReport,
         version: MisbehaviorSchemaVersion,
     ) -> Self {
+        debug_assert!(
+            version.accepts_report(report),
+            "from_report called with a report whose wire-format version does not match the schema; \
+             callers must validate via MisbehaviorSchemaVersion::accepts_report first"
+        );
         match report {
             VersionedMisbehaviorReport::V1(payload, _) => Self(
                 version
