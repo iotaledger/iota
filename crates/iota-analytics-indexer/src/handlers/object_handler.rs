@@ -10,6 +10,7 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
 use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
@@ -19,8 +20,8 @@ use tokio::sync::Mutex;
 use crate::{
     FileType,
     handlers::{
-        AnalyticsHandler, ObjectStatusTracker, SYSTEM_PACKAGE_ADDRESSES, get_move_struct,
-        get_owner_address, get_owner_type, initial_shared_version,
+        AnalyticsHandler, ObjectStatusTracker, get_move_struct, get_owner_address, get_owner_type,
+        initial_shared_version,
     },
     package_store::{LocalDBPackageStore, PackageCache},
     tables::{ObjectEntry, ObjectStatus},

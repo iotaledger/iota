@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::IotaAddress as NativeIotaAddress;
+use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -42,13 +42,7 @@ impl SystemPackageTask {
                     info!("Detected epoch boundary, evicting system packages from cache");
                     self.resolver
                         .package_store()
-                        .evict([
-                            NativeIotaAddress::STD,
-                            NativeIotaAddress::FRAMEWORK,
-                            NativeIotaAddress::SYSTEM,
-                            NativeIotaAddress::GENESIS_BRIDGE,
-                            NativeIotaAddress::STARDUST,
-                        ]);
+                        .evict(SYSTEM_PACKAGE_ADDRESSES);
                 }
             }
         }

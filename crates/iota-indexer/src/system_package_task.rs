@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use iota_types::base_types::IotaAddress;
+use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio_util::sync::CancellationToken;
 
 use crate::{read::IndexerReader, schema::epochs, store::diesel_macro::*};
@@ -68,13 +68,7 @@ impl SystemPackageTask {
                         self.reader
                             .package_resolver()
                             .package_store()
-                            .evict([
-                                IotaAddress::STD,
-                                IotaAddress::FRAMEWORK,
-                                IotaAddress::SYSTEM,
-                                IotaAddress::GENESIS_BRIDGE,
-                                IotaAddress::STARDUST,
-                            ]);
+                            .evict(SYSTEM_PACKAGE_ADDRESSES);
                     }
                 }
             }

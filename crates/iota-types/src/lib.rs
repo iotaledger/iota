@@ -111,7 +111,6 @@ macro_rules! built_in_ids {
 macro_rules! built_in_pkgs {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         built_in_ids! { $($addr / $id = $init;)* }
-        pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[$($addr),*];
     }
 }
 
@@ -131,6 +130,14 @@ built_in_ids! {
     GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
 }
+
+pub const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
+    IotaAddress::STD,
+    IotaAddress::FRAMEWORK,
+    IotaAddress::SYSTEM,
+    IotaAddress::GENESIS_BRIDGE,
+    IotaAddress::STARDUST,
+];
 
 pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;

@@ -8,7 +8,7 @@ use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{ObjectID, StructTag, TypeTag},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
@@ -36,14 +36,6 @@ const WRAPPED_INDEXING_DISALLOW_LIST: [&str; 4] = [
     "0x1::ascii::String",
     "0x2::url::Url",
     "0x2::object::ID",
-];
-
-const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
-    IotaAddress::STD,
-    IotaAddress::FRAMEWORK,
-    IotaAddress::SYSTEM,
-    IotaAddress::GENESIS_BRIDGE,
-    IotaAddress::STARDUST,
 ];
 
 #[async_trait::async_trait]

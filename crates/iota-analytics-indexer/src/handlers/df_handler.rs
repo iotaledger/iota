@@ -11,6 +11,7 @@ use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
     base_types::{ObjectID, TypeTag},
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -23,7 +24,7 @@ use tracing::error;
 
 use crate::{
     FileType,
-    handlers::{AnalyticsHandler, SYSTEM_PACKAGE_ADDRESSES},
+    handlers::AnalyticsHandler,
     package_store::{LocalDBPackageStore, PackageCache},
     tables::DynamicFieldEntry,
 };

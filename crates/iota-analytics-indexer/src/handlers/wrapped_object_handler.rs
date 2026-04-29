@@ -8,6 +8,7 @@ use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::Resolver;
 use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };
@@ -15,7 +16,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     FileType,
-    handlers::{AnalyticsHandler, SYSTEM_PACKAGE_ADDRESSES, get_move_struct, parse_struct},
+    handlers::{AnalyticsHandler, get_move_struct, parse_struct},
     package_store::{LocalDBPackageStore, PackageCache},
     tables::WrappedObjectEntry,
 };
