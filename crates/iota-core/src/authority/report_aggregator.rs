@@ -7,7 +7,7 @@ use std::sync::{
 };
 
 use arc_swap::ArcSwapOption;
-use iota_types::messages_consensus::VersionedMisbehaviorReport;
+use iota_types::messages_consensus::{ReportPayload, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior::{
@@ -45,8 +45,8 @@ impl ReportAggregator {
         if !self.schema_version.accepts_report(report) {
             return false;
         }
-        match report {
-            VersionedMisbehaviorReport::V1(payload, _) => payload.verify(committee_size),
+        match &report.payload {
+            ReportPayload::V1(payload) => payload.verify(committee_size),
         }
     }
 
