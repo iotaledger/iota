@@ -821,8 +821,13 @@ pub struct ConsensusConfig {
     /// if there are any epoch DBs to remove.
     pub db_pruner_period_secs: Option<u64>,
 
-    /// Maximum number of pending transactions to submit to consensus,
-    /// including those in submission wait.
+    /// Hard limit on the number of pending transactions to submit to
+    /// consensus, including those in submission wait. Used as the upper
+    /// bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shed_start_pct`) in the certificate-less (pcool
+    /// / white-flag) mode, and as the threshold for the binary cutoff
+    /// in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
@@ -846,10 +851,13 @@ pub struct ConsensusConfig {
     #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
     pub parameters: Option<StarfishParameters>,
 
-    /// Consensus queue length at which graduated load shedding begins.
-    /// Used in the certificate-less (white-flag) mode.
+    /// Percentage of `max_pending_transactions` (hard limit) at which graduated
+    /// pre-consensus load shedding begins. At and below this threshold, no
+    /// shedding occurs; above it, the shedding rate scales linearly from 0% to
+    /// 100% at `max_pending_transactions`. Used in the certificate-less
+    /// (pcool / white-flag) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub graduated_load_shedding_soft_limit: Option<usize>,
+    pub graduated_load_shed_start_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -857,19 +865,18 @@ impl ConsensusConfig {
         &self.db_path
     }
 
-    /// Returns the maximum number of pending transactions to submit to
-    /// consensus, including those in submission wait. Defaults to 20_000
+    /// Returns the hard limit on the number of pending transactions to submit
+    /// to consensus, including those in submission wait. Defaults to 20_000
     /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
     }
 
-    /// Returns the consensus queue length at which graduated load shedding
-    /// begins. Defaults to `max_pending_transactions / 2`.
-    /// Used in the certificate-less (white-flag) mode.
-    pub fn graduated_load_shedding_soft_limit(&self) -> usize {
-        self.graduated_load_shedding_soft_limit
-            .unwrap_or(self.max_pending_transactions() / 2)
+    /// Returns the percentage of `max_pending_transactions` at which
+    /// graduated pre-consensus load shedding begins. Defaults to 50%.
+    /// Used in the certificate-less (pcool / white-flag) mode.
+    pub fn graduated_load_shed_start_pct(&self) -> u32 {
+        self.graduated_load_shed_start_pct.unwrap_or(50).min(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {

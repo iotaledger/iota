@@ -177,7 +177,7 @@ use crate::{
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
-        AuthorityOverloadInfo, compute_consensus_load_shedding_percentage,
+        AuthorityOverloadInfo, compute_graduated_load_shedding_percentage,
         overload_monitor_accept_tx,
     },
     stake_aggregator::StakeAggregator,
@@ -1205,10 +1205,10 @@ impl AuthorityState {
     ) -> IotaResult {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
 
-        let shedding_pct = compute_consensus_load_shedding_percentage(
+        let shedding_pct = compute_graduated_load_shedding_percentage(
             num_inflight_txs,
-            consensus_adapter.graduated_load_shedding_soft_limit(),
             consensus_adapter.max_pending_transactions(),
+            consensus_adapter.graduated_load_shed_start_pct(),
         );
 
         self.metrics
