@@ -1767,7 +1767,7 @@ mod checked {
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization within
             // type tags and inputs.
-            Ok(unsafe { type_input.into_type_tag_unchecked() })
+            Ok(type_input.into_type_tag_unchecked())
         }
     }
 

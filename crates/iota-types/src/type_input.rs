@@ -156,7 +156,7 @@ impl TypeInput {
     ///
     /// Preserving existing behaviour for identifier deserialization within type
     /// tags and inputs.
-    pub unsafe fn into_type_tag_unchecked(self) -> TypeTag {
+    pub fn into_type_tag_unchecked(self) -> TypeTag {
         match self {
             TypeInput::Bool => TypeTag::Bool,
             TypeInput::U8 => TypeTag::U8,
@@ -177,8 +177,8 @@ impl TypeInput {
                 } = *inner;
                 TypeTag::Struct(Box::new(StructTag::new(
                     address,
-                    Identifier::new(module).unwrap(),
-                    Identifier::new(name).unwrap(),
+                    Identifier::new_unchecked(module),
+                    Identifier::new_unchecked(name),
                     type_params
                         .into_iter()
                         .map(|ty| ty.into_type_tag_unchecked())
