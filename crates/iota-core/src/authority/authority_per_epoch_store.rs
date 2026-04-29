@@ -2854,12 +2854,12 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
                 // Check validity of the report.
-                if !self
+                if let Err(reason) = self
                     .report_aggregator
                     .validate_report(report, self.committee.num_members())
                 {
                     warn!(
-                        "Received invalid misbehavior report from {:?}",
+                        "Received invalid misbehavior report from {:?}: {reason}",
                         authority.concise()
                     );
                     self.report_aggregator
