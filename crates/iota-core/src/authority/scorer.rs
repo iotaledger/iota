@@ -315,7 +315,8 @@ impl ScorerVersion {
 }
 
 /// Scoring parameters for a given version. All `Vec` fields are indexed by the
-/// tracked misbehavior index (same order as `ReportedMisbehaviors`).
+/// tracked misbehavior index — the order produced by
+/// `MisbehaviorSchemaVersion::reported_misbehaviors()`.
 struct Parameters {
     // Allowed misbehaviors without any punishment
     allowances: Vec<u64>,

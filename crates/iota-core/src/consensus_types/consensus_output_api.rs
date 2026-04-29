@@ -14,7 +14,10 @@ use crate::consensus_types::AuthorityIndex;
 type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
 // Variants are constructed by future Starfish wiring of misbehavior counts;
-// currently `misbehavior_counts()` returns an empty Vec.
+// today `misbehavior_counts()` returns `vec![]`. Kept as the contract surface
+// so the rest of the misbehavior pipeline (`Misbehavior::from`,
+// `MisbehaviorCounts::from_consensus_output`) compiles and exhaustively
+// matches before Starfish populates it.
 #[allow(dead_code)]
 pub enum ConsensusOutputMisbehavior {
     FaultyBlocksProvable,

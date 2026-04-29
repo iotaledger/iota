@@ -256,9 +256,10 @@ impl ConsensusTransactionKind {
 
 /// A misbehavior report carrying a versioned payload plus a memoized digest.
 ///
-/// The digest cache is `#[serde(skip)]` so it is excluded from the wire format;
-/// BCS encodes only `payload` (the enum tag + the payload struct), giving a
-/// wire layout identical to a bare `ReportPayload` enum.
+/// The digest cache is `#[serde(skip)]`, so BCS sees only `payload` and the
+/// wire layout is exactly that of `ReportPayload`. Adding any non-`skip`
+/// field to this struct would silently change the wire format and break
+/// compatibility — keep the digest the only non-payload field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionedMisbehaviorReport {
     pub payload: ReportPayload,
@@ -272,7 +273,6 @@ pub struct VersionedMisbehaviorReport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReportPayload {
     V1(ReportPayloadV1),
-    // V2(ReportPayloadV2),
 }
 
 impl VersionedMisbehaviorReport {
@@ -317,10 +317,10 @@ impl VersionedMisbehaviorReport {
     }
 }
 
-// ReportPayloadV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbehaviors) include
-// faulty blocks, equivocation and missing proposal counts for each authority.
-// This first version does not include any type of proof.
+/// V1 wire payload: per-authority counts for each tracked misbehavior
+/// category (faulty blocks, equivocations, missing proposals). Field order
+/// is part of the wire format — BCS serializes named struct fields in
+/// declaration order. This first version does not include any type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReportPayloadV1 {
     pub faulty_blocks_provable: Vec<u64>,
