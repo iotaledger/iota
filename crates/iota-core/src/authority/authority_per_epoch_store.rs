@@ -3160,8 +3160,8 @@ impl AuthorityPerEpochStore {
             .await?;
         // Update scores on the consensus handler thread, right after processing
         // reports and snapshotting. This avoids cross-thread reads of the
-        // aggregator — the checkpoint service only reads the final scores
-        // (Vec<AtomicU64>).
+        // aggregator — the checkpoint service only reads the published score
+        // snapshot (`ArcSwap<Vec<u64>>`).
         if self.protocol_config().calculate_validator_scores() {
             self.scorer.update_scores(&self.report_aggregator);
         }
