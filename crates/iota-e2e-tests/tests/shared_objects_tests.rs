@@ -620,7 +620,7 @@ async fn shared_object_sync() {
     // Make a transaction to increment the counter.
     let increment_counter_transaction = test_cluster.wallet.sign_transaction(
         &TestTransactionBuilder::new(sender, objects.pop().unwrap(), rgp)
-            .call_counter_increment(package_id, counter_ref.object_id, counter_ref.version())
+            .call_counter_increment(package_id, counter_ref.object_id, counter_ref.version)
             .build(),
     );
 

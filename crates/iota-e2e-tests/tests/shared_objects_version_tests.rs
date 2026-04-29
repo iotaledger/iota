@@ -19,7 +19,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 async fn fresh_shared_object_initial_version_matches_current() {
     let env = TestEnvironment::new().await;
     let (object_ref, owner) = env.create_shared_counter().await;
-    assert!(is_shared_at(&owner, object_ref.version()));
+    assert!(is_shared_at(&owner, object_ref.version));
 }
 
 #[sim_test]

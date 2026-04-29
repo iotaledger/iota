@@ -2738,7 +2738,7 @@ async fn test_get_latest_parent_entry() {
     assert_eq!(obj_ref.version, update_version);
 
     let delete_version =
-        SequenceNumber::lamport_increment([obj_ref.version(), effects.gas_object().0.version])
+        SequenceNumber::lamport_increment([obj_ref.version, effects.gas_object().0.version])
             .unwrap();
 
     let _effects = call_move(
@@ -2776,7 +2776,7 @@ async fn test_get_latest_parent_entry() {
         .await
         .unwrap();
     assert_eq!(obj_ref.object_id, gas_object_id);
-    assert_eq!(obj_ref.version(), delete_version);
+    assert_eq!(obj_ref.version, delete_version);
 
     // Check entry for deleted object is returned
     let obj_ref = authority_state
@@ -2784,7 +2784,7 @@ async fn test_get_latest_parent_entry() {
         .await
         .unwrap();
     assert_eq!(obj_ref.object_id, new_object_id1);
-    assert_eq!(obj_ref.version(), delete_version);
+    assert_eq!(obj_ref.version, delete_version);
     assert_eq!(obj_ref.digest, ObjectDigest::OBJECT_DELETED);
 }
 

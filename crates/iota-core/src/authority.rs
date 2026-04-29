@@ -2908,8 +2908,7 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                let seq = self
-                    .try_get_object_or_tombstone(request.object_id)
+                self.try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
@@ -2917,8 +2916,7 @@ impl AuthorityState {
                             version: None,
                         })
                     })?
-                    .version;
-                seq
+                    .version
             }
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };

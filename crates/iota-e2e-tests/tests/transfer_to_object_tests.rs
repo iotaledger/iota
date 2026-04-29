@@ -184,13 +184,7 @@ impl TestEnvironment {
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| {
-                    if oref.object_id == parent.object_id {
-                        Some(*oref)
-                    } else {
-                        None
-                    }
-                })
+                .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
                 .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
@@ -204,13 +198,7 @@ impl TestEnvironment {
         assert!(fx.0.status().is_ok());
         fx.0.mutated_excluding_gas()
             .iter()
-            .find_map(|(oref, _)| {
-                if oref.object_id == parent.object_id {
-                    Some(*oref)
-                } else {
-                    None
-                }
-            })
+            .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
             .unwrap()
     }
 }
