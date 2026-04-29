@@ -63,30 +63,6 @@ impl Scorer {
     pub(crate) fn current_scores(&self) -> Vec<u64> {
         self.current_scores.load().as_ref().clone()
     }
-
-    /// Test-only bridge into the V1 score computation. Lets unit tests feed a
-    /// constructed median directly without going through the aggregator.
-    #[cfg(test)]
-    pub(crate) fn calculate_scores_v1(&self, median: MisbehaviorCounts) -> Vec<u64> {
-        let MisbehaviorCounts::V1(m) = median;
-        match &self.version {
-            VersionedScorer::V1(s) => s.score_from_median(&self.voting_power, &m),
-        }
-    }
-
-    /// Test-only bridge: computes the weighted-median report from current
-    /// aggregator state, returning `None` when there are no reporters.
-    #[cfg(test)]
-    pub(crate) fn calculate_median_report(
-        &self,
-        aggregator: &ReportAggregator,
-    ) -> Option<MisbehaviorCounts> {
-        match &self.version {
-            VersionedScorer::V1(s) => s
-                .median_report(&self.voting_power, aggregator)
-                .map(MisbehaviorCounts::V1),
-        }
-    }
 }
 
 /// Versioned scoring engine. Each variant is a self-contained struct that
@@ -383,9 +359,9 @@ mod tests {
     use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
+        misbehavior::{MisbehaviorCountsV1, MisbehaviorReportVersion},
         report_aggregator::ReportAggregator,
-        scorer::{MAX_SCORE, Scorer},
+        scorer::{MAX_SCORE, Scorer, ScorerV1},
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -484,10 +460,12 @@ mod tests {
 
     #[test]
     fn test_calculate_median_report() {
+        let scorer = ScorerV1::v1_parameters();
+
         // Single reporter: median equals their own report.
         {
             let aggregator = mock_aggregator(3);
-            let scorer = mock_scorer(vec![10, 10, 10]);
+            let voting_power = vec![10, 10, 10];
             aggregator.process_report(
                 0,
                 &report_v1(&[
@@ -497,15 +475,15 @@ mod tests {
                     vec![1, 2, 3],
                 ]),
             );
-            let median = scorer.calculate_median_report(&aggregator).unwrap();
+            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                MisbehaviorCountsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
                     equivocations: vec![1, 2, 3],
-                })
+                }
             );
         }
 
@@ -514,7 +492,7 @@ mod tests {
         // threshold first.
         {
             let aggregator = mock_aggregator(3);
-            let scorer = mock_scorer(vec![20, 10, 10]);
+            let voting_power = vec![20, 10, 10];
             aggregator.process_report(
                 0,
                 &report_v1(&[
@@ -533,15 +511,15 @@ mod tests {
                     vec![10, 20, 30],
                 ]),
             );
-            let median = scorer.calculate_median_report(&aggregator).unwrap();
+            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                MisbehaviorCountsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
                     equivocations: vec![1, 2, 3],
-                })
+                }
             );
         }
 
@@ -550,7 +528,7 @@ mod tests {
         // authority) pair.
         {
             let aggregator = mock_aggregator(3);
-            let scorer = mock_scorer(vec![10, 10, 10]);
+            let voting_power = vec![10, 10, 10];
             aggregator.process_report(
                 0,
                 &report_v1(&[
@@ -578,21 +556,21 @@ mod tests {
                     vec![1, 2, 30],
                 ]),
             );
-            let median = scorer.calculate_median_report(&aggregator).unwrap();
+            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                MisbehaviorCountsV1 {
                     faulty_blocks_provable: vec![6, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
                     equivocations: vec![1, 2, 3],
-                })
+                }
             );
         }
     }
 
     #[test]
-    fn test_calculate_scores_v1() {
+    fn test_score_from_median() {
         // V1 parameters:
         //   allowances:      [1, 2, 48_000, 0]
         //   maximums:        [5, 10, 160_000, 1]
@@ -603,26 +581,33 @@ mod tests {
         // Derivation: (16386 + 19660 + 6553 + 22937) * MAX_SCORE / SCALE_FACTOR =
         // MAX_SCORE.
         let committee_size = 3;
-        let scorer = mock_scorer(vec![10; committee_size]);
+        let voting_power = vec![10; committee_size];
+        let scorer = ScorerV1::v1_parameters();
 
         assert_eq!(
-            scorer.calculate_scores_v1(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
-                faulty_blocks_provable: vec![0, 0, 0],
-                faulty_blocks_unprovable: vec![0, 0, 0],
-                missing_proposals: vec![0, 0, 0],
-                equivocations: vec![0, 0, 0],
-            })),
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorCountsV1 {
+                    faulty_blocks_provable: vec![0, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![0, 0, 0],
+                }
+            ),
             vec![MAX_SCORE, MAX_SCORE, MAX_SCORE]
         );
 
         // Authority 0 equivocates (≥ max 1) → major factor = 0 → score = 0.
         assert_eq!(
-            scorer.calculate_scores_v1(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
-                faulty_blocks_provable: vec![0, 0, 0],
-                faulty_blocks_unprovable: vec![0, 0, 0],
-                missing_proposals: vec![0, 0, 0],
-                equivocations: vec![1, 0, 0],
-            })),
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorCountsV1 {
+                    faulty_blocks_provable: vec![0, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![1, 0, 0],
+                }
+            ),
             vec![0, MAX_SCORE, MAX_SCORE]
         );
 
@@ -630,12 +615,15 @@ mod tests {
         // score = (baseline + unprovable_weight + missing_weight) = 16386 + 6553 +
         // 22937 = 45876.
         assert_eq!(
-            scorer.calculate_scores_v1(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
-                faulty_blocks_provable: vec![5, 0, 0],
-                faulty_blocks_unprovable: vec![0, 0, 0],
-                missing_proposals: vec![0, 0, 0],
-                equivocations: vec![0, 0, 0],
-            })),
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorCountsV1 {
+                    faulty_blocks_provable: vec![5, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![0, 0, 0],
+                }
+            ),
             vec![45876, MAX_SCORE, MAX_SCORE]
         );
     }
