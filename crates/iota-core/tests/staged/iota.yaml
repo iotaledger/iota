@@ -390,10 +390,10 @@ Event:
   STRUCT:
     - package_id:
         TYPENAME: ObjectId
-    - transaction_module: STR
+    - module: STR
     - sender:
         TYPENAME: Address
-    - type_:
+    - type:
         TYPENAME: StructTag
     - contents: BYTES
 ExecutionData:
