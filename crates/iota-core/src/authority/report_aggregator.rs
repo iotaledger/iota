@@ -125,8 +125,10 @@ pub(crate) struct ReceivedReportsStatePerAuthority {
     // contained in the MisbehaviorReports received. `None` if the authority has
     // not yet sent a report in this epoch.
     received_metrics: ArcSwapOption<MisbehaviorCounts>,
-    // The count of invalid reports received from the authority. Validity must be
-    // checked deterministically, since invalid reports are not re-propagated.
+    // The count of invalid reports received from the authority. Bumped by
+    // `validate_report` / `verify_consensus_transaction` when a report fails
+    // checks; validity must be evaluated deterministically since invalid
+    // reports are not re-propagated.
     invalid_reports_count: AtomicU64,
 }
 

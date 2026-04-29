@@ -81,9 +81,10 @@ impl From<&ConsensusOutputMisbehavior> for Misbehavior {
 ///
 /// Tagged by schema version so each version's representation can be a
 /// dedicated named-field struct — the compiler enforces that every operation
-/// touching all metrics handles every category. Field order in each variant's
-/// struct mirrors the corresponding wire format (`ReportPayloadV1`,
-/// `ReportPayloadV2`, ...) for human readability but is not load-bearing.
+/// touching all metrics handles every category. Field order in each
+/// `MisbehaviorCountsVN` mirrors the corresponding wire format
+/// (`ReportPayloadVN`) for human readability but is not load-bearing here;
+/// the wire-format struct's field order, however, *is* part of the protocol.
 ///
 /// For wire/storage encoding see `VersionedMisbehaviorReport` in `iota-types`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

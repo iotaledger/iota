@@ -28,11 +28,12 @@ pub struct MisbehaviorMonitor {
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
     current_local_counts: ArcSwap<MisbehaviorCounts>,
-    // Single-writer: only mutated by SubmitCheckpointToConsensus::checkpoint_created.
-    // Don't add additional writers without revisiting the atomicity story (the three
-    // fields below form a logical tuple but are stored as independent Relaxed atomics,
-    // safe today only because reads and writes happen from the single CheckpointBuilder
-    // task).
+    // Single-writer: the three rate-limit fields below are only mutated by
+    // SubmitCheckpointToConsensus::checkpoint_created. Don't add additional writers without
+    // revisiting the atomicity story — `last_report_summary` and `last_report_checkpoint_seq`
+    // form a logical tuple but are stored as independent Relaxed atomics, safe today only
+    // because reads and writes happen from the single CheckpointBuilder task.
+    // `has_sent_end_of_epoch_report` is an independent epoch-once flag.
     //
     // Summary of the last MisbehaviorReport this node submitted, defined as the sum of all
     // metrics across authorities. Since reported counts are monotonically non-decreasing within
