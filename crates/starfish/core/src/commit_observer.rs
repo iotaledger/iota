@@ -346,10 +346,10 @@ impl CommitObserver {
                     );
                 }
 
-                // Re-seed the tracker for refs that were optimistically committed
-                // pre-restart so natural acks post-restart don't push them across
-                // 2f+1 again. Full committee is a conservative over-approximation;
-                // persisting the actual strong-voter set is a follow-up.
+                // Repopulate the ack tracker for transactions optimistically committed
+                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                // The full committee is used as a conservative over-approximation of
+                // the actual acknowledging set.
                 if is_optimistic {
                     let leader_ref = pending_sub_dag.leader;
                     let leader_header = pending_sub_dag
