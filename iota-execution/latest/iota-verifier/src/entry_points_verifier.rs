@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{IotaAddress, TxContext, TxContextKind},
+    base_types::{Identifier, IotaAddress, TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
@@ -16,7 +16,6 @@ use move_binary_format::{
     file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
-use move_core_types::ident_str;
 
 use crate::{INIT_FN_NAME, verification_failure};
 
@@ -164,8 +163,8 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             module.self_id(),
             INIT_FN_NAME,
             IotaAddress::FRAMEWORK,
-            ident_str!("tx_context"),
-            ident_str!("TxContext"),
+            Identifier::TX_CONTEXT_MODULE,
+            Identifier::TX_CONTEXT,
             format_signature_token(module, &parameters[0]),
         ))
     }

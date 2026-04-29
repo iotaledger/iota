@@ -19,7 +19,7 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID,
+            Identifier, IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID,
             RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext,
             TxContextKind, TypeTag,
         },
@@ -59,8 +59,8 @@ mod checked {
         normalized,
     };
     use move_core_types::{
-        account_address::AccountAddress, ident_str, identifier::IdentStr,
-        language_storage::ModuleId, u256::U256,
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
+        u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -1800,8 +1800,8 @@ mod checked {
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
         let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
-            && module_name == ident_str!("tx_context")
-            && struct_name == ident_str!("TxContext");
+            && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

@@ -22,7 +22,7 @@
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::IotaAddress,
+    base_types::{Identifier, IotaAddress},
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
@@ -189,8 +189,8 @@ fn verify_init_single_param(
             module.self_id(),
             INIT_FN_NAME,
             IotaAddress::FRAMEWORK,
-            ident_str!("tx_context"),
-            ident_str!("TxContext"),
+            Identifier::TX_CONTEXT_MODULE,
+            Identifier::TX_CONTEXT,
             module.self_id(),
             module.self_id().name().as_str().to_uppercase(),
         ));
