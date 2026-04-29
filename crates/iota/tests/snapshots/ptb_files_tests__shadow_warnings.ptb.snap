@@ -32,8 +32,8 @@ expression: "results.join(\"\\n\")"
    ·          ╰── Variable 'a' used again here (shadowed) for the 2nd time.
  3 │ --assign b 4
    ╰────
-  help: You can either rename this variable, or do not pass the `warn-shadows`
-        flag to ignore these types of errors.
+  help: You can either rename this variable, or do not pass the `warn-
+        shadows` flag to ignore these types of errors.
 
   × Warning when processing PTB
    ╭─[4:10]
@@ -43,8 +43,8 @@ expression: "results.join(\"\\n\")"
    ·          ╰── Variable 'a' used again here (shadowed) for the 3rd time.
  5 │ --assign a 4
    ╰────
-  help: You can either rename this variable, or do not pass the `warn-shadows`
-        flag to ignore these types of errors.
+  help: You can either rename this variable, or do not pass the `warn-
+        shadows` flag to ignore these types of errors.
 
   × Warning when processing PTB
    ╭─[5:10]
@@ -54,7 +54,7 @@ expression: "results.join(\"\\n\")"
    ·          ╰── Variable 'a' used again here (shadowed) for the 4th time.
  6 │ --warn-shadows 
    ╰────
-  help: You can either rename this variable, or do not pass the `warn-shadows`
-        flag to ignore these types of errors.
+  help: You can either rename this variable, or do not pass the `warn-
+        shadows` flag to ignore these types of errors.
 
  === BUILT PTB ===
