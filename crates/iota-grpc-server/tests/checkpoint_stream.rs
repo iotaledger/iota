@@ -1072,13 +1072,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     );
 
     // Every message must be within the limit.
-    for (i, msg) in all_messages.iter().enumerate() {
-        let size = msg.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&all_messages, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }
@@ -1153,13 +1147,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     );
 
     // Every message must be within the limit.
-    for (i, msg) in all_messages.iter().enumerate() {
-        let size = msg.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&all_messages, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::ResponseExt;
+use iota_grpc_client::{HeadersInterceptor, ResponseExt};
 use iota_macros::sim_test;
 
 use super::super::utils::setup_grpc_test;
@@ -61,4 +61,32 @@ async fn metadata_envelope_headers() {
         .await
         .expect("get_health should succeed");
     assert_standard_headers(&health, "get_health");
+}
+
+/// Verify that the client successfully attaches HTTP auth credentials and the
+/// server still serves the request.  The fixture's gRPC server does not
+/// enforce auth, so this tests only the interceptor wiring end-to-end (request
+/// succeeds with the auth header attached).  Header *content* is verified at
+/// the unit level in `iota_grpc_client::interceptors::tests`.
+#[sim_test]
+async fn metadata_envelope_with_auth() {
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    type ConfigureAuth = fn(&mut HeadersInterceptor);
+    let scenarios: &[(&str, ConfigureAuth)] = &[
+        ("basic auth", |i| i.basic_auth("user", Some("pass"))),
+        ("bearer auth", |i| i.bearer_auth("my-token")),
+    ];
+
+    for (label, configure) in scenarios {
+        let mut interceptor = HeadersInterceptor::new();
+        configure(&mut interceptor);
+        let authed_client = client.clone().with_headers(interceptor);
+
+        let service_info = authed_client
+            .get_service_info(None)
+            .await
+            .unwrap_or_else(|e| panic!("get_service_info should succeed with {label}: {e}"));
+        assert_standard_headers(&service_info, &format!("get_service_info ({label})"));
+    }
 }

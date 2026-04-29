@@ -17,7 +17,7 @@ use tokio::time::timeout;
 
 use super::super::utils::{
     BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_MINTED_EVENT, NFT_MODULE, NFT_PACKAGE,
-    publish_example_package, setup_grpc_test,
+    publish_example_package, setup_grpc_test, wait_for_executed_transactions_checkpointed,
 };
 
 /// Single test exercising multiple event filter scenarios.
@@ -89,15 +89,7 @@ async fn event_filter_scenarios() {
     let signed_tx = cluster.sign_transaction(&clock_tx);
     cluster.execute_transaction(signed_tx).await;
 
-    // Wait for checkpoints
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-
-    let latest_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
-        .await
-        .expect("get latest checkpoint")
-        .body()
-        .sequence_number();
+    let latest_seq = wait_for_executed_transactions_checkpointed(&cluster, &client).await;
 
     // --- Helper: stream checkpoints with event filter and collect events ---
     let stream_and_collect_events = |event_filter: grpc_filter::EventFilter| {
@@ -148,7 +140,7 @@ async fn event_filter_scenarios() {
         );
         assert_eq!(
             event.sender.as_ref().unwrap().address.as_ref(),
-            sender_1.as_ref(),
+            sender_1.as_bytes(),
             "Scenario A: events must come from sender_1"
         );
     }
@@ -173,7 +165,7 @@ async fn event_filter_scenarios() {
         );
         assert_eq!(
             event.package_id.as_ref().unwrap().object_id.as_ref(),
-            nft_package_id.as_ref(),
+            nft_package_id.as_bytes(),
             "Scenario B: events must come from the NFT package"
         );
     }

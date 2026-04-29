@@ -4,6 +4,8 @@
 use std::collections::{HashMap, HashSet};
 
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
+use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
+use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     effects::TransactionEffectsAPI,
@@ -112,6 +114,81 @@ pub async fn publish_example_package(
         .find(|obj| obj.1.is_immutable())
         .map(|obj| obj.0.object_id)
         .unwrap_or_else(|| panic!("Should have created '{package_name}' package"))
+}
+
+/// Get the first wallet address from a test cluster.
+pub fn first_sender(cluster: &TestCluster) -> IotaAddress {
+    cluster.wallet.get_addresses().first().copied().unwrap()
+}
+
+/// Check if execution status is success.
+pub fn is_success(status: &ExecutionStatus) -> bool {
+    matches!(status, ExecutionStatus::Success)
+}
+
+/// Create a signed transaction for testing (IOTA transfer to random recipient).
+pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
+    let recipient = IotaAddress::random();
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
+    tx.try_into().expect("SDK type conversion failed")
+}
+
+/// Create an unsigned transaction for simulation testing.
+pub async fn create_transaction_for_simulation(test_cluster: &TestCluster) -> Transaction {
+    let (sender, gas) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, sender)
+        .build();
+
+    tx_data.try_into().expect("SDK type conversion failed")
+}
+
+/// Execute a transaction and return its digest.
+///
+/// This is useful for tests that need a finalized transaction to query.
+pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> Digest {
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let digest = *tx.digest();
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .unwrap();
+    Digest::new(digest.into_inner())
+}
+
+/// Wait until every transaction executed via `cluster.execute_transaction(...)`
+/// is guaranteed to be in a checkpoint executed by the fullnode, then return
+/// a checkpoint sequence number that bounds those transactions.
+///
+/// `cluster.execute_transaction` uses `WaitForLocalExecution`, which only
+/// guarantees the fullnode has executed the transaction locally via the
+/// certificate — checkpoint inclusion is asynchronous.  We read the current
+/// latest as a baseline `N`, then wait for `N + 2`: `N + 1` may have already
+/// had its consensus content sealed before our transaction was certified, in
+/// which case the transaction lands in `N + 2`.  The returned `N + 2` is a
+/// safe upper bound for stream ranges that need to cover those transactions.
+pub async fn wait_for_executed_transactions_checkpointed(
+    cluster: &TestCluster,
+    client: &iota_grpc_client::Client,
+) -> u64 {
+    let baseline_seq = client
+        .get_checkpoint_latest(Some(""), None, None)
+        .await
+        .expect("get latest checkpoint")
+        .body()
+        .sequence_number();
+    let target_seq = baseline_seq + 2;
+    cluster.wait_for_checkpoint(target_seq, None).await;
+    target_seq
 }
 
 /// Assert that a raw tonic result is an error with the expected status code.

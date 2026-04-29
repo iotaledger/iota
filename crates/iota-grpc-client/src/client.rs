@@ -193,3 +193,31 @@ impl_grpc_client_config!(
     StateServiceClient<InterceptedChannel>,
     MovePackageServiceClient<InterceptedChannel>,
 );
+
+#[cfg(test)]
+mod tests {
+    // E2E tests always use `http://`, so the HTTPS-without-TLS branch is only
+    // reachable from a unit test compiled with `tls-ring` disabled.
+    #[cfg(not(feature = "tls-ring"))]
+    #[tokio::test]
+    async fn https_without_tls_ring_returns_failed_precondition() {
+        use super::Client;
+
+        let status = match Client::connect("https://example.com").await {
+            Err(crate::api::Error::Grpc(status)) => status,
+            Err(other) => panic!("expected Error::Grpc, got: {other:?}"),
+            Ok(_) => panic!("connect should fail without tls-ring"),
+        };
+
+        assert_eq!(
+            status.code(),
+            tonic::Code::FailedPrecondition,
+            "status: {status:?}"
+        );
+        assert!(
+            status.message().contains("tls-ring"),
+            "error should mention `tls-ring` feature, got: {}",
+            status.message()
+        );
+    }
+}

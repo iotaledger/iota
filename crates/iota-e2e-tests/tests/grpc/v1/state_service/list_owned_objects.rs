@@ -25,13 +25,8 @@ use prost_types::FieldMask;
 
 use crate::utils::{
     NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
-    comma_separated_field_mask_to_paths, publish_example_package, setup_grpc_test,
+    comma_separated_field_mask_to_paths, first_sender, publish_example_package, setup_grpc_test,
 };
-
-/// Get the first wallet address from a test cluster.
-fn first_sender(cluster: &test_cluster::TestCluster) -> IotaAddress {
-    cluster.wallet.get_addresses().first().copied().unwrap()
-}
 
 /// Make a unary call and validate field presence on every returned object.
 async fn list_and_validate(

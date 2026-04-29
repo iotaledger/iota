@@ -13,8 +13,8 @@ use iota_types::{
 use tonic::Code;
 
 use super::{
-    super::utils::setup_grpc_test,
-    common::{assert_grpc_error, create_transaction_for_simulation, is_success},
+    super::utils::{create_transaction_for_simulation, is_success, setup_grpc_test},
+    common::assert_grpc_error,
 };
 
 #[sim_test]

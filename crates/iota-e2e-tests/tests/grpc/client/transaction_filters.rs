@@ -17,7 +17,7 @@ use tokio::time::timeout;
 
 use super::super::utils::{
     BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_PACKAGE, publish_example_package,
-    setup_grpc_test,
+    setup_grpc_test, wait_for_executed_transactions_checkpointed,
 };
 
 /// Single test exercising multiple transaction filter scenarios.
@@ -83,15 +83,7 @@ async fn test_transaction_filter_scenarios() {
     let signed_tx = cluster.sign_transaction(&clock_tx);
     cluster.execute_transaction(signed_tx).await;
 
-    // Wait for all transactions to land in checkpoints
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-
-    let latest_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
-        .await
-        .expect("get latest checkpoint")
-        .body()
-        .sequence_number();
+    let latest_seq = wait_for_executed_transactions_checkpointed(&cluster, &client).await;
 
     // --- Helper closure to stream and collect matching transactions ---
     let stream_and_collect = |tx_filter: grpc_filter::TransactionFilter| {
