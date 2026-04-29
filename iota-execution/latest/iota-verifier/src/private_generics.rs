@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
-    base_types::IotaAddress,
-    error::ExecutionError,
-};
+use iota_types::{base_types::IotaAddress, error::ExecutionError};
 use move_binary_format::{
     CompiledModule,
     file_format::{
@@ -257,7 +254,10 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
     }
 }
 
-fn addr_module<'a>(view: &'a CompiledModule, mhandle: &ModuleHandle) -> (IotaAddress, &'a IdentStr) {
+fn addr_module<'a>(
+    view: &'a CompiledModule,
+    mhandle: &ModuleHandle,
+) -> (IotaAddress, &'a IdentStr) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
     (IotaAddress::new(maddr.into_bytes()), mident)

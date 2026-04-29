@@ -1464,8 +1464,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let module_addr = module_id.address();
         let module_name = module_id.name();
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
-            && module_name == EVENT_MODULE
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE
         {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,

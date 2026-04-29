@@ -8,12 +8,11 @@
 //! - The first field has type `iota::object::UID`
 
 use iota_types::{
-    base_types::{IotaAddress, StructTag},
+    base_types::{Identifier, IotaAddress, StructTag},
     error::ExecutionError,
     fp_ensure,
 };
 use move_binary_format::file_format::{CompiledModule, SignatureToken};
-use move_core_types::ident_str;
 
 use crate::verification_failure;
 
@@ -66,9 +65,9 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
         let uid_type_module_address = module.address_identifier_at(uid_type_module.address);
         let uid_type_module_name = module.identifier_at(uid_type_module.name);
         fp_ensure!(
-            uid_type_struct_name == ident_str!("UID")
+            uid_type_struct_name.as_str() == Identifier::UID.as_str()
                 && uid_type_module_address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
-                && uid_type_module_name == ident_str!("object"),
+                && uid_type_module_name.as_str() == Identifier::OBJECT_MODULE.as_str(),
             verification_failure(format!(
                 "First field of struct {name} must be of type {}, \
                 {uid_type_module_address}::{uid_type_module_name}::{uid_type_struct_name} type found",

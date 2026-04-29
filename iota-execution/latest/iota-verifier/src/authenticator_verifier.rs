@@ -14,12 +14,12 @@ use iota_types::{
     is_object_struct, is_primitive_strict,
     transfer::Receiving,
 };
-use move_core_types::identifier::IdentStr;
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
+use move_core_types::identifier::IdentStr;
 
 use crate::verification_failure;
 

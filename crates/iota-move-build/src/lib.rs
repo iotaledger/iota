@@ -373,7 +373,8 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
         for fn_def in &module.function_defs {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);
-            if let Some(version) = get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
+            if let Some(version) =
+                get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
             {
                 runtime_metadata.add_function_attribute(
                     fn_name.to_string(),

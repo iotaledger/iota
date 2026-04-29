@@ -15,6 +15,7 @@ use iota_types::{
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
+use move_core_types::identifier::Identifier;
 
 use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_failure};
 
@@ -79,14 +80,14 @@ fn verify_runtime_metadata(
                     match attr.version {
                         1 => {
                             // Version 1: verify that the function is a valid authenticator
-                            let ident =
-                                move_core_types::identifier::Identifier::new(fn_name.clone())
-                                    .map_err(|err| {
-                                        verification_failure(format!(
-                                            "Failed to read function name: {err}",
-                                        ))
-                                    })?;
-                            verify_authenticate_func_v1(module, &ident)?;
+                            verify_authenticate_func_v1(
+                                module,
+                                &Identifier::new(fn_name.clone()).map_err(|err| {
+                                    verification_failure(format!(
+                                        "Failed to read function name: {err}",
+                                    ))
+                                })?,
+                            )?;
                         }
                         _ => {
                             return Err(verification_failure(format!(
