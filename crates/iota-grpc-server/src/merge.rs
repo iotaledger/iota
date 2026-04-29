@@ -645,15 +645,7 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
         source: iota_types::effects::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::EVENTS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        // TODO(thibault): had to change this during a rebase, please double check
-        let sdk_events = iota_sdk_types::TransactionEvents(source.data);
-
-        Merge::merge(self, &sdk_events, mask)
+        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.data), mask)
     }
 }
 
