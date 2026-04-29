@@ -239,35 +239,55 @@ pub trait ConsensusClient: Sync + Send + 'static {
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
     consensus_client: Arc<dyn ConsensusClient>,
+
     /// The checkpoint store for the validator
     checkpoint_store: Arc<CheckpointStore>,
+
     /// Authority pubkey.
     authority: AuthorityName,
-    /// The limit to number of inflight transactions at this node.
+
+    /// The hard limit on the number of inflight transactions at this node.
+    /// Used as the upper bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shed_start_pct`) in the certificate-less (pcool /
+    /// white-flag) mode, and as the threshold for the binary cutoff in
+    /// `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
+
     /// Number of submitted transactions still inflight at this node.
     num_inflight_transactions: AtomicU64,
+
     /// Dictates the maximum position  from which will submit to consensus. Even
     /// if the is elected to submit from a higher position than this, it
     /// will "reset" to the max_submit_position.
     max_submit_position: Option<usize>,
+
     /// When provided it will override the current back off logic and will use
     /// this value instead as delay step.
     submit_delay_step_override: Option<Duration>,
+
     /// A structure to check the connection statuses populated by the Connection
     /// Monitor Listener
     connection_monitor_status: Arc<dyn CheckConnection>,
+
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
+
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
+
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
+
+    /// Tracks consensus submission latency for adaptive submit-delay backoff.
     latency_observer: LatencyObserver,
 
-    /// Consensus queue length at which graduated load shedding begins.
-    /// Used in the certificate-less (white-flag) mode.
-    graduated_load_shedding_soft_limit: usize,
+    /// Percentage of `max_pending_transactions` (hard limit) at which graduated
+    /// pre-consensus load shedding begins. At and below this threshold, no
+    /// shedding occurs; above it, the shedding rate scales linearly from 0% to
+    /// 100% at `max_pending_transactions`. Used in the certificate-less
+    /// (pcool / white-flag) mode.
+    graduated_load_shed_start_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -300,7 +320,7 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
-        graduated_load_shedding_soft_limit: usize,
+        graduated_load_shed_start_pct: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -318,7 +338,7 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            graduated_load_shedding_soft_limit,
+            graduated_load_shed_start_pct,
         }
     }
 
@@ -627,10 +647,11 @@ impl ConsensusAdapter {
         self.max_pending_transactions
     }
 
-    /// Returns the consensus queue length at which graduated load shedding
-    /// begins. Used in the certificate-less (white-flag) mode.
-    pub(super) fn graduated_load_shedding_soft_limit(&self) -> usize {
-        self.graduated_load_shedding_soft_limit
+    /// Returns the percentage of `max_pending_transactions` at which
+    /// graduated pre-consensus load shedding begins. Used in the
+    /// certificate-less (pcool / white-flag) mode.
+    pub(super) fn graduated_load_shed_start_pct(&self) -> u32 {
+        self.graduated_load_shed_start_pct
     }
 
     /// Returns the number of transactions currently in-flight in consensus.
