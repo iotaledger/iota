@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviors;
+use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
 
 /// Single source of truth for the misbehavior schema and report wire format.
 ///
 /// Each variant ties together (a) the version reported in `ProtocolConfig`,
-/// (b) the ordered list of `Misbehaviors` tracked locally, and (c) the
+/// (b) the ordered list of `Misbehavior` tracked locally, and (c) the
 /// `VersionedMisbehaviorReport` variant accepted from peers. Adding a new
 /// variant forces the schema and the acceptance check to be updated in one
 /// place; the compiler enforces that every match is exhaustive.
@@ -30,13 +30,13 @@ impl MisbehaviorSchemaVersion {
 
     /// Ordered list of misbehavior categories tracked under this version. The
     /// index of each variant determines its row in `MisbehaviorCounts`.
-    pub fn reported_misbehaviors(&self) -> &'static [Misbehaviors] {
+    pub fn reported_misbehaviors(&self) -> &'static [Misbehavior] {
         match self {
             Self::V1 => &[
-                Misbehaviors::FaultyBlocksProvable,
-                Misbehaviors::FaultyBlocksUnprovable,
-                Misbehaviors::MissingProposals,
-                Misbehaviors::Equivocations,
+                Misbehavior::FaultyBlocksProvable,
+                Misbehavior::FaultyBlocksUnprovable,
+                Misbehavior::MissingProposals,
+                Misbehavior::Equivocations,
             ],
         }
     }
@@ -57,110 +57,160 @@ impl MisbehaviorSchemaVersion {
 ///
 /// This enum is **append-only**: once a variant is added it must never be
 /// removed or reordered, because existing encoded data (e.g.,
-/// `LegacyReportPayload`) relies on stable positional indices. New variants
+/// `ReportPayloadV1`) relies on stable positional indices. New variants
 /// must be introduced via a new `MisbehaviorSchemaVersion`.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum Misbehaviors {
+pub enum Misbehavior {
     FaultyBlocksProvable,
     FaultyBlocksUnprovable,
     MissingProposals,
     Equivocations,
 }
 
-impl From<&ConsensusOutputMisbehaviors> for Misbehaviors {
-    fn from(output_misbehavior: &ConsensusOutputMisbehaviors) -> Self {
+impl From<&ConsensusOutputMisbehavior> for Misbehavior {
+    fn from(output_misbehavior: &ConsensusOutputMisbehavior) -> Self {
         match output_misbehavior {
-            ConsensusOutputMisbehaviors::FaultyBlocksProvable => Self::FaultyBlocksProvable,
-            ConsensusOutputMisbehaviors::FaultyBlocksUnprovable => Self::FaultyBlocksUnprovable,
-            ConsensusOutputMisbehaviors::MissingProposals => Self::MissingProposals,
-            ConsensusOutputMisbehaviors::Equivocations => Self::Equivocations,
+            ConsensusOutputMisbehavior::FaultyBlocksProvable => Self::FaultyBlocksProvable,
+            ConsensusOutputMisbehavior::FaultyBlocksUnprovable => Self::FaultyBlocksUnprovable,
+            ConsensusOutputMisbehavior::MissingProposals => Self::MissingProposals,
+            ConsensusOutputMisbehavior::Equivocations => Self::Equivocations,
         }
     }
 }
 
-/// A two-dimensional matrix of raw misbehavior counts.
+/// In-memory representation of a misbehavior report's payload.
 ///
-/// `MisbehaviorCounts[i][j]` holds the count of misbehavior category `i`
-/// (indexed by the schema's `reported_misbehaviors`) observed for authority
-/// `j`. The inner dimension equals the committee size; the outer equals the
-/// number of tracked misbehavior categories.
+/// Tagged by schema version so each version's representation can be a
+/// dedicated named-field struct — the compiler enforces that every operation
+/// touching all metrics handles every category. Field order in each variant's
+/// struct mirrors the corresponding wire format (`ReportPayloadV1`,
+/// `ReportPayloadV2`, ...) for human readability but is not load-bearing.
 ///
-/// This is the domain type used inside `iota-core`. For wire/storage encoding
-/// see `LegacyReportPayload` / `VersionedMisbehaviorReport` in `iota-types`.
+/// For wire/storage encoding see `VersionedMisbehaviorReport` in `iota-types`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MisbehaviorCounts(pub(crate) Vec<Vec<u64>>);
+pub enum MisbehaviorCounts {
+    V1(MisbehaviorCountsV1),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MisbehaviorCountsV1 {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+    pub equivocations: Vec<u64>,
+}
+
+impl MisbehaviorCountsV1 {
+    pub fn zeros(committee_size: usize) -> Self {
+        Self {
+            faulty_blocks_provable: vec![0u64; committee_size],
+            faulty_blocks_unprovable: vec![0u64; committee_size],
+            missing_proposals: vec![0u64; committee_size],
+            equivocations: vec![0u64; committee_size],
+        }
+    }
+
+    /// Looks up the per-authority count vector for a given misbehavior
+    /// category. Exhaustive `match` ensures every variant is wired up.
+    pub fn metric(&self, m: Misbehavior) -> &[u64] {
+        match m {
+            Misbehavior::FaultyBlocksProvable => &self.faulty_blocks_provable,
+            Misbehavior::FaultyBlocksUnprovable => &self.faulty_blocks_unprovable,
+            Misbehavior::MissingProposals => &self.missing_proposals,
+            Misbehavior::Equivocations => &self.equivocations,
+        }
+    }
+
+    /// Element-wise maximum merge across all four metrics. Adding a metric to
+    /// the V1 struct will produce a missing-field error here, forcing the new
+    /// metric to be considered.
+    pub fn merge_max(&self, other: &Self) -> Self {
+        fn elem_max(a: &[u64], b: &[u64]) -> Vec<u64> {
+            a.iter().zip(b.iter()).map(|(x, y)| *x.max(y)).collect()
+        }
+        Self {
+            faulty_blocks_provable: elem_max(
+                &self.faulty_blocks_provable,
+                &other.faulty_blocks_provable,
+            ),
+            faulty_blocks_unprovable: elem_max(
+                &self.faulty_blocks_unprovable,
+                &other.faulty_blocks_unprovable,
+            ),
+            missing_proposals: elem_max(&self.missing_proposals, &other.missing_proposals),
+            equivocations: elem_max(&self.equivocations, &other.equivocations),
+        }
+    }
+}
+
+/// Pure field-rename: V1 in-memory ↔ V1 wire format.
+impl From<&MisbehaviorCountsV1> for ReportPayloadV1 {
+    fn from(c: &MisbehaviorCountsV1) -> Self {
+        Self {
+            faulty_blocks_provable: c.faulty_blocks_provable.clone(),
+            faulty_blocks_unprovable: c.faulty_blocks_unprovable.clone(),
+            missing_proposals: c.missing_proposals.clone(),
+            equivocations: c.equivocations.clone(),
+        }
+    }
+}
+
+impl From<&ReportPayloadV1> for MisbehaviorCountsV1 {
+    fn from(p: &ReportPayloadV1) -> Self {
+        Self {
+            faulty_blocks_provable: p.faulty_blocks_provable.clone(),
+            faulty_blocks_unprovable: p.faulty_blocks_unprovable.clone(),
+            missing_proposals: p.missing_proposals.clone(),
+            equivocations: p.equivocations.clone(),
+        }
+    }
+}
 
 impl MisbehaviorCounts {
-    pub(crate) fn new(reported_misbehaviors: &[Misbehaviors], committee_size: usize) -> Self {
-        // Local metrics count are always initialized as zero.
-        Self(
-            reported_misbehaviors
-                .iter()
-                .map(|_| vec![0u64; committee_size])
-                .collect(),
-        )
+    pub(crate) fn new(version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
+        match version {
+            MisbehaviorSchemaVersion::V1 => Self::V1(MisbehaviorCountsV1::zeros(committee_size)),
+        }
     }
 
     /// Builds counts from a consensus-output payload, projecting it onto the
     /// locally tracked schema. Categories the local schema tracks but consensus
     /// did not report are zero-filled; categories consensus reported but the
-    /// local schema does not track are silently ignored. Each row's length
-    /// always equals `committee_size`, preserving the matrix invariant.
+    /// local schema does not track are silently ignored.
     pub(crate) fn from_consensus_output(
-        output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
-        reported_misbehaviors: &[Misbehaviors],
+        output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
+        version: MisbehaviorSchemaVersion,
         committee_size: usize,
     ) -> Self {
-        let mut rows = vec![vec![0u64; committee_size]; reported_misbehaviors.len()];
-        for (output_misbehavior, counts) in output_misbehavior_counts {
-            if let Some(idx) = reported_misbehaviors
-                .iter()
-                .position(|m| Misbehaviors::from(&output_misbehavior) == *m)
-            {
-                rows[idx] = counts;
+        match version {
+            MisbehaviorSchemaVersion::V1 => {
+                let mut counts = MisbehaviorCountsV1::zeros(committee_size);
+                for (output_misbehavior, row) in output_misbehavior_counts {
+                    match Misbehavior::from(&output_misbehavior) {
+                        Misbehavior::FaultyBlocksProvable => counts.faulty_blocks_provable = row,
+                        Misbehavior::FaultyBlocksUnprovable => {
+                            counts.faulty_blocks_unprovable = row
+                        }
+                        Misbehavior::MissingProposals => counts.missing_proposals = row,
+                        Misbehavior::Equivocations => counts.equivocations = row,
+                    }
+                }
+                Self::V1(counts)
             }
         }
-        Self(rows)
     }
 
     /// Converts the local counts into the wire/storage representation that is
     /// broadcast to peers as a `MisbehaviorReport` transaction.
-    ///
-    /// Rows are matched to wire fields by `Misbehaviors` variant rather than
-    /// positional index, so reordering the schema cannot silently swap
-    /// categories — adding/removing a variant is caught at compile time.
     pub fn to_report(&self, version: MisbehaviorSchemaVersion) -> VersionedMisbehaviorReport {
-        match version {
-            MisbehaviorSchemaVersion::V1 => {
-                let mut faulty_blocks_provable = Vec::new();
-                let mut faulty_blocks_unprovable = Vec::new();
-                let mut missing_proposals = Vec::new();
-                let mut equivocations = Vec::new();
-                for (row, misbehavior) in self.0.iter().zip(version.reported_misbehaviors().iter())
-                {
-                    match misbehavior {
-                        Misbehaviors::FaultyBlocksProvable => faulty_blocks_provable = row.clone(),
-                        Misbehaviors::FaultyBlocksUnprovable => {
-                            faulty_blocks_unprovable = row.clone()
-                        }
-                        Misbehaviors::MissingProposals => missing_proposals = row.clone(),
-                        Misbehaviors::Equivocations => equivocations = row.clone(),
-                    }
-                }
-                let payload = LegacyReportPayload {
-                    faulty_blocks_provable,
-                    faulty_blocks_unprovable,
-                    missing_proposals,
-                    equivocations,
-                };
-                VersionedMisbehaviorReport::V1(payload, OnceCell::new())
+        match (version, self) {
+            (MisbehaviorSchemaVersion::V1, Self::V1(c)) => {
+                VersionedMisbehaviorReport::V1(ReportPayloadV1::from(c), OnceCell::new())
             }
         }
     }
 
-    /// Builds `MisbehaviorCounts` from a peer's report. Row order follows the
-    /// schema's `reported_misbehaviors`; the `match` on `Misbehaviors` enforces
-    /// that every locally tracked variant maps to a known V1 wire field.
+    /// Builds `MisbehaviorCounts` from a peer's report.
     pub fn from_report(
         report: &VersionedMisbehaviorReport,
         version: MisbehaviorSchemaVersion,
@@ -170,69 +220,18 @@ impl MisbehaviorCounts {
             "from_report called with a report whose wire-format version does not match the schema; \
              callers must validate via MisbehaviorSchemaVersion::accepts_report first"
         );
-        match report {
-            VersionedMisbehaviorReport::V1(payload, _) => Self(
-                version
-                    .reported_misbehaviors()
-                    .iter()
-                    .map(|misbehavior| match misbehavior {
-                        Misbehaviors::FaultyBlocksProvable => {
-                            payload.faulty_blocks_provable.clone()
-                        }
-                        Misbehaviors::FaultyBlocksUnprovable => {
-                            payload.faulty_blocks_unprovable.clone()
-                        }
-                        Misbehaviors::MissingProposals => payload.missing_proposals.clone(),
-                        Misbehaviors::Equivocations => payload.equivocations.clone(),
-                    })
-                    .collect(),
-            ),
+        match (version, report) {
+            (MisbehaviorSchemaVersion::V1, VersionedMisbehaviorReport::V1(payload, _)) => {
+                Self::V1(MisbehaviorCountsV1::from(payload))
+            }
         }
     }
 
-    pub(crate) fn get_value(&self, metric_index: usize, authority: usize) -> u64 {
-        self.0[metric_index][authority]
-    }
-
-    /// Returns a new `MisbehaviorCounts` where each cell is the element-wise
-    /// maximum of `self` and `other`. This implements a monotone update:
-    /// counts can only increase, so a later report never reduces a previously
-    /// observed count.
+    /// Element-wise maximum merge. Cross-version merges become a deliberate
+    /// design decision when V2 lands (currently impossible — single variant).
     pub fn merge_max(&self, other: &MisbehaviorCounts) -> Self {
-        let updated: Vec<Vec<u64>> = self
-            .0
-            .iter()
-            .zip(other.0.iter())
-            .map(|(current, incoming)| {
-                current
-                    .iter()
-                    .zip(incoming.iter())
-                    .map(|(c, i)| *c.max(i))
-                    .collect()
-            })
-            .collect();
-        Self(updated)
+        match (self, other) {
+            (Self::V1(a), Self::V1(b)) => Self::V1(a.merge_max(b)),
+        }
     }
-
-    pub fn get_metric(&self, index: usize) -> &[u64] {
-        &self.0[index]
-    }
-}
-
-pub fn verify_legacy_payload(legacy_payload: &LegacyReportPayload, committee_size: usize) -> bool {
-    // This version of reports are valid as long as they contain the counts for all
-    // authorities. Future versions may contain proofs that need verification.
-    // However, since the validity of a proof is deeply coupled with the protocol
-    // version and the consensus mechanism being used, we cannot verify it here. In
-    // the future, reports should be unwrapped (or translated) to a type verifiable
-    // by the consensus crate, which means that the verification logic will probably
-    // move out of this crate.
-    if (legacy_payload.faulty_blocks_provable.len() != committee_size)
-        | (legacy_payload.faulty_blocks_unprovable.len() != committee_size)
-        | (legacy_payload.equivocations.len() != committee_size)
-        | (legacy_payload.missing_proposals.len() != committee_size)
-    {
-        return false;
-    }
-    true
 }

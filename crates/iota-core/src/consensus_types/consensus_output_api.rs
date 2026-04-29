@@ -16,7 +16,7 @@ type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransactio
 // Variants are constructed by future Starfish wiring of misbehavior counts;
 // currently `misbehavior_counts()` returns an empty Vec.
 #[allow(dead_code)]
-pub enum ConsensusOutputMisbehaviors {
+pub enum ConsensusOutputMisbehavior {
     FaultyBlocksProvable,
     FaultyBlocksUnprovable,
     MissingProposals,
@@ -42,7 +42,7 @@ pub(crate) trait ConsensusOutputAPI: Display {
 
     fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
 
-    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>;
+    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehavior, Vec<u64>)>;
 }
 impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -122,7 +122,7 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
         num_of_committed_headers.into_iter().collect()
     }
 
-    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)> {
+    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehavior, Vec<u64>)> {
         vec![]
     }
 }

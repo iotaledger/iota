@@ -10,10 +10,10 @@ use arc_swap::ArcSwap;
 use iota_types::messages_consensus::VersionedMisbehaviorReport;
 
 use crate::{
-    authority::authority_per_epoch_store::misbehavior_config::{
+    authority::authority_per_epoch_store::misbehavior::{
         MisbehaviorCounts, MisbehaviorSchemaVersion,
     },
-    consensus_types::consensus_output_api::ConsensusOutputMisbehaviors,
+    consensus_types::consensus_output_api::ConsensusOutputMisbehavior,
 };
 
 /// Tracks local misbehavior observations for all authorities in the committee
@@ -50,7 +50,7 @@ pub struct MisbehaviorMonitor {
 impl MisbehaviorMonitor {
     pub fn new(schema_version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
         let current_local_counts = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
-            schema_version.reported_misbehaviors(),
+            schema_version,
             committee_size,
         )));
 
@@ -98,11 +98,11 @@ impl MisbehaviorMonitor {
 
     pub fn update_from_consensus_output(
         &self,
-        output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
+        output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
     ) {
         let new_counts = MisbehaviorCounts::from_consensus_output(
             output_misbehavior_counts,
-            self.schema_version.reported_misbehaviors(),
+            self.schema_version,
             self.committee_size,
         );
         self.current_local_counts.store(Arc::new(new_counts));

@@ -10,8 +10,8 @@ use arc_swap::ArcSwapOption;
 use iota_types::messages_consensus::VersionedMisbehaviorReport;
 use serde::{Deserialize, Serialize};
 
-use crate::authority::authority_per_epoch_store::misbehavior_config::{
-    MisbehaviorCounts, MisbehaviorSchemaVersion, verify_legacy_payload,
+use crate::authority::authority_per_epoch_store::misbehavior::{
+    MisbehaviorCounts, MisbehaviorSchemaVersion,
 };
 
 pub struct ReportAggregator {
@@ -46,9 +46,7 @@ impl ReportAggregator {
             return false;
         }
         match report {
-            VersionedMisbehaviorReport::V1(payload, _) => {
-                verify_legacy_payload(payload, committee_size)
-            }
+            VersionedMisbehaviorReport::V1(payload, _) => payload.verify(committee_size),
         }
     }
 
@@ -172,10 +170,10 @@ pub struct DBReceivedReportsStatePerAuthority {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior_config::{MisbehaviorCounts, MisbehaviorSchemaVersion},
+        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorSchemaVersion},
         report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
     };
 
@@ -192,7 +190,7 @@ mod tests {
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {
-        VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+        VersionedMisbehaviorReport::new_v1(ReportPayloadV1 {
             faulty_blocks_provable: raw_counts[0].clone(),
             faulty_blocks_unprovable: raw_counts[1].clone(),
             missing_proposals: raw_counts[2].clone(),
@@ -249,12 +247,12 @@ mod tests {
         let snapshot = full_snapshot(&aggregator, 3);
         assert_eq!(
             snapshot[0].received_metrics,
-            Some(MisbehaviorCounts(vec![
-                vec![1, 2, 3],
-                vec![4, 5, 6],
-                vec![7, 8, 9],
-                vec![0, 0, 0],
-            ]))
+            Some(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                faulty_blocks_provable: vec![1, 2, 3],
+                faulty_blocks_unprovable: vec![4, 5, 6],
+                missing_proposals: vec![7, 8, 9],
+                equivocations: vec![0, 0, 0],
+            }))
         );
         assert!(snapshot[1].received_metrics.is_none());
         assert!(snapshot[2].received_metrics.is_none());
@@ -275,12 +273,12 @@ mod tests {
         // Should be element-wise max
         assert_eq!(
             full_snapshot(&aggregator, 3)[0].received_metrics,
-            Some(MisbehaviorCounts(vec![
-                vec![3, 5, 10],
-                vec![4, 10, 6],
-                vec![7, 8, 9],
-                vec![1, 0, 0],
-            ]))
+            Some(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                faulty_blocks_provable: vec![3, 5, 10],
+                faulty_blocks_unprovable: vec![4, 10, 6],
+                missing_proposals: vec![7, 8, 9],
+                equivocations: vec![1, 0, 0],
+            }))
         );
     }
 

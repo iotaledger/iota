@@ -92,7 +92,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         authority_per_epoch_store::{
-            misbehavior_config::MisbehaviorSchemaVersion, misbehavior_monitor::MisbehaviorMonitor,
+            misbehavior::MisbehaviorSchemaVersion, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
@@ -141,8 +141,8 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
-#[path = "misbehavior_config.rs"]
-pub(crate) mod misbehavior_config;
+#[path = "misbehavior.rs"]
+pub(crate) mod misbehavior;
 #[path = "misbehavior_monitor.rs"]
 pub(crate) mod misbehavior_monitor;
 #[path = "report_aggregator.rs"]

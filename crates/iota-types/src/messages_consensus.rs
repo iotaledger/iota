@@ -257,19 +257,17 @@ impl ConsensusTransactionKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VersionedMisbehaviorReport {
     V1(
-        LegacyReportPayload,
+        ReportPayloadV1,
         #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
     ),
-    // New variants should be added when the reported misbehaviors change. They should use
-    // ReportPayload type, which is simply a wrapper around a vector. To preserve type safety, we
-    // version the VersionedMisbehaviorReport itself:
-    // V2(ReportPayload,_)
-    // V3(ReportPayload,_)
-    // etc.
+    // New variants should be added when the reported misbehaviors change. Each new variant
+    // gets its own named-field payload type (`ReportPayloadV2`, `ReportPayloadV3`, ...) so the
+    // wire schema remains compile-time checked. Example:
+    // V2(ReportPayloadV2, #[serde(skip)] OnceCell<MisbehaviorReportDigest>),
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: LegacyReportPayload) -> Self {
+    pub fn new_v1(misbehaviors: ReportPayloadV1) -> Self {
         VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
     }
 
@@ -308,19 +306,19 @@ impl VersionedMisbehaviorReport {
     }
 }
 
-// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbeheaviors) include,
+// ReportPayloadV1 contains lists of all metrics used in v1 of misbehavior
+// reports, with a value for each metric. The metrics (misbehaviors) include
 // faulty blocks, equivocation and missing proposal counts for each authority.
 // This first version does not include any type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct LegacyReportPayload {
+pub struct ReportPayloadV1 {
     pub faulty_blocks_provable: Vec<u64>,
     pub faulty_blocks_unprovable: Vec<u64>,
     pub missing_proposals: Vec<u64>,
     pub equivocations: Vec<u64>,
 }
 
-impl LegacyReportPayload {
+impl ReportPayloadV1 {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
         // authorities. Future versions may contain proofs that need verification.
@@ -337,15 +335,6 @@ impl LegacyReportPayload {
             return false;
         }
         true
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ReportPayload(Vec<Vec<u64>>);
-
-impl ReportPayload {
-    pub fn inner(&self) -> &Vec<Vec<u64>> {
-        &self.0
     }
 }
 
