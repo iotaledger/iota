@@ -9,7 +9,7 @@
     rust_2021_compatibility
 )]
 
-use base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
+use base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
 pub use iota_network_stack::multiaddr;
 use move_binary_format::{
     CompiledModule,

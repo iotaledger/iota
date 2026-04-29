@@ -224,7 +224,7 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: Identifier::from_static("foo"),
+        module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],

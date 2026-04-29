@@ -3387,7 +3387,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fddf2717007be187cdc2c5f1f1f9f40a5774c202#fddf2717007be187cdc2c5f1f1f9f40a5774c202"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=23fb07a1ac138d045c61158c6623d79189ccde7e#23fb07a1ac138d045c61158c6623d79189ccde7e"
 dependencies = [
  "base64ct",
  "bcs",
@@ -8265,7 +8265,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09dac053f1cd375980747450bfc7250c264eaae0583872e845c0c7cd578872b5"
 dependencies = [
- "wit-bindgen-rust-macro",
+ "memchr",
 ]
 
 [[package]]

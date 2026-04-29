@@ -189,7 +189,7 @@ pub async fn main() -> Result<()> {
                     println!(
                         "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
                         event.package_id,
-                        event.transaction_module,
+                        event.module,
                         event.sender,
                         event.type_,
                         serde_json::to_string(&result).expect("JSON deserialization error")

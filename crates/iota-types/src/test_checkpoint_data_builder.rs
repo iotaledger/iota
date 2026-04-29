@@ -591,13 +591,13 @@ impl TestCheckpointDataBuilder {
                 protocol_version: protocol_config.version.as_u64(),
                 ..Default::default()
             };
-            Some(vec![Event::new(
-                IotaAddress::SYSTEM,
-                Identifier::from_static("iota_system_state_inner"),
-                TestCheckpointDataBuilder::derive_address(0),
-                StructTag::new_system_epoch_info_event(),
-                bcs::to_bytes(&system_epoch_info_event).unwrap(),
-            )])
+            Some(vec![Event {
+                package_id: ObjectID::SYSTEM,
+                module: Identifier::from_static("iota_system_state_inner"),
+                sender: TestCheckpointDataBuilder::derive_address(0),
+                type_: StructTag::new_system_epoch_info_event(),
+                contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
+            }])
         } else {
             None
         };
@@ -711,7 +711,10 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::transaction::{Command, ProgrammableMoveCall, TransactionDataAPI};
+    use crate::{
+        ObjectID,
+        transaction::{Command, ProgrammableMoveCall, TransactionDataAPI},
+    };
     #[test]
     fn test_basic_checkpoint_builder() {
         // Create a checkpoint with a single transaction that does nothing.
@@ -1018,13 +1021,13 @@ mod tests {
     fn test_events() {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
-            .with_events(vec![Event::new(
-                IotaAddress::ZERO,
-                Identifier::from_static("test"),
-                TestCheckpointDataBuilder::derive_address(0),
-                StructTag::new_gas(),
-                vec![],
-            )])
+            .with_events(vec![Event {
+                package_id: ObjectID::ZERO,
+                module: Identifier::from_static("test"),
+                sender: TestCheckpointDataBuilder::derive_address(0),
+                type_: StructTag::new_gas(),
+                contents: vec![],
+            }])
             .finish_transaction()
             .build_checkpoint();
         let tx = &checkpoint.transactions[0];

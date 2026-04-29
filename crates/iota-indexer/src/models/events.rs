@@ -150,7 +150,7 @@ mod tests {
         let tx_digest = TransactionDigest::default();
         let event = Event {
             package_id: ObjectID::random(),
-            transaction_module: Identifier::from_static("test"),
+            module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(
                 IotaAddress::FRAMEWORK,

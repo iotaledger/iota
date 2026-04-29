@@ -807,7 +807,7 @@ impl InMemory {
                 transaction_digest: tx.transaction_digest.clone(),
                 senders: vec![Some(native.sender.as_bytes().to_vec())],
                 package: native.package_id.as_bytes().to_vec(),
-                module: native.transaction_module.to_string(),
+                module: native.module.to_string(),
                 event_type: native.type_.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
                 bcs: native.contents,

@@ -14,7 +14,7 @@ use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, StructTag, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,
@@ -921,18 +921,18 @@ fn build_checkpoint_transactions_with_events(
         let events = if events_per_tx > 0 {
             let mut data = Vec::with_capacity(events_per_tx);
             for _ in 0..events_per_tx {
-                data.push(Event::new(
-                    IotaAddress::ZERO,
-                    Identifier::from_static("test_module"),
+                data.push(Event {
+                    package_id: ObjectID::ZERO,
+                    module: Identifier::from_static("test_module"),
                     sender,
-                    StructTag::new(
+                    type_: StructTag::new(
                         IotaAddress::ZERO,
                         Identifier::from_static("test_module"),
                         Identifier::from_static("TestEvent"),
                         vec![],
                     ),
-                    vec![0u8; 64], // 64 bytes of dummy content
-                ));
+                    contents: vec![0u8; 64], // 64 bytes of dummy content
+                });
             }
             Some(TransactionEvents { data })
         } else {
