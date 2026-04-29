@@ -192,7 +192,9 @@ impl MisbehaviorCounts {
                 reported_misbehaviors
                     .iter()
                     .map(|misbehavior| match misbehavior {
-                        Misbehaviors::FaultyBlocksProvable => payload.faulty_blocks_provable.clone(),
+                        Misbehaviors::FaultyBlocksProvable => {
+                            payload.faulty_blocks_provable.clone()
+                        }
                         Misbehaviors::FaultyBlocksUnprovable => {
                             payload.faulty_blocks_unprovable.clone()
                         }

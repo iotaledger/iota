@@ -147,7 +147,9 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             >= self
                 .next_reconfiguration_timestamp_ms
                 .saturating_sub(REPORT_END_OF_EPOCH_MARGIN_MS)
-            && !epoch_store.misbehavior_monitor.has_sent_end_of_epoch_report();
+            && !epoch_store
+                .misbehavior_monitor
+                .has_sent_end_of_epoch_report();
         if epoch_store.protocol_config().calculate_validator_scores()
             && ((checkpoint_seq
                 .saturating_sub(epoch_store.misbehavior_monitor.last_report_checkpoint_seq())

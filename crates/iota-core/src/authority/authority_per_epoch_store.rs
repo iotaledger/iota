@@ -14,9 +14,9 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use futures::{
-    future::{join_all, select, Either}, stream::FuturesUnordered,
-    FutureExt,
-    StreamExt,
+    FutureExt, StreamExt,
+    future::{Either, join_all, select},
+    stream::FuturesUnordered,
 };
 use iota_common::{
     fatal,
@@ -72,12 +72,12 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
+    DBMapUtils, Map,
     rocks::{
-        default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf,
-        ReadWriteOptions,
-    }, rocksdb::Options,
-    DBMapUtils,
-    Map,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env,
+    },
+    rocksdb::Options,
 };
 
 use super::{
@@ -86,21 +86,21 @@ use super::{
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
-    transaction_deferral::{transaction_deferral_within_limit, DeferralKey, DeferralReason},
+    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
     authority::{
+        AuthorityMetrics, ResolverWrapper,
         authority_per_epoch_store::{
             misbehavior_config::MisbehaviorConfig, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
-        }, epoch_start_configuration::EpochStartConfiguration,
+        },
+        epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
-        AuthorityMetrics,
-        ResolverWrapper,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -113,12 +113,12 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, VersionedProcessedMessage,
-            VersionedUsedProcessedMessages, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{cache_types::CacheResult, ObjectCacheRead, TransactionCacheRead},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,

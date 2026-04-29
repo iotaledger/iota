@@ -405,12 +405,7 @@ mod tests {
         let aggregator = mock_aggregator(committee_size);
         let scorer = mock_scorer(voting_power);
 
-        assert!(
-            scorer
-                .current_scores()
-                .iter()
-                .all(|&s| s == MAX_SCORE)
-        );
+        assert!(scorer.current_scores().iter().all(|&s| s == MAX_SCORE));
 
         set_reports(
             &aggregator,
