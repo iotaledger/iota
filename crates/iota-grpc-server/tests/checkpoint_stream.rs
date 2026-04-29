@@ -1086,7 +1086,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
 #[tokio::test]
 async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     // 2 000 transactions × 5 events each → total event payload exceeds 4 MB.
-    let transactions = build_checkpoint_transactions_with_events(2_000, 5);
+    let transactions = build_checkpoint_transactions_with_events(2_500, 5);
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
