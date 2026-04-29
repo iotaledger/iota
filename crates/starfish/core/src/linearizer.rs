@@ -1479,7 +1479,7 @@ mod tests {
         // the round-5 leader. Their round-3 block will be the orphaned ref.
         let orphan_author = AuthorityIndex::new_for_test(2);
 
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=3)
             .build()
