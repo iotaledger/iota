@@ -24,9 +24,16 @@ use crate::{
 /// checkpoint boundaries.
 pub struct MisbehaviorMonitor {
     schema_version: MisbehaviorSchemaVersion,
+    committee_size: usize,
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
     current_local_counts: ArcSwap<MisbehaviorCounts>,
+    // Single-writer: only mutated by SubmitCheckpointToConsensus::checkpoint_created.
+    // Don't add additional writers without revisiting the atomicity story (the three
+    // fields below form a logical tuple but are stored as independent Relaxed atomics,
+    // safe today only because reads and writes happen from the single CheckpointBuilder
+    // task).
+    //
     // Summary of the last MisbehaviorReport this node submitted, defined as the sum of all
     // metrics across authorities. Since reported counts are monotonically non-decreasing within
     // an epoch, the summary is also monotonic. Used to skip submitting reports when nothing has
@@ -49,6 +56,7 @@ impl MisbehaviorMonitor {
 
         Self {
             schema_version,
+            committee_size,
             current_local_counts,
             last_report_summary: AtomicU64::new(0),
             last_report_checkpoint_seq: AtomicU64::new(0),
@@ -95,6 +103,7 @@ impl MisbehaviorMonitor {
         let new_counts = MisbehaviorCounts::from_consensus_output(
             output_misbehavior_counts,
             self.schema_version.reported_misbehaviors(),
+            self.committee_size,
         );
         self.current_local_counts.store(Arc::new(new_counts));
     }

@@ -101,24 +101,26 @@ impl MisbehaviorCounts {
         )
     }
 
+    /// Builds counts from a consensus-output payload, projecting it onto the
+    /// locally tracked schema. Categories the local schema tracks but consensus
+    /// did not report are zero-filled; categories consensus reported but the
+    /// local schema does not track are silently ignored. Each row's length
+    /// always equals `committee_size`, preserving the matrix invariant.
     pub(crate) fn from_consensus_output(
-        mut output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
+        output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
         reported_misbehaviors: &[Misbehaviors],
+        committee_size: usize,
     ) -> Self {
-        Self(
-            reported_misbehaviors
+        let mut rows = vec![vec![0u64; committee_size]; reported_misbehaviors.len()];
+        for (output_misbehavior, counts) in output_misbehavior_counts {
+            if let Some(idx) = reported_misbehaviors
                 .iter()
-                .map(|misbehavior| {
-                    output_misbehavior_counts
-                        .iter()
-                        .position(|(output_misbehavior, _)| {
-                            Misbehaviors::from(output_misbehavior) == *misbehavior
-                        })
-                        .map(|i| output_misbehavior_counts.swap_remove(i).1)
-                        .unwrap_or_default()
-                })
-                .collect(),
-        )
+                .position(|m| Misbehaviors::from(&output_misbehavior) == *m)
+            {
+                rows[idx] = counts;
+            }
+        }
+        Self(rows)
     }
 
     /// Converts the local counts into the wire/storage representation that is
