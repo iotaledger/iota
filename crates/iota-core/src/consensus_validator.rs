@@ -212,7 +212,7 @@ mod tests {
         crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
-            ConsensusTransaction, ConsensusTransactionKind, LegacyReportPayload,
+            ConsensusTransaction, ConsensusTransactionKind, ReportPayloadV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
@@ -395,7 +395,7 @@ mod tests {
                 "MisbehaviorReport",
                 ConsensusTransactionKind::MisbehaviorReport(
                     authority,
-                    VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+                    VersionedMisbehaviorReport::new_v1(ReportPayloadV1 {
                         faulty_blocks_provable: vec![],
                         faulty_blocks_unprovable: vec![],
                         missing_proposals: vec![],
