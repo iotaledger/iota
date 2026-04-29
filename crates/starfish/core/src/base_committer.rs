@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
-    sync::Arc,
-};
+use std::{collections::HashSet, fmt::Display, sync::Arc};
 
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Stake};
@@ -303,9 +299,9 @@ impl BaseCommitter {
                 };
                 (any_cert, metastate, strong_voters)
             } else {
-                let vote_refs = self.vote_refs_for_leader(leader_block);
+                let vote_refs = self.vote_refs_for_leader(&leader_block);
                 let any_cert = potential_certificates.iter().any(|potential_certificate| {
-                    self.is_certificate(potential_certificate, &leader_block, &mut vote_refs)
+                    self.is_certificate(potential_certificate, &vote_refs)
                 });
                 (any_cert, None, Vec::new())
             };
