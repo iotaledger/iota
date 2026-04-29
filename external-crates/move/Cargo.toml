@@ -108,7 +108,7 @@ strum_macros = "0.27.1"
 syn = { version = "1.0.64", features = ["derive"] }
 tempfile = "3.2.0"
 tera = "1.16.0"
-thiserror = "1.0.24"
+thiserror = "2.0.18"
 tiny-keccak = { version = "2.0.2", features = ["sha3"] }
 tokio = { version = "1.49.0", features = ["full"] }
 toml = "0.5.8"
