@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 25;
+pub const MAX_PROTOCOL_VERSION: u64 = 26;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -2759,6 +2759,13 @@ impl ProtocolConfig {
                     cfg.check_zklogin_issuer_cost_base = None;
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
+                }
+                26 => {
+                    if chain != Chain::Mainnet {
+                        // Enable consensus block restrictions on testnet/devnet to bound
+                        // header size by committee size.
+                        cfg.feature_flags.consensus_block_restrictions = true;
+                    }
                 }
 
                 // Use this template when making changes:
