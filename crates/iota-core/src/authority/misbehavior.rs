@@ -10,13 +10,13 @@ use tracing::warn;
 
 use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
 
-/// Single source of truth for the misbehavior schema and report wire format.
+/// Selects which `VersionedMisbehaviorReport` variant peers may submit for
+/// the current epoch. Loaded once from `ProtocolConfig` and threaded through
+/// `MisbehaviorMonitor` / `ReportAggregator` / `Scorer` as a `Copy` token.
 ///
-/// Each variant ties together (a) the version reported in `ProtocolConfig`,
-/// (b) the ordered list of `Misbehavior` tracked locally, and (c) the
-/// `VersionedMisbehaviorReport` variant accepted from peers. Adding a new
-/// variant forces the schema and the acceptance check to be updated in one
-/// place; the compiler enforces that every match is exhaustive.
+/// The schema itself (which categories exist and their layout) lives in the
+/// named-field types `MisbehaviorCountsV1` / `ReportPayloadV1`; this enum only
+/// versions the wire format and gates acceptance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MisbehaviorSchemaVersion {
     V1,
@@ -30,23 +30,6 @@ impl MisbehaviorSchemaVersion {
         }
     }
 
-    /// Ordered list of misbehavior categories tracked under this version. The
-    /// index of each variant determines its row in `MisbehaviorCounts`.
-    pub fn reported_misbehaviors(&self) -> &'static [Misbehavior] {
-        match self {
-            Self::V1 => &[
-                Misbehavior::FaultyBlocksProvable,
-                Misbehavior::FaultyBlocksUnprovable,
-                Misbehavior::MissingProposals,
-                Misbehavior::Equivocations,
-            ],
-        }
-    }
-
-    pub fn num_metrics(&self) -> usize {
-        self.reported_misbehaviors().len()
-    }
-
     /// Returns `true` if the given report's wire format matches this version.
     pub fn accepts_report(&self, report: &VersionedMisbehaviorReport) -> bool {
         match self {
@@ -55,19 +38,15 @@ impl MisbehaviorSchemaVersion {
     }
 }
 
-/// A single misbehavior category tracked by the monitor.
+/// A single misbehavior category. Used as a name token: looked up by
+/// `MisbehaviorCountsV1::metric` and constructed from
+/// `ConsensusOutputMisbehavior` in `MisbehaviorCounts::from_consensus_output`.
 ///
 /// Variants are not serialized — the wire format uses named-field
 /// `ReportPayloadV1` (and future `ReportPayloadVN`) structs, and the
-/// in-memory `MisbehaviorCountsV1` mirrors that layout. Reordering or
-/// renaming variants is therefore safe at the type level.
-///
-/// What *is* load-bearing is the order of the slice returned by
-/// `MisbehaviorSchemaVersion::reported_misbehaviors()`, because the
-/// `Scorer`'s `Parameters` arrays (allowances, maximums, weights) are
-/// positionally aligned with it. Any change to that slice for an existing
-/// schema version must be paired with a matching update to `Parameters`,
-/// or — preferably — accompanied by a new `MisbehaviorSchemaVersion`.
+/// in-memory `MisbehaviorCountsV1` mirrors that layout. The `Scorer` also
+/// stores parameters per named field rather than by enum index. Reordering
+/// or renaming variants is therefore safe at the type level.
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 pub enum Misbehavior {
     FaultyBlocksProvable,
@@ -223,7 +202,16 @@ impl MisbehaviorCounts {
                         Misbehavior::Equivocations => counts.equivocations = row,
                     }
                 }
-                for &expected in version.reported_misbehaviors() {
+                // V1 schema's expected categories. Compiler-checked:
+                // adding a Misbehavior variant or a `MisbehaviorCountsV1`
+                // field will surface here as a missing case in tests.
+                const V1_EXPECTED: [Misbehavior; 4] = [
+                    Misbehavior::FaultyBlocksProvable,
+                    Misbehavior::FaultyBlocksUnprovable,
+                    Misbehavior::MissingProposals,
+                    Misbehavior::Equivocations,
+                ];
+                for expected in V1_EXPECTED {
                     if !seen.contains(&expected) {
                         warn!(
                             "consensus output omitted misbehavior category {expected:?}; \
