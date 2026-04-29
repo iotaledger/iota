@@ -466,8 +466,9 @@ mod tests {
             }
             "#;
 
-        let response_fields =
-            format!("effects {{ transactionBlock {{ {tx_block_gql_fields} }} }} errors");
+        let response_fields = format!(
+            "effects {{ checkpoint {{ sequenceNumber }} transactionBlock {{ {tx_block_gql_fields} }} }} errors"
+        );
 
         let tx = cluster.build_transfer_iota_for_test().await;
         let signed_tx = cluster.sign_transaction(&tx);
@@ -531,7 +532,11 @@ mod tests {
         assert_eq!(mutation_tx_data, immediate_tx_data);
         assert_eq!(immediate_tx_data, checkpointed_tx_data);
 
-        // Check that optimistic indexing happened
+        // The mutation response carries a checkpoint only when optimistic
+        // indexing was skipped and the executor fell back to checkpointed reads.
+        let optimistically_indexed =
+            execute_transaction_block_res["effects"]["checkpoint"].is_null();
+
         let digest_bytes = Base58::decode(digest).unwrap();
         let pool = cluster.indexer_store.blocking_cp();
 
@@ -543,10 +548,18 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(
-            count, 1,
-            "Transaction should be present in optimistic_transactions table"
-        );
+        if optimistically_indexed {
+            assert_eq!(
+                count, 1,
+                "Transaction should be present in optimistic_transactions table"
+            );
+        } else {
+            assert_eq!(
+                count, 0,
+                "Transaction should NOT be present in optimistic_transactions table \
+                 when optimistic indexing was skipped"
+            );
+        }
     }
 
     #[tokio::test]
