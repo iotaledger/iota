@@ -117,7 +117,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 treeline = "0.1.0"
 uint = "0.9.4"
-url = "2.2.2"
+url = "2.5.8"
 variant_count = "1.1.0"
 vfs = "0.10.0"
 walkdir = "2.3.1"
