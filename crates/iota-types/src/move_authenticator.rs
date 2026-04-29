@@ -4,7 +4,6 @@
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 use enum_dispatch::enum_dispatch;
@@ -17,12 +16,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    committee::EpochId,
     crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
+    digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
     transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
     type_input::TypeInput,
 };
@@ -128,14 +125,6 @@ impl MoveAuthenticator {
 }
 
 impl AuthenticatorTrait for MoveAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        self.inner
-            .verify_user_authenticator_epoch(epoch, max_epoch_upper_bound_delta)
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(
@@ -143,13 +132,11 @@ impl AuthenticatorTrait for MoveAuthenticator {
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.inner
-            .verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
+        self.inner.verify_claims(value, author, aux_verify_data)
     }
 }
 
@@ -477,13 +464,6 @@ impl MoveAuthenticatorV1 {
 }
 
 impl AuthenticatorTrait for MoveAuthenticatorV1 {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(
@@ -491,7 +471,6 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
         _value: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

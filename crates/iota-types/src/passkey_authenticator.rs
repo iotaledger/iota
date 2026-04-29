@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 use fastcrypto::{
     error::FastCryptoError,
@@ -21,15 +18,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
     },
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
 };
 
 #[cfg(test)]
@@ -232,21 +227,12 @@ impl Hash for PasskeyAuthenticator {
 }
 
 impl AuthenticatorTrait for PasskeyAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
-
     /// Verify an intent message of a transaction with an passkey authenticator.
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

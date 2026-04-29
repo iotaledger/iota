@@ -16,7 +16,6 @@ use iota_types::{
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
-use tempfile::tempdir;
 use tokio::time::timeout;
 use typed_store::Map;
 
@@ -28,7 +27,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointStore,
-    state_accumulator::StateAccumulator,
+    global_state_hasher::GlobalStateHasher,
 };
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
@@ -38,13 +37,13 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     telemetry_subscribers::init_for_testing();
 
     let buffer_size = num_cpus::get() * 2;
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     let (state, executor, accumulator, committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -132,13 +131,13 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 pub async fn test_checkpoint_executor_cross_epoch() {
     let buffer_size = 10;
     let num_to_sync_per_epoch = buffer_size * 2;
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     let (authority_state, executor, accumulator, first_committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -210,8 +209,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     // Ensure root state hash for epoch does not exist before we close epoch
     assert!(
         authority_state
-            .get_accumulator_store()
-            .get_root_state_accumulator_for_epoch(0)
+            .get_global_state_hash_store()
+            .get_root_state_hash_for_epoch(0)
             .unwrap()
             .is_none()
     );
@@ -236,8 +235,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 
     // Ensure root state hash for epoch exists at end of epoch
     authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(first_epoch)
+        .get_global_state_hash_store()
+        .get_root_state_hash_for_epoch(first_epoch)
         .unwrap()
         .expect("root state hash for epoch should exist");
 
@@ -296,8 +295,8 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     assert!(second_epoch == new_epoch_store.epoch());
 
     authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(second_epoch)
+        .get_global_state_hash_store()
+        .get_root_state_hash_for_epoch(second_epoch)
         .unwrap()
         .expect("root state hash for epoch should exist");
 }
@@ -311,14 +310,14 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 #[tokio::test]
 #[ignore]
 pub async fn test_reconfig_crash_recovery() {
-    let tempdir = tempdir().unwrap();
-    let checkpoint_store = CheckpointStore::new(tempdir.path());
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
 
     // new Node (syncing from checkpoint 0)
     let (authority_state, executor, accumulator, first_committee): (
         Arc<AuthorityState>,
         CheckpointExecutor,
-        Arc<StateAccumulator>,
+        Arc<GlobalStateHasher>,
         CommitteeFixture,
     ) = init_executor_test(checkpoint_store.clone()).await;
 
@@ -398,7 +397,7 @@ async fn init_executor_test(
 ) -> (
     Arc<AuthorityState>,
     CheckpointExecutor,
-    Arc<StateAccumulator>,
+    Arc<GlobalStateHasher>,
     CommitteeFixture,
 ) {
     let network_config =
@@ -408,7 +407,7 @@ async fn init_executor_test(
         .build()
         .await;
 
-    let accumulator = StateAccumulator::new_for_tests(state.get_accumulator_store().clone());
+    let accumulator = GlobalStateHasher::new_for_tests(state.get_global_state_hash_store().clone());
     let accumulator = Arc::new(accumulator);
 
     let executor = CheckpointExecutor::new_for_tests(

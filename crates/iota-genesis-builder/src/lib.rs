@@ -547,14 +547,6 @@ impl Builder {
             }
         };
 
-        let protocol_config = get_genesis_protocol_config(ProtocolVersion::new(protocol_version));
-
-        if protocol_config.create_authenticator_state_in_genesis() {
-            let authenticator_state = unsigned_genesis.authenticator_state_object().unwrap();
-            assert!(authenticator_state.active_jwks.is_empty());
-        } else {
-            assert!(unsigned_genesis.authenticator_state_object().is_none());
-        }
         assert!(unsigned_genesis.has_randomness_state_object());
 
         assert!(unsigned_genesis.has_coin_deny_list_object());
@@ -1385,7 +1377,7 @@ fn create_genesis_objects(
         )
         .expect("Processing a package should not fail here");
 
-        events.extend(tx_events.data.into_iter());
+        events.extend(tx_events.data);
     }
 
     for object in input_objects {
@@ -1514,18 +1506,6 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         )?;
-
-        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled
-        // (which only happens in tests).
-        if protocol_config.create_authenticator_state_in_genesis() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("authenticator_state").to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
 
         // Create the randomness state_object
         builder.move_call(

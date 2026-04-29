@@ -13,8 +13,8 @@ tokio = "1.49.0"
 tokio-util = "0.7"
 
 # internal dependencies
-iota-data-ingestion-core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
-iota-types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
+iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
+iota-types = { path = "../../../crates/iota-types" }
 
 [[bin]]
 name = "local_reader"

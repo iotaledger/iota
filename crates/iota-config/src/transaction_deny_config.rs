@@ -70,14 +70,6 @@ pub struct TransactionDenyConfig {
     #[serde(default)]
     receiving_objects_disabled: bool,
 
-    /// Whether zklogin transaction is disabled
-    #[serde(default)]
-    zklogin_sig_disabled: bool,
-
-    /// A list of disabled OAuth providers for zkLogin
-    #[serde(default)]
-    zklogin_disabled_providers: HashSet<String>,
-
     /// Whether `MoveAuthenticator` is disabled
     #[serde(default)]
     move_authenticator_disabled: bool,
@@ -120,14 +112,6 @@ impl TransactionDenyConfig {
 
     pub fn receiving_objects_disabled(&self) -> bool {
         self.receiving_objects_disabled
-    }
-
-    pub fn zklogin_sig_disabled(&self) -> bool {
-        self.zklogin_sig_disabled
-    }
-
-    pub fn zklogin_disabled_providers(&self) -> &HashSet<String> {
-        &self.zklogin_disabled_providers
     }
 
     pub fn move_authenticator_disabled(&self) -> bool {
@@ -186,16 +170,6 @@ impl TransactionDenyConfigBuilder {
 
     pub fn add_denied_package(mut self, id: ObjectID) -> Self {
         self.config.package_deny_list.push(id);
-        self
-    }
-
-    pub fn disable_zklogin_sig(mut self) -> Self {
-        self.config.zklogin_sig_disabled = true;
-        self
-    }
-
-    pub fn add_zklogin_disabled_provider(mut self, provider: String) -> Self {
-        self.config.zklogin_disabled_providers.insert(provider);
         self
     }
 

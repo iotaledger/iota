@@ -3,12 +3,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// zkLogin/AuthenticatorStateUpdate types are kept (deprecated) for
+// serialization compatibility only.
+
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
     iter::{self, once},
-    sync::Arc,
 };
 
 use anyhow::bail;
@@ -31,19 +33,16 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-    authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
-    digests::{
-        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
-    },
+    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -53,7 +52,7 @@ use crate::{
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
+    signature_verification::verify_sender_signed_data_message_signatures,
     type_input::TypeInput,
 };
 
@@ -325,40 +324,6 @@ impl GenesisObject {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateExpire {
-    /// expire JWKs that have a lower epoch than this
-    pub min_epoch: u64,
-    /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_obj_initial_shared_version: SequenceNumber,
-}
-
-impl AuthenticatorStateExpire {
-    pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_obj_initial_shared_version
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateUpdateV1 {
-    /// Epoch of the authenticator state update transaction
-    pub epoch: u64,
-    /// Consensus round of the authenticator state update
-    pub round: u64,
-    /// newly active jwks
-    pub new_active_jwks: Vec<ActiveJwk>,
-    /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_obj_initial_shared_version: SequenceNumber,
-    // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2 to
-    // TransactionKind.
-}
-
-impl AuthenticatorStateUpdateV1 {
-    pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_obj_initial_shared_version
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RandomnessStateUpdate {
     /// Epoch of the randomness state update transaction
     pub epoch: u64,
@@ -378,6 +343,7 @@ impl RandomnessStateUpdate {
     }
 }
 
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
 pub enum TransactionKind {
     /// A transaction that allows the interleaving of native commands and Move
@@ -385,7 +351,8 @@ pub enum TransactionKind {
     ProgrammableTransaction(ProgrammableTransaction),
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
-    AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
+    #[deprecated(note = "Authenticator state (JWK) is deprecated and was never enabled on IOTA")]
+    AuthenticatorStateUpdateV1Deprecated,
 
     /// EndOfEpochTransaction contains a list of transactions
     /// that are allowed to run at the end of the epoch.
@@ -408,10 +375,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV4(ChangeEpochV4),
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
-    // AuthenticatorStateCreate and AuthenticatorStateExpire can be left at the end as long as
-    // `enable_jwk_consensus_updates` is not enabled in the protocol config.
-    AuthenticatorStateCreate,
-    AuthenticatorStateExpire(AuthenticatorStateExpire),
 }
 
 impl EndOfEpochTransactionKind {
@@ -517,20 +480,6 @@ impl EndOfEpochTransactionKind {
         })
     }
 
-    pub fn new_authenticator_state_expire(
-        min_epoch: u64,
-        authenticator_obj_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        Self::AuthenticatorStateExpire(AuthenticatorStateExpire {
-            min_epoch,
-            authenticator_obj_initial_shared_version,
-        })
-    }
-
-    pub fn new_authenticator_state_create() -> Self {
-        Self::AuthenticatorStateCreate
-    }
-
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -561,40 +510,15 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateCreate => vec![],
-            Self::AuthenticatorStateExpire(expire) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: expire.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
-            }
         }
     }
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         match self {
-            Self::ChangeEpoch(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV2(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV3(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::ChangeEpochV4(_) => {
-                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
-            }
-            Self::AuthenticatorStateExpire(expire) => Either::Left(
-                vec![SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: expire.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
-                .into_iter(),
-            ),
-            Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
+            Self::ChangeEpoch(_)
+            | Self::ChangeEpochV2(_)
+            | Self::ChangeEpochV3(_)
+            | Self::ChangeEpochV4(_) => vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter(),
         }
     }
 
@@ -680,13 +604,6 @@ impl EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
-                    ));
-                }
-            }
-            Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
-                if !config.enable_jwk_consensus_updates() {
-                    return Err(UserInputError::Unsupported(
-                        "authenticator state updates not enabled".to_string(),
                     ));
                 }
             }
@@ -1434,9 +1351,10 @@ impl TransactionKind {
     pub fn is_system_tx(&self) -> bool {
         // Keep this as an exhaustive match so that we can't forget to update it.
         match self {
+            #[allow(deprecated)]
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::AuthenticatorStateUpdateV1(_)
+            | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
             TransactionKind::ProgrammableTransaction(_) => false,
@@ -1470,7 +1388,6 @@ impl TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
-                    _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
                 }
             }
             _ => None,
@@ -1492,12 +1409,12 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
-            Self::AuthenticatorStateUpdateV1(update) => {
-                Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: update.authenticator_obj_initial_shared_version,
-                    mutable: true,
-                })))
+            #[allow(deprecated)]
+            Self::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
@@ -1525,9 +1442,10 @@ impl TransactionKind {
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match &self {
+            #[allow(deprecated)]
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::AuthenticatorStateUpdateV1(_)
+            | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
             TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
@@ -1551,12 +1469,12 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateUpdateV1(update) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: update.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
+            #[allow(deprecated)]
+            Self::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                vec![]
             }
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -1607,12 +1525,15 @@ impl TransactionKind {
                 }
             }
 
-            TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                if !config.enable_jwk_consensus_updates() {
-                    return Err(UserInputError::Unsupported(
-                        "authenticator state updates not enabled".to_string(),
-                    ));
-                }
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                return Err(UserInputError::Unsupported(
+                    "authenticator state transactions are deprecated and were never created on IOTA"
+                        .to_string(),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
         };
@@ -1647,7 +1568,8 @@ impl TransactionKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
-            Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
+            #[allow(deprecated)]
+            Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
@@ -1675,8 +1597,12 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : Programmable")?;
                 write!(writer, "{p}")?;
             }
-            Self::AuthenticatorStateUpdateV1(_) => {
-                writeln!(writer, "Transaction Kind : Authenticator State Update")?;
+            #[allow(deprecated)]
+            Self::AuthenticatorStateUpdateV1Deprecated => {
+                writeln!(
+                    writer,
+                    "Transaction Kind : Authenticator State Update (deprecated)"
+                )?;
             }
             Self::RandomnessStateUpdate(_) => {
                 writeln!(writer, "Transaction Kind : Randomness State Update")?;
@@ -2481,10 +2407,6 @@ impl SenderSignedData {
         &self.inner().tx_signatures
     }
 
-    pub fn has_zklogin_sig(&self) -> bool {
-        self.tx_signatures().iter().any(|sig| sig.is_zklogin())
-    }
-
     pub fn has_upgraded_multisig(&self) -> bool {
         self.tx_signatures()
             .iter()
@@ -2517,14 +2439,11 @@ impl SenderSignedData {
     fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
         for sig in &self.inner().tx_signatures {
             match sig {
-                GenericSignature::ZkLoginAuthenticator(_) => {
-                    if !config.zklogin_auth() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "zklogin is not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
+                #[allow(deprecated)]
+                GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::Unsupported("zkLogin is not supported".to_string()),
+                    });
                 }
                 GenericSignature::PasskeyAuthenticator(_) => {
                     if !config.passkey_auth() {
@@ -3024,22 +2943,6 @@ impl VerifiedTransaction {
         .pipe(Self::new_system_transaction)
     }
 
-    pub fn new_authenticator_state_update(
-        epoch: u64,
-        round: u64,
-        new_active_jwks: Vec<ActiveJwk>,
-        authenticator_obj_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        AuthenticatorStateUpdateV1 {
-            epoch,
-            round,
-            new_active_jwks,
-            authenticator_obj_initial_shared_version,
-        }
-        .pipe(TransactionKind::AuthenticatorStateUpdateV1)
-        .pipe(Self::new_system_transaction)
-    }
-
     pub fn new_randomness_state_update(
         epoch: u64,
         randomness_round: RandomnessRound,
@@ -3104,25 +3007,15 @@ pub type SignedTransaction = Envelope<SenderSignedData, AuthoritySignInfo>;
 pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedData, AuthoritySignInfo>;
 
 impl Transaction {
-    pub fn verify_signature_for_testing(
-        &self,
-        current_epoch: EpochId,
-        verify_params: &VerifyParams,
-    ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            current_epoch,
-            verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )
+    pub fn verify_signature_for_testing(&self, verify_params: &VerifyParams) -> IotaResult {
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)
     }
 
     pub fn try_into_verified_for_testing(
         self,
-        current_epoch: EpochId,
         verify_params: &VerifyParams,
     ) -> IotaResult<VerifiedTransaction> {
-        self.verify_signature_for_testing(current_epoch, verify_params)?;
+        self.verify_signature_for_testing(verify_params)?;
         Ok(VerifiedTransaction::new_from_verified(self))
     }
 }
@@ -3133,12 +3026,7 @@ impl SignedTransaction {
         committee: &Committee,
         verify_params: &VerifyParams,
     ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            committee.epoch(),
-            verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )?;
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)?;
 
         self.auth_sig().verify_secure(
             self.data(),
@@ -3178,14 +3066,8 @@ impl CertifiedTransaction {
         &self,
         committee: &Committee,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            committee.epoch(),
-            verify_params,
-            zklogin_inputs_cache,
-        )?;
+        verify_sender_signed_data_message_signatures(self.data(), verify_params)?;
         self.auth_sig().verify_secure(
             self.data(),
             Intent::iota_app(IntentScope::SenderSignedTransaction),
@@ -3198,11 +3080,7 @@ impl CertifiedTransaction {
         committee: &Committee,
         verify_params: &VerifyParams,
     ) -> IotaResult<VerifiedCertificate> {
-        self.verify_signatures_authenticated(
-            committee,
-            verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )?;
+        self.verify_signatures_authenticated(committee, verify_params)?;
         Ok(VerifiedCertificate::new_from_verified(self))
     }
 

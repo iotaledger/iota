@@ -980,7 +980,6 @@ fn test_repeatedly_update_display() {
 }
 
 #[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
@@ -994,9 +993,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    let txs_epoch_1 = 16;
-    let txs_epoch_2 = 22;
-    let txs_epoch_3 = 18;
+    let txs_per_epoch = [16u64, 22, 18];
 
     let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
@@ -1009,44 +1006,47 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         .await;
     indexer_wait_for_object(client, gas.0, gas.1).await;
 
-    let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-    let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+    let (deploy_res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+    let (create_res, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
         .await
         .unwrap();
-    // deploy pkg tx and create counter obj tx
-    indexer_wait_for_optimistic_transactions_count(store, 2).await;
+    // Count how many of the setup txs were optimistically indexed
+    let setup_optimistic_count = [&deploy_res, &create_res]
+        .iter()
+        .filter(|r| r.checkpoint.is_none())
+        .count() as u64;
+    indexer_wait_for_optimistic_transactions_count(store, setup_optimistic_count).await;
     force_new_epoch_and_wait(store, cluster).await;
 
-    for _ in 0..txs_epoch_1 {
-        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
-            .await
-            .unwrap();
-        assert_transaction_success(&res);
+    // For each epoch, send transactions and track how many were optimistically
+    // indexed. The checkpoint indexer may beat the optimistic indexer for some
+    // transactions (returning a checkpoint in the response), so we cannot
+    // assume all submitted txs land in the optimistic_transactions table.
+    let mut optimistic_counts = Vec::new();
+    for &tx_count in &txs_per_epoch {
+        let mut optimistic_in_epoch = 0u64;
+        for _ in 0..tx_count {
+            let res =
+                increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+                    .await
+                    .unwrap();
+            assert_transaction_success(&res);
+            // checkpoint == None means optimistic indexing won
+            if res.checkpoint.is_none() {
+                optimistic_in_epoch += 1;
+            }
+        }
+        optimistic_counts.push(optimistic_in_epoch);
+        indexer_wait_for_optimistic_transactions_count(store, optimistic_in_epoch).await;
+        force_new_epoch_and_wait(store, cluster).await;
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1).await;
-    force_new_epoch_and_wait(store, cluster).await;
 
-    for _ in 0..txs_epoch_2 {
-        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
-            .await
-            .unwrap();
-        assert_transaction_success(&res);
-    }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2).await;
-    force_new_epoch_and_wait(store, cluster).await;
-
-    for _ in 0..txs_epoch_3 {
-        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
-            .await
-            .unwrap();
-        assert_transaction_success(&res);
-    }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
-    force_new_epoch_and_wait(store, cluster).await;
-
-    // we are in epoch 4, but epoch 3 transactions will not be pruned until we have
-    // at least one new optimistic tx
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
+    // We are now past the last epoch. With epochs_to_keep=1, the previous
+    // epoch's optimistic transactions should still be present (not yet pruned
+    // because pruning of the current epoch's data only happens once a new
+    // optimistic tx arrives in the next epoch).
+    let last_epoch_optimistic = *optimistic_counts.last().unwrap();
+    indexer_wait_for_optimistic_transactions_count(store, last_epoch_optimistic).await;
 
     Ok(())
 }

@@ -17,7 +17,7 @@ use iota_sdk_types::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
         CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
     },
-    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -35,9 +35,8 @@ use iota_sdk_types::{
     },
     object_id::ObjectId,
     transaction::{
-        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
-        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+        Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
         SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
@@ -479,31 +478,12 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| ActiveJwk {
-                            jwk_id: JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: Jwk {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        .value(),
-                })
+            #[allow(deprecated)]
+            InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
             InternalTxnKind::EndOfEpochTransaction(vec) => {
                 TransactionKind::EndOfEpoch(vec.into_iter().map(Into::into).collect())
@@ -610,31 +590,12 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     },
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| crate::authenticator_state::ActiveJwk {
-                            jwk_id: crate::authenticator_state::JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: crate::authenticator_state::JWK {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        .into(),
-                })
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                Self::AuthenticatorStateUpdateV1Deprecated
             }
             TransactionKind::EndOfEpoch(vec) => {
                 Self::EndOfEpochTransaction(vec.into_iter().map(Into::into).collect())
@@ -748,17 +709,6 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                EndOfEpochTransactionKind::AuthenticatorStateCreate
-            }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpire(
-                authenticator_state_expire,
-            ) => EndOfEpochTransactionKind::AuthenticatorStateExpire(AuthenticatorStateExpire {
-                min_epoch: authenticator_state_expire.min_epoch,
-                authenticator_obj_initial_shared_version: authenticator_state_expire
-                    .authenticator_obj_initial_shared_version
-                    .value(),
-            }),
         }
     }
 }
@@ -859,15 +809,6 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
-                })
-            }
-            EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
-            EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {
-                Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
-                    min_epoch: authenticator_state_expire.min_epoch,
-                    authenticator_obj_initial_shared_version: authenticator_state_expire
-                        .authenticator_obj_initial_shared_version
-                        .into(),
                 })
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),

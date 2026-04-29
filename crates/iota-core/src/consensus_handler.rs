@@ -16,8 +16,7 @@ use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
-    authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -36,7 +35,6 @@ use crate::{
             ExecutionIndicesWithStats,
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
-        epoch_start_configuration::EpochStartConfigTrait,
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
@@ -252,35 +250,6 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // need to record the current round and subdag index in the
         // last_consensus_stats, so that it won't be re-executed in the future.
         self.last_consensus_stats.index = execution_index;
-
-        // Load all jwks that became active in the previous round, and commit them in
-        // this round. We want to delay one round because none of the
-        // transactions in the previous round could have been authenticated with
-        // the jwks that became active in that round.
-        //
-        // Because of this delay, jwks that become active in the last round of the epoch
-        // will never be committed. That is ok, because in the new epoch, the
-        // validators should immediately re-submit these jwks, and they can
-        // become active then.
-        let new_jwks = self
-            .epoch_store
-            .get_new_jwks(last_committed_round)
-            .expect("Unrecoverable error in consensus handler");
-
-        if !new_jwks.is_empty() {
-            let authenticator_state_update_transaction =
-                self.authenticator_state_update_transaction(round, new_jwks);
-            debug!(
-                "adding AuthenticatorStateUpdateV1({:?}) tx: {:?}",
-                authenticator_state_update_transaction.digest(),
-                authenticator_state_update_transaction,
-            );
-
-            transactions.push((
-                SequencedConsensusTransactionKind::System(authenticator_state_update_transaction),
-                leader_author,
-            ));
-        }
 
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),
@@ -565,33 +534,6 @@ impl Drop for StarfishConsensusHandler {
     }
 }
 
-impl<C> ConsensusHandler<C> {
-    fn authenticator_state_update_transaction(
-        &self,
-        round: u64,
-        mut new_active_jwks: Vec<ActiveJwk>,
-    ) -> VerifiedExecutableTransaction {
-        new_active_jwks.sort();
-
-        info!("creating authenticator state update transaction");
-        assert!(self.epoch_store.authenticator_state_enabled());
-        let transaction = VerifiedTransaction::new_authenticator_state_update(
-            self.epoch(),
-            round,
-            new_active_jwks,
-            self.epoch_store
-                .epoch_start_config()
-                .authenticator_obj_initial_shared_version()
-                .expect("authenticator state obj must exist"),
-        );
-        VerifiedExecutableTransaction::new_system(transaction, self.epoch())
-    }
-
-    fn epoch(&self) -> EpochId {
-        self.epoch_store.epoch()
-    }
-}
-
 pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
     match &transaction.kind {
         ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -608,7 +550,8 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }
-        ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
+        #[allow(deprecated)]
+        ConsensusTransactionKind::NewJWKFetchedDeprecated => "new_jwk_fetched_deprecated",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
     }

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -205,12 +204,6 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
-    #[serde(default = "default_jwk_fetch_interval_seconds")]
-    pub jwk_fetch_interval_seconds: u64,
-
-    #[serde(default = "default_zklogin_oauth_providers")]
-    pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
-
     /// Configuration for defining thresholds and settings
     /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
@@ -308,6 +301,14 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_broadcast_buffer_size")]
     pub broadcast_buffer_size: u32,
 
+    /// Maximum number of concurrent subscribers to checkpoint streaming RPCs.
+    /// Once the cap is reached, additional subscribe requests are rejected
+    /// with `Unavailable` to protect the server from being overwhelmed by
+    /// unbounded streaming clients. Values below 1 are clamped to 1 at
+    /// server startup.
+    #[serde(default = "default_grpc_api_max_concurrent_stream_subscribers")]
+    pub max_concurrent_stream_subscribers: u32,
+
     /// Maximum size for Move values when rendering to JSON
     /// in bytes.
     #[serde(default = "default_grpc_api_max_json_move_value_size")]
@@ -338,6 +339,10 @@ fn default_grpc_api_broadcast_buffer_size() -> u32 {
     100
 }
 
+fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
+    1024
+}
+
 fn default_grpc_api_max_message_size_bytes() -> u32 {
     128 * 1024 * 1024 // 128MB
 }
@@ -365,6 +370,7 @@ impl Default for GrpcApiConfig {
             tls: None,
             max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
             broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
+            max_concurrent_stream_subscribers: default_grpc_api_max_concurrent_stream_subscribers(),
             max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
             max_execute_transaction_batch_size: default_grpc_api_max_execute_transaction_batch_size(
             ),
@@ -637,42 +643,6 @@ fn default_base_url() -> String {
 
 fn default_cache_size() -> u64 {
     100_000
-}
-
-fn default_jwk_fetch_interval_seconds() -> u64 {
-    3600
-}
-
-pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
-    let mut map = BTreeMap::new();
-
-    // providers that are available on devnet only.
-    let experimental_providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Kakao".to_string(),
-        "Apple".to_string(),
-        "Slack".to_string(),
-        "TestIssuer".to_string(),
-        "Microsoft".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-
-    // providers that are available for mainnet and testnet.
-    let providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Apple".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-    map.insert(Chain::Mainnet, providers.clone());
-    map.insert(Chain::Testnet, providers);
-    map.insert(Chain::Unknown, experimental_providers);
-    map
 }
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {

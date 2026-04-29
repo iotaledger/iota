@@ -2,23 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    global_state_hash::GlobalStateHash,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus::Registry;
@@ -38,7 +38,7 @@ use crate::{
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
-    state_accumulator::AccumulatorStore,
+    global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -47,6 +47,7 @@ pub struct PassthroughCache {
     metrics: Arc<ExecutionCacheMetrics>,
     package_cache: Arc<PackageObjectCache>,
     executed_effects_digests_notify_read: NotifyRead<TransactionDigest, TransactionEffectsDigest>,
+    object_notify_read: NotifyRead<InputKey, ()>,
 }
 
 impl PassthroughCache {
@@ -56,6 +57,7 @@ impl PassthroughCache {
             metrics,
             package_cache: PackageObjectCache::new(),
             executed_effects_digests_notify_read: NotifyRead::new(),
+            object_notify_read: NotifyRead::new(),
         }
     }
 
@@ -206,6 +208,21 @@ impl ObjectCacheRead for PassthroughCache {
             .get_highest_pruned_checkpoint()
             .map_err(IotaError::from)
     }
+
+    fn notify_read_input_objects<'a>(
+        &'a self,
+        input_and_receiving_keys: &'a [InputKey],
+        receiving_keys: &'a HashSet<InputKey>,
+        epoch: &'a EpochId,
+    ) -> BoxFuture<'a, Vec<()>> {
+        super::notify_read_input_objects_impl(
+            &self.object_notify_read,
+            self,
+            input_and_receiving_keys,
+            receiving_keys,
+            epoch,
+        )
+    }
 }
 
 impl TransactionCacheRead for PassthroughCache {
@@ -286,11 +303,20 @@ impl ExecutionCacheWrite for PassthroughCache {
         self.store
             .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
 
-        let batch = self.store.build_db_batch(epoch_id, &[tx_outputs])?;
+        let batch = self
+            .store
+            .build_db_batch(epoch_id, std::slice::from_ref(&tx_outputs))?;
         batch.write()?;
 
         self.executed_effects_digests_notify_read
             .notify(&tx_digest, &effects_digest);
+
+        for object in tx_outputs.written.values() {
+            super::notify_object_written(&self.object_notify_read, object);
+        }
+        for (object_key, marker_value) in &tx_outputs.markers {
+            super::notify_marker_written(&self.object_notify_read, object_key, marker_value);
+        }
 
         self.metrics
             .pending_notify_read
@@ -310,28 +336,28 @@ impl ExecutionCacheWrite for PassthroughCache {
     }
 }
 
-impl AccumulatorStore for PassthroughCache {
-    fn get_root_state_accumulator_for_epoch(
+impl GlobalStateHashStore for PassthroughCache {
+    fn get_root_state_hash_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
-        self.store.get_root_state_accumulator_for_epoch(epoch)
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
+        self.store.get_root_state_hash_for_epoch(epoch)
     }
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
-        self.store.get_root_state_accumulator_for_highest_epoch()
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
+        self.store.get_root_state_hash_for_highest_epoch()
     }
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        acc: &GlobalStateHash,
     ) -> IotaResult {
         self.store
-            .insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc)
+            .insert_state_hash_for_epoch(epoch, checkpoint_seq_num, acc)
     }
 
     fn iter_live_object_set(
@@ -392,3 +418,36 @@ impl StateSyncAPI for PassthroughCache {
 }
 
 implement_passthrough_traits!(PassthroughCache);
+
+#[cfg(test)]
+impl PassthroughCache {
+    pub(super) fn write_object_for_testing(&self, object: Object) {
+        use crate::authority::authority_store_types::get_store_object;
+
+        let object_ref = object.compute_object_reference();
+        let object_key = ObjectKey::from(object_ref);
+        let store_object = get_store_object(object.clone());
+        self.store
+            .perpetual_tables
+            .objects
+            .insert(&object_key, &store_object)
+            .unwrap();
+
+        super::notify_object_written(&self.object_notify_read, &object);
+    }
+
+    pub(super) fn write_marker_for_testing(
+        &self,
+        epoch_id: EpochId,
+        object_key: &ObjectKey,
+        marker_value: MarkerValue,
+    ) {
+        self.store
+            .perpetual_tables
+            .object_per_epoch_marker_table
+            .insert(&(epoch_id, *object_key), &marker_value)
+            .unwrap();
+
+        super::notify_marker_written(&self.object_notify_read, object_key, &marker_value);
+    }
+}

@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -43,6 +43,7 @@ use crate::{
         VerifiedBlockHeader,
     },
     block_verifier::BlockVerifier,
+    commit_syncer::fast::{FastSyncPauseSource, paused_by_fast_sync},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -343,6 +344,13 @@ pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: Core
     inflight_block_headers_map: Arc<InflightBlockHeadersMap>,
     verified_headers_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
     commands_sender: Sender<Command>,
+    /// Present only when the fast commit syncer is running at this
+    /// deployment. When it reads `true`, the header synchronizer skips
+    /// dispatching new fetches (explicit commands and periodic scheduler)
+    /// because fast sync is about to supply the corresponding headers via
+    /// reinitialization. `None` on deployments where fast sync is disabled
+    /// — the gate becomes an unconditional pass-through.
+    fast_sync_active: Option<Arc<AtomicBool>>,
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
@@ -357,6 +365,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
+        fast_sync_active: Option<Arc<AtomicBool>>,
     ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
@@ -419,6 +428,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 verified_headers_cache,
                 commands_sender: commands_sender_clone,
                 dag_state,
+                fast_sync_active,
             };
             s.run().await;
         }));
@@ -447,6 +457,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         Command::FetchBlockHeaders{ missing_block_refs, peer_index, result } => {
                             if peer_index == self.context.own_index {
                                 error!("We should never attempt to fetch block headers from our own node");
+                                continue;
+                            }
+
+                            // Skip while fast commit syncer is active — headers for
+                            // committed ranges will be supplied by fast sync's
+                            // reinitialization. Prevents racing with fast sync and
+                            // avoids fetching now-stale ancestors post-reinit.
+                            if paused_by_fast_sync(
+                                self.fast_sync_active.as_ref(),
+                                &self.context.metrics.node_metrics,
+                                FastSyncPauseSource::HeaderCommand,
+                            ) {
+                                result.send(Ok(())).ok();
                                 continue;
                             }
 
@@ -527,6 +550,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     };
                 },
                 () = &mut scheduler_timeout => {
+                    // Skip firing the periodic sync task while fast commit
+                    // syncer is active. The timer is still rearmed so the
+                    // scheduler resumes at the next tick after fast sync
+                    // becomes idle.
+                    if paused_by_fast_sync(
+                        self.fast_sync_active.as_ref(),
+                        &self.context.metrics.node_metrics,
+                        FastSyncPauseSource::HeaderScheduler,
+                    ) {
+                        scheduler_timeout
+                            .as_mut()
+                            .reset(Instant::now() + PERIODIC_SYNCHRONIZER_TIMEOUT);
+                        continue;
+                    }
+
                     // we want to start a new task only if the previous one has already finished.
                     if self.fetch_block_headers_scheduler_task.is_empty() {
                         if let Err(err) = self.start_periodic_sync_task().await {
@@ -2095,6 +2133,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         // Create some test block headers
@@ -2163,6 +2202,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         // Create some test block headers
@@ -2299,6 +2339,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2443,6 +2484,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2552,6 +2594,7 @@ mod tests {
             block_verifier,
             dag_state.clone(),
             false,
+            None,
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2706,6 +2749,7 @@ mod tests {
             block_verifier,
             dag_state,
             true,
+            None,
         );
 
         // Wait at least for the timeout time

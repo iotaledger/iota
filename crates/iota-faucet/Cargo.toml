@@ -45,6 +45,7 @@ telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
+iota-common.workspace = true
 test-cluster.workspace = true
 
 [[bin]]

@@ -4,18 +4,17 @@
 
 use std::collections::BTreeMap;
 
-use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
+use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
-use serde::Deserialize;
 
 use crate::{
     IotaAddress,
     base_types::{ObjectID, dbg_addr},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair,
-        Signature, SignatureScheme, Signer, get_key_pair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
+        get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey},
     object::Object,
@@ -24,17 +23,7 @@ use crate::{
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
     },
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
-
-#[derive(Deserialize)]
-pub struct TestData {
-    pub zklogin_inputs: String,
-    pub kp: String,
-    pub pk_bigint: String,
-    pub salt: String,
-    pub address_seed: String,
-}
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
@@ -143,166 +132,39 @@ pub fn to_sender_signed_transaction_with_multi_signers(
     Transaction::from_data_and_signer(data, signers)
 }
 
-mod zk_login {
-    use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-    use iota_sdk_types::crypto::PersonalMessage;
+pub fn keys() -> Vec<IotaKeyPair> {
+    let mut seed = StdRng::from_seed([0; 32]);
+    let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
+    let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
+    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+    vec![kp1, kp2, kp3]
+}
 
-    use super::*;
-    use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
-    pub static DEFAULT_ADDRESS_SEED: &str =
-        "20794788559620669596206457022966176986688727876128223628113916380927502737911";
-    pub static SHORT_ADDRESS_SEED: &str =
-        "380704556853533152350240698167704405529973457670972223618755249929828551006";
+pub fn make_upgraded_multisig_tx() -> Transaction {
+    let keys = keys();
+    let pk1 = &keys[0].public();
+    let pk2 = &keys[1].public();
+    let pk3 = &keys[2].public();
 
-    pub fn load_test_vectors(
-        path: &str,
-    ) -> eyre::Result<Vec<(IotaKeyPair, PublicKey, ZkLoginInputs)>> {
-        // read in test files that has a list of matching zklogin_inputs and its
-        // ephemeral private keys.
-        let file = std::fs::File::open(path).expect("Unable to open file");
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![pk1.clone(), pk2.clone(), pk3.clone()],
+        vec![1, 1, 1],
+        2,
+    )
+    .unwrap();
+    let addr = IotaAddress::from(&multisig_pk);
+    let tx = make_transaction(addr, &keys[0]);
 
-        let test_datum: Vec<TestData> = serde_json::from_reader(file)?;
-        let mut res = vec![];
-        for test in test_datum {
-            let kp = IotaKeyPair::decode(&test.kp)?;
-            let inputs = ZkLoginInputs::from_json(&test.zklogin_inputs, &test.address_seed)?;
-            let pk_zklogin = PublicKey::from_zklogin_inputs(&inputs)?;
-            res.push((kp, pk_zklogin, inputs));
-        }
-        Ok(res)
-    }
-    pub fn get_one_zklogin_inputs(path: &str) -> String {
-        let file = std::fs::File::open(path).expect("Unable to open file");
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
+    let sig1 = Signature::new_secure(&msg, &keys[0]).into();
+    let sig2 = Signature::new_secure(&msg, &keys[1]).into();
 
-        let test_data: Vec<TestData> = serde_json::from_reader(file).unwrap();
-        test_data[1].zklogin_inputs.clone()
-    }
-
-    pub fn get_zklogin_user_address() -> IotaAddress {
-        thread_local! {
-            static USER_ADDRESS: IotaAddress = {
-                // Derive user address manually: Blake2b_256 hash of [zklogin_flag || iss_bytes_length || iss_bytes || address seed in bytes])
-                let mut hasher = DefaultHash::default();
-                hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-                let inputs = get_zklogin_inputs();
-                let iss_bytes = inputs.get_iss().as_bytes();
-                hasher.update([iss_bytes.len() as u8]);
-                hasher.update(iss_bytes);
-                hasher.update(inputs.get_address_seed().unpadded());
-                IotaAddress::from_bytes(hasher.finalize().digest).unwrap()
-            };
-        }
-        USER_ADDRESS.with(|a| *a)
-    }
-
-    fn get_zklogin_user_key() -> IotaKeyPair {
-        IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
-    }
-
-    fn get_inputs_with_bad_address_seed() -> ZkLoginInputs {
-        thread_local! {
-        static ZKLOGIN_INPUTS: ZkLoginInputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"17276311605393076686048412951904952585208929623427027497902331765285829154985\",\"2195957390349729412627479867125563520760023859523358729791332629632025124364\",\"1\"],\"b\":[[\"10285059021604767951039627893758482248204478992077021270802057708215366770814\",\"20086937595807139308592304218494658586282197458549968652049579308384943311509\"],[\"7481123765095657256931104563876569626157448050870256177668773471703520958615\",\"11912752790863530118410797223176516777328266521602785233083571774104055633375\"],[\"1\",\"0\"]],\"c\":[\"15742763887654796666500488588763616323599882100448686869458326409877111249163\",\"6112916537574993759490787691149241262893771114597679488354854987586060572876\",\"1\"]},\"issBase64Details\":{\"value\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"indexMod4\":2},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}", SHORT_ADDRESS_SEED).unwrap(); }
-        ZKLOGIN_INPUTS.with(|a| a.clone())
-    }
-
-    pub fn get_legacy_zklogin_user_address() -> IotaAddress {
-        thread_local! {
-            static USER_ADDRESS: IotaAddress = {
-                let inputs = get_inputs_with_bad_address_seed();
-                IotaAddress::from(&PublicKey::from_zklogin_inputs(&inputs).unwrap())
-            };
-        }
-        USER_ADDRESS.with(|a| *a)
-    }
-
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage<'_>) -> (IotaAddress, GenericSignature) {
-        let inputs = get_zklogin_inputs();
-        let msg = IntentMessage::new(Intent::personal_message(), data.0);
-        let s = Signature::new_secure(&msg, &get_zklogin_user_key());
-        let authenticator =
-            GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(inputs, 10, s));
-        let address = get_zklogin_user_address();
-        (address, authenticator)
-    }
-
-    pub fn sign_zklogin_tx_with_default_proof(
-        data: TransactionData,
-        legacy: bool,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
-        let inputs = if legacy {
-            get_inputs_with_bad_address_seed()
-        } else {
-            get_zklogin_inputs()
-        };
-
-        sign_zklogin_tx(&get_zklogin_user_key(), inputs, data)
-    }
-
-    pub fn sign_zklogin_tx(
-        user_key: &IotaKeyPair,
-        proof: ZkLoginInputs,
-        data: TransactionData,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
-        let tx = Transaction::from_data_and_signer(data.clone(), vec![user_key]);
-
-        let s = match tx.inner().tx_signatures.first().unwrap() {
-            GenericSignature::Signature(s) => s,
-            _ => panic!("Expected a signature"),
-        };
-
-        // Construct the authenticator with all user submitted components.
-        let authenticator =
-            GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(proof, 10, s.clone()));
-
-        let tx = Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![authenticator.clone()],
-        ));
-        (data.execution_parts().1, tx, authenticator)
-    }
-
-    pub fn make_zklogin_tx(
-        address: IotaAddress,
-        legacy: bool,
-    ) -> (IotaAddress, Transaction, GenericSignature) {
-        let data = make_transaction_data(address);
-        sign_zklogin_tx_with_default_proof(data, legacy)
-    }
-
-    pub fn keys() -> Vec<IotaKeyPair> {
-        let mut seed = StdRng::from_seed([0; 32]);
-        let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
-        let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
-        let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
-        vec![kp1, kp2, kp3]
-    }
-
-    pub fn make_upgraded_multisig_tx() -> Transaction {
-        let keys = keys();
-        let pk1 = &keys[0].public();
-        let pk2 = &keys[1].public();
-        let pk3 = &keys[2].public();
-
-        let multisig_pk = MultiSigPublicKey::new(
-            vec![pk1.clone(), pk2.clone(), pk3.clone()],
-            vec![1, 1, 1],
-            2,
-        )
-        .unwrap();
-        let addr = IotaAddress::from(&multisig_pk);
-        let tx = make_transaction(addr, &keys[0]);
-
-        let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
-        let sig1 = Signature::new_secure(&msg, &keys[0]).into();
-        let sig2 = Signature::new_secure(&msg, &keys[1]).into();
-
-        // Any 2 of 3 signatures verifies ok.
-        let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
-        Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![GenericSignature::MultiSig(multi_sig1)],
-        ))
-    }
+    // Any 2 of 3 signatures verifies ok.
+    let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
+    Transaction::new(SenderSignedData::new(
+        tx.transaction_data().clone(),
+        vec![GenericSignature::MultiSig(multi_sig1)],
+    ))
 }
 
 mod move_authenticator {
@@ -339,4 +201,3 @@ mod move_authenticator {
 }
 
 pub use move_authenticator::*;
-pub use zk_login::*;
