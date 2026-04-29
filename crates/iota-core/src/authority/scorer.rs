@@ -7,7 +7,7 @@ use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 
 use crate::authority::authority_per_epoch_store::{
-    misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
+    misbehavior_config::{MisbehaviorCounts, MisbehaviorSchemaVersion},
     report_aggregator::ReportAggregator,
 };
 
@@ -35,11 +35,10 @@ impl Scorer {
     pub fn new(
         voting_power: Vec<u64>,
         protocol_config: &ProtocolConfig,
-        misbehavior_config: &MisbehaviorConfig,
+        schema_version: MisbehaviorSchemaVersion,
     ) -> Self {
         let committee_size = voting_power.len();
-        let version =
-            ScorerVersion::from_protocol(protocol_config, misbehavior_config.num_metrics());
+        let version = ScorerVersion::from_protocol(protocol_config, schema_version.num_metrics());
         let current_scores = ArcSwap::from_pointee(vec![MAX_SCORE; committee_size]);
 
         Self {
@@ -329,7 +328,7 @@ mod tests {
     use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
+        misbehavior_config::{MisbehaviorCounts, MisbehaviorSchemaVersion},
         report_aggregator::ReportAggregator,
         scorer::{MAX_SCORE, Scorer},
     };
@@ -338,20 +337,16 @@ mod tests {
         ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
-    fn mock_misbehavior_config() -> MisbehaviorConfig {
-        MisbehaviorConfig::from_protocol(&mock_protocol_config())
+    fn mock_schema_version() -> MisbehaviorSchemaVersion {
+        MisbehaviorSchemaVersion::from_protocol(&mock_protocol_config())
     }
 
     fn mock_scorer(voting_power: Vec<u64>) -> Scorer {
-        Scorer::new(
-            voting_power,
-            &mock_protocol_config(),
-            &mock_misbehavior_config(),
-        )
+        Scorer::new(voting_power, &mock_protocol_config(), mock_schema_version())
     }
 
     fn mock_aggregator(committee_size: usize) -> ReportAggregator {
-        ReportAggregator::new(&mock_misbehavior_config(), committee_size)
+        ReportAggregator::new(mock_schema_version(), committee_size)
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {

@@ -11,7 +11,7 @@ use iota_types::messages_consensus::VersionedMisbehaviorReport;
 
 use crate::{
     authority::authority_per_epoch_store::misbehavior_config::{
-        MisbehaviorConfig, MisbehaviorCounts,
+        MisbehaviorCounts, MisbehaviorSchemaVersion,
     },
     consensus_types::consensus_output_api::ConsensusOutputMisbehaviors,
 };
@@ -23,7 +23,7 @@ use crate::{
 /// them as `MisbehaviorReport` transactions submitted to consensus at
 /// checkpoint boundaries.
 pub struct MisbehaviorMonitor {
-    config: MisbehaviorConfig,
+    schema_version: MisbehaviorSchemaVersion,
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
     current_local_counts: ArcSwap<MisbehaviorCounts>,
@@ -41,14 +41,14 @@ pub struct MisbehaviorMonitor {
 }
 
 impl MisbehaviorMonitor {
-    pub fn new(config: &MisbehaviorConfig, committee_size: usize) -> Self {
+    pub fn new(schema_version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
         let current_local_counts = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
-            config.reported_misbehaviors(),
+            schema_version.reported_misbehaviors(),
             committee_size,
         )));
 
         Self {
-            config: config.clone(),
+            schema_version,
             current_local_counts,
             last_report_summary: AtomicU64::new(0),
             last_report_checkpoint_seq: AtomicU64::new(0),
@@ -85,7 +85,7 @@ impl MisbehaviorMonitor {
     pub fn generate_report(&self) -> VersionedMisbehaviorReport {
         self.current_local_counts
             .load()
-            .to_report(self.config.version(), self.config.reported_misbehaviors())
+            .to_report(self.schema_version)
     }
 
     pub fn update_from_consensus_output(
@@ -94,7 +94,7 @@ impl MisbehaviorMonitor {
     ) {
         let new_counts = MisbehaviorCounts::from_consensus_output(
             output_misbehavior_counts,
-            self.config.reported_misbehaviors(),
+            self.schema_version.reported_misbehaviors(),
         );
         self.current_local_counts.store(Arc::new(new_counts));
     }

@@ -11,16 +11,16 @@ use iota_types::messages_consensus::VersionedMisbehaviorReport;
 use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior_config::{
-    MisbehaviorConfig, MisbehaviorCounts, verify_legacy_payload,
+    MisbehaviorCounts, MisbehaviorSchemaVersion, verify_legacy_payload,
 };
 
 pub struct ReportAggregator {
-    config: MisbehaviorConfig,
+    schema_version: MisbehaviorSchemaVersion,
     received_reports_state: ReceivedReportsState,
 }
 
 impl ReportAggregator {
-    pub fn new(config: &MisbehaviorConfig, committee_size: usize) -> Self {
+    pub fn new(schema_version: MisbehaviorSchemaVersion, committee_size: usize) -> Self {
         let received_reports_state = (0..committee_size)
             .map(|_| ReceivedReportsStatePerAuthority {
                 received_metrics: ArcSwapOption::empty(),
@@ -29,7 +29,7 @@ impl ReportAggregator {
             .collect::<ReceivedReportsState>();
 
         Self {
-            config: config.clone(),
+            schema_version,
             received_reports_state,
         }
     }
@@ -42,7 +42,7 @@ impl ReportAggregator {
         report: &VersionedMisbehaviorReport,
         committee_size: usize,
     ) -> bool {
-        if !self.config.accepts_report(report) {
+        if !self.schema_version.accepts_report(report) {
             return false;
         }
         match report {
@@ -59,8 +59,7 @@ impl ReportAggregator {
     /// Uses `rcu` so the load + merge + store is atomic against concurrent
     /// callers; the closure may run more than once under contention.
     pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
-        let incoming_counts =
-            MisbehaviorCounts::from_report(report, self.config.reported_misbehaviors());
+        let incoming_counts = MisbehaviorCounts::from_report(report, self.schema_version);
         let state = &self.received_reports_state[authority as usize];
         state.received_metrics.rcu(|current| {
             Some(Arc::new(match current.as_deref() {
@@ -176,7 +175,7 @@ mod tests {
     use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
+        misbehavior_config::{MisbehaviorCounts, MisbehaviorSchemaVersion},
         report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
     };
 
@@ -184,12 +183,12 @@ mod tests {
         ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
-    fn mock_misbehavior_config() -> MisbehaviorConfig {
-        MisbehaviorConfig::from_protocol(&mock_protocol_config())
+    fn mock_schema_version() -> MisbehaviorSchemaVersion {
+        MisbehaviorSchemaVersion::from_protocol(&mock_protocol_config())
     }
 
     fn mock_aggregator(committee_size: usize) -> ReportAggregator {
-        ReportAggregator::new(&mock_misbehavior_config(), committee_size)
+        ReportAggregator::new(mock_schema_version(), committee_size)
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {

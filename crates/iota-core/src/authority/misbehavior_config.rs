@@ -8,55 +8,47 @@ use serde::{Deserialize, Serialize};
 
 use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviors;
 
-/// Identifies which set of misbehavior categories and report format is active.
+/// Single source of truth for the misbehavior schema and report wire format.
+///
+/// Each variant ties together (a) the version reported in `ProtocolConfig`,
+/// (b) the ordered list of `Misbehaviors` tracked locally, and (c) the
+/// `VersionedMisbehaviorReport` variant accepted from peers. Adding a new
+/// variant forces the schema and the acceptance check to be updated in one
+/// place; the compiler enforces that every match is exhaustive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Version {
+pub enum MisbehaviorSchemaVersion {
     V1,
 }
 
-/// Shared misbehavior schema loaded once from `ProtocolConfig` and passed to
-/// all misbehavior-related components (`MisbehaviorMonitor`,
-/// `ReportAggregator`, `Scorer`). This is the single source of truth for which
-/// metrics are tracked.
-#[derive(Clone)]
-pub struct MisbehaviorConfig {
-    version: Version,
-    reported_misbehaviors: ReportedMisbehaviors,
-}
-
-impl MisbehaviorConfig {
+impl MisbehaviorSchemaVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.misbehavior_monitor_version_as_option() {
-            None | Some(1) => Self {
-                version: Version::V1,
-                reported_misbehaviors: ReportedMisbehaviors(vec![
-                    Misbehaviors::FaultyBlocksProvable,
-                    Misbehaviors::FaultyBlocksUnprovable,
-                    Misbehaviors::MissingProposals,
-                    Misbehaviors::Equivocations,
-                ]),
-            },
-            Some(version) => panic!("Unsupported misbehavior config version {version}"),
+            None | Some(1) => Self::V1,
+            Some(version) => panic!("Unsupported misbehavior schema version {version}"),
         }
     }
 
-    pub fn version(&self) -> Version {
-        self.version
-    }
-
-    pub fn reported_misbehaviors(&self) -> &ReportedMisbehaviors {
-        &self.reported_misbehaviors
+    /// Ordered list of misbehavior categories tracked under this version. The
+    /// index of each variant determines its row in `MisbehaviorCounts`.
+    pub fn reported_misbehaviors(&self) -> &'static [Misbehaviors] {
+        match self {
+            Self::V1 => &[
+                Misbehaviors::FaultyBlocksProvable,
+                Misbehaviors::FaultyBlocksUnprovable,
+                Misbehaviors::MissingProposals,
+                Misbehaviors::Equivocations,
+            ],
+        }
     }
 
     pub fn num_metrics(&self) -> usize {
-        self.reported_misbehaviors.0.len()
+        self.reported_misbehaviors().len()
     }
 
-    /// Returns `true` if the given report's wire format matches the expected
-    /// version.
+    /// Returns `true` if the given report's wire format matches this version.
     pub fn accepts_report(&self, report: &VersionedMisbehaviorReport) -> bool {
-        match self.version {
-            Version::V1 => matches!(report, VersionedMisbehaviorReport::V1(..)),
+        match self {
+            Self::V1 => matches!(report, VersionedMisbehaviorReport::V1(..)),
         }
     }
 }
@@ -66,7 +58,7 @@ impl MisbehaviorConfig {
 /// This enum is **append-only**: once a variant is added it must never be
 /// removed or reordered, because existing encoded data (e.g.,
 /// `LegacyReportPayload`) relies on stable positional indices. New variants
-/// must be introduced via a new `ReportedMisbehaviors` version.
+/// must be introduced via a new `MisbehaviorSchemaVersion`.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Misbehaviors {
     FaultyBlocksProvable,
@@ -86,33 +78,20 @@ impl From<&ConsensusOutputMisbehaviors> for Misbehaviors {
     }
 }
 
-/// The versioned, ordered list of misbehavior categories actively tracked in
-/// the current epoch. The index of each variant determines which row of
-/// `MisbehaviorCounts` and which field of `ReportPayload` it corresponds to, so
-/// order must remain stable within a version.
-#[derive(Clone)]
-pub struct ReportedMisbehaviors(Vec<Misbehaviors>);
-
-impl ReportedMisbehaviors {
-    pub fn iter(&self) -> impl Iterator<Item = &Misbehaviors> {
-        self.0.iter()
-    }
-}
-
 /// A two-dimensional matrix of raw misbehavior counts.
 ///
 /// `MisbehaviorCounts[i][j]` holds the count of misbehavior category `i`
-/// (indexed by `ReportedMisbehaviors`) observed for authority `j`.  The inner
-/// dimension therefore equals the committee size and the outer dimension equals
-/// the number of tracked misbehavior categories.
+/// (indexed by the schema's `reported_misbehaviors`) observed for authority
+/// `j`. The inner dimension equals the committee size; the outer equals the
+/// number of tracked misbehavior categories.
 ///
 /// This is the domain type used inside `iota-core`. For wire/storage encoding
-/// see `ReportPayload` / `VersionedMisbehaviorReport` in `iota-types`.
+/// see `LegacyReportPayload` / `VersionedMisbehaviorReport` in `iota-types`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct MisbehaviorCounts(pub(crate) Vec<Vec<u64>>);
 
 impl MisbehaviorCounts {
-    pub(crate) fn new(reported_misbehaviors: &ReportedMisbehaviors, committee_size: usize) -> Self {
+    pub(crate) fn new(reported_misbehaviors: &[Misbehaviors], committee_size: usize) -> Self {
         // Local metrics count are always initialized as zero.
         Self(
             reported_misbehaviors
@@ -124,7 +103,7 @@ impl MisbehaviorCounts {
 
     pub(crate) fn from_consensus_output(
         mut output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
-        reported_misbehaviors: &ReportedMisbehaviors,
+        reported_misbehaviors: &[Misbehaviors],
     ) -> Self {
         Self(
             reported_misbehaviors
@@ -146,20 +125,17 @@ impl MisbehaviorCounts {
     /// broadcast to peers as a `MisbehaviorReport` transaction.
     ///
     /// Rows are matched to wire fields by `Misbehaviors` variant rather than
-    /// positional index, so reordering `reported_misbehaviors` cannot silently
-    /// swap categories — adding/removing a variant is caught at compile time.
-    pub fn to_report(
-        &self,
-        version: Version,
-        reported_misbehaviors: &ReportedMisbehaviors,
-    ) -> VersionedMisbehaviorReport {
+    /// positional index, so reordering the schema cannot silently swap
+    /// categories — adding/removing a variant is caught at compile time.
+    pub fn to_report(&self, version: MisbehaviorSchemaVersion) -> VersionedMisbehaviorReport {
         match version {
-            Version::V1 => {
+            MisbehaviorSchemaVersion::V1 => {
                 let mut faulty_blocks_provable = Vec::new();
                 let mut faulty_blocks_unprovable = Vec::new();
                 let mut missing_proposals = Vec::new();
                 let mut equivocations = Vec::new();
-                for (row, misbehavior) in self.0.iter().zip(reported_misbehaviors.iter()) {
+                for (row, misbehavior) in self.0.iter().zip(version.reported_misbehaviors().iter())
+                {
                     match misbehavior {
                         Misbehaviors::FaultyBlocksProvable => faulty_blocks_provable = row.clone(),
                         Misbehaviors::FaultyBlocksUnprovable => {
@@ -180,16 +156,17 @@ impl MisbehaviorCounts {
         }
     }
 
-    /// Builds `MisbehaviorCounts` from a peer's report. Row order follows
-    /// `reported_misbehaviors`; the `match` on `Misbehaviors` enforces that
-    /// every locally tracked variant maps to a known V1 wire field.
+    /// Builds `MisbehaviorCounts` from a peer's report. Row order follows the
+    /// schema's `reported_misbehaviors`; the `match` on `Misbehaviors` enforces
+    /// that every locally tracked variant maps to a known V1 wire field.
     pub fn from_report(
         report: &VersionedMisbehaviorReport,
-        reported_misbehaviors: &ReportedMisbehaviors,
+        version: MisbehaviorSchemaVersion,
     ) -> Self {
         match report {
             VersionedMisbehaviorReport::V1(payload, _) => Self(
-                reported_misbehaviors
+                version
+                    .reported_misbehaviors()
                     .iter()
                     .map(|misbehavior| match misbehavior {
                         Misbehaviors::FaultyBlocksProvable => {
