@@ -22,8 +22,7 @@ use crate::{
     workloads::{
         Gas,
         abstract_account::{
-            AA_MODULE_NAME, ABSTRACT_ACCOUNT_TY, AuthenticatorKind, GAS_BUDGET, PAY_CHUNK_SIZE,
-            WORKLOAD_LABEL, WORKLOAD_PATH,
+            AuthenticatorKind, GAS_BUDGET, PAY_CHUNK_SIZE, WORKLOAD_LABEL, WORKLOAD_PATH,
         },
     },
 };
@@ -166,7 +165,7 @@ pub async fn create_abstract_account(
     info!(
         "[{WORKLOAD_LABEL}] creating AbstractAccount via {}::{}::create ...",
         aa_package_id,
-        authenticator.module_name()
+        Identifier::ABSTRACT_ACCOUNT_MODULE
     );
 
     let owner_pk = owner.1.public();
@@ -175,14 +174,14 @@ pub async fn create_abstract_account(
 
         let args = vec![
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
-            builder.pure(authenticator.module_name())?,
+            builder.pure(Identifier::ABSTRACT_ACCOUNT_MODULE)?,
             builder.pure(authenticator.function_name())?,
             builder.pure(owner_pk.as_ref())?,
         ];
 
         builder.programmable_move_call(
             aa_package_id,
-            Identifier::new(authenticator.module_name())?,
+            Identifier::ABSTRACT_ACCOUNT_MODULE,
             Identifier::from_static("create"),
             vec![],
             args,
@@ -229,7 +228,11 @@ pub async fn create_abstract_account(
     for r in abstract_account_ref.iter().copied() {
         let obj = proxy.get_object(r.0).await?;
         let ty = object_type_string(&obj).unwrap_or_default();
-        if ty.contains(ABSTRACT_ACCOUNT_TY) {
+        if ty.contains(&format!(
+            "::{}::{}",
+            Identifier::ABSTRACT_ACCOUNT_MODULE,
+            Identifier::ABSTRACT_ACCOUNT
+        )) {
             return Ok(r);
         }
     }
@@ -306,7 +309,7 @@ pub async fn init_bench_objects(
     amount: u64,
     is_shared: bool,
 ) -> Result<Vec<ObjectRef>> {
-    let module = Identifier::from_static(AA_MODULE_NAME);
+    let module = Identifier::ABSTRACT_ACCOUNT_MODULE;
     let function = Identifier::new("create_bench_objects")?;
 
     let pt = {

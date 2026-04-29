@@ -423,7 +423,7 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                item.type_.module() == module && ObjectID::from(item.type_.address()) == *package
+                item.type_.module() == module && &item.type_.address() == package.as_address()
             }
         })
     }

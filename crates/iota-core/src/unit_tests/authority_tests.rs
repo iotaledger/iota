@@ -17,7 +17,9 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_types::{
-    base_types::{AuthorityName, Identifier, StructTag, dbg_addr},
+    base_types::{
+        AuthorityName, Identifier, StructTag, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+    },
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
         random_committee_key_pairs_of_size,

@@ -453,7 +453,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .data;
 
     // make 2 move calls of same package & module, but different functions
-    let package_id = ObjectID::new(IotaAddress::FRAMEWORK.into_bytes());
+    let package_id = ObjectID::FRAMEWORK;
     let coin = objects.first().unwrap();
     let coin_2 = &objects[1];
     let signer = cluster.wallet.active_address().unwrap();
@@ -557,7 +557,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+            ObjectID::FRAMEWORK,
             Identifier::from_str("bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -568,7 +568,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let field_value_argument = builder.pure(0u64).expect("valid pure");
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+            ObjectID::FRAMEWORK,
             Identifier::from_str("bag")?,
             Identifier::from_str("add")?,
             vec![TypeTag::U64, TypeTag::U64],
@@ -642,7 +642,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+            ObjectID::FRAMEWORK,
             Identifier::from_str("object_bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -655,7 +655,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             .unwrap();
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+            ObjectID::FRAMEWORK,
             Identifier::from_str("object_bag")?,
             Identifier::from_str("add")?,
             vec![

@@ -435,7 +435,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(IotaAddress::FRAMEWORK.into_bytes());
+    let package_id = ObjectID::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 

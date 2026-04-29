@@ -251,7 +251,7 @@ fn move_call() {
             let tx_bytes = client
                 .move_call(
                     sender,
-                    ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+                    ObjectID::FRAMEWORK,
                     "coin".to_string(),
                     "join".to_string(),
                     type_args![GAS::type_tag()].unwrap(),
@@ -410,7 +410,7 @@ fn batch_transaction() {
                     sender,
                     vec![
                         RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                            package_object_id: ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
+                            package_object_id: ObjectID::FRAMEWORK,
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,

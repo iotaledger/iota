@@ -4,7 +4,6 @@
 
 use std::{str::FromStr, sync::Arc};
 
-use anyhow::anyhow;
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
@@ -130,7 +129,7 @@ impl StoredEvent {
                 event_seq: self.event_sequence_number as u64,
             },
             package_id,
-            transaction_module: Identifier::from_str(&self.module).map_err(|e| anyhow!(e))?,
+            transaction_module: Identifier::from_str(&self.module)?,
             sender,
             type_,
             bcs: BcsEvent::new(self.bcs),

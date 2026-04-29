@@ -27,7 +27,7 @@ use crate::{
     system_state_observer::SystemStateObserver,
     workloads::{
         abstract_account::{
-            AA_MODULE_NAME, GAS_BUDGET, WORKLOAD_LABEL,
+            GAS_BUDGET, WORKLOAD_LABEL,
             types::{AuthenticatorKind, TxPayloadObjType},
         },
         payload::Payload,
@@ -250,7 +250,7 @@ impl AbstractAccountPayload {
             // validator_to_stake_address)
             b.programmable_move_call(
                 self.aa_package_id,
-                Identifier::new(AA_MODULE_NAME).unwrap(),
+                Identifier::ABSTRACT_ACCOUNT_MODULE,
                 Identifier::new("touch").unwrap(),
                 vec![],
                 vec![shared_obj_arg],

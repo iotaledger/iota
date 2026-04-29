@@ -171,6 +171,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     SdkTypeConversion(#[from] SdkTypeConversionError),
+
+    #[error(transparent)]
+    IdentifierParse(#[from] iota_types::error::TypeParseError),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;

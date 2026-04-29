@@ -138,7 +138,7 @@ impl MyEndpoint {
                 Channel::new(
                     hyper_rustls::HttpsConnectorBuilder::new()
                         .with_tls_config(tls_config)
-                        .https_or_http()
+                        .https_only()
                         .enable_http2()
                         .wrap_connector(http),
                     self.endpoint,
@@ -170,7 +170,7 @@ impl MyEndpoint {
         if let Some(tls_config) = self.tls_config {
             let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
                 .with_tls_config(tls_config)
-                .https_or_http()
+                .https_only()
                 .enable_http2()
                 .build();
             Channel::connect(https_connector, self.endpoint)

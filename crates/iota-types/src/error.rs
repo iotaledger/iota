@@ -5,6 +5,7 @@
 
 use std::{collections::BTreeMap, fmt::Debug};
 
+pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;

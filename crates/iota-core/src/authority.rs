@@ -61,14 +61,17 @@ use iota_types::{
             AuthenticatorFunctionRefV1,
         },
     },
-    base_types::{TypeTag, *},
+    base_types::{
+        AuthorityName, ConciseableName, IotaAddress, MoveObjectType, ObjectID, ObjectInfo,
+        ObjectRef, ObjectType, SequenceNumber, TypeTag, VersionNumber,
+    },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
         AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
         default_hash,
     },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, Digest},
+    digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,

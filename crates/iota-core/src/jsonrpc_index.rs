@@ -34,7 +34,9 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -719,10 +721,7 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            move_core_types::identifier::Identifier::new(
-                                e.transaction_module.as_str(),
-                            )
-                            .unwrap(),
+                            Identifier::new(e.transaction_module.as_str()).unwrap(),
                         ),
                     )
                 })
@@ -764,8 +763,7 @@ impl IndexStore {
                     (
                         ModuleId::new(
                             AccountAddress::new(e.type_.address().into_bytes()),
-                            move_core_types::identifier::Identifier::new(e.type_.module().as_str())
-                                .unwrap(),
+                            Identifier::new(e.type_.module().as_str()).unwrap(),
                         ),
                         (sequence, i),
                     ),
