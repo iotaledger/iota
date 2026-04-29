@@ -152,9 +152,14 @@ impl Scorer {
     fn calculate_scores_v1(&self, median_counts: MisbehaviorCounts) -> Vec<u64> {
         let parameters = self.get_parameters();
         let committee_size = self.voting_power.len();
+        // TODO: when a second `MisbehaviorCounts` variant is introduced, this
+        // destructure becomes a non-exhaustive pattern. Do *not* "fix" it with
+        // an `if let` — the V2 path would silently no-op `update_scores`.
+        // Instead, branch the whole computation on the variant and provide a
+        // V2-specific score path.
         let MisbehaviorCounts::V1(median) = median_counts;
-        // `Parameters` arrays are positionally aligned with `reported_misbehaviors()`
-        // (out of scope for this refactor); look up rows by `Misbehavior` variant
+        // `Parameters` arrays are positionally aligned with the version's
+        // `reported_misbehaviors()` slice; look up rows by `Misbehavior` variant
         // to bridge into `MisbehaviorCountsV1`'s named fields.
         let metrics = self.schema_version.reported_misbehaviors();
 

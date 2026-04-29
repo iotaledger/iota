@@ -92,9 +92,7 @@ impl MisbehaviorMonitor {
     }
 
     pub fn generate_report(&self) -> VersionedMisbehaviorReport {
-        self.current_local_counts
-            .load()
-            .to_report(self.schema_version)
+        self.current_local_counts.load().to_report()
     }
 
     pub fn update_from_consensus_output(
