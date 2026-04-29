@@ -280,42 +280,53 @@ impl ConsensusTransactionKind {
     }
 }
 
+/// A misbehavior report carrying a versioned payload plus a memoized digest.
+///
+/// The digest cache is `#[serde(skip)]` so it is excluded from the wire format;
+/// BCS encodes only `payload` (the enum tag + the payload struct), giving a
+/// wire layout identical to a bare `ReportPayload` enum.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum VersionedMisbehaviorReport {
-    V1(
-        ReportPayloadV1,
-        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
-    ),
-    // New variants should be added when the reported misbehaviors change. Each new variant
-    // gets its own named-field payload type (`ReportPayloadV2`, `ReportPayloadV3`, ...) so the
-    // wire schema remains compile-time checked. Example:
-    // V2(ReportPayloadV2, #[serde(skip)] OnceCell<MisbehaviorReportDigest>),
+pub struct VersionedMisbehaviorReport {
+    pub payload: ReportPayload,
+    #[serde(skip)]
+    digest: OnceCell<MisbehaviorReportDigest>,
+}
+
+/// Versioned wire payload of a misbehavior report. New variants get their own
+/// named-field payload type (`ReportPayloadV2`, `ReportPayloadV3`, ...) so the
+/// wire schema stays compile-time checked.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ReportPayload {
+    V1(ReportPayloadV1),
+    // V2(ReportPayloadV2),
 }
 
 impl VersionedMisbehaviorReport {
     pub fn new_v1(misbehaviors: ReportPayloadV1) -> Self {
-        VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
+        Self {
+            payload: ReportPayload::V1(misbehaviors),
+            digest: OnceCell::new(),
+        }
     }
 
     pub fn verify(&self, committee_size: usize) -> bool {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
+        match &self.payload {
+            ReportPayload::V1(report) => report.verify(committee_size),
         }
     }
+
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
-        match self {
-            VersionedMisbehaviorReport::V1(_, digest) => {
-                digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
-            }
-        }
+        self.digest
+            .get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
     }
+
     /// Returns the summary of the misbehavior report, defined as the sum of all
     /// metrics for all authorities.
     pub fn summary(&self) -> u64 {
-        let summary = match self {
-            VersionedMisbehaviorReport::V1(report, _) => [
+        let summary = match &self.payload {
+            ReportPayload::V1(report) => [
                 &report.faulty_blocks_provable,
                 &report.faulty_blocks_unprovable,
                 &report.missing_proposals,

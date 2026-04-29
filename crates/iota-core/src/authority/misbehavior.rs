@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
-use once_cell::sync::OnceCell;
+use iota_types::messages_consensus::{ReportPayload, ReportPayloadV1, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
 
 use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
@@ -48,7 +47,7 @@ impl MisbehaviorSchemaVersion {
     /// Returns `true` if the given report's wire format matches this version.
     pub fn accepts_report(&self, report: &VersionedMisbehaviorReport) -> bool {
         match self {
-            Self::V1 => matches!(report, VersionedMisbehaviorReport::V1(..)),
+            Self::V1 => matches!(report.payload, ReportPayload::V1(_)),
         }
     }
 }
@@ -205,7 +204,7 @@ impl MisbehaviorCounts {
     pub fn to_report(&self, version: MisbehaviorSchemaVersion) -> VersionedMisbehaviorReport {
         match (version, self) {
             (MisbehaviorSchemaVersion::V1, Self::V1(c)) => {
-                VersionedMisbehaviorReport::V1(ReportPayloadV1::from(c), OnceCell::new())
+                VersionedMisbehaviorReport::new_v1(ReportPayloadV1::from(c))
             }
         }
     }
@@ -220,8 +219,8 @@ impl MisbehaviorCounts {
             "from_report called with a report whose wire-format version does not match the schema; \
              callers must validate via MisbehaviorSchemaVersion::accepts_report first"
         );
-        match (version, report) {
-            (MisbehaviorSchemaVersion::V1, VersionedMisbehaviorReport::V1(payload, _)) => {
+        match (version, &report.payload) {
+            (MisbehaviorSchemaVersion::V1, ReportPayload::V1(payload)) => {
                 Self::V1(MisbehaviorCountsV1::from(payload))
             }
         }
