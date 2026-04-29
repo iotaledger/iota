@@ -11,7 +11,6 @@
 use std::collections::BTreeSet;
 
 use iota_types::{
-    base_types::Identifier,
     error::ExecutionError,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
 };
@@ -80,14 +79,14 @@ fn verify_runtime_metadata(
                     match attr.version {
                         1 => {
                             // Version 1: verify that the function is a valid authenticator
-                            verify_authenticate_func_v1(
-                                module,
-                                Identifier::new(fn_name.clone()).map_err(|err| {
-                                    verification_failure(format!(
-                                        "Failed to read function name: {err}",
-                                    ))
-                                })?,
-                            )?;
+                            let ident =
+                                move_core_types::identifier::Identifier::new(fn_name.clone())
+                                    .map_err(|err| {
+                                        verification_failure(format!(
+                                            "Failed to read function name: {err}",
+                                        ))
+                                    })?;
+                            verify_authenticate_func_v1(module, &ident)?;
                         }
                         _ => {
                             return Err(verification_failure(format!(

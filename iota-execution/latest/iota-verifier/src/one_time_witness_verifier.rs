@@ -22,7 +22,6 @@
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{Identifier, IotaAddress},
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
@@ -84,7 +83,7 @@ pub fn verify_module(
     }
     for fn_def in &module.function_defs {
         let fn_handle = module.function_handle_at(fn_def.function);
-        let fn_name = Identifier::new_unchecked(module.identifier_at(fn_handle.name).as_str());
+        let fn_name = module.identifier_at(fn_handle.name);
         if fn_name == INIT_FN_NAME {
             if let Some((candidate_name, candidate_handle, _)) = one_time_witness_candidate {
                 // only verify if init function conforms to one-time witness type requirements
@@ -102,7 +101,7 @@ pub fn verify_module(
             // one-time witness type candidate and if instantiation does not
             // happen in test code
 
-            if !is_test_fun(&fn_name, module, fn_info_map) {
+            if !is_test_fun(fn_name.as_str(), module, fn_info_map) {
                 verify_no_instantiations(module, fn_def, candidate_name, def)
                     .map_err(verification_failure)?;
             }
@@ -188,9 +187,9 @@ fn verify_init_single_param(
              single field of type bool",
             module.self_id(),
             INIT_FN_NAME,
-            IotaAddress::FRAMEWORK,
-            Identifier::TX_CONTEXT_MODULE,
-            Identifier::TX_CONTEXT,
+            IOTA_FRAMEWORK_ADDRESS,
+            ident_str!("tx_context"),
+            ident_str!("TxContext"),
             module.self_id(),
             module.self_id().name().as_str().to_uppercase(),
         ));

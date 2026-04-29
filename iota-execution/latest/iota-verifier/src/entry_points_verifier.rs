@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{Identifier, IotaAddress, TxContext, TxContextKind},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
@@ -16,6 +17,7 @@ use move_binary_format::{
     file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
+use move_core_types::ident_str;
 
 use crate::{INIT_FN_NAME, verification_failure};
 
@@ -47,10 +49,10 @@ pub fn verify_module(
 
     for func_def in &module.function_defs {
         let handle = module.function_handle_at(func_def.function);
-        let name = Identifier::new_unchecked(module.identifier_at(handle.name).as_str());
+        let name = module.identifier_at(handle.name);
 
         // allow calling init function in the test code
-        if !is_test_fun(&name, module, fn_info_map) {
+        if !is_test_fun(name.as_str(), module, fn_info_map) {
             verify_init_not_called(module, func_def).map_err(verification_failure)?;
         }
 
@@ -90,7 +92,7 @@ fn verify_init_not_called(
             _ => None,
         })
         .try_for_each(|(idx, fhandle)| {
-            let name = Identifier::new_unchecked(module.identifier_at(fhandle.name).as_str());
+            let name = module.identifier_at(fhandle.name);
             if name == INIT_FN_NAME {
                 Err(format!(
                     "{}::{} at offset {}. Cannot call a module's '{}' function from another Move function",
@@ -162,9 +164,9 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            IotaAddress::FRAMEWORK,
-            Identifier::TX_CONTEXT_MODULE,
-            Identifier::TX_CONTEXT,
+            IOTA_FRAMEWORK_ADDRESS,
+            ident_str!("tx_context"),
+            ident_str!("TxContext"),
             format_signature_token(module, &parameters[0]),
         ))
     }

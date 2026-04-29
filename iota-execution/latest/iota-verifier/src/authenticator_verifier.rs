@@ -9,11 +9,12 @@
 /// authenticator function.
 use iota_types::{
     auth_context::{AuthContext, AuthContextKind},
-    base_types::{Identifier, TxContext, TxContextKind},
+    base_types::{TxContext, TxContextKind},
     error::ExecutionError,
     is_object_struct, is_primitive_strict,
     transfer::Receiving,
 };
+use move_core_types::identifier::IdentStr;
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
@@ -37,7 +38,7 @@ use crate::verification_failure;
 /// - TxContext has to be an immutable reference
 pub fn verify_authenticate_func_v1(
     module: &CompiledModule,
-    function_identifier: Identifier,
+    function_identifier: &IdentStr,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 

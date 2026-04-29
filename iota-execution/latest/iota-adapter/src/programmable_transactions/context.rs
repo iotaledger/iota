@@ -1122,7 +1122,7 @@ mod checked {
         pub(crate) fn execute_function_bypass_visibility(
             &mut self,
             module: &ModuleId,
-            function_name: &Identifier,
+            function_name: &IdentStr,
             ty_args: Vec<Type>,
             args: Vec<impl Borrow<[u8]>>,
             tracer: &mut Option<MoveTraceBuilder>,
@@ -1131,7 +1131,7 @@ mod checked {
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().execute_function_bypass_visibility(
                 module,
-                IdentStr::new(function_name.as_str()).unwrap(),
+                function_name,
                 ty_args,
                 args,
                 &mut data_store,
@@ -1148,13 +1148,13 @@ mod checked {
         pub(crate) fn load_function(
             &mut self,
             module_id: &ModuleId,
-            function_name: &Identifier,
+            function_name: &IdentStr,
             type_arguments: &[Type],
         ) -> VMResult<LoadedFunctionInstantiation> {
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().load_function(
                 module_id,
-                IdentStr::new(function_name.as_str()).unwrap(),
+                function_name,
                 type_arguments,
                 &mut data_store,
             )
