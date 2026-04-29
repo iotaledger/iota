@@ -33,6 +33,8 @@ use crate::{
 };
 
 const GAS_BUDGET: u64 = 1_000_000_000;
+const ABSTRACT_ACCOUNT_TY: &str = "::abstract_account::AbstractAccount";
+const AA_MODULE_NAME: &str = "abstract_account";
 
 /// For metrics/logging
 const WORKLOAD_LABEL: &str = "abstract_account";

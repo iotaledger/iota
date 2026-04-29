@@ -22,7 +22,8 @@ use crate::{
     workloads::{
         Gas,
         abstract_account::{
-            AuthenticatorKind, GAS_BUDGET, PAY_CHUNK_SIZE, WORKLOAD_LABEL, WORKLOAD_PATH,
+            AA_MODULE_NAME, ABSTRACT_ACCOUNT_TY, AuthenticatorKind, GAS_BUDGET, PAY_CHUNK_SIZE,
+            WORKLOAD_LABEL, WORKLOAD_PATH,
         },
     },
 };
@@ -165,7 +166,7 @@ pub async fn create_abstract_account(
     info!(
         "[{WORKLOAD_LABEL}] creating AbstractAccount via {}::{}::create ...",
         aa_package_id,
-        Identifier::ABSTRACT_ACCOUNT_MODULE
+        Identifier::from_static(AA_MODULE_NAME)
     );
 
     let owner_pk = owner.1.public();
@@ -174,14 +175,14 @@ pub async fn create_abstract_account(
 
         let args = vec![
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
-            builder.pure(Identifier::ABSTRACT_ACCOUNT_MODULE)?,
+            builder.pure(Identifier::from_static(AA_MODULE_NAME))?,
             builder.pure(authenticator.function_name())?,
             builder.pure(owner_pk.as_ref())?,
         ];
 
         builder.programmable_move_call(
             aa_package_id,
-            Identifier::ABSTRACT_ACCOUNT_MODULE,
+            Identifier::from_static(AA_MODULE_NAME),
             Identifier::from_static("create"),
             vec![],
             args,
@@ -230,8 +231,8 @@ pub async fn create_abstract_account(
         let ty = object_type_string(&obj).unwrap_or_default();
         if ty.contains(&format!(
             "::{}::{}",
-            Identifier::ABSTRACT_ACCOUNT_MODULE,
-            Identifier::ABSTRACT_ACCOUNT
+            Identifier::from_static(AA_MODULE_NAME),
+            Identifier::from_static(ABSTRACT_ACCOUNT_TY)
         )) {
             return Ok(r);
         }
@@ -309,7 +310,7 @@ pub async fn init_bench_objects(
     amount: u64,
     is_shared: bool,
 ) -> Result<Vec<ObjectRef>> {
-    let module = Identifier::ABSTRACT_ACCOUNT_MODULE;
+    let module = Identifier::from_static(AA_MODULE_NAME);
     let function = Identifier::new("create_bench_objects")?;
 
     let pt = {
