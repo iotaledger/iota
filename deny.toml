@@ -180,9 +180,6 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-  # iota-bigtable's tonic-build pulls in prost-build 0.13, while iota-proto-build /
-  # gcp-bigquery-client are on 0.14. Build-only, no runtime impact.
-  { name = "prost-build", version = "=0.13.5" },
   # Many in-tree crates still depend on toml 0.7; iota-sdk uses 0.8 and
   # diesel_migrations uses 0.9. Deduplication would require a workspace-wide bump.
   { name = "toml", version = "=0.7.8" },
