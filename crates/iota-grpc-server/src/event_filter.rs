@@ -149,8 +149,7 @@ impl EventFilter {
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
                 &item.type_.address() == package.as_address()
-                    && (module.is_none()
-                        || matches!(module,  Some(m2) if m2 == item.type_.module()))
+                    && (module.is_none() || matches!(module, Some(m2) if m2 == item.type_.module()))
             }
             EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
         }
