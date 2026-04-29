@@ -584,19 +584,48 @@ pub struct DirectValidatorProxy {
 
 impl DirectValidatorProxy {
     /// Build a proxy targeting the focal validator selected by `selector`.
-    ///
-    /// `selector` is either:
-    /// - a decimal integer → 0-based index into the genesis committee order
-    /// - a key substring → matched against each validator's concise authority
-    ///   key (e.g. `"8dcff6"` matches `"k#8dcff6d1.."`).
     pub fn from_genesis(genesis: &Genesis, selector: &str) -> anyhow::Result<Self> {
         let (_, clients) =
             AuthorityAggregatorBuilder::from_genesis(genesis).build_network_clients();
         let committee = genesis.committee()?;
         let committee_size = committee.num_members();
 
-        let (resolved_idx, target_name, client) = if let Ok(idx) = selector.parse::<usize>() {
-            // Integer index: pick the nth entry in committee order.
+        let (resolved_idx, target_name, client) = if selector.contains('.') {
+            // This form is preferred for remote (AWS) benchmarks because the
+            // BTreeMap is sorted by BLS public-key bytes, which is independent
+            // of the genesis IP order — using an integer index would silently
+            // attack the wrong validator.
+            let network_committee = genesis.committee_with_network();
+            clients
+                .into_iter()
+                .enumerate()
+                .find(|(_, (name, _))| {
+                    network_committee
+                        .validators()
+                        .get(name)
+                        .map(|(_, meta)| meta.network_address.to_string().contains(selector))
+                        .unwrap_or(false)
+                })
+                .map(|(i, (name, client))| (i, name, client))
+                .ok_or_else(|| {
+                    let addrs: Vec<String> = network_committee
+                        .validators()
+                        .values()
+                        .map(|(_, m)| m.network_address.to_string())
+                        .collect();
+                    anyhow::anyhow!(
+                        "focal_validator IP {:?} did not match any validator network address. \
+                         Available: {:?} \
+                         (hint: pass the IP used in --benchmark-ips, e.g. '3.124.187.12')",
+                        selector,
+                        addrs,
+                    )
+                })?
+        } else if let Ok(idx) = selector.parse::<usize>() {
+            // Integer index: pick the nth entry in BTreeMap<AuthorityName> order.
+            // WARNING: this order is sorted by BLS key bytes and does NOT match
+            // the genesis IP list order.  Prefer the IP-based selector above for
+            // remote benchmarks.
             clients
                 .into_iter()
                 .enumerate()

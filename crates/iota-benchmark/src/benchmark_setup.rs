@@ -168,7 +168,10 @@ impl Env {
         ) {
             eprintln!("Warning: could not write gas info: {e}");
         } else {
-            eprintln!("Gas info written to {} (address / object-id)", gas_info_path.display());
+            eprintln!(
+                "Gas info written to {} (address / object-id)",
+                gas_info_path.display()
+            );
         }
 
         let proxy: Arc<dyn ValidatorProxy + Send + Sync> =
