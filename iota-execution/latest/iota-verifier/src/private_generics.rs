@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
-    base_types::{Identifier, IotaAddress},
-    error::ExecutionError,
-};
+use iota_types::{base_types::IotaAddress, error::ExecutionError};
 use move_binary_format::{
     CompiledModule,
     file_format::{
@@ -14,43 +11,43 @@ use move_binary_format::{
     },
 };
 use move_bytecode_utils::format_signature_token;
-use move_core_types::identifier::IdentStr;
+use move_core_types::{ident_str, identifier::IdentStr};
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
-pub const TRANSFER_MODULE: Identifier = Identifier::from_static("transfer");
-pub const ACCOUNT_MODULE: Identifier = Identifier::from_static("account");
-pub const EVENT_MODULE: Identifier = Identifier::from_static("event");
-pub const EVENT_FUNCTION: Identifier = Identifier::from_static("emit");
-pub const GET_EVENTS_TEST_FUNCTION: Identifier = Identifier::from_static("events_by_type");
-pub const PUBLIC_TRANSFER_FUNCTIONS: [Identifier; 5] = [
-    Identifier::from_static("public_transfer"),
-    Identifier::from_static("public_freeze_object"),
-    Identifier::from_static("public_share_object"),
-    Identifier::from_static("public_receive"),
-    Identifier::from_static("receiving_object_id"),
+pub const TRANSFER_MODULE: &IdentStr = ident_str!("transfer");
+pub const ACCOUNT_MODULE: &IdentStr = ident_str!("account");
+pub const EVENT_MODULE: &IdentStr = ident_str!("event");
+pub const EVENT_FUNCTION: &IdentStr = ident_str!("emit");
+pub const GET_EVENTS_TEST_FUNCTION: &IdentStr = ident_str!("events_by_type");
+pub const PUBLIC_TRANSFER_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("public_transfer"),
+    ident_str!("public_freeze_object"),
+    ident_str!("public_share_object"),
+    ident_str!("public_receive"),
+    ident_str!("receiving_object_id"),
 ];
-pub const PRIVATE_TRANSFER_FUNCTIONS: [Identifier; 4] = [
-    Identifier::from_static("transfer"),
-    Identifier::from_static("freeze_object"),
-    Identifier::from_static("share_object"),
-    Identifier::from_static("receive"),
+pub const PRIVATE_TRANSFER_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("transfer"),
+    ident_str!("freeze_object"),
+    ident_str!("share_object"),
+    ident_str!("receive"),
 ];
-pub const TRANSFER_IMPL_FUNCTIONS: [Identifier; 4] = [
-    Identifier::from_static("transfer_impl"),
-    Identifier::from_static("freeze_object_impl"),
-    Identifier::from_static("share_object_impl"),
-    Identifier::from_static("receive_impl"),
+pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("transfer_impl"),
+    ident_str!("freeze_object_impl"),
+    ident_str!("share_object_impl"),
+    ident_str!("receive_impl"),
 ];
 
-pub const PUBLIC_ACCOUNT_FUNCTIONS: [Identifier; 2] = [
-    Identifier::from_static("borrow_auth_function_ref_v1"),
-    Identifier::from_static("has_auth_function_ref_v1"),
+pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("borrow_auth_function_ref_v1"),
+    ident_str!("has_auth_function_ref_v1"),
 ];
-pub const PRIVATE_ACCOUNT_FUNCTIONS: [Identifier; 3] = [
-    Identifier::from_static("create_account_v1"),
-    Identifier::from_static("create_immutable_account_v1"),
-    Identifier::from_static("rotate_auth_function_ref_v1"),
+pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
+    ident_str!("create_account_v1"),
+    ident_str!("create_immutable_account_v1"),
+    ident_str!("rotate_auth_function_ref_v1"),
 ];
 
 /// All transfer functions (the functions in `iota::transfer`) are "private" in
@@ -65,7 +62,7 @@ pub const PRIVATE_ACCOUNT_FUNCTIONS: [Identifier; 3] = [
 /// - `T` must be a type declared in the current module
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     if module.address().as_ref() == IotaAddress::FRAMEWORK.as_bytes()
-        && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
+        && module.name().as_str() == TEST_SCENARIO_MODULE_NAME
     {
         // exclude test_module which is a test-only module in the IOTA framework which
         // "emulates" transactional execution and needs to allow test code to
@@ -124,7 +121,7 @@ fn verify_private_transfer_module_functions(
     if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
         return Ok(());
     }
-    let fident = Identifier::new_unchecked(view.identifier_at(fhandle.name).as_str());
+    let fident = view.identifier_at(fhandle.name);
     // public transfer functions require `store` and have no additional rules
     if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
@@ -165,7 +162,7 @@ fn verify_private_account_module_functions(
     if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
         return Ok(());
     }
-    let fident = Identifier::new_unchecked(view.identifier_at(fhandle.name).as_str());
+    let fident = view.identifier_at(fhandle.name);
     // public account functions have no additional rules
     if PUBLIC_ACCOUNT_FUNCTIONS.contains(&fident) {
         return Ok(());
@@ -202,11 +199,11 @@ fn verify_private_event_emit(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let fident = view.identifier_at(fhandle.name);
-    if fident.as_str() == GET_EVENTS_TEST_FUNCTION.as_str() {
+    if fident == GET_EVENTS_TEST_FUNCTION {
         // test-only function with no params--no need to verify
         return Ok(());
     }
-    if fident.as_str() != EVENT_FUNCTION.as_str() {
+    if fident != EVENT_FUNCTION {
         debug_assert!(false, "unknown event function {fident}");
         return Err(format!("Calling unknown event function, {fident}"));
     };
@@ -257,11 +254,11 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
     }
 }
 
-fn addr_module(view: &CompiledModule, mhandle: &ModuleHandle) -> (IotaAddress, Identifier) {
+fn addr_module<'a>(
+    view: &'a CompiledModule,
+    mhandle: &ModuleHandle,
+) -> (IotaAddress, &'a IdentStr) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
-    (
-        IotaAddress::new(maddr.into_bytes()),
-        Identifier::new(mident.as_str()).unwrap(),
-    )
+    (IotaAddress::new(maddr.into_bytes()), mident)
 }

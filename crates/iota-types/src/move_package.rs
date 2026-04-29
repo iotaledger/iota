@@ -628,8 +628,7 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &Identifier, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
-    let fn_name = name.to_string();
+pub fn is_test_fun(name: &str, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let mod_handle = module.self_handle();
     let mod_addr = IotaAddress::new(
         module
@@ -638,7 +637,7 @@ pub fn is_test_fun(name: &Identifier, module: &CompiledModule, fn_info_map: &FnI
     );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
-        fn_name,
+        fn_name: name.to_string(),
         mod_name,
         mod_addr,
     };
@@ -649,11 +648,10 @@ pub fn is_test_fun(name: &Identifier, module: &CompiledModule, fn_info_map: &FnI
 }
 
 pub fn get_authenticator_version_from_fun(
-    name: &Identifier,
+    name: &str,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
 ) -> Option<u8> {
-    let fn_name = name.to_string();
     let mod_handle = module.self_handle();
     let mod_addr = IotaAddress::from(
         module
@@ -662,7 +660,7 @@ pub fn get_authenticator_version_from_fun(
     );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
-        fn_name,
+        fn_name: name.to_string(),
         mod_name,
         mod_addr,
     };

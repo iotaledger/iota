@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution_status::CommandArgumentError,
@@ -12,7 +12,7 @@ use iota_types::{
     transfer::Receiving,
 };
 use move_binary_format::file_format::AbilitySet;
-use move_core_types::resolver::ResourceResolver;
+use move_core_types::{identifier::IdentStr, resolver::ResourceResolver};
 use move_vm_types::loaded_data::runtime_types::Type;
 use serde::Deserialize;
 
@@ -75,8 +75,8 @@ pub enum UsageKind {
 pub enum CommandKind<'a> {
     MoveCall {
         package: ObjectID,
-        module: &'a Identifier,
-        function: &'a Identifier,
+        module: &'a IdentStr,
+        function: &'a IdentStr,
     },
     MakeMoveVec,
     TransferObjects,

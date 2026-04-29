@@ -18,7 +18,7 @@ use iota_package_management::{
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
@@ -372,8 +372,9 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
         let mut runtime_metadata = RuntimeModuleMetadata::default();
         for fn_def in &module.function_defs {
             let fn_handle = module.function_handle_at(fn_def.function);
-            let fn_name = Identifier::new_unchecked(module.identifier_at(fn_handle.name).as_str());
-            if let Some(version) = get_authenticator_version_from_fun(&fn_name, module, fn_info_map)
+            let fn_name = module.identifier_at(fn_handle.name);
+            if let Some(version) =
+                get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
             {
                 runtime_metadata.add_function_attribute(
                     fn_name.to_string(),

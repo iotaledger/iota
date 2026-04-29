@@ -84,7 +84,7 @@ pub fn verify_module(
     }
     for fn_def in &module.function_defs {
         let fn_handle = module.function_handle_at(fn_def.function);
-        let fn_name = Identifier::new_unchecked(module.identifier_at(fn_handle.name).as_str());
+        let fn_name = module.identifier_at(fn_handle.name);
         if fn_name == INIT_FN_NAME {
             if let Some((candidate_name, candidate_handle, _)) = one_time_witness_candidate {
                 // only verify if init function conforms to one-time witness type requirements
@@ -102,7 +102,7 @@ pub fn verify_module(
             // one-time witness type candidate and if instantiation does not
             // happen in test code
 
-            if !is_test_fun(&fn_name, module, fn_info_map) {
+            if !is_test_fun(fn_name.as_str(), module, fn_info_map) {
                 verify_no_instantiations(module, fn_def, candidate_name, def)
                     .map_err(verification_failure)?;
             }
