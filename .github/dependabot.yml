@@ -10,6 +10,8 @@ updates:
       - "/external-crates/move"
     schedule:
       interval: "daily"
+    # Disable version update PRs, keep security alerts
+    open-pull-requests-limit: 0
 
   - package-ecosystem: "npm"
     directory: "/"
