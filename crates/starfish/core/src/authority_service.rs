@@ -2458,6 +2458,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
         core.set_last_known_proposed_round(rounds + 5);
 
@@ -2624,6 +2625,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
         core.set_last_known_proposed_round(rounds + 5);
 
@@ -2803,6 +2805,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
@@ -3132,6 +3135,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
@@ -3273,6 +3277,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
@@ -3439,6 +3444,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
         core.set_last_known_proposed_round(rounds + 5);
 
@@ -3632,6 +3638,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
@@ -3857,6 +3864,7 @@ mod tests {
             key_pairs[context.own_index.value()].1.clone(),
             dag_state.clone(),
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {

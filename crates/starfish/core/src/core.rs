@@ -42,6 +42,7 @@ use crate::{
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
+    commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -108,6 +109,7 @@ pub(crate) struct Core {
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
     encoder: Box<dyn ShardEncoder + Send + Sync>,
+    commit_vote_monitor: Arc<CommitVoteMonitor>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -165,6 +167,7 @@ impl Core {
         block_signer: ProtocolKeyPair,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
+        commit_vote_monitor: Arc<CommitVoteMonitor>,
     ) -> Self {
         let last_decided_leader = dag_state.read().last_commit_leader();
         let committer = UniversalCommitterBuilder::new(
@@ -220,6 +223,7 @@ impl Core {
             dag_state,
             last_known_proposed_round: min_propose_round,
             encoder,
+            commit_vote_monitor,
         }
         .recover()
     }
@@ -747,11 +751,27 @@ impl Core {
             .with_label_values(&["Core::try_new_block"])
             .start_timer();
 
-        // Ensure the new block has a higher round than the last proposed block.
+        // Ensure the new block has a higher round than the last proposed block
+        // and, under `consensus_block_restrictions`, also the approximate quorum commit
+        // round. Blocks at or below the quorum commit round will not improve
+        // the commit rule.
         let clock_round = {
             let dag_state = self.dag_state.read();
             let clock_round = dag_state.threshold_clock_round();
-            if clock_round <= dag_state.get_last_proposed_block_header().round() {
+            let last_proposed_round = dag_state.get_last_proposed_block_header().round();
+            let min_round = if self.context.protocol_config.consensus_block_restrictions() {
+                let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+                let local_commit_index = dag_state.last_commit_index();
+                let local_commit_round = dag_state.last_commit_round();
+                // Lower bound on the quorum commit round: at least 1 round per
+                // commit, so the gap in indices maps to at least that many rounds.
+                let approx_quorum_round =
+                    local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
+                last_proposed_round.max(approx_quorum_round)
+            } else {
+                last_proposed_round
+            };
+            if clock_round <= min_round {
                 return None;
             }
             clock_round
@@ -1497,6 +1517,7 @@ impl CoreTextFixture {
 
         let block_signer = signers.remove(own_index.value()).1;
 
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core = Core::new(
             context,
             leader_schedule,
@@ -1508,6 +1529,7 @@ impl CoreTextFixture {
             block_signer,
             dag_state,
             sync_last_known_own_block,
+            commit_vote_monitor,
         );
 
         Self {
@@ -1643,6 +1665,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // New round should be num_round + 1
@@ -1772,6 +1795,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // Clock round should have advanced to 5 during recovery because
@@ -1916,6 +1940,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // Manually check the transaction commitment that is expected to be computed in
@@ -2016,6 +2041,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let mut expected_ancestors = BTreeSet::new();
@@ -2177,6 +2203,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state,
             true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // No new block should have been produced
@@ -2394,6 +2421,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state,
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         // There is no proposal during recovery because there is no subscriber.
@@ -3310,6 +3338,7 @@ mod test {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let last_commit = store
