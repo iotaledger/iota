@@ -19,7 +19,7 @@ use iota_types::{
 };
 use schemars::{
     JsonSchema,
-    schema::{InstanceType, Metadata, SchemaObject},
+    schema::{InstanceType, Metadata, NumberValidation, SchemaObject},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
@@ -133,6 +133,11 @@ impl JsonSchema for SequenceNumberU64 {
         SchemaObject {
             metadata: Some(Box::new(Metadata {
                 description: Some("Sequence number as a u64 integer".to_owned()),
+                ..Default::default()
+            })),
+            format: Some("uint64".to_owned()),
+            number: Some(Box::new(NumberValidation {
+                minimum: Some(0.0),
                 ..Default::default()
             })),
             instance_type: Some(InstanceType::Integer.into()),
