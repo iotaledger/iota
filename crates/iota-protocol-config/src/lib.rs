@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 26;
+pub const MAX_PROTOCOL_VERSION: u64 = 27;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -465,6 +465,11 @@ struct FeatureFlags {
     // commits and transactions.
     #[serde(skip_serializing_if = "is_false")]
     consensus_fast_commit_sync: bool,
+
+    // If true, enables consensus block restrictions: bounds the block header size for
+    // a given committee size.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_block_restrictions: bool,
 
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
@@ -1481,6 +1486,14 @@ impl ProtocolConfig {
         self.consensus_max_acknowledgments_per_block.unwrap_or(400)
     }
 
+    pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
+        if self.consensus_block_restrictions() {
+            2 * committee_size
+        } else {
+            self.consensus_max_acknowledgments_per_block_or_default() as usize
+        }
+    }
+
     pub fn variant_nodes(&self) -> bool {
         self.feature_flags.variant_nodes
     }
@@ -1667,6 +1680,10 @@ impl ProtocolConfig {
             "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
         );
         res
+    }
+
+    pub fn consensus_block_restrictions(&self) -> bool {
+        self.feature_flags.consensus_block_restrictions
     }
 
     pub fn move_native_tx_context(&self) -> bool {
@@ -2751,6 +2768,13 @@ impl ProtocolConfig {
                     // Introduce a module to allow Move code to query protocol
                     // feature flags at runtime.
                 }
+                27 => {
+                    if chain != Chain::Mainnet {
+                        // Enable consensus block restrictions on testnet/devnet to bound
+                        // header size by committee size.
+                        cfg.feature_flags.consensus_block_restrictions = true;
+                    }
+                }
 
                 // Use this template when making changes:
                 //
@@ -2980,6 +3004,10 @@ impl ProtocolConfig {
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
+    }
+
+    pub fn set_consensus_block_restrictions_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_block_restrictions = val;
     }
 }
 

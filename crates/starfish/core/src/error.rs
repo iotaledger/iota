@@ -142,6 +142,32 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
+    #[error(
+        "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
+    )]
+    InvalidAcknowledgmentRound { acknowledgment: Round, block: Round },
+
+    #[error(
+        "Acknowledgment is older than gc_depth: block {block}, acknowledgment {acknowledgment}, gc_depth {gc_depth}"
+    )]
+    AcknowledgmentRoundTooOld {
+        acknowledgment: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error(
+        "Ancestor is older than gc_depth: block {block}, ancestor {ancestor}, gc_depth {gc_depth}"
+    )]
+    AncestorRoundTooOld {
+        ancestor: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
