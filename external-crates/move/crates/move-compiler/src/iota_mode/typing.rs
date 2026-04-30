@@ -760,7 +760,7 @@ fn view_param_ty(
                 (param.loc, &param_msg)
             ));
         }
-        // TODO maybe add more detalied reporting
+        // TODO maybe add more detailed reporting
         _ if contains_view_unsafe_by_value_ty(param_ty) => {
             let msg = format!("Invalid parameter type for view function '{}'", name);
             let param_msg = format!("Invalid view parameter '{}'", param.value.name);
