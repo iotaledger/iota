@@ -6,7 +6,6 @@ use std::{time::Duration, vec};
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{ObjectID, SequenceNumber},
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
@@ -49,7 +48,7 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     let (sender, keypair) = deterministic_random_account_key();
     let transaction =
         TestTransactionBuilder::new(sender, gas_object.compute_object_reference(), rgp)
-            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "counter", "assert_value", input)
+            .move_call(ObjectID::FRAMEWORK, "counter", "assert_value", input)
             .build_and_sign(&keypair);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }
@@ -791,7 +790,7 @@ async fn transaction_manager_with_cancelled_transactions() {
     // available later.
     let owned_version = 2000.into();
     let mut owned_ref = owned_object.compute_object_reference();
-    owned_ref.1 = owned_version;
+    owned_ref.version = owned_version;
     let owned_object_arg = ObjectArg::ImmOrOwnedObject(owned_ref);
 
     let cancelled_transaction = make_transaction(

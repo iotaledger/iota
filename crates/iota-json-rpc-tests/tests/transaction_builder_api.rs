@@ -18,9 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
-    coin::Coin,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag},
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
@@ -109,7 +107,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let (gas, _, _) = cluster
+    let ObjectRef { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -159,8 +157,14 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0];
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+    let ObjectRef {
+        object_id: gas_to_send,
+        ..
+    } = gas_objs[0];
+    let ObjectRef {
+        object_id: gas_to_pay_for_tx,
+        ..
+    } = gas_objs[1];
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -218,7 +222,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             vec![recipient_1, recipient_2],
             vec![recipient_1_amount.into(), recipient_2_amount.into()],
             budget.into(),
@@ -273,7 +280,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_all_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             recipient,
             budget.into(),
         )
@@ -523,7 +533,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .unwrap()
         .deleted()
         .iter()
-        .map(|coin| coin.0)
+        .map(|coin| coin.object_id)
         .collect();
     let coins = http_client
         .get_coins(address, None, None, Some(100))
@@ -565,7 +575,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectID::FRAMEWORK,
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
@@ -658,20 +668,20 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectID::FRAMEWORK,
                     module: "coin".to_string(),
                     function: "split".to_string(),
-                    type_arguments: type_args![GAS::type_tag()]?,
+                    type_arguments: type_args![StructTag::new_gas()]?,
                     arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
                         .into_iter()
                         .map(PtbInput::CallArg)
                         .collect(),
                 }),
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    package_object_id: ObjectID::FRAMEWORK,
                     module: "transfer".to_string(),
                     function: "public_transfer".to_string(),
-                    type_arguments: type_args![Coin::type_(GAS::type_tag())]?,
+                    type_arguments: type_args![StructTag::new_gas_coin()]?,
                     arguments: vec![
                         PtbInput::PtbRef(IotaArgument::Result(0)),
                         PtbInput::CallArg(call_arg!(other_address)?),
@@ -751,7 +761,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectID::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 

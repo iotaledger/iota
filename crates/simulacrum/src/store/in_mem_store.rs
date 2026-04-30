@@ -9,10 +9,12 @@ use std::{
 
 use iota_config::genesis;
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber, address_from_iota_pub_key},
+    base_types::{
+        AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber, address_from_iota_pub_key,
+    },
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -134,7 +136,7 @@ impl InMemoryStore {
     }
 
     pub fn get_clock(&self) -> iota_types::clock::Clock {
-        self.get_object(&iota_types::IOTA_CLOCK_OBJECT_ID)
+        self.get_object(&ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -260,10 +262,10 @@ impl InMemoryStore {
     pub fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
-        for (object_id, _, _) in deleted_objects {
-            self.live_objects.remove(&object_id);
+        for deleted_object in deleted_objects {
+            self.live_objects.remove(&deleted_object.object_id);
         }
 
         for (object_id, object) in written_objects {
@@ -645,7 +647,7 @@ impl SimulatorStore for InMemoryStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
         self.update_objects(written_objects, deleted_objects)
     }

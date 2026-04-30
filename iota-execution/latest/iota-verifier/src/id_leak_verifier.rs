@@ -17,12 +17,7 @@ use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
     GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
-    clock::CLOCK_MODULE_NAME,
-    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
-    id::OBJECT_MODULE_NAME,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
-    randomness_state::RANDOMNESS_MODULE_NAME,
 };
 use move_abstract_interpreter::absint::{
     AbstractDomain, AbstractInterpreter, FunctionContext, JoinResult, TransferFunctions,
@@ -40,10 +35,8 @@ use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::IdentStr, vm_status::StatusCode,
 };
 
-use crate::{
-    TEST_SCENARIO_MODULE_NAME, check_for_verifier_timeout, to_verification_timeout_error,
-    verification_failure,
-};
+use crate::{check_for_verifier_timeout, to_verification_timeout_error, verification_failure};
+
 pub(crate) const JOIN_BASE_COST: u128 = 10;
 pub(crate) const JOIN_PER_LOCAL_COST: u128 = 5;
 pub(crate) const STEP_BASE_COST: u128 = 15;
@@ -57,27 +50,27 @@ enum AbstractValue {
 type FunctionIdent<'a> = (&'a AccountAddress, &'a IdentStr, &'a IdentStr);
 const OBJECT_NEW: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    OBJECT_MODULE_NAME,
+    ident_str!("object"),
     ident_str!("new"),
 );
 const OBJECT_NEW_UID_FROM_HASH: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    OBJECT_MODULE_NAME,
+    ident_str!("object"),
     ident_str!("new_uid_from_hash"),
 );
 const TS_NEW_OBJECT: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    ident_str!(TEST_SCENARIO_MODULE_NAME),
+    ident_str!("test_scenario"),
     ident_str!("new_object"),
 );
 const IOTA_SYSTEM_CREATE: FunctionIdent = (
     &IOTA_SYSTEM_ADDRESS,
-    IOTA_SYSTEM_MODULE_NAME,
+    ident_str!("iota_system"),
     ident_str!("create"),
 );
 const IOTA_CLOCK_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    CLOCK_MODULE_NAME,
+    ident_str!("clock"),
     ident_str!("create"),
 );
 // Kept for bytecode snapshot compatibility (snapshots v1-v24 still contain
@@ -89,13 +82,13 @@ const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
 );
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    RANDOMNESS_MODULE_NAME,
+    ident_str!("random"),
     ident_str!("create"),
 );
 const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
-    DENY_LIST_MODULE,
-    DENY_LIST_CREATE_FUNC,
+    ident_str!("deny_list"),
+    ident_str!("create"),
 );
 
 const IOTA_BRIDGE_CREATE: FunctionIdent = (

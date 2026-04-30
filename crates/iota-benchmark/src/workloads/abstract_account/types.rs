@@ -6,8 +6,6 @@ use std::str::FromStr;
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::workloads::abstract_account::AA_MODULE_NAME;
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub enum AuthenticatorKind {
     #[default]
@@ -18,10 +16,6 @@ pub enum AuthenticatorKind {
 }
 
 impl AuthenticatorKind {
-    pub fn module_name(&self) -> &'static str {
-        AA_MODULE_NAME
-    }
-
     pub fn function_name(&self) -> &'static str {
         match self {
             AuthenticatorKind::Ed25519 => "authenticate_ed25519",

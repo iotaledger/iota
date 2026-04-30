@@ -22,7 +22,6 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 use rand::seq::SliceRandom;
 
 use crate::{
@@ -142,7 +141,7 @@ impl GasPriceFeedbackTester {
 
         let shared_counter_1 = Self::create_shared_counter(
             &authority_state,
-            &package.0,
+            &package.object_id,
             gas_object_id,
             &sender,
             &sender_key,
@@ -151,7 +150,7 @@ impl GasPriceFeedbackTester {
 
         let shared_counter_2 = Self::create_shared_counter(
             &authority_state,
-            &package.0,
+            &package.object_id,
             gas_object_id,
             &sender,
             &sender_key,
@@ -292,16 +291,16 @@ impl GasPriceFeedbackTester {
 
         let arg1 = txn_builder
             .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_1.0,
-                initial_shared_version: self.shared_counter_1.1,
+                id: self.shared_counter_1.object_id,
+                initial_shared_version: self.shared_counter_1.version,
                 mutable: counter_1_mutable,
             })
             .unwrap();
 
         let arg2 = txn_builder
             .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_2.0,
-                initial_shared_version: self.shared_counter_2.1,
+                id: self.shared_counter_2.object_id,
+                initial_shared_version: self.shared_counter_2.version,
                 mutable: counter_2_mutable,
             })
             .unwrap();
@@ -309,22 +308,22 @@ impl GasPriceFeedbackTester {
         if counter_1_mutable && counter_2_mutable {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::increment_both(arg1, arg2)
+                (self.package.object_id)::gas_price_feedback::increment_both(arg1, arg2)
             };
         } else if counter_1_mutable && !counter_2_mutable {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::increment_first_read_second(arg1, arg2)
+                (self.package.object_id)::gas_price_feedback::increment_first_read_second(arg1, arg2)
             };
         } else if !counter_1_mutable && counter_2_mutable {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::read_first_increment_second(arg1, arg2)
+                (self.package.object_id)::gas_price_feedback::read_first_increment_second(arg1, arg2)
             };
         } else {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::read_both(arg1, arg2)
+                (self.package.object_id)::gas_price_feedback::read_both(arg1, arg2)
             };
         }
 
@@ -353,8 +352,8 @@ impl GasPriceFeedbackTester {
 
         let arg = txn_builder
             .obj(ObjectArg::SharedObject {
-                id: counter.0,
-                initial_shared_version: counter.1,
+                id: counter.object_id,
+                initial_shared_version: counter.version,
                 mutable,
             })
             .unwrap();
@@ -362,12 +361,12 @@ impl GasPriceFeedbackTester {
         if mutable {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::increment_one(arg)
+                (self.package.object_id)::gas_price_feedback::increment_one(arg)
             };
         } else {
             move_call! {
                 txn_builder,
-                (self.package.0)::gas_price_feedback::read_one(arg)
+                (self.package.object_id)::gas_price_feedback::read_one(arg)
             };
         }
 
@@ -656,14 +655,14 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 *scheduled_transactions[1].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         )
@@ -675,14 +674,14 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 *scheduled_transactions[3].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         )
@@ -724,7 +723,10 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                CongestedObjects(vec![
+                    tester.shared_counter_1.object_id,
+                    tester.shared_counter_2.object_id
+                ])
             );
             assert_eq!(*suggested_gas_price, REFERENCE_GAS_PRICE_FOR_TESTS);
         } else {
@@ -741,7 +743,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         effects_vec[1].unchanged_shared_objects(),
         vec![
             (
-                tester.shared_counter_1.0,
+                tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
@@ -750,7 +752,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 )
             ),
             (
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
@@ -772,7 +774,10 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                CongestedObjects(vec![
+                    tester.shared_counter_1.object_id,
+                    tester.shared_counter_2.object_id
+                ])
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price_2);
         } else {
@@ -789,7 +794,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         effects_vec[3].unchanged_shared_objects(),
         vec![
             (
-                tester.shared_counter_1.0,
+                tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
@@ -798,7 +803,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 )
             ),
             (
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
@@ -874,11 +879,11 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             *scheduled_transactions[2].digest(),
             vec![
                 (
-                    tester.shared_counter_1.0,
+                    tester.shared_counter_1.object_id,
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
                 (
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
             ],
@@ -931,7 +936,10 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             // Check is returned congested_objects are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                CongestedObjects(vec![
+                    tester.shared_counter_1.object_id,
+                    tester.shared_counter_2.object_id
+                ])
             );
         } else {
             panic!("ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestion.");
@@ -946,13 +954,13 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         effects_vec[2].unchanged_shared_objects(),
         vec![
             (
-                tester.shared_counter_1.0,
+                tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 )
             ),
             (
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 )
@@ -1027,14 +1035,14 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             *scheduled_transactions[2].digest(),
             vec![
                 (
-                    tester.shared_counter_1.0,
+                    tester.shared_counter_1.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
                     .unwrap(),
                 ),
                 (
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
@@ -1075,7 +1083,10 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                CongestedObjects(vec![
+                    tester.shared_counter_1.object_id,
+                    tester.shared_counter_2.object_id
+                ])
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
@@ -1093,7 +1104,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         effects_vec[2].unchanged_shared_objects(),
         vec![
             (
-                tester.shared_counter_1.0,
+                tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
@@ -1102,7 +1113,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                 )
             ),
             (
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
@@ -1262,14 +1273,14 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             *scheduled_transactions[2].digest(),
             vec![
                 (
-                    tester.shared_counter_1.0,
+                    tester.shared_counter_1.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
                     .unwrap(),
                 ),
                 (
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
@@ -1320,7 +1331,10 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                CongestedObjects(vec![
+                    tester.shared_counter_1.object_id,
+                    tester.shared_counter_2.object_id
+                ])
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
@@ -1338,7 +1352,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         effects_vec[2].unchanged_shared_objects(),
         vec![
             (
-                tester.shared_counter_1.0,
+                tester.shared_counter_1.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
@@ -1347,7 +1361,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
                 )
             ),
             (
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
@@ -1445,7 +1459,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             (
                 *certificates[4].digest(),
                 vec![(
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
@@ -1455,7 +1469,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             (
                 *certificates[5].digest(),
                 vec![(
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
@@ -1466,14 +1480,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 *certificates[6].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
@@ -1485,14 +1499,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 *certificates[7].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
@@ -1504,14 +1518,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 *certificates[10].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
@@ -1523,14 +1537,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 *certificates[11].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
@@ -1542,14 +1556,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 *certificates[12].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
@@ -1595,7 +1609,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_2.0])
+                    CongestedObjects(vec![tester.shared_counter_2.object_id])
                 );
                 assert_eq!(
                     *suggested_gas_price,
@@ -1614,7 +1628,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         assert_eq!(
             effects.unchanged_shared_objects(),
             vec![(
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2
@@ -1636,7 +1650,10 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                    CongestedObjects(vec![
+                        tester.shared_counter_1.object_id,
+                        tester.shared_counter_2.object_id
+                    ])
                 );
                 assert_eq!(
                     *suggested_gas_price,
@@ -1656,7 +1673,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             effects.unchanged_shared_objects(),
             vec![
                 (
-                    tester.shared_counter_1.0,
+                    tester.shared_counter_1.object_id,
                     UnchangedSharedKind::Cancelled(
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
@@ -1665,7 +1682,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     )
                 ),
                 (
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     UnchangedSharedKind::Cancelled(
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
@@ -1771,7 +1788,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             (
                 *certificates[4].digest(),
                 vec![(
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
@@ -1781,7 +1798,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             (
                 *certificates[5].digest(),
                 vec![(
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
@@ -1792,14 +1809,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 *certificates[6].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
@@ -1811,14 +1828,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 *certificates[7].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
@@ -1830,14 +1847,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 *certificates[10].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         )
@@ -1849,14 +1866,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 *certificates[11].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
@@ -1868,14 +1885,14 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 *certificates[12].digest(),
                 vec![
                     (
-                        tester.shared_counter_1.0,
+                        tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
                     (
-                        tester.shared_counter_2.0,
+                        tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
@@ -1922,7 +1939,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_2.0])
+                    CongestedObjects(vec![tester.shared_counter_2.object_id])
                 );
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
@@ -1938,7 +1955,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
         assert_eq!(
             effects.unchanged_shared_objects(),
             vec![(
-                tester.shared_counter_2.0,
+                tester.shared_counter_2.object_id,
                 UnchangedSharedKind::Cancelled(
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
@@ -1970,7 +1987,10 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_1.0, tester.shared_counter_2.0])
+                    CongestedObjects(vec![
+                        tester.shared_counter_1.object_id,
+                        tester.shared_counter_2.object_id
+                    ])
                 );
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
@@ -1987,7 +2007,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             effects.unchanged_shared_objects(),
             vec![
                 (
-                    tester.shared_counter_1.0,
+                    tester.shared_counter_1.object_id,
                     UnchangedSharedKind::Cancelled(
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
@@ -1996,7 +2016,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     )
                 ),
                 (
-                    tester.shared_counter_2.0,
+                    tester.shared_counter_2.object_id,
                     UnchangedSharedKind::Cancelled(
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price

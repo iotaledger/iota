@@ -17,7 +17,7 @@ use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
@@ -47,6 +47,21 @@ impl<T> AssertInserted for Option<T> {
 impl AssertInserted for bool {
     fn assert_inserted(&self) {
         assert!(*self);
+    }
+}
+
+fn random_event() -> Event {
+    Event {
+        package_id: ObjectID::random(),
+        module: Identifier::new("test").unwrap(),
+        sender: IotaAddress::random(),
+        type_: StructTag::new(
+            IotaAddress::random(),
+            Identifier::new("test").unwrap(),
+            Identifier::new("test").unwrap(),
+            vec![],
+        ),
+        contents: vec![],
     }
 }
 
@@ -244,7 +259,7 @@ impl Scenario {
 
     pub fn with_events(&mut self) {
         let mut events: TransactionEvents = Default::default();
-        events.data.push(Event::random_for_testing());
+        events.data.push(random_event());
 
         let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
             .with_events_digest(events.digest())
@@ -294,7 +309,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment().unwrap();
+            object_ref.version.increment().unwrap();
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -308,7 +323,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment().unwrap();
+            object_ref.version.increment().unwrap();
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -1010,16 +1025,16 @@ async fn test_concurrent_readers() {
 
                 println!("parent: {parent_ref:?}");
                 loop {
-                    let parent = cache.get_object_by_key(&parent_ref.0, parent_ref.1);
+                    let parent = cache.get_object_by_key(&parent_ref.object_id, parent_ref.version);
                     if parent.is_none() {
                         tokio::task::yield_now().await;
                         continue;
                     }
-                    assert_eq!(parent.unwrap().version(), parent_ref.1);
+                    assert_eq!(parent.unwrap().version(), parent_ref.version);
                     break;
                 }
                 let child = cache
-                    .read_child_object(&parent_ref.0, &child_id, parent_ref.1)
+                    .read_child_object(&parent_ref.object_id, &child_id, parent_ref.version)
                     .unwrap();
                 assert!(child.is_none(), "Inconsistent child read detected");
             }

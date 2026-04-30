@@ -5,6 +5,7 @@
 
 use std::{collections::BTreeMap, fmt::Debug};
 
+pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -100,7 +101,7 @@ pub enum UserInputError {
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
-        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
+        .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,

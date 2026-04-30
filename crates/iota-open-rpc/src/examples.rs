@@ -27,11 +27,10 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType, SequenceNumber,
-        TransactionDigest, random_object_ref,
+        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, ObjectType,
+        SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
@@ -40,6 +39,7 @@ use iota_types::{
     event::EventID,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
     object::{MoveObject, Owner},
     parse_iota_struct_tag,
@@ -50,10 +50,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
-    annotated_value::MoveStructLayout,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-    resolver::ModuleResolver,
+    annotated_value::MoveStructLayout, language_storage::ModuleId, resolver::ModuleResolver,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde_json::json;
@@ -145,12 +142,12 @@ impl RpcExampleProvider {
 
         let tx_params = vec![
             RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                package_object_id: IOTA_FRAMEWORK_PACKAGE_ID,
+                package_object_id: ObjectID::FRAMEWORK,
                 module: "pay".to_string(),
                 function: "split".to_string(),
                 type_arguments: vec![IotaTypeTag::new("0x2::iota::IOTA".to_string())],
                 arguments: vec![
-                    IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
+                    IotaJsonValue::new(json!(coin_ref.object_id)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
                 ]
                 .into_iter()
@@ -167,9 +164,9 @@ impl RpcExampleProvider {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    Identifier::from_str("pay").unwrap(),
-                    Identifier::from_str("split").unwrap(),
+                    ObjectID::FRAMEWORK,
+                    Identifier::from_static("pay"),
+                    Identifier::from_static("split"),
                     vec![],
                     vec![
                         CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref)),
@@ -180,7 +177,7 @@ impl RpcExampleProvider {
             builder
                 .transfer_object(
                     recipient,
-                    (
+                    ObjectRef::new(
                         object_id,
                         SequenceNumber::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
@@ -192,7 +189,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![(
+            vec![ObjectRef::new(
                 gas_id,
                 SequenceNumber::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
@@ -676,12 +673,12 @@ impl RpcExampleProvider {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
         let recipient = IotaAddress::from(ObjectID::new(self.rng.gen()));
         let obj_id = ObjectID::new(self.rng.gen());
-        let gas_ref = (
+        let gas_ref = ObjectRef::new(
             ObjectID::new(self.rng.gen()),
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = (
+        let object_ref = ObjectRef::new(
             obj_id,
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
@@ -707,8 +704,8 @@ impl RpcExampleProvider {
             sender: signer,
             recipient: Owner::AddressOwner(recipient),
             object_type: parse_iota_struct_tag("0x2::example::Object").unwrap(),
-            object_id: object_ref.0,
-            version: object_ref.1,
+            object_id: object_ref.object_id,
+            version: object_ref.version,
             digest: ObjectDigest::new(self.rng.gen()),
         };
         struct NoOpsModuleResolver;
@@ -789,7 +786,7 @@ impl RpcExampleProvider {
                 event_seq: 0,
             },
             package_id: ObjectID::new(self.rng.gen()),
-            transaction_module: Identifier::from_str("test_module").unwrap(),
+            transaction_module: Identifier::from_static("test_module"),
             sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
@@ -1214,7 +1211,7 @@ impl RpcExampleProvider {
                         .unwrap()
                     },
                     MoveStructLayout {
-                        type_: struct_tag,
+                        type_: struct_tag_sdk_to_core(&struct_tag),
                         fields: Vec::new(),
                     },
                 )
@@ -1310,7 +1307,7 @@ impl RpcExampleProvider {
 
     fn iotax_query_events(&mut self) -> Examples {
         let package_id = ObjectID::new(self.rng.gen());
-        let identifier = Identifier::from_str("test").unwrap();
+        let identifier = Identifier::from_static("test");
         let mut event_ids = self.get_event_ids(5..9);
         let has_next_page = event_ids.len() > (9 - 5);
         event_ids.truncate(9 - 5);
@@ -1345,7 +1342,7 @@ impl RpcExampleProvider {
                         "query",
                         json!(EventFilter::MoveModule {
                             package: ObjectID::new(self.rng.gen()),
-                            module: Identifier::from_str("test").unwrap(),
+                            module: Identifier::from_static("test"),
                         }),
                     ),
                     ("cursor", json!(cursor)),

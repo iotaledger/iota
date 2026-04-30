@@ -41,10 +41,11 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::StructTag;
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
@@ -150,7 +151,7 @@ impl TreeShakingTest {
         )
         .await;
 
-        obj_ref.0
+        obj_ref.object_id
     }
 
     async fn upgrade_package(
@@ -250,7 +251,7 @@ async fn publish_package(
         .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
         .unwrap();
 
-    Ok((package_a.reference.0, cap.reference.0))
+    Ok((package_a.reference.object_id, cap.reference.object_id))
 }
 
 // Recursively copy a directory and all its contents
@@ -470,10 +471,10 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         .iter()
         .find(|refe| matches!(refe.owner, Owner::Immutable))
         .unwrap();
-    let package_id_str = package.reference.0.to_string();
+    let package_id_str = package.reference.object_id.to_string();
 
     let start_call_result = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "test_module".to_string(),
         function: "new_shared".to_string(),
         type_args: vec![],
@@ -492,7 +493,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
             response.effects.unwrap().created().to_vec()[0]
                 .reference
-                .0
+                .object_id
                 .to_string()
         } else {
             unreachable!("Invalid response");
@@ -620,7 +621,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .iter()
         .filter_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
-                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None
@@ -939,7 +940,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
             )
             .unwrap()
             .reference
-            .0
+            .object_id
     } else {
         unreachable!("Invalid response");
     };
@@ -1006,7 +1007,13 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
 
     // Get the created object
     let created_obj: ObjectID = if let IotaClientCommandResult::TransactionBlock(resp) = resp {
-        resp.effects.unwrap().created().first().unwrap().reference.0
+        resp.effects
+            .unwrap()
+            .created()
+            .first()
+            .unwrap()
+            .reference
+            .object_id
     } else {
         panic!();
     };
@@ -1227,7 +1234,7 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
             .unwrap()
             .created()
             .iter()
-            .map(|refe| refe.reference.0)
+            .map(|refe| refe.reference.object_id)
             .collect::<Vec<_>>()
     } else {
         unreachable!("Invalid response");
@@ -1295,17 +1302,20 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Package ID and version
-    let (expect_original_id, expect_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = resp {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_original_id,
+        version: expect_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -1385,7 +1395,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 
     // Check the objects
     for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.0, context).await;
+        get_parsed_object_assert_existence(reference.object_id, context).await;
     }
 
     let package_id = owned_obj_ids
@@ -1396,7 +1406,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1412,13 +1422,15 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     .await?;
 
     let shared_id = if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
-        response.effects.unwrap().created().to_vec()[0].reference.0
+        response.effects.unwrap().created().to_vec()[0]
+            .reference
+            .object_id
     } else {
         unreachable!("Invalid response");
     };
 
     let delete_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "delete".to_string(),
         type_args: vec![],
@@ -1506,7 +1518,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 
     // Check the objects
     for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.0, context).await;
+        get_parsed_object_assert_existence(reference.object_id, context).await;
     }
 
     let package_id = owned_obj_ids
@@ -1517,7 +1529,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1546,11 +1558,11 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
                 .collect();
             let child = created
                 .iter()
-                .find(|refe| !owners.contains(&refe.reference.0))
+                .find(|refe| !owners.contains(&refe.reference.object_id))
                 .unwrap();
             let parent = created
                 .iter()
-                .find(|refe| owners.contains(&refe.reference.0))
+                .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
             (parent.reference, child.reference)
         } else {
@@ -1558,13 +1570,13 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "receiver".to_string(),
         type_args: vec![],
         args: vec![
-            IotaJsonValue::from_str(&parent.0.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.0.to_string()).unwrap(),
+            IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
+            IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
@@ -1649,7 +1661,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 
     // Check the objects
     for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.0, context).await;
+        get_parsed_object_assert_existence(reference.object_id, context).await;
     }
 
     let package_id = owned_obj_ids
@@ -1660,7 +1672,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1689,11 +1701,11 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
                 .collect();
             let child = created
                 .iter()
-                .find(|refe| !owners.contains(&refe.reference.0))
+                .find(|refe| !owners.contains(&refe.reference.object_id))
                 .unwrap();
             let parent = created
                 .iter()
-                .find(|refe| owners.contains(&refe.reference.0))
+                .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
             (parent.reference, child.reference)
         } else {
@@ -1701,13 +1713,13 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_immut_ref".to_string(),
         type_args: vec![],
         args: vec![
-            IotaJsonValue::from_str(&parent.0.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.0.to_string()).unwrap(),
+            IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
+            IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
@@ -1792,7 +1804,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 
     // Check the objects
     for OwnedObjectRef { reference, .. } in &owned_obj_ids {
-        get_parsed_object_assert_existence(reference.0, context).await;
+        get_parsed_object_assert_existence(reference.object_id, context).await;
     }
 
     let package_id = owned_obj_ids
@@ -1803,7 +1815,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1832,11 +1844,11 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
                 .collect();
             let child = created
                 .iter()
-                .find(|refe| !owners.contains(&refe.reference.0))
+                .find(|refe| !owners.contains(&refe.reference.object_id))
                 .unwrap();
             let parent = created
                 .iter()
-                .find(|refe| owners.contains(&refe.reference.0))
+                .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
             (parent.reference, child.reference)
         } else {
@@ -1844,13 +1856,13 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: package_id.0,
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_mut_ref".to_string(),
         type_args: vec![],
         args: vec![
-            IotaJsonValue::from_str(&parent.0.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.0.to_string()).unwrap(),
+            IotaJsonValue::from_str(&parent.object_id.to_string()).unwrap(),
+            IotaJsonValue::from_str(&child.object_id.to_string()).unwrap(),
         ],
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
@@ -1932,7 +1944,7 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
             .unwrap()
             .created()
             .iter()
-            .map(|refe| refe.reference.0)
+            .map(|refe| refe.reference.object_id)
             .collect::<Vec<_>>()
     } else {
         unreachable!("Invalid response");
@@ -2393,7 +2405,10 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let idx = lines.iter().position(|s| s == "[package]").unwrap();
     lines.insert(
         idx + 1,
-        format!("published-at = \"{}\"", package.reference.0.to_hex()),
+        format!(
+            "published-at = \"{}\"",
+            package.reference.object_id.to_hex()
+        ),
     );
     let new = lines.join("\n");
 
@@ -2405,7 +2420,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let build_config = BuildConfig::new_for_testing().config;
     let resp = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
-        upgrade_capability: cap.reference.0,
+        upgrade_capability: cap.reference.object_id,
         build_config,
         verify_compatibility: true,
         skip_dependency_verification: false,
@@ -2436,7 +2451,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let obj_ids = effects
         .created()
         .iter()
-        .map(|refe| refe.reference.0)
+        .map(|refe| refe.reference.object_id)
         .collect::<Vec<_>>();
 
     // Check the objects
@@ -2544,7 +2559,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     // Now run the upgrade
     let upgrade_response = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
-        upgrade_capability: cap.reference.0,
+        upgrade_capability: cap.reference.object_id,
         build_config: build_config.clone(),
         verify_compatibility: true,
         skip_dependency_verification: false,
@@ -2563,21 +2578,27 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let (expect_original_id, _, _) = get_new_package_obj_from_response(&publish_response)
+    let ObjectRef {
+        object_id: expect_original_id,
+        ..
+    } = get_new_package_obj_from_response(&publish_response)
         .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
 
     // Get Upgraded Package ID and version
-    let (expect_upgrade_latest_id, expect_upgrade_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_upgrade_latest_id,
+        version: expect_upgrade_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -2715,7 +2736,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     // Now run the upgrade
     let upgrade_response = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
-        upgrade_capability: cap.reference.0,
+        upgrade_capability: cap.reference.object_id,
         build_config: build_config_upgrade.clone(),
         verify_compatibility: true,
         skip_dependency_verification: false,
@@ -2814,7 +2835,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
                 .first()
                 .unwrap()
                 .reference
-                .0,
+                .object_id,
             response
                 .effects
                 .as_ref()
@@ -2823,7 +2844,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
                 .get(1)
                 .unwrap()
                 .reference
-                .0,
+                .object_id,
         )
     } else {
         panic!()
@@ -2916,7 +2937,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
                 .first()
                 .unwrap()
                 .reference
-                .0,
+                .object_id,
             response
                 .effects
                 .as_ref()
@@ -2925,7 +2946,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
                 .get(1)
                 .unwrap()
                 .reference
-                .0,
+                .object_id,
         )
     } else {
         panic!()
@@ -3274,7 +3295,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
             .next()
             .unwrap()
             .reference
-            .0;
+            .object_id;
         get_parsed_object_assert_existence(object_id, context).await
     } else {
         panic!("Command failed")
@@ -3331,7 +3352,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
             .next()
             .unwrap()
             .reference
-            .0;
+            .object_id;
         get_parsed_object_assert_existence(object_id, context).await
     } else {
         panic!("Command failed")
@@ -3405,13 +3426,14 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
             .next()
             .unwrap()
             .reference
-            .0;
+            .object_id;
         let updated_obj = get_parsed_object_assert_existence(updated_object_id, context).await;
         let new_object_refs = r.effects.unwrap().created().to_vec();
         let mut new_objects = Vec::with_capacity(new_object_refs.len());
         for obj_ref in new_object_refs {
-            new_objects
-                .push(get_parsed_object_assert_existence(obj_ref.reference.0, context).await);
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
         }
         (updated_obj, new_objects)
     } else {
@@ -3474,13 +3496,14 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
             .next()
             .unwrap()
             .reference
-            .0;
+            .object_id;
         let updated_obj = get_parsed_object_assert_existence(updated_object_id, context).await;
         let new_object_refs = r.effects.unwrap().created().to_vec();
         let mut new_objects = Vec::with_capacity(new_object_refs.len());
         for obj_ref in new_object_refs {
-            new_objects
-                .push(get_parsed_object_assert_existence(obj_ref.reference.0, context).await);
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
         }
         (updated_obj, new_objects)
     } else {
@@ -3546,13 +3569,14 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
             .next()
             .unwrap()
             .reference
-            .0;
+            .object_id;
         let updated_obj = get_parsed_object_assert_existence(updated_object_id, context).await;
         let new_object_refs = r.effects.unwrap().created().to_vec();
         let mut new_objects = Vec::with_capacity(new_object_refs.len());
         for obj_ref in new_object_refs {
-            new_objects
-                .push(get_parsed_object_assert_existence(obj_ref.reference.0, context).await);
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
         }
         (updated_obj, new_objects)
     } else {
@@ -3617,8 +3641,9 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         let new_object_refs = effects.created().to_vec();
         let mut new_objects = Vec::with_capacity(new_object_refs.len());
         for obj_ref in new_object_refs {
-            new_objects
-                .push(get_parsed_object_assert_existence(obj_ref.reference.0, context).await);
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
         }
         new_objects
     } else {
@@ -3914,7 +3939,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -3945,7 +3970,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()
@@ -4934,7 +4959,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 
     // Normal abort
     let non_clever_abort = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "clever_errors".to_string(),
         function: "aborter".to_string(),
         type_args: vec![],
@@ -4952,7 +4977,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 
     // Line-only abort
     let line_only_abort = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "clever_errors".to_string(),
         function: "aborter_line_no".to_string(),
         type_args: vec![],
@@ -4970,7 +4995,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 
     // Full clever error with utf-8 string
     let clever_error_utf8 = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "clever_errors".to_string(),
         function: "clever_aborter".to_string(),
         type_args: vec![],
@@ -4988,7 +5013,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 
     // Full clever error with non-utf-8 string
     let clever_error_non_utf8 = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "clever_errors".to_string(),
         function: "clever_aborter_not_a_string".to_string(),
         type_args: vec![],
@@ -5508,7 +5533,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
         .unwrap();
 
     let start_call_result = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "trusted_coin".to_string(),
         function: "f".to_string(),
         type_args: vec![],
@@ -5542,7 +5567,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
 
     // Make another call, this time with multiple display args
     let start_call_result = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "trusted_coin".to_string(),
         function: "f".to_string(),
         type_args: vec![],
@@ -5583,7 +5608,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     // Make another call, this time without display args. This should return the
     // full response
     let start_call_result = IotaClientCommands::Call {
-        package: package.reference.0,
+        package: package.reference.object_id,
         module: "trusted_coin".to_string(),
         function: "f".to_string(),
         type_args: vec![],

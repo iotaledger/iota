@@ -62,7 +62,7 @@ impl Worker for WrappedObjectHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())

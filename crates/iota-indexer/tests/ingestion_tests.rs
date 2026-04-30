@@ -32,8 +32,8 @@ mod ingestion_tests {
         types::{EventIndex, TxIndex},
     };
     use iota_types::{
-        IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
-        gas_coin::GasCoin,
+        base_types::{IotaAddress, StructTag},
+        effects::TransactionEffectsAPI,
     };
     use simulacrum::Simulacrum;
 
@@ -157,7 +157,7 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        let obj_id = transaction.gas()[0].0;
+        let obj_id = transaction.gas()[0].object_id;
 
         // Read the transaction from the database directly.
         let db_object: StoredObject = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
@@ -167,7 +167,7 @@ mod ingestion_tests {
         })
         .context("Failed reading object from PostgresDB")?;
 
-        let obj_type_tag = GasCoin::type_();
+        let obj_type_tag = StructTag::new_gas_coin();
 
         // Check that the different components of the event type were stored correctly.
         assert_eq!(
@@ -176,7 +176,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IOTA_FRAMEWORK_PACKAGE_ID.as_bytes().to_vec())
+            Some(IotaAddress::FRAMEWORK.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -235,7 +235,7 @@ mod ingestion_tests {
 
         // Get the object state at max_expected_checkpoint_sequence_number and assert.
         let last_tx = last_transaction.unwrap();
-        let obj_id = last_tx.gas()[0].0;
+        let obj_id = last_tx.gas()[0].object_id;
         let gas_owner_id = last_tx.sender_address();
 
         let snapshot_object = read_only_blocking!(&pg_store.blocking_cp(), |conn| {

@@ -59,9 +59,9 @@ async fn shared_object_deletion() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     // Make a transaction to delete the counter.
     let transaction = test_cluster
@@ -79,7 +79,7 @@ async fn shared_object_deletion() {
     assert_eq!(effects.shared_objects().len(), 1);
 
     // assert the shared object was deleted
-    let deleted_obj_id = effects.deleted()[0].0;
+    let deleted_obj_id = effects.deleted()[0].object_id;
     assert_eq!(deleted_obj_id, counter_id);
 }
 
@@ -95,9 +95,9 @@ async fn shared_object_deletion_multiple_times() {
         .await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -157,9 +157,9 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
         .await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -230,9 +230,9 @@ async fn shared_object_deletion_multi_certs() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -322,9 +322,9 @@ async fn shared_object_deletion_multi_certs() {
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
     let counter_object_arg = ObjectArg::SharedObject {
         id: counter_id,
         initial_shared_version: counter_initial_shared_version,
@@ -478,7 +478,7 @@ async fn call_shared_object_contract() {
 #[sim_test]
 async fn access_clock_object_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     let transaction = test_cluster.wallet.sign_transaction(
         &test_cluster
@@ -557,7 +557,7 @@ async fn shared_object_sync() {
         })
         .build()
         .await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     // Since we use submit_transaction_to_validators in this test, which does not go
     // through fullnode, we need to manage gas objects ourselves.
@@ -581,7 +581,7 @@ async fn shared_object_sync() {
         .await
         .unwrap();
     assert!(effects.status().is_ok());
-    let ((counter_id, counter_initial_shared_version, _), _) = effects.created()[0];
+    let (counter_ref, _) = effects.created()[0];
 
     // Check that the counter object exists in at least one of the validators the
     // transaction was sent to.
@@ -591,7 +591,7 @@ async fn shared_object_sync() {
                 validator
                     .state()
                     .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
+                        counter_ref.object_id,
                         LayoutGenerationOption::None,
                     ))
                     .await
@@ -608,7 +608,7 @@ async fn shared_object_sync() {
                 validator
                     .state()
                     .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
+                        counter_ref.object_id,
                         LayoutGenerationOption::None,
                     ))
                     .await
@@ -620,7 +620,7 @@ async fn shared_object_sync() {
     // Make a transaction to increment the counter.
     let increment_counter_transaction = test_cluster.wallet.sign_transaction(
         &TestTransactionBuilder::new(sender, objects.pop().unwrap(), rgp)
-            .call_counter_increment(package_id, counter_id, counter_initial_shared_version)
+            .call_counter_increment(package_id, counter_ref.object_id, counter_ref.version)
             .build(),
     );
 
@@ -646,7 +646,7 @@ async fn shared_object_sync() {
 #[sim_test]
 async fn replay_shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     // Send a transaction to create a counter (only to one authority) -- twice.
     let create_counter_transaction = test_cluster.wallet.sign_transaction(
@@ -666,7 +666,7 @@ async fn replay_shared_object_transaction() {
             .unwrap();
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.1;
+        let curr = effects.created()[0].reference.version;
         if let Some(prev) = version {
             assert_eq!(
                 prev, curr,

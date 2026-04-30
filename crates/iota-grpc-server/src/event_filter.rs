@@ -4,10 +4,9 @@
 
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
     event::Event,
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
 const MAX_FILTER_DEPTH: usize = 10;
@@ -145,12 +144,11 @@ impl EventFilter {
 
             EventFilter::MovePackageAndModule { package, module } => {
                 item.package_id == *package
-                    && (module.is_none()
-                        || matches!(module,  Some(m2) if m2 == &item.transaction_module))
+                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
-                item.type_.address.as_ref() == package.as_bytes()
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
+                &item.type_.address() == package.as_address()
+                    && (module.is_none() || matches!(module, Some(m2) if m2 == item.type_.module()))
             }
             EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
         }
@@ -253,7 +251,6 @@ impl EventFilter {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::account_address::AccountAddress;
 
     use super::*;
 
@@ -270,14 +267,14 @@ mod tests {
             EventFilter::Any(vec![
                 EventFilter::MovePackageAndModule {
                     package: ObjectID::random(),
-                    module: Some(Identifier::new("MyModule").unwrap()),
+                    module: Some(Identifier::from_static("MyModule")),
                 },
-                EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag {
-                    address: AccountAddress::new(ObjectID::random().into_bytes()),
-                    module: Identifier::new("MyModule").unwrap(),
-                    name: Identifier::new("MyEvent").unwrap(),
-                    type_params: vec![],
-                }))),
+                EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag::new(
+                    IotaAddress::random(),
+                    Identifier::from_static("MyModule"),
+                    Identifier::from_static("MyEvent"),
+                    vec![],
+                )))),
             ]),
         ]);
         assert!(nested_filter.validate_depth().is_ok());

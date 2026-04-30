@@ -8,12 +8,11 @@ use async_trait::async_trait;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     object::Owner,
     transaction::{ObjectArg, Transaction},
 };
-use move_core_types::identifier::Identifier;
 
 use super::{
     WorkloadBuilderInfo, WorkloadParams,
@@ -96,8 +95,8 @@ impl SlowTestPayload {
         // Add unused mutable shared object input to activate congestion control.
         builder
             .obj(ObjectArg::SharedObject {
-                id: self.shared_object_ref.0,
-                initial_shared_version: self.shared_object_ref.1,
+                id: self.shared_object_ref.object_id,
+                initial_shared_version: self.shared_object_ref.version,
                 mutable: true,
             })
             .unwrap();
@@ -148,7 +147,7 @@ impl WorkloadBuilder<dyn Payload> for SlowWorkloadBuilder {
             package_id: ObjectID::ZERO,
             shared_obj_ref: {
                 let mut f = random_object_ref();
-                f.0 = ObjectID::ZERO;
+                f.object_id = ObjectID::ZERO;
                 f
             },
             init_gas: init_gas.pop().unwrap(),
@@ -231,7 +230,7 @@ impl Workload<dyn Payload> for SlowWorkload {
             .unwrap();
 
         for o in &created {
-            let obj = proxy.get_object(o.0.0).await.unwrap();
+            let obj = proxy.get_object(o.0.object_id).await.unwrap();
             if let Some(tag) = obj.data.struct_tag() {
                 if tag.to_string().contains("::slow::Obj") {
                     self.shared_obj_ref = o.0;
@@ -240,10 +239,10 @@ impl Workload<dyn Payload> for SlowWorkload {
             }
         }
         assert!(
-            self.shared_obj_ref.0 != ObjectID::ZERO,
+            self.shared_obj_ref.object_id != ObjectID::ZERO,
             "Dynamic field parent must be created"
         );
-        self.package_id = package_obj.0.0;
+        self.package_id = package_obj.0.object_id;
     }
 
     async fn make_test_payloads(

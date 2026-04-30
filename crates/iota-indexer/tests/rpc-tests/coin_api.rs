@@ -16,10 +16,8 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
-    coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -27,9 +25,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
-};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
@@ -68,7 +63,12 @@ async fn create_addr_and_custom_coins(
         .await
         .unwrap();
 
-    indexer_wait_for_object(indexer_client, coin_object_ref.0, coin_object_ref.1).await;
+    indexer_wait_for_object(
+        indexer_client,
+        coin_object_ref.object_id,
+        coin_object_ref.version,
+    )
+    .await;
 
     (address, keypair, coin_name)
 }
@@ -760,7 +760,7 @@ async fn create_trusted_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let ((package_id, _, _), _) = publish_test_move_package(
+    let (package_object_ref, _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -768,9 +768,14 @@ async fn create_trusted_coins(
     )
     .await?;
 
-    let coin_name = format!("{package_id}::trusted_coin::TRUSTED_COIN");
-    let imm_coin_name =
-        format!("{package_id}::immutable_metadata_trusted_coin::IMMUTABLE_METADATA_TRUSTED_COIN");
+    let coin_name = format!(
+        "{}::trusted_coin::TRUSTED_COIN",
+        package_object_ref.object_id
+    );
+    let imm_coin_name = format!(
+        "{}::immutable_metadata_trusted_coin::IMMUTABLE_METADATA_TRUSTED_COIN",
+        package_object_ref.object_id
+    );
 
     Ok((coin_name, imm_coin_name))
 }
@@ -838,7 +843,7 @@ async fn mint_trusted_coin(
     assert_eq!(0, result.value);
 
     let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
-    let treasury_cap_type = TreasuryCap::type_(coin_type);
+    let treasury_cap_type = StructTag::new_treasury_cap(coin_type);
     let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
         .await
         .object_id;
@@ -847,8 +852,8 @@ async fn mint_trusted_coin(
         http_client,
         address,
         account_keypair,
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        COIN_MODULE_NAME.to_string(),
+        ObjectID::FRAMEWORK,
+        Identifier::COIN_MODULE.to_string(),
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
         call_args![treasury_cap, amount, address].unwrap(),
@@ -882,7 +887,7 @@ async fn create_migrated_coin_manager_coins(
     .unwrap();
 
     let http_client = cluster.rpc_client();
-    let ((package_id, _, _), _) = publish_test_move_package(
+    let (package_object_ref, _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -892,38 +897,41 @@ async fn create_migrated_coin_manager_coins(
 
     {
         let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
-        let treasury_cap_type = TreasuryCap::type_(coin_type.clone());
+        let treasury_cap_type = StructTag::new_treasury_cap(coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
             .object_id;
 
-        let coin_metadata_type = CoinMetadata::type_(coin_type.clone());
+        let coin_metadata_type = StructTag::new_coin_metadata(coin_type.clone());
         let coin_metadata =
             get_single_owned_object_by_type(http_client, address, coin_metadata_type)
                 .await
                 .object_id;
 
-        let guardian_type = StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            module: Identifier::new("coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
-            type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package_id.into_bytes()),
-                module: Identifier::new("coin_manager_coin").unwrap(),
-                name: Identifier::new("COIN_MANAGER_COIN").unwrap(),
-                type_params: vec![],
-            }))],
-        };
+        let guardian_type = StructTag::new(
+            package_object_ref.object_id,
+            Identifier::from_static("coin_manager_coin"),
+            Identifier::from_static("Guardian"),
+            vec![TypeTag::Struct(Box::new(StructTag::new(
+                package_object_ref.object_id,
+                Identifier::from_static("coin_manager_coin"),
+                Identifier::from_static("COIN_MANAGER_COIN"),
+                vec![],
+            )))],
+        );
         let guardian = get_single_owned_object_by_type(http_client, address, guardian_type)
             .await
             .object_id;
 
-        let coin_manager_coin_name = format!("{package_id}::coin_manager_coin::COIN_MANAGER_COIN");
+        let coin_manager_coin_name = format!(
+            "{}::coin_manager_coin::COIN_MANAGER_COIN",
+            package_object_ref.object_id
+        );
         let tx_response = execute_move_call(
             http_client,
             address,
             account_keypair,
-            package_id,
+            package_object_ref.object_id,
             "coin_manager_coin".to_string(),
             "migrate_to_manager".into(),
             type_args![coin_name, coin_manager_coin_name].unwrap(),
@@ -937,7 +945,7 @@ async fn create_migrated_coin_manager_coins(
 
     {
         let imm_coin_type = parse_iota_struct_tag(&immutable_metadata_coin_name).unwrap();
-        let treasury_cap_type = TreasuryCap::type_(imm_coin_type.clone());
+        let treasury_cap_type = StructTag::new_treasury_cap(imm_coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
             .object_id;
@@ -950,29 +958,30 @@ async fn create_migrated_coin_manager_coins(
             .id
             .unwrap();
 
-        let guardian_type = StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
-            type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package_id.into_bytes()),
-                module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-                name: Identifier::new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").unwrap(),
-                type_params: vec![],
-            }))],
-        };
+        let guardian_type = StructTag::new(
+            package_object_ref.object_id,
+            Identifier::from_static("immutable_metadata_coin_manager_coin"),
+            Identifier::from_static("Guardian"),
+            vec![TypeTag::Struct(Box::new(StructTag::new(
+                package_object_ref.object_id,
+                Identifier::from_static("immutable_metadata_coin_manager_coin"),
+                Identifier::from_static("IMMUTABLE_METADATA_COIN_MANAGER_COIN"),
+                vec![],
+            )))],
+        );
         let guardian = get_single_owned_object_by_type(http_client, address, guardian_type)
             .await
             .object_id;
 
         let coin_manager_immutable_metadata_coin_name = format!(
-            "{package_id}::immutable_metadata_coin_manager_coin::IMMUTABLE_METADATA_COIN_MANAGER_COIN"
+            "{}::immutable_metadata_coin_manager_coin::IMMUTABLE_METADATA_COIN_MANAGER_COIN",
+            package_object_ref.object_id
         );
         let tx_response = execute_move_call(
             http_client,
             address,
             account_keypair,
-            package_id,
+            package_object_ref.object_id,
             "immutable_metadata_coin_manager_coin".to_string(),
             "migrate_to_manager".into(),
             type_args![
@@ -992,7 +1001,7 @@ async fn create_migrated_coin_manager_coins(
             http_client,
             address,
             account_keypair,
-            ObjectID::new(imm_coin_type.address.into_bytes()),
+            imm_coin_type.address().into(),
             "immutable_metadata_trusted_coin".to_string(),
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),
@@ -1016,14 +1025,16 @@ async fn create_native_coin_manager_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let ((package_id, _, _), tx_response) =
+    let (package_object_ref, tx_response) =
         publish_test_move_package(http_client, address, account_keypair, "coin_manager_coins")
             .await?;
     indexer_wait_for_transaction(tx_response.digest, pg_store, indexer_client).await;
 
-    let coin_name = format!("{package_id}::normal_coin::NORMAL_COIN");
-    let immutable_metadata_coin_name =
-        format!("{package_id}::immutable_metadata_coin::IMMUTABLE_METADATA_COIN");
+    let coin_name = format!("{}::normal_coin::NORMAL_COIN", package_object_ref.object_id);
+    let immutable_metadata_coin_name = format!(
+        "{}::immutable_metadata_coin::IMMUTABLE_METADATA_COIN",
+        package_object_ref.object_id
+    );
     Ok((coin_name, immutable_metadata_coin_name))
 }
 

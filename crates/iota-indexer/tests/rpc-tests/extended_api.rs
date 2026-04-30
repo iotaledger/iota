@@ -12,7 +12,6 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{IotaAddress, ObjectID},
     gas_coin::GAS,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -436,7 +435,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectID::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 

@@ -22,8 +22,8 @@ use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
-        TransactionDigest, TxSequenceNumber,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag,
+        TransactionDigest, TxSequenceNumber, TypeTag,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
@@ -35,8 +35,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use parking_lot::ArcMutexGuard;
 use prometheus::{
@@ -662,7 +661,7 @@ impl IndexStore {
             &self.tables.transactions_by_mutated_object_id,
             mutated_objects
                 .clone()
-                .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), *digest)),
         )?;
 
         batch.insert_batch(
@@ -722,7 +721,7 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            e.transaction_module.clone(),
+                            Identifier::new(e.module.as_str()).unwrap(),
                         ),
                     )
                 })
@@ -762,7 +761,10 @@ impl IndexStore {
             events.data.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address().into_bytes()),
+                            Identifier::new(e.type_.module().as_str()).unwrap(),
+                        ),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),

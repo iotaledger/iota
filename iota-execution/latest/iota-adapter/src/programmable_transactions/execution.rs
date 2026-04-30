@@ -17,17 +17,18 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, auth_context,
+        auth_context,
         base_types::{
-            IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
-            TxContext, TxContextKind,
+            Identifier, IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID,
+            RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext,
+            TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
+        iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
@@ -58,9 +59,7 @@ mod checked {
         normalized,
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::{IdentStr, Identifier},
-        language_storage::{ModuleId, TypeTag},
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
         u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
@@ -615,7 +614,7 @@ mod checked {
             // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                UpgradeCap::type_().into(),
+                StructTag::new_upgrade_cap().into(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -642,10 +641,10 @@ mod checked {
             .charge_upgrade_package(module_bytes.iter().map(|v| v.len()).sum())?;
 
         let upgrade_ticket_type = context
-            .load_type_from_struct(&UpgradeTicket::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_ticket())
             .map_err(|e| context.convert_vm_error(e))?;
         let upgrade_receipt_type = context
-            .load_type_from_struct(&UpgradeReceipt::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_receipt())
             .map_err(|e| context.convert_vm_error(e))?;
 
         let upgrade_ticket: UpgradeTicket = {
@@ -1021,7 +1020,7 @@ mod checked {
                 if let Some(type_tag) =
                     normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
                 {
-                    Ok(type_tag)
+                    Ok(type_tag_core_to_sdk(&type_tag))
                 } else {
                     Err(ExecutionError::from_kind(
                         ExecutionErrorKind::VMVerificationOrDeserializationError,
@@ -1282,7 +1281,10 @@ mod checked {
             .iter()
             .enumerate()
             .find(|(_index, fdef)| {
-                module.identifier_at(module.function_handle_at(fdef.function).name) == function
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function.as_str()
             })
         else {
             return Err(ExecutionError::new_with_source(
@@ -1425,6 +1427,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(return_type)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1459,15 +1462,18 @@ mod checked {
         function: &IdentStr,
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
-        let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        let module_addr = module_id.address();
+        let module_name = module_id.name();
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE
+        {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name == TRANSFER_MODULE
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
@@ -1480,7 +1486,8 @@ mod checked {
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE)
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name == ACCOUNT_MODULE
             && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
         {
             let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
@@ -1589,6 +1596,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(type_)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1729,9 +1737,9 @@ mod checked {
     fn to_identifier(
         context: &mut ExecutionContext<'_, '_, '_>,
         ident: String,
-    ) -> Result<Identifier, ExecutionError> {
+    ) -> Result<move_core_types::identifier::Identifier, ExecutionError> {
         if context.protocol_config.validate_identifier_inputs() {
-            Identifier::new(ident).map_err(|e| {
+            move_core_types::identifier::Identifier::new(ident).map_err(|e| {
                 ExecutionError::new_with_source(
                     ExecutionErrorKind::VMInvariantViolation,
                     e.to_string(),
@@ -1739,7 +1747,7 @@ mod checked {
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(unsafe { Identifier::new_unchecked(ident) })
+            Ok(unsafe { move_core_types::identifier::Identifier::new_unchecked(ident) })
         }
     }
 
@@ -1757,7 +1765,7 @@ mod checked {
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization within
             // type tags and inputs.
-            Ok(unsafe { type_input.into_type_tag_unchecked() })
+            Ok(type_input.into_type_tag_unchecked())
         }
     }
 
@@ -1790,9 +1798,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && module_name == TX_CONTEXT_MODULE_NAME
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

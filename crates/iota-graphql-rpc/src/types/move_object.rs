@@ -5,7 +5,7 @@
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     object::{Data, MoveObject as NativeMoveObject},
 };
 

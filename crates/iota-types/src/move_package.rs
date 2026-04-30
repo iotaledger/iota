@@ -33,6 +33,7 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     hash::Hash,
@@ -41,22 +42,18 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::Identifier;
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-};
+use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
+    IotaAddress,
+    base_types::{ObjectID, SequenceNumber, StructTag},
     collection_types::{Entry, VecMap},
     crypto::DefaultHash,
     derived_object,
@@ -67,14 +64,11 @@ use crate::{
     type_input::TypeName,
 };
 
-pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
-pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
-
-pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
-pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
-pub const PACKAGE_METADATA_KEY_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataKey");
+pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataV1");
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -92,7 +86,7 @@ pub struct FnInfo {
 pub struct FnInfoKey {
     pub fn_name: String,
     pub mod_name: String,
-    pub mod_addr: AccountAddress,
+    pub mod_addr: IotaAddress,
 }
 
 /// A map from function info keys to function info
@@ -610,15 +604,6 @@ impl MovePackage {
 }
 
 impl UpgradeCap {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADECAP_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Create an `UpgradeCap` for the newly published package at `package_id`,
     /// and associate it with the fresh `uid`.
     pub fn new(uid: ObjectID, package_id: ObjectID) -> Self {
@@ -631,27 +616,7 @@ impl UpgradeCap {
     }
 }
 
-impl UpgradeTicket {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADETICKET_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl UpgradeReceipt {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADERECEIPT_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Create an `UpgradeReceipt` for the upgraded package at `package_id`
     /// using the `UpgradeTicket` and newly published package id.
     pub fn new(upgrade_ticket: UpgradeTicket, upgraded_package_id: ObjectID) -> Self {
@@ -663,13 +628,16 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
-    let fn_name = name.to_string();
+pub fn is_test_fun(name: &str, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = IotaAddress::new(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
-        fn_name,
+        fn_name: name.to_string(),
         mod_name,
         mod_addr,
     };
@@ -680,16 +648,19 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
 }
 
 pub fn get_authenticator_version_from_fun(
-    name: &IdentStr,
+    name: &str,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
 ) -> Option<u8> {
-    let fn_name = name.to_string();
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = IotaAddress::from(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
-        fn_name,
+        fn_name: name.to_string(),
         mod_name,
         mod_addr,
     };
@@ -1083,12 +1054,12 @@ pub struct PackageMetadataKey {
 
 impl PackageMetadataKey {
     pub fn tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
-            name: PACKAGE_METADATA_KEY_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_KEY_STRUCT_NAME,
+            Vec::new(),
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
@@ -1162,12 +1133,12 @@ impl PackageMetadataV1 {
     }
 
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
-            name: PACKAGE_METADATA_V1_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_V1_STRUCT_NAME,
+            vec![],
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {

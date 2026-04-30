@@ -4,23 +4,25 @@
 
 use std::fmt;
 
+use iota_sdk_types::{StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
     identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID};
+use crate::{
+    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+};
 
-pub const OBJECT_MODULE_NAME_STR: &str = "object";
-pub const OBJECT_MODULE_NAME: &IdentStr = ident_str!(OBJECT_MODULE_NAME_STR);
-pub const UID_STRUCT_NAME: &IdentStr = ident_str!("UID");
-pub const ID_STRUCT_NAME: &IdentStr = ident_str!("ID");
-pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) =
-    (&IOTA_FRAMEWORK_ADDRESS, OBJECT_MODULE_NAME, ID_STRUCT_NAME);
+pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("object"),
+    ident_str!("ID"),
+);
 
 /// Rust version of the Move iota::object::Info type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -42,15 +44,6 @@ impl UID {
         }
     }
 
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: OBJECT_MODULE_NAME.to_owned(),
-            name: UID_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
-    }
-
     pub fn object_id(&self) -> &ObjectID {
         &self.id.bytes
     }
@@ -61,7 +54,7 @@ impl UID {
 
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&StructTag::new_uid()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("id").to_owned(),
                 MoveTypeLayout::Struct(Box::new(ID::layout())),
@@ -81,18 +74,9 @@ impl ID {
         Self { bytes: object_id }
     }
 
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: OBJECT_MODULE_NAME.to_owned(),
-            name: ID_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
-    }
-
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&StructTag::new_id()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Address,
@@ -109,6 +93,6 @@ impl fmt::Display for ID {
 
 impl MoveTypeTagTrait for ID {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_id()))
     }
 }

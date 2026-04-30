@@ -734,7 +734,7 @@ impl SimpleFaucet {
         );
         let coin_ids: Vec<ObjectID> = created
             .iter()
-            .map(|created_coin_owner_ref| created_coin_owner_ref.reference.0)
+            .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
             .collect();
         Ok((res.digest, coin_ids))
     }
@@ -1231,7 +1231,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1275,7 +1275,7 @@ mod tests {
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
@@ -1310,7 +1310,7 @@ mod tests {
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
@@ -1368,7 +1368,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1508,7 +1508,7 @@ mod tests {
             .unwrap();
 
         let bad_gas = gas_coins.swap_remove(0);
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
@@ -1530,7 +1530,12 @@ mod tests {
         let gas_budget = 50_000_000;
         let tx_data = client
             .transaction_builder()
-            .pay_all_iota(address, vec![bad_gas.0], IotaAddress::random(), gas_budget)
+            .pay_all_iota(
+                address,
+                vec![bad_gas.object_id],
+                IotaAddress::random(),
+                gas_budget,
+            )
             .await
             .unwrap();
         execute_tx(faucet.wallet_mut(), tx_data).await.unwrap();
@@ -1641,7 +1646,11 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, Some(vec![tiny_value]), None)
+            .split_coin_tx_kind(
+                gas_coins.first().unwrap().object_id,
+                Some(vec![tiny_value]),
+                None,
+            )
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1654,7 +1663,7 @@ mod tests {
 
         let effects = execute_tx(&mut context, tx_data).await.unwrap();
 
-        let tiny_coin_id = effects.created()[0].reference.0;
+        let tiny_coin_id = effects.created()[0].reference.object_id;
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();
@@ -1728,7 +1737,7 @@ mod tests {
         let tx_kind = client
             .transaction_builder()
             .split_coin_tx_kind(
-                gas_coins.first().unwrap().0,
+                gas_coins.first().unwrap().object_id,
                 Some(vec![reasonable_value]),
                 None,
             )
@@ -1748,7 +1757,13 @@ mod tests {
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
             let tx_data = client
                 .transaction_builder()
-                .transfer_iota(address, gas.0, gas_budget, destination_address, None)
+                .transfer_iota(
+                    address,
+                    gas.object_id,
+                    gas_budget,
+                    destination_address,
+                    None,
+                )
                 .await
                 .unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
@@ -1804,7 +1819,11 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, Some(vec![tiny_value]), None)
+            .split_coin_tx_kind(
+                gas_coins.first().unwrap().object_id,
+                Some(vec![tiny_value]),
+                None,
+            )
             .await
             .unwrap();
 
@@ -1825,7 +1844,13 @@ mod tests {
         for gas in gas_coins {
             let tx_data = client
                 .transaction_builder()
-                .transfer_iota(address, gas.0, gas_budget, destination_address, None)
+                .transfer_iota(
+                    address,
+                    gas.object_id,
+                    gas_budget,
+                    destination_address,
+                    None,
+                )
                 .await
                 .unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
@@ -1948,7 +1973,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;

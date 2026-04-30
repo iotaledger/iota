@@ -645,17 +645,7 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
         source: iota_types::effects::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::EVENTS_FIELD.name) {
-            // No need to convert if no field is requested
-            return Ok(());
-        }
-
-        let sdk_events: iota_sdk_types::TransactionEvents =
-            source.try_into().map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert events")
-            })?;
-
-        Merge::merge(self, &sdk_events, mask)
+        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.data), mask)
     }
 }
 

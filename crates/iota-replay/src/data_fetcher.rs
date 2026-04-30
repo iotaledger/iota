@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag, VersionNumber},
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
     transaction::{
@@ -24,7 +24,6 @@ use iota_types::{
     },
 };
 use lru::LruCache;
-use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
@@ -407,7 +406,7 @@ impl DataFetcher for RemoteFetcher {
                     let r = obj.compute_object_reference();
                     self.versioned_object_cache
                         .write()
-                        .put((r.0, r.1), obj.clone());
+                        .put((r.object_id, r.version), obj.clone());
                 }
                 x
             })
@@ -610,7 +609,8 @@ impl DataFetcher for RemoteFetcher {
         let struct_tags: Vec<StructTag> = EPOCH_CHANGE_STRUCT_TAGS
             .iter()
             .map(|tag| StructTag::from_str(tag))
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
 
@@ -653,9 +653,9 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
     match resp {
         IotaPastObjectResponse::VersionFound(o) => obj_from_iota_obj_data(&o),
         IotaPastObjectResponse::ObjectDeleted(r) => Err(ReplayEngineError::ObjectDeleted {
-            id: r.0,
-            version: r.1,
-            digest: r.2,
+            id: r.object_id,
+            version: r.version,
+            digest: r.digest,
         }),
         IotaPastObjectResponse::ObjectNotExists(id) => {
             Err(ReplayEngineError::ObjectNotExist { id })

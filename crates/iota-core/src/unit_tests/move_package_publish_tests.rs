@@ -48,7 +48,7 @@ async fn test_publishing_with_unpublished_deps() {
     .await;
 
     let ObjectRead::Exists(read_ref, package_obj, _) =
-        authority.get_object_read(&package.0).unwrap()
+        authority.get_object_read(&package.object_id).unwrap()
     else {
         panic!("Can't read package")
     };
@@ -73,7 +73,7 @@ async fn test_publishing_with_unpublished_deps() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "depends_on_basics",
         "delegate",
         vec![],
@@ -84,7 +84,8 @@ async fn test_publishing_with_unpublished_deps() {
 
     assert!(effects.status().is_ok());
     assert_eq!(effects.created().len(), 1);
-    let ((_, v, _), owner) = effects.created()[0];
+    let (object_ref, owner) = effects.created()[0];
+    let v = object_ref.version;
 
     // Check that calling the function does what we expect
     assert!(matches!(

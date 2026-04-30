@@ -13,8 +13,7 @@ use iota_sdk::types::transaction::{
     Argument, CallArg, Command, ObjectArg, ProgrammableTransaction,
 };
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::AccountKeyPair,
     move_authenticator::MoveAuthenticator,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -84,16 +83,22 @@ impl Payload for AbstractAccountPayload {
         // tx.
         //  Only applicable for OwnedObject payloads, as SharedObject payloads should
         // not be consuming the pay_coin.
-        let pay_id = self.pay_coin.0;
+        let pay_id = self.pay_coin.object_id;
 
-        if let Some((new_ref, _owner)) = effects.mutated().iter().find(|(oref, _)| oref.0 == pay_id)
+        if let Some((new_ref, _owner)) = effects
+            .mutated()
+            .iter()
+            .find(|(oref, _)| oref.object_id == pay_id)
         {
             self.pay_coin = *new_ref;
         } else {
             // 2) If it was deleted/consumed, do NOT keep using the old ref. If your
             //    ExecutionEffects exposes deleted(), handle it; otherwise log and fail
             //    fast.
-            let was_deleted = effects.deleted().iter().any(|oref| oref.0 == pay_id);
+            let was_deleted = effects
+                .deleted()
+                .iter()
+                .any(|oref| oref.object_id == pay_id);
 
             if was_deleted {
                 // At this point you need a replacement pay coin strategy:
@@ -116,7 +121,10 @@ impl Payload for AbstractAccountPayload {
         if !self.bench_objects.is_empty() {
             let mutated = effects.mutated();
             for obj in self.bench_objects.iter_mut() {
-                if let Some((new_ref, _)) = mutated.iter().find(|(oref, _)| oref.0 == obj.0) {
+                if let Some((new_ref, _)) = mutated
+                    .iter()
+                    .find(|(oref, _)| oref.object_id == obj.object_id)
+                {
                     *obj = *new_ref;
                 }
             }
@@ -242,8 +250,8 @@ impl AbstractAccountPayload {
             let shared = self.shared_object.unwrap();
             let shared_obj_arg = b
                 .obj(ObjectArg::SharedObject {
-                    id: shared.0,
-                    initial_shared_version: shared.1,
+                    id: shared.object_id,
+                    initial_shared_version: shared.version,
                     mutable: true,
                 })
                 .unwrap();
@@ -251,7 +259,7 @@ impl AbstractAccountPayload {
             // validator_to_stake_address)
             b.programmable_move_call(
                 self.aa_package_id,
-                Identifier::new(AA_MODULE_NAME).unwrap(),
+                Identifier::from_static(AA_MODULE_NAME),
                 Identifier::new("touch").unwrap(),
                 vec![],
                 vec![shared_obj_arg],

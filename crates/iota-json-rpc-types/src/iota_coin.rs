@@ -110,7 +110,7 @@ pub struct Coin {
 
 impl Coin {
     pub fn object_ref(&self) -> ObjectRef {
-        (self.coin_object_id, self.version, self.digest)
+        ObjectRef::new(self.coin_object_id, self.version, self.digest)
     }
 }
 

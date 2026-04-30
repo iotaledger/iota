@@ -6,14 +6,10 @@ use std::fmt::{Display, Formatter};
 
 use anyhow::Result;
 use iota_macros::EnumVariantOrder;
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use crate::parse_iota_type_tag;
+use crate::{IotaAddress, parse_iota_type_tag};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TypeName {
@@ -54,7 +50,7 @@ impl TryFrom<TypeName> for TypeInput {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 pub struct StructInput {
-    pub address: AccountAddress,
+    pub address: IotaAddress,
     pub module: String,
     pub name: String,
     // alias for compatibility with old json serialized data.
@@ -160,7 +156,7 @@ impl TypeInput {
     ///
     /// Preserving existing behaviour for identifier deserialization within type
     /// tags and inputs.
-    pub unsafe fn into_type_tag_unchecked(self) -> TypeTag {
+    pub fn into_type_tag_unchecked(self) -> TypeTag {
         match self {
             TypeInput::Bool => TypeTag::Bool,
             TypeInput::U8 => TypeTag::U8,
@@ -179,15 +175,15 @@ impl TypeInput {
                     name,
                     type_params,
                 } = *inner;
-                TypeTag::Struct(Box::new(StructTag {
+                TypeTag::Struct(Box::new(StructTag::new(
                     address,
-                    module: Identifier::new_unchecked(module),
-                    name: Identifier::new_unchecked(name),
-                    type_params: type_params
+                    Identifier::new_unchecked(module),
+                    Identifier::new_unchecked(name),
+                    type_params
                         .into_iter()
                         .map(|ty| ty.into_type_tag_unchecked())
                         .collect(),
-                }))
+                )))
             }
         }
     }
@@ -227,12 +223,12 @@ impl TypeInput {
                     .iter()
                     .map(|t| t.as_type_tag())
                     .collect::<Result<_>>()?;
-                T::Struct(Box::new(StructTag {
-                    address: *address,
-                    module: Identifier::new(module.to_owned())?,
-                    name: Identifier::new(name.to_owned())?,
+                T::Struct(Box::new(StructTag::new(
+                    *address,
+                    Identifier::new(module)?,
+                    Identifier::new(name)?,
                     type_params,
-                }))
+                )))
             }
         })
     }
@@ -270,7 +266,7 @@ impl StructInput {
                 write!(
                     f,
                     "{}::{}::{}",
-                    self.data.address.to_canonical_display(self.with_prefix),
+                    self.data.address.to_canonical_string(self.with_prefix),
                     self.data.module,
                     self.data.name
                 )?;
@@ -317,11 +313,12 @@ impl From<TypeTag> for TypeInput {
 
 impl From<StructTag> for StructInput {
     fn from(tag: StructTag) -> Self {
+        let (address, module, name, type_params) = tag.into_parts();
         StructInput {
-            address: tag.address,
-            module: tag.module.to_string(),
-            name: tag.name.to_string(),
-            type_params: tag.type_params.into_iter().map(TypeInput::from).collect(),
+            address,
+            module: module.to_string(),
+            name: name.to_string(),
+            type_params: type_params.into_iter().map(TypeInput::from).collect(),
         }
     }
 }
@@ -336,8 +333,8 @@ impl Display for StructInput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "0x{}::{}::{}",
-            self.address.short_str_lossless(),
+            "{}::{}::{}",
+            self.address.to_short_hex(),
             self.module,
             self.name
         )?;

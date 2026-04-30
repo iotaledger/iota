@@ -16,6 +16,7 @@ use iota_test_transaction_builder::{
     make_transfer_iota_transaction,
 };
 use iota_types::{
+    base_types::ObjectRef,
     effects::TransactionEffectsAPI,
     error::IotaError,
     quorum_driver_types::{
@@ -336,7 +337,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -351,9 +352,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
@@ -397,7 +398,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -412,9 +413,9 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())

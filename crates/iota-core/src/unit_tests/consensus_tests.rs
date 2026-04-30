@@ -8,8 +8,7 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{ExecutionDigests, ObjectID},
+    base_types::{ExecutionDigests, Identifier, ObjectID},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -23,7 +22,7 @@ use iota_types::{
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
 use starfish_core::{BlockRef, BlockStatus};
@@ -76,9 +75,9 @@ pub async fn test_certificates(
 
         let data = TransactionData::new_move_call(
             sender,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!(module).to_owned(),
-            ident_str!(function).to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::from_static(module),
+            Identifier::from_static(function),
             // type_args
             vec![],
             gas_object.compute_object_reference(),

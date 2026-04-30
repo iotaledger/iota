@@ -12,17 +12,14 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::dbg_addr,
+    base_types::{Identifier, dbg_addr, random_object_ref},
     crypto::{AccountKeyPair, Signature, get_key_pair},
     error::{IotaError, UserInputError},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::{GenesisTransaction, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 use starfish_core::{BlockRef, BlockStatus};
 
 use crate::{
@@ -288,9 +285,9 @@ pub fn init_move_call_transaction(
 ) -> Transaction {
     let mut data = TransactionData::new_move_call(
         sender,
-        IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_MODULE_NAME.into(),
-        ident_str!("request_add_validator").to_owned(),
+        ObjectID::SYSTEM,
+        Identifier::IOTA_SYSTEM_MODULE,
+        Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,
         vec![CallArg::IOTA_SYSTEM_MUT],
@@ -850,7 +847,7 @@ async fn test_handle_soft_bundle_certificates() {
             &gas_object_ids[0],
             &senders[0].0,
             &senders[0].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -860,7 +857,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -918,9 +915,9 @@ async fn test_handle_soft_bundle_certificates() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[i].0,
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("set_value").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -1016,7 +1013,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             &gas_objects[3].id(),
             &senders[3].0,
             &senders[3].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -1026,7 +1023,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -1193,9 +1190,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[6].0,
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("set_value").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -1223,9 +1220,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[7].0,
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("set_value").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -1279,9 +1276,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[8].0,
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("set_value").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -1309,9 +1306,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[9].0,
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("set_value").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,

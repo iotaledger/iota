@@ -15,7 +15,6 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -173,7 +172,7 @@ impl Genesis {
         let clock = self
             .objects()
             .iter()
-            .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
+            .find(|o| o.id() == ObjectID::CLOCK)
             .expect("clock must always exist")
             .data
             .try_as_move()
@@ -329,13 +328,13 @@ impl UnsignedGenesis {
 
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
-            .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .get_object(&ObjectID::RANDOMNESS_STATE)
             .is_some()
     }
 
     pub fn has_bridge_object(&self) -> bool {
         self.objects()
-            .get_object(&GENESIS_IOTA_BRIDGE_OBJECT_ID)
+            .get_object(&ObjectID::GENESIS_BRIDGE)
             .is_some()
     }
 

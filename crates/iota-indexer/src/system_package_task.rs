@@ -68,7 +68,7 @@ impl SystemPackageTask {
                         self.reader
                             .package_resolver()
                             .package_store()
-                            .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                            .evict(SYSTEM_PACKAGE_ADDRESSES);
                     }
                 }
             }

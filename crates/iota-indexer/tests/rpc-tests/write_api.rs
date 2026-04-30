@@ -23,8 +23,7 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
@@ -35,9 +34,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::IdentStr, language_storage::StructTag,
-};
 
 use crate::{
     coin_api::execute_move_call,
@@ -132,7 +128,7 @@ fn dry_run_transaction_block() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let object_to_transfer = cluster
             .fund_address_and_return_gas(
@@ -141,7 +137,12 @@ fn dry_run_transaction_block() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+        indexer_wait_for_object(
+            client,
+            object_to_transfer.object_id,
+            object_to_transfer.version,
+        )
+        .await;
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
@@ -183,7 +184,7 @@ fn dry_run_transaction_block() {
                 .effects
                 .mutated()
                 .iter()
-                .any(|obj| obj.reference.0 == object_to_transfer.0)
+                .any(|obj| obj.reference.object_id == object_to_transfer.object_id)
         );
 
         assert_eq!(
@@ -231,9 +232,9 @@ fn dev_inspect_transaction_block() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (obj_id, seq_num, digest) = cluster
+        let object_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
@@ -241,12 +242,10 @@ fn dev_inspect_transaction_block() {
             )
             .await;
 
-        indexer_wait_for_object(client, obj_id, seq_num).await;
+        indexer_wait_for_object(client, object_ref.object_id, object_ref.version).await;
 
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder
-            .transfer_object(receiver, (obj_id, seq_num, digest))
-            .unwrap();
+        builder.transfer_object(receiver, object_ref).unwrap();
         let ptb = builder.finish();
 
         let indexer_devinspect_results = client
@@ -269,7 +268,7 @@ fn dev_inspect_transaction_block() {
             .effects
             .mutated()
             .iter()
-            .find_map(|obj| (obj.reference.0 == obj_id).then_some(obj.owner))
+            .find_map(|obj| (obj.reference.object_id == object_ref.object_id).then_some(obj.owner))
             .unwrap();
 
         assert_eq!(owner, Owner::AddressOwner(receiver));
@@ -284,14 +283,17 @@ fn dev_inspect_transaction_block() {
         indexer_wait_for_checkpoint(store, latest_checkpoint_seq_number.into_inner() + 1).await;
 
         let actual_object_data = client
-            .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
+            .get_object(
+                object_ref.object_id,
+                Some(IotaObjectDataOptions::new().with_owner()),
+            )
             .await
             .unwrap()
             .data
             .unwrap();
 
         assert_eq!(
-            actual_object_data.version, seq_num,
+            actual_object_data.version, object_ref.version,
             "the object sequence number should not mutate"
         );
         assert_eq!(
@@ -323,7 +325,7 @@ fn execute_transaction_block() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let object_to_transfer = cluster
             .fund_address_and_return_gas(
@@ -332,9 +334,14 @@ fn execute_transaction_block() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+        indexer_wait_for_object(
+            client,
+            object_to_transfer.object_id,
+            object_to_transfer.version,
+        )
+        .await;
 
-        let object_to_transfer_id = object_to_transfer.0;
+        let object_to_transfer_id = object_to_transfer.object_id;
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
@@ -362,7 +369,8 @@ fn execute_transaction_block() {
             .mutated()
             .iter()
             .find_map(|obj| {
-                (obj.reference.0 == object_to_transfer_id).then_some((obj.reference.1, obj.owner))
+                (obj.reference.object_id == object_to_transfer_id)
+                    .then_some((obj.reference.version, obj.owner))
             })
             .unwrap();
 
@@ -406,7 +414,7 @@ fn optimistic_objects_are_finalized() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let object_to_transfer = cluster
             .fund_address_and_return_gas(
@@ -415,7 +423,12 @@ fn optimistic_objects_are_finalized() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+        indexer_wait_for_object(
+            client,
+            object_to_transfer.object_id,
+            object_to_transfer.version,
+        )
+        .await;
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
@@ -496,7 +509,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
         let coin_to_split = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -504,15 +517,15 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
                 address,
             )
             .await;
-        indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
+        indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
 
         for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let tx_data = client
                 .split_coin_equal(
                     address,
-                    coin_to_split.0,
+                    coin_to_split.object_id,
                     2.into(),
-                    Some(gas_ref.0),
+                    Some(gas_ref.object_id),
                     10_000_000.into(),
                 )
                 .await?
@@ -561,7 +574,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
 
@@ -596,7 +609,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 .collect::<Vec<_>>();
             assert_eq!(
                 objects,
-                vec![wrapped_obj_id, *upgrade_cap, gas_ref.0]
+                vec![wrapped_obj_id, *upgrade_cap, gas_ref.object_id]
                     .into_iter()
                     .sorted()
                     .collect::<Vec<_>>()
@@ -617,7 +630,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 .collect::<Vec<_>>();
             assert_eq!(
                 objects,
-                vec![basic_obj, *upgrade_cap, gas_ref.0]
+                vec![basic_obj, *upgrade_cap, gas_ref.object_id]
                     .into_iter()
                     .sorted()
                     .collect::<Vec<_>>()
@@ -649,7 +662,7 @@ fn test_execute_transactions_with_shared_objects() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
 
@@ -694,7 +707,7 @@ fn test_parallel_shared_object_updates() {
                 .await;
 
             for gas in gas_objs.iter() {
-                indexer_wait_for_object(client, gas.0, gas.1).await;
+                indexer_wait_for_object(client, gas.object_id, gas.version).await;
             }
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
@@ -714,7 +727,7 @@ fn test_parallel_shared_object_updates() {
                             client,
                             &package_id,
                             &counter_obj,
-                            Some(gas.0),
+                            Some(gas.object_id),
                         )
                     })
                     .collect::<FuturesUnordered<_>>()
@@ -761,7 +774,7 @@ fn test_repeated_tx_execution() {
                     sender,
                 )
                 .await;
-            indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+            indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
             assert_transaction_success(&res);
@@ -778,7 +791,7 @@ fn test_repeated_tx_execution() {
                     "increment".to_string(),
                     type_args![].unwrap(),
                     call_args!(counter_obj).unwrap(),
-                    Some(gas_ref.0),
+                    Some(gas_ref.object_id),
                     10_000_000.into(),
                     None,
                 )
@@ -839,7 +852,7 @@ fn test_parallel_repeated_tx_execution() {
                     sender,
                 )
                 .await;
-            indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+            indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
             assert_transaction_success(&res);
@@ -856,7 +869,7 @@ fn test_parallel_repeated_tx_execution() {
                     "increment".to_string(),
                     type_args![].unwrap(),
                     call_args!(counter_obj).unwrap(),
-                    Some(gas_ref.0),
+                    Some(gas_ref.object_id),
                     10_000_000.into(),
                     None,
                 )
@@ -920,7 +933,7 @@ fn test_repeatedly_update_display() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
         let display_obj_id = ObjectID::from_prefixed_short_hex(
@@ -934,12 +947,12 @@ fn test_repeatedly_update_display() {
             .await
             .unwrap();
 
-        let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            name: IdentStr::new("DemoBear").unwrap().into(),
-            module: IdentStr::new("demo_bear").unwrap().into(),
-            type_params: Vec::new(),
-        }));
+        let bear_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+            package_id,
+            Identifier::from_static("demo_bear"),
+            Identifier::from_static("DemoBear"),
+            Vec::new(),
+        )));
 
         for n in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let new_bear_description = format!("Bear description {n}");
@@ -1006,7 +1019,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
             sender,
         )
         .await;
-    indexer_wait_for_object(client, gas.0, gas.1).await;
+    indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
     let (deploy_res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
     let (create_res, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
@@ -1150,7 +1163,7 @@ async fn update_display_object(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "edit".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1176,7 +1189,7 @@ async fn bump_display_object_version(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "update_version".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1386,16 +1399,16 @@ fn move_view_function_call() {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
         let keypair = IotaKeyPair::Ed25519(keypair);
-        let (gas_id, gas_seq, _) = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(NANOS_PER_IOTA),
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas_id, gas_seq).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let ((package_id, _, _), transaction_response) =
+        let (object_ref, transaction_response) =
             publish_test_move_package(client, address, &keypair, "wat_counter")
                 .await
                 .unwrap();
@@ -1418,7 +1431,7 @@ fn move_view_function_call() {
         node_wait_for_object(cluster, review_id, initial_shared_version).await;
 
         // Test u64 return value, which is cast to string.
-        let fn_name = format!("{package_id}::wat_counter::get_counter");
+        let fn_name = format!("{}::wat_counter::get_counter", object_ref.object_id);
         let view_results = client
             .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
             .await
@@ -1430,7 +1443,7 @@ fn move_view_function_call() {
         assert_eq!(wat_number, &IotaMoveValue::String("10".into()));
 
         // Test struct return value.
-        let fn_name = format!("{package_id}::wat_counter::get_wat_object");
+        let fn_name = format!("{}::wat_counter::get_wat_object", object_ref.object_id);
         let view_results = client
             .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
             .await
@@ -1442,7 +1455,7 @@ fn move_view_function_call() {
         let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
     });
 }
@@ -1461,22 +1474,21 @@ fn clever_errors() {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
         let keypair = IotaKeyPair::Ed25519(keypair);
-        let (gas_id, gas_seq, _) = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10 * NANOS_PER_IOTA),
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas_id, gas_seq).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let ((package_id, _, _), _) =
-            publish_test_move_package(client, address, &keypair, "clever_errors")
-                .await
-                .unwrap();
+        let (object_ref, _) = publish_test_move_package(client, address, &keypair, "clever_errors")
+            .await
+            .unwrap();
 
         let gas = client
-            .get_object(gas_id, None)
+            .get_object(gas_ref.object_id, None)
             .await
             .unwrap()
             .data
@@ -1485,7 +1497,12 @@ fn clever_errors() {
         // Execute a transaction that will fail
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder
-            .move_call(package_id, "clever_errors", "clever_aborter", vec![])
+            .move_call(
+                object_ref.object_id,
+                "clever_errors",
+                "clever_aborter",
+                vec![],
+            )
             .build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
@@ -1501,7 +1518,7 @@ fn clever_errors() {
             .unwrap();
 
         // Assert clever error
-        let fn_name = format!("{package_id}::clever_errors::clever_aborter");
+        let fn_name = format!("{}::clever_errors::clever_aborter", object_ref.object_id);
         let clever_error = "'ENotFound': Element not found in vector 💥 🚀 🌠";
         let expected_error =
             format!("Error in 1st command, from '{fn_name}' (line 10), abort {clever_error}");
@@ -1540,7 +1557,7 @@ fn dry_run_request_add_stake() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let coin_ref = cluster
             .fund_address_and_return_gas(
@@ -1549,7 +1566,7 @@ fn dry_run_request_add_stake() {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, coin_ref.0, coin_ref.1).await;
+        indexer_wait_for_object(client, coin_ref.object_id, coin_ref.version).await;
 
         let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
             IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
@@ -1560,10 +1577,10 @@ fn dry_run_request_add_stake() {
         let tx_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
-                vec![coin_ref.0],
+                vec![coin_ref.object_id],
                 Some((NANOS_PER_IOTA * 2).into()),
                 validator,
-                Some(gas_ref.0),
+                Some(gas_ref.object_id),
                 100_000_000.into(),
             )
             .await

@@ -8,35 +8,25 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::crypto::HashingIntentScope;
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveValue},
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{StructTag, TypeTag, crypto::HashingIntentScope};
+use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, ObjectID, SequenceNumber,
+    MoveTypeTagTrait, ObjectID, SequenceNumber,
     base_types::{IotaAddress, ObjectDigest},
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
 };
 
 pub mod visitor;
-
-const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
-const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
-
-const DYNAMIC_OBJECT_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_object_field");
-const DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("Wrapper");
 
 /// Rust version of the Move iota::dynamic_field::Field type
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -114,43 +104,29 @@ impl Display for DynamicFieldType {
 
 impl DynamicFieldInfo {
     pub fn is_dynamic_field(tag: &StructTag) -> bool {
-        tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == DYNAMIC_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_FIELD_FIELD_STRUCT_NAME
+        tag.is_dynamic_field()
     }
 
     pub fn is_dynamic_object_field_wrapper(tag: &StructTag) -> bool {
-        tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == DYNAMIC_OBJECT_FIELD_MODULE_NAME
-            && tag.name.as_ident_str() == DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME
+        tag.is_dynamic_object_field_wrapper()
     }
 
     pub fn dynamic_field_type(key: TypeTag, value: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: DYNAMIC_FIELD_FIELD_STRUCT_NAME.to_owned(),
-            module: DYNAMIC_FIELD_MODULE_NAME.to_owned(),
-            type_params: vec![key, value],
-        }
+        StructTag::new_dynamic_field(key, value)
     }
 
     pub fn dynamic_object_field_wrapper(key: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DYNAMIC_OBJECT_FIELD_MODULE_NAME.to_owned(),
-            name: DYNAMIC_OBJECT_FIELD_WRAPPER_STRUCT_NAME.to_owned(),
-            type_params: vec![key],
-        }
+        StructTag::new_dynamic_object_field_wrapper(key)
     }
 
     pub fn try_extract_field_name(
         tag: &StructTag,
         type_: &DynamicFieldType,
     ) -> IotaResult<TypeTag> {
-        match (type_, tag.type_params.first()) {
+        match (type_, tag.type_params().first()) {
             (DynamicFieldType::DynamicField, Some(name_type)) => Ok(name_type.clone()),
             (DynamicFieldType::DynamicObject, Some(TypeTag::Struct(s))) => Ok(s
-                .type_params
+                .type_params()
                 .first()
                 .ok_or_else(|| IotaError::ObjectDeserialization {
                     error: format!("Error extracting dynamic object name from object: {tag}"),
@@ -163,7 +139,7 @@ impl DynamicFieldInfo {
     }
 
     pub fn try_extract_field_value(tag: &StructTag) -> IotaResult<TypeTag> {
-        match tag.type_params.last() {
+        match tag.type_params().last() {
             Some(value_type) => Ok(value_type.clone()),
             None => Err(IotaError::ObjectDeserialization {
                 error: format!("Error extracting dynamic object value from object: {tag}"),
@@ -260,7 +236,7 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
 
 pub fn is_dynamic_object(move_struct: &MoveStruct) -> bool {
     matches!(
-        &move_struct.type_.type_params[0],
+        &type_tag_core_to_sdk(&move_struct.type_.type_params[0]),
         TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
     )
 }

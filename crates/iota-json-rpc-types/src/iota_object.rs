@@ -15,8 +15,8 @@ use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        TransactionDigest,
+        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType,
+        SequenceNumber, StructTag, TransactionDigest,
     },
     error::{
         ExecutionError, IotaError, IotaObjectResponseError, IotaResult, UserInputError,
@@ -28,11 +28,7 @@ use iota_types::{
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
 };
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveValue},
-    identifier::Identifier,
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -90,13 +86,13 @@ impl IotaObjectResponse {
             ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
                 IotaObjectData::new(object_ref, o, layout, options, None)?,
             )),
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 }
@@ -280,7 +276,11 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let (object_id, version, digest) = object_ref;
+        let ObjectRef {
+            object_id,
+            version,
+            digest,
+        } = object_ref;
         let type_ = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
@@ -343,7 +343,7 @@ impl IotaObjectData {
     }
 
     pub fn object_ref(&self) -> ObjectRef {
-        (self.object_id, self.version, self.digest)
+        ObjectRef::new(self.object_id, self.version, self.digest)
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
@@ -418,7 +418,7 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if GasCoin::type_() == o.type_ {
+                if o.type_.is_gas_coin() {
                     return GasCoin::try_from(&o.fields);
                 }
             }
@@ -679,16 +679,16 @@ impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
 impl From<ObjectRef> for ObjectRefSchema {
     fn from(oref: ObjectRef) -> Self {
         Self {
-            object_id: oref.0,
-            version: oref.1,
-            digest: oref.2,
+            object_id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
         }
     }
 }
 
 impl From<ObjectRefSchema> for ObjectRef {
     fn from(oref: ObjectRefSchema) -> Self {
-        (oref.object_id, oref.version, oref.digest)
+        ObjectRef::new(oref.object_id, oref.version, oref.digest)
     }
 }
 
@@ -757,7 +757,7 @@ impl IotaData for IotaRawData {
 #[serde(tag = "dataType", rename_all = "camelCase", rename = "Data")]
 pub enum IotaParsedData {
     // Manually handle generic schema generation
-    MoveObject(IotaParsedMoveObject),
+    MoveObject(Box<IotaParsedMoveObject>),
     Package(IotaMovePackage),
 }
 
@@ -769,9 +769,9 @@ impl IotaData for IotaParsedData {
         object: MoveObject,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
-        Ok(Self::MoveObject(IotaParsedMoveObject::try_from_layout(
-            object, layout,
-        )?))
+        Ok(Self::MoveObject(Box::new(
+            IotaParsedMoveObject::try_from_layout(object, layout)?,
+        )))
     }
 
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error> {
@@ -810,7 +810,7 @@ impl IotaData for IotaParsedData {
 
     fn try_into_move(self) -> Option<Self::ObjectType> {
         match self {
-            Self::MoveObject(o) => Some(o),
+            Self::MoveObject(o) => Some(*o),
             Self::Package(_) => None,
         }
     }
@@ -867,8 +867,11 @@ impl IotaParsedData {
                 };
                 Ok(data)
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Err(anyhow::anyhow!(
-                "Object {object_id} was deleted at version {version} with digest {digest}"
+            ObjectRead::Deleted(object_ref) => Err(anyhow::anyhow!(
+                "Object {} was deleted at version {} with digest {}",
+                object_ref.object_id,
+                object_ref.version,
+                object_ref.digest
             )),
         }
     }
@@ -928,7 +931,7 @@ impl IotaParsedMoveObject {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
         let parsed_data = IotaParsedData::try_from_object_read(object_read)?;
         match parsed_data {
-            IotaParsedData::MoveObject(o) => Ok(o),
+            IotaParsedData::MoveObject(o) => Ok(*o),
             IotaParsedData::Package(_) => Err(anyhow::anyhow!("Object is not a Move object")),
         }
     }
@@ -1047,8 +1050,8 @@ pub struct IotaTypeOrigin {
 impl From<TypeOrigin> for IotaTypeOrigin {
     fn from(origin: TypeOrigin) -> Self {
         Self {
-            module_name: unsafe { Identifier::new_unchecked(origin.module_name) },
-            datatype_name: unsafe { Identifier::new_unchecked(origin.datatype_name) },
+            module_name: Identifier::new_unchecked(origin.module_name),
+            datatype_name: Identifier::new_unchecked(origin.datatype_name),
             package: origin.package,
         }
     }
@@ -1299,7 +1302,7 @@ pub enum IotaObjectDataFilter {
 
 impl IotaObjectDataFilter {
     pub fn gas_coin() -> Self {
-        Self::StructType(GasCoin::type_())
+        Self::StructType(StructTag::new_gas_coin())
     }
 
     pub fn and(self, other: Self) -> Self {
@@ -1324,20 +1327,20 @@ impl IotaObjectDataFilter {
                 };
                 // If people do not provide type_params, we will match all type_params
                 // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`
-                if !s.type_params.is_empty() && s.type_params != obj_tag.type_params {
+                if !s.type_params().is_empty() && s.type_params() != obj_tag.type_params() {
                     false
                 } else {
-                    obj_tag.address == s.address
-                        && obj_tag.module == s.module
-                        && obj_tag.name == s.name
+                    obj_tag.address() == s.address()
+                        && obj_tag.module() == s.module()
+                        && obj_tag.name() == s.name()
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == package
-                        && s.module() == module.as_ident_str())
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
+                        && &s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == p)
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)

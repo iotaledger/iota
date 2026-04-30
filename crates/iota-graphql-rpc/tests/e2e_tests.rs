@@ -19,7 +19,7 @@ mod tests {
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
+        base_types::{IotaAddress, ObjectID},
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
         transaction::{CallArg, ObjectArg, Transaction, TransactionDataAPI},
@@ -256,7 +256,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IOTA_FRAMEWORK_ADDRESS.to_canonical_string(true)
+            IotaAddress::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -265,7 +265,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            STARDUST_ADDRESS.to_canonical_string(true)
+            IotaAddress::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -829,7 +829,7 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectID::FRAMEWORK,
                 "coin",
                 "split",
                 vec![

@@ -3,7 +3,9 @@ source: crates/iota-package-resolver/src/lib.rs
 expression: "format!(\"a0::m::T0: {t0:#?}\\n\\\n             a0::m::T1: {t1:#?}\\n\\\n             a0::m::T2: {t2:#?}\",)"
 ---
 a0::m::T0: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [],
     data: Struct(
@@ -17,14 +19,18 @@ a0::m::T0: DataDef {
                 Vector(
                     Datatype(
                         DatatypeRef {
-                            package: 00000000000000000000000000000000000000000000000000000000000000a0,
+                            package: Address(
+                                "0x00000000000000000000000000000000000000000000000000000000000000a0",
+                            ),
                             module: "m",
                             name: "T1",
                         },
                         [
                             Datatype(
                                 DatatypeRef {
-                                    package: 00000000000000000000000000000000000000000000000000000000000000a0,
+                                    package: Address(
+                                        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+                                    ),
                                     module: "m",
                                     name: "T2",
                                 },
@@ -39,7 +45,9 @@ a0::m::T0: DataDef {
     ),
 }
 a0::m::T1: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [
         DatatypeTyParameter {
@@ -75,7 +83,9 @@ a0::m::T1: DataDef {
     ),
 }
 a0::m::T2: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [],
     data: Struct(

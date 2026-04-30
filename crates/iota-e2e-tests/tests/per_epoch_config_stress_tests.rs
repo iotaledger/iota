@@ -7,12 +7,10 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
 };
-use move_core_types::{ident_str, language_storage::TypeTag};
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -34,13 +32,29 @@ async fn per_epoch_config_stress_test() {
     let handle1 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(1, test_env, target_epoch, gas1.0, create_transfer_tx, true).await
+            run_thread(
+                1,
+                test_env,
+                target_epoch,
+                gas1.object_id,
+                create_transfer_tx,
+                true,
+            )
+            .await
         })
     };
     let handle2 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(2, test_env, target_epoch, gas2.0, create_deny_tx, false).await
+            run_thread(
+                2,
+                test_env,
+                target_epoch,
+                gas2.object_id,
+                create_deny_tx,
+                false,
+            )
+            .await
         })
     };
     tokio::time::timeout(Duration::from_secs(600), async {
@@ -118,7 +132,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             "coin",
             if deny {
                 "deny_list_v1_add"
@@ -127,7 +141,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             },
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
-                    id: IOTA_DENY_LIST_OBJECT_ID,
+                    id: ObjectID::DENY_LIST,
                     initial_shared_version: test_env.deny_list_object_init_version,
                     mutable: true,
                 }),
@@ -156,7 +170,7 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             "pay",
             "split_and_transfer",
             vec![
@@ -184,9 +198,9 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
         .unwrap();
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        ident_str!("coin").to_owned(),
-        ident_str!("split").to_owned(),
+        ObjectID::FRAMEWORK,
+        Identifier::COIN_MODULE,
+        Identifier::from_static("split"),
         vec![test_env.regulated_coin_type.clone()],
         vec![coin_input, amount_input],
     );
@@ -226,7 +240,7 @@ async fn create_test_env() -> TestEnv {
         .build()
         .await;
     let deny_list_object_init_version = test_cluster
-        .get_object_from_fullnode_store(&IOTA_DENY_LIST_OBJECT_ID)
+        .get_object_from_fullnode_store(&ObjectID::DENY_LIST)
         .await
         .unwrap()
         .version();
@@ -247,7 +261,7 @@ async fn create_test_env() -> TestEnv {
     let mut coin_owner = None;
     let mut deny_cap = None;
     for created in effects.created() {
-        let object_id = created.reference.0;
+        let object_id = created.reference.object_id;
         let object = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await

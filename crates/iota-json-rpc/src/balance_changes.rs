@@ -10,7 +10,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -20,7 +20,6 @@ use iota_types::{
     storage::WriteKind,
     transaction::InputObjectKind,
 };
-use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
 use tracing::instrument;
 
@@ -44,25 +43,29 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     let all_mutated = effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|((id, version, digest), _, _)| {
-            if matches!(mocked_coin, Some(coin) if id == coin) {
+        .filter_map(|(object_ref, _, _)| {
+            if matches!(mocked_coin, Some(coin) if object_ref.object_id == coin) {
                 return None;
             }
-            Some((id, version, Some(digest)))
+            Some((
+                object_ref.object_id,
+                object_ref.version,
+                Some(object_ref.digest),
+            ))
         })
         .collect::<Vec<_>>();
 
     let input_objs_to_digest = input_objs
         .iter()
         .filter_map(|k| match k {
-            InputObjectKind::ImmOrOwnedMoveObject(o) => Some((o.0, o.2)),
+            InputObjectKind::ImmOrOwnedMoveObject(o) => Some((o.object_id, o.digest)),
             InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
         })
         .collect::<HashMap<ObjectID, ObjectDigest>>();
     let unwrapped_then_deleted = effects
         .unwrapped_then_deleted()
         .iter()
-        .map(|e| e.0)
+        .map(|e| e.object_id)
         .collect::<HashSet<_>>();
     get_balance_changes(
         object_provider,
@@ -195,17 +198,17 @@ impl<P> ObjectProviderCache<P> {
         let mut last_version_cache = BTreeMap::new();
 
         for (object_id, (object_ref, object, _)) in written_objects {
-            let key = (object_id, object_ref.1);
+            let key = (object_id, object_ref.version);
             object_cache.insert(key, object.clone());
 
             match last_version_cache.get_mut(&key) {
                 Some(existing_seq_number) => {
-                    if object_ref.1 > *existing_seq_number {
-                        *existing_seq_number = object_ref.1
+                    if object_ref.version > *existing_seq_number {
+                        *existing_seq_number = object_ref.version
                     }
                 }
                 None => {
-                    last_version_cache.insert(key, object_ref.1);
+                    last_version_cache.insert(key, object_ref.version);
                 }
             }
         }

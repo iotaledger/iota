@@ -8,6 +8,7 @@ use iota_types::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     dynamic_field::derive_dynamic_field_id,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::Owner,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -85,6 +86,7 @@ pub fn receive_object_internal(
             E_BCS_SERIALIZATION_FAILURE,
         ));
     };
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     if object_runtime.protocol_config.enable_move_authentication() {

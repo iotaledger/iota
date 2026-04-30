@@ -368,7 +368,7 @@ impl TransactionFilter {
                 .effects
                 .all_affected_objects()
                 .iter()
-                .any(|obj_ref| &obj_ref.0 == o),
+                .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
                 iota_types::transaction::TransactionKind::ProgrammableTransaction(pt) => {

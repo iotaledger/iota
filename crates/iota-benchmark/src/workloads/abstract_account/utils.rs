@@ -8,18 +8,13 @@ use iota_core::test_utils::make_pay_iota_transaction;
 use iota_sdk::types::transaction::{Argument, ObjectArg};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{AccountKeyPair, KeypairTraits},
-    move_package::{
-        PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME, PACKAGE_MODULE_NAME,
-        UPGRADECAP_STRUCT_NAME,
-    },
+    move_package::{PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Transaction, TransactionData},
 };
-use move_core_types::ident_str;
 use tracing::info;
 
 use crate::{
@@ -52,7 +47,7 @@ pub async fn publish_aa_package_and_find_metadata(
         "::{}::{}",
         PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME
     );
-    let upgrade_cap_ty = format!("::{}::{}", PACKAGE_MODULE_NAME, UPGRADECAP_STRUCT_NAME);
+    let upgrade_cap_ty = StructTag::new_upgrade_cap().to_string();
 
     let tx = TestTransactionBuilder::new(owner.0, init_coin.0, gas_price)
         .publish_examples(WORKLOAD_PATH)
@@ -91,9 +86,9 @@ pub async fn publish_aa_package_and_find_metadata(
         owner: iota_types::object::Owner,
     ) -> Result<(bool, String, String)> {
         let obj = proxy
-            .get_object(r.0)
+            .get_object(r.object_id)
             .await
-            .with_context(|| format!("get_object({:?})", r.0))?;
+            .with_context(|| format!("get_object({:?})", r.object_id))?;
 
         let (is_package, ty) = match &obj.data {
             iota_types::object::Data::Package(_) => (true, "<package>".to_string()),
@@ -103,7 +98,7 @@ pub async fn publish_aa_package_and_find_metadata(
         Ok((
             is_package,
             ty.clone(),
-            format!("id={:?} owner={:?} type={}", r.0, owner, ty),
+            format!("id={:?} owner={:?} type={}", r.object_id, owner, ty),
         ))
     }
 
@@ -141,7 +136,7 @@ pub async fn publish_aa_package_and_find_metadata(
             diag.join("\n")
         )
     })?;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     let metadata_ref = metadata_ref.ok_or_else(|| {
         anyhow!(
@@ -171,7 +166,7 @@ pub async fn create_abstract_account(
     info!(
         "[{WORKLOAD_LABEL}] creating AbstractAccount via {}::{}::create ...",
         aa_package_id,
-        authenticator.module_name()
+        Identifier::from_static(AA_MODULE_NAME)
     );
 
     let owner_pk = owner.1.public();
@@ -180,15 +175,15 @@ pub async fn create_abstract_account(
 
         let args = vec![
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
-            builder.pure(authenticator.module_name())?,
+            builder.pure(Identifier::from_static(AA_MODULE_NAME))?,
             builder.pure(authenticator.function_name())?,
             builder.pure(owner_pk.as_ref())?,
         ];
 
         builder.programmable_move_call(
             aa_package_id,
-            Identifier::new(authenticator.module_name())?,
-            ident_str!("create").into(),
+            Identifier::from_static(AA_MODULE_NAME),
+            Identifier::from_static("create"),
             vec![],
             args,
         );
@@ -232,9 +227,13 @@ pub async fn create_abstract_account(
     }
 
     for r in abstract_account_ref.iter().copied() {
-        let obj = proxy.get_object(r.0).await?;
+        let obj = proxy.get_object(r.object_id).await?;
         let ty = object_type_string(&obj).unwrap_or_default();
-        if ty.contains(ABSTRACT_ACCOUNT_TY) {
+        if ty.contains(&format!(
+            "::{}::{}",
+            Identifier::from_static(AA_MODULE_NAME),
+            Identifier::from_static(ABSTRACT_ACCOUNT_TY)
+        )) {
             return Ok(r);
         }
     }
@@ -311,7 +310,7 @@ pub async fn init_bench_objects(
     amount: u64,
     is_shared: bool,
 ) -> Result<Vec<ObjectRef>> {
-    let module = ident_str!(AA_MODULE_NAME).to_owned();
+    let module = Identifier::from_static(AA_MODULE_NAME);
     let function = Identifier::new("create_bench_objects")?;
 
     let pt = {
@@ -372,7 +371,7 @@ pub fn update_gas_from_effects(current: &Gas, effects: &ExecutionEffects) -> Res
     let updated = effects
         .mutated()
         .into_iter()
-        .find(|(r, _)| r.0 == current.0.0)
+        .find(|(r, _)| r.object_id == current.0.object_id)
         .ok_or_else(|| anyhow::anyhow!("init coin not found in mutated effects"))?;
 
     Ok((updated.0, updated.1.get_owner_address()?, current.2.clone()))

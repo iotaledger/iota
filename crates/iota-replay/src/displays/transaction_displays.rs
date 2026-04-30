@@ -9,6 +9,7 @@ use std::{
 
 use iota_execution::Executor;
 use iota_types::{
+    base_types::TypeTag,
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
@@ -16,10 +17,7 @@ use iota_types::{
         ProgrammableTransaction, write_sep,
     },
 };
-use move_core_types::{
-    annotated_value::{MoveTypeLayout, MoveValue},
-    language_storage::TypeTag,
-};
+use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -78,13 +76,19 @@ impl Display for Pretty<'_, FullPTB> {
                     }
 
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(o)) => {
-                        builder.push_record(vec![format!("{i:<3} Imm/Owned Object  ID: {}", o.0)]);
+                        builder.push_record(vec![format!(
+                            "{i:<3} Imm/Owned Object  ID: {}",
+                            o.object_id
+                        )]);
                     }
                     CallArg::Object(ObjectArg::SharedObject { id, .. }) => {
                         builder.push_record(vec![format!("{i:<3} Shared Object     ID: {}", id)]);
                     }
                     CallArg::Object(ObjectArg::Receiving(o)) => {
-                        builder.push_record(vec![format!("{i:<3} Receiving Object  ID: {}", o.0)]);
+                        builder.push_record(vec![format!(
+                            "{i:<3} Receiving Object  ID: {}",
+                            o.object_id
+                        )]);
                     }
                 };
             }
@@ -290,7 +294,7 @@ impl Display for Pretty<'_, TypeTag> {
                 write!(f, "Vector of {}", Pretty(&**v))
             }
             TypeTag::Struct(s) => {
-                write!(f, "{}::{}", s.module, s.name)
+                write!(f, "{}::{}", s.module(), s.name())
             }
             _ => {
                 write!(f, "{type_tag}")

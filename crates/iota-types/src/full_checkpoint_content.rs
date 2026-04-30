@@ -34,7 +34,7 @@ impl CheckpointData {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&obj_ref.object_id);
             }
         }
         latest_live_objects.into_values().collect()
@@ -46,7 +46,7 @@ impl CheckpointData {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, obj_ref);
+                eventually_removed_object_refs.insert(obj_ref.object_id, obj_ref);
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -145,10 +145,10 @@ impl CheckpointTransaction {
         self.effects
             .all_removed_objects()
             .into_iter() // Use id and version to lookup in input Objects
-            .map(|((id, _, _), _)| {
+            .map(|(object_ref, _)| {
                 self.input_objects
                     .iter()
-                    .find(|o| o.id() == id)
+                    .find(|o| o.id() == object_ref.object_id)
                     .expect("all removed objects should show up in input objects")
             })
     }
@@ -164,14 +164,17 @@ impl CheckpointTransaction {
         self.effects
             .all_changed_objects()
             .into_iter()
-            .map(|((id, _, _), ..)| {
+            .map(|(object_ref, ..)| {
                 let object = self
                     .output_objects
                     .iter()
-                    .find(|o| o.id() == id)
+                    .find(|o| o.id() == object_ref.object_id)
                     .expect("changed objects should show up in output objects");
 
-                let old_object = self.input_objects.iter().find(|o| o.id() == id);
+                let old_object = self
+                    .input_objects
+                    .iter()
+                    .find(|o| o.id() == object_ref.object_id);
 
                 (object, old_object)
             })
@@ -183,10 +186,10 @@ impl CheckpointTransaction {
             .created()
             .into_iter()
             // Lookup Objects in output Objects as well as old versions for mutated objects
-            .map(|((id, version, _), _)| {
+            .map(|(object_ref, _)| {
                 self.output_objects
                     .iter()
-                    .find(|o| o.id() == id && o.version() == version)
+                    .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)
                     .expect("created objects should show up in output objects")
             })
     }

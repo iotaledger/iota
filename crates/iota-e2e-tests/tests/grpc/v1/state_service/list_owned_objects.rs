@@ -15,15 +15,12 @@ use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    TypeTag,
-    base_types::IotaAddress,
-    coin::TreasuryCap,
+    base_types::{IotaAddress, StructTag, TypeTag},
     effects::TransactionEffectsAPI,
     object::Owner,
     parse_iota_struct_tag,
     transaction::{CallArg, ObjectArg},
 };
-use move_core_types::language_storage::StructTag;
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -507,7 +504,7 @@ async fn list_owned_objects_tto_indexing() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_test_code"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     // The sender owns several gas coins by default; pick one that is not the
     // gas-payment coin so we can pass it as the `Coin<IOTA>` argument to
@@ -554,13 +551,13 @@ async fn list_owned_objects_tto_indexing() {
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");
-    let parent_addr = IotaAddress::from(parent_ref.0);
+    let parent_addr = IotaAddress::from(parent_ref.object_id);
 
     // The coin is now owned by `parent_addr` via TTO; grab its post-start ref.
     let coin_after_start = start_effects
         .mutated_excluding_gas()
         .iter()
-        .find_map(|(obj_ref, _)| (obj_ref.0 == coin_ref.0).then_some(*obj_ref))
+        .find_map(|(obj_ref, _)| (obj_ref.object_id == coin_ref.object_id).then_some(*obj_ref))
         .expect("coin must appear in mutated set after start");
 
     // Parent starts with 1 coin (TTO'd in by `start`).
@@ -666,7 +663,7 @@ async fn list_owned_objects_filter_by_type() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/grpc/data/trusted_coin"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     // Wait for the publish tx to land in a checkpoint so the owner index
     // reflects the newly-created TreasuryCap.
@@ -680,8 +677,8 @@ async fn list_owned_objects_filter_by_type() {
         .parse::<TypeTag>()
         .unwrap()
         .to_string();
-    let treasury_cap_type =
-        TreasuryCap::type_(parse_iota_struct_tag(&trusted).unwrap()).to_canonical_string(true);
+    let treasury_cap_type = StructTag::new_treasury_cap(parse_iota_struct_tag(&trusted).unwrap())
+        .to_canonical_string(true);
 
     // After publishing we have the treasury cap and the coin metadata has 0
     // supply

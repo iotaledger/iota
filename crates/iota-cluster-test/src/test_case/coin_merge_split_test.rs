@@ -53,7 +53,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
             new_coins
                 .iter()
                 .map(|coin_ref| {
-                    ObjectChecker::new(coin_ref.reference.0)
+                    ObjectChecker::new(coin_ref.reference.object_id)
                         .owner(Owner::AddressOwner(signer))
                         .check_into_gas_coin(ctx.get_fullnode_client())
                 })
@@ -68,7 +68,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
         // We on purpose linearize the merge operations, otherwise the primary coin may
         // be locked
         for new_coin in new_coins {
-            let coin_to_merge = new_coin.reference.0;
+            let coin_to_merge = new_coin.reference.object_id;
             debug!("Merging coin {coin_to_merge} back to {primary_coin_id}.",);
             let response =
                 Self::merge_coin(ctx, signer, primary_coin_id, coin_to_merge, *gas_obj.id()).await;

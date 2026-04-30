@@ -390,10 +390,10 @@ Event:
   STRUCT:
     - package_id:
         TYPENAME: ObjectId
-    - transaction_module: STR
+    - module: STR
     - sender:
         TYPENAME: Address
-    - type_:
+    - type:
         TYPENAME: StructTag
     - contents: BYTES
 ExecutionData:
@@ -568,10 +568,7 @@ GasData:
   STRUCT:
     - payment:
         SEQ:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - U64
-            - TYPENAME: Digest
+          TYPENAME: TupleObjectReference
     - owner:
         TYPENAME: Address
     - price: U64
@@ -703,10 +700,7 @@ ObjectArg:
     0:
       ImmOrOwnedObject:
         NEWTYPE:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - U64
-            - TYPENAME: Digest
+          TYPENAME: TupleObjectReference
     1:
       SharedObject:
         STRUCT:
@@ -717,10 +711,7 @@ ObjectArg:
     2:
       Receiving:
         NEWTYPE:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - U64
-            - TYPENAME: Digest
+          TYPENAME: TupleObjectReference
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -871,7 +862,7 @@ SenderSignedTransaction:
 StructInput:
   STRUCT:
     - address:
-        TYPENAME: AccountAddress
+        TYPENAME: Address
     - module: STR
     - name: STR
     - type_args:
@@ -880,10 +871,10 @@ StructInput:
 StructTag:
   STRUCT:
     - address:
-        TYPENAME: AccountAddress
+        TYPENAME: Address
     - module: STR
     - name: STR
-    - type_args:
+    - type_params:
         SEQ:
           TYPENAME: TypeTag
 TransactionData:
@@ -976,6 +967,11 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TupleObjectReference:
+  TUPLESTRUCT:
+    - TYPENAME: ObjectId
+    - U64
+    - TYPENAME: Digest
 TypeArgumentError:
   ENUM:
     0:
@@ -1019,19 +1015,19 @@ TypeOrigin:
 TypeTag:
   ENUM:
     0:
-      Bool: UNIT
+      bool: UNIT
     1:
-      U8: UNIT
+      u8: UNIT
     2:
-      U64: UNIT
+      u64: UNIT
     3:
-      U128: UNIT
+      u128: UNIT
     4:
-      Address: UNIT
+      address: UNIT
     5:
-      Signer: UNIT
+      signer: UNIT
     6:
-      Vector:
+      vector:
         NEWTYPE:
           TYPENAME: TypeTag
     7:
@@ -1039,11 +1035,11 @@ TypeTag:
         NEWTYPE:
           TYPENAME: StructTag
     8:
-      U16: UNIT
+      u16: UNIT
     9:
-      U32: UNIT
+      u32: UNIT
     10:
-      U256: UNIT
+      u256: UNIT
 TypedStoreError:
   ENUM:
     0:

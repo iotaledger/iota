@@ -8,15 +8,13 @@ use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, StructTag, TypeTag},
     effects::{TransactionEffects, TransactionEffectsAPI},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
     transaction::{SenderSignedData, TransactionDataAPI},
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 
 use crate::{
     FileType,
@@ -97,7 +95,11 @@ impl InputObjectTracker {
             .map(|shared_io| shared_io.id())
             .collect();
         let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectID> = tx_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
+        let coins: BTreeSet<ObjectID> = tx_data
+            .gas()
+            .iter()
+            .map(|obj_ref| obj_ref.object_id)
+            .collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
         let input: BTreeSet<ObjectID> = txn
@@ -140,13 +142,13 @@ impl ObjectStatusTracker {
         let created: BTreeSet<ObjectID> = effects
             .created()
             .iter()
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let mutated: BTreeSet<ObjectID> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let deleted: BTreeSet<ObjectID> = effects
             .all_tombstones()
@@ -202,7 +204,7 @@ fn parse_struct(
     all_structs: &mut BTreeMap<String, WrappedStruct>,
 ) {
     let mut wrapped_struct = WrappedStruct {
-        struct_tag: Some(move_struct.type_),
+        struct_tag: Some(struct_tag_core_to_sdk(&move_struct.type_)),
         ..Default::default()
     };
     for (k, v) in move_struct.fields {
@@ -288,12 +290,12 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
-    use iota_types::base_types::ObjectID;
+    use iota_types::base_types::{ObjectID, StructTag};
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},
         identifier::Identifier,
-        language_storage::StructTag,
+        language_storage::StructTag as MoveStructTag,
     };
 
     use crate::handlers::parse_struct;
@@ -301,11 +303,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -314,11 +316,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (Identifier::from_str("principal")?, balance_field),
@@ -340,11 +342,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing_within_enum() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -353,11 +355,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_enum = MoveVariant {
-            type_: StructTag::from_str("0x2::test::TestEnum")?,
+            type_: MoveStructTag::from_str("0x2::test::TestEnum")?,
             variant_name: Identifier::from_str("TestVariant")?,
             tag: 0,
             fields: vec![
@@ -366,7 +368,7 @@ mod tests {
             ],
         };
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (

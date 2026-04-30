@@ -116,7 +116,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
@@ -186,7 +186,7 @@ impl StoredHistoryObject {
         })?;
 
         if let ObjectStatus::WrappedOrDeleted = object_status {
-            let object_ref = (
+            let object_ref = ObjectRef::new(
                 ObjectID::from_bytes(self.object_id.clone())
                     .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
@@ -284,7 +284,7 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
@@ -370,7 +370,7 @@ impl From<IndexedObject> for StoredObject {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: bcs::to_bytes(&object).unwrap(),
@@ -442,7 +442,7 @@ impl StoredObject {
                     self.object_digest
                 ))
             })?;
-        Ok((
+        Ok(ObjectRef::new(
             object_id,
             (self.object_version as u64).into(),
             object_digest,
@@ -540,27 +540,31 @@ impl TryFrom<StoredObject> for IotaCoin {
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
         let object: Object = o.clone().try_into()?;
-        let (coin_object_id, version, digest) = o.get_object_ref()?;
+        let ObjectRef {
+            object_id,
+            version,
+            digest,
+        } = o.get_object_ref()?;
         let coin_type_canonical =
             o.coin_type
                 .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                    "Object {coin_object_id} is supposed to be a coin but has an empty coin_type column",
+                    "Object {object_id} is supposed to be a coin but has an empty coin_type column",
                 )))?;
         let coin_type = parse_to_struct_tag(coin_type_canonical.as_str())
             .map_err(|_| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "The type of object {coin_object_id} cannot be parsed as a struct tag",
+                    "The type of object {object_id} cannot be parsed as a struct tag",
                 ))
             })?
             .to_string();
         let balance = o
             .coin_balance
             .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                "Object {coin_object_id} is supposed to be a coin but has an empty coin_balance column",
+                "Object {object_id} is supposed to be a coin but has an empty coin_balance column",
             )))?;
         Ok(IotaCoin {
             coin_type,
-            coin_object_id,
+            coin_object_id: object_id,
             version,
             digest,
             balance: balance as u64,
@@ -602,14 +606,11 @@ impl TryFrom<CoinBalance> for Balance {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        Identifier, TypeTag,
-        base_types::IotaAddress,
-        coin::Coin,
+        base_types::{Identifier, IotaAddress, StructTag, TypeTag},
         digests::TransactionDigest,
-        gas_coin::{GAS, GasCoin},
+        gas_coin::GasCoin,
         object::{Data, MoveObject, ObjectInner, Owner},
     };
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
     use super::*;
 
@@ -662,15 +663,13 @@ mod tests {
     #[test]
     fn test_vec_of_coin_iota_conversion() {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
-        let vec_coins_type = TypeTag::Vector(Box::new(
-            Coin::type_(TypeTag::Struct(Box::new(GAS::type_()))).into(),
-        ));
-        let object_type = StructTag {
-            address: AccountAddress::from_hex_literal("0xe7").unwrap(),
-            module: Identifier::new("vec_coin").unwrap(),
-            name: Identifier::new("VecCoin").unwrap(),
-            type_params: vec![vec_coins_type],
-        };
+        let vec_coins_type = TypeTag::Vector(Box::new(StructTag::new_gas_coin().into()));
+        let object_type = StructTag::new(
+            IotaAddress::from_short_hex("0xe7").unwrap(),
+            Identifier::from_static("vec_coin"),
+            Identifier::from_static("VecCoin"),
+            vec![vec_coins_type],
+        );
 
         let id = ObjectID::ZERO;
         let gas = 10;

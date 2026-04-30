@@ -3,12 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::{
+    base_types::{StructTag, TypeTag},
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+    object::bounded_visitor::BoundedVisitor,
+};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A, ident_str,
     identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
 
@@ -162,7 +165,7 @@ impl MoveValue {
     fn value_impl(&self, layout: A::MoveTypeLayout) -> Result<A::MoveValue, Error> {
         // TODO (annotated-visitor): deserializing directly using a custom visitor.
         BoundedVisitor::deserialize_value(&self.bcs.0[..], &layout).map_err(|_| {
-            let type_tag: TypeTag = (&layout).into();
+            let type_tag: TypeTag = type_tag_core_to_sdk(&(&layout).into());
             Error::Internal(format!(
                 "Failed to deserialize Move value for type: {type_tag}"
             ))
@@ -203,6 +206,7 @@ impl TryFrom<A::MoveValue> for MoveData {
 
             V::Struct(s) => {
                 let A::MoveStruct { type_, fields } = s;
+                let type_ = struct_tag_core_to_sdk(&type_);
                 if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                     // 0x1::option::Option
                     Self::Option(match extract_option(&type_, fields)? {
@@ -282,6 +286,7 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
 
         V::Struct(s) => {
             let A::MoveStruct { type_, fields } = s;
+            let type_ = struct_tag_core_to_sdk(&type_);
             if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                 // 0x1::option::Option
                 match extract_option(&type_, fields)? {
@@ -338,9 +343,9 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
 }
 
 fn is_type(tag: &StructTag, address: &AccountAddress, module: &IdentStr, name: &IdentStr) -> bool {
-    &tag.address == address
-        && tag.module.as_ident_str() == module
-        && tag.name.as_ident_str() == name
+    tag.address().as_bytes() == address.as_ref()
+        && tag.module().as_str() == module.as_str()
+        && tag.name().as_str() == name.as_str()
 }
 
 macro_rules! extract_field {
@@ -450,6 +455,7 @@ fn extract_uid(
     };
 
     let A::MoveStruct { type_, fields } = s;
+    let type_ = struct_tag_core_to_sdk(&type_);
     if !is_type(&type_, &IOTA, MOD_OBJECT, TYPE_ID) {
         return Err(Error::Internal(
             "Expected UID.id to have type ID.".to_string(),
@@ -502,7 +508,7 @@ mod tests {
     macro_rules! struct_layout {
         ($type:literal { $($name:literal : $layout:expr),* $(,)?}) => {
             A::MoveTypeLayout::Struct(Box::new(S {
-                type_: StructTag::from_str($type).expect("failed to parse struct"),
+                type_: move_core_types::language_storage::StructTag::from_str($type).expect("failed to parse struct"),
                 fields: vec![$(MoveFieldLayout {
                     name: ident_str!($name).to_owned(),
                     layout: $layout,
@@ -522,7 +528,7 @@ mod tests {
     }
 
     fn data<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<MoveData, Error> {
-        let tag: TypeTag = (&layout).into();
+        let tag: TypeTag = type_tag_core_to_sdk(&(&layout).into());
 
         // The format for type from its `Display` impl does not technically match the
         // format that the RPC expects from the data layer (where a type's
@@ -542,7 +548,7 @@ mod tests {
     }
 
     fn json<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<Json, Error> {
-        let tag: TypeTag = (&layout).into();
+        let tag: TypeTag = type_tag_core_to_sdk(&(&layout).into());
         let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.json_impl(layout)

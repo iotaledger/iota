@@ -18,8 +18,7 @@ use iota_package_management::{
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
-    base_types::ObjectID,
+    base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
@@ -156,7 +155,7 @@ impl BuildConfig {
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
-            let mod_addr = u.named_module.address.into_inner();
+            let mod_addr = IotaAddress::new(u.named_module.address.into_bytes());
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {
@@ -374,7 +373,8 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
         for fn_def in &module.function_defs {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);
-            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
+            if let Some(version) =
+                get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
             {
                 runtime_metadata.add_function_attribute(
                     fn_name.to_string(),
@@ -532,26 +532,26 @@ impl CompiledPackage {
     /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == IOTA_SYSTEM_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::SYSTEM.as_bytes())
     }
 
     /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == IOTA_FRAMEWORK_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::FRAMEWORK.as_bytes())
     }
 
     /// Get bytecode modules from the Move stdlib that are used by this package
     pub fn get_stdlib_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == MOVE_STDLIB_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STD.as_bytes())
     }
 
     /// Get bytecode modules from Stardust that are used by this package
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == STARDUST_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STARDUST.as_bytes())
     }
 
     /// Generate layout schemas for all types declared by this package, as well

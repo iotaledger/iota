@@ -96,7 +96,10 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
 fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
     // make sure there is an object with an `AddressOwner` who matches the object ID
     // of another object.
-    let created_addrs: HashSet<_> = created.iter().map(|((i, _, _), _)| i).collect();
+    let created_addrs: HashSet<_> = created
+        .iter()
+        .map(|(object_ref, _)| object_ref.object_id)
+        .collect();
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
@@ -108,7 +111,7 @@ fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectR
         .unwrap();
     let parent = created
         .iter()
-        .find(|((id, _, _), _)| *id == parent_id)
+        .find(|(object_ref, _)| object_ref.object_id == parent_id)
         .unwrap();
     (parent.0, child.0)
 }
@@ -122,7 +125,7 @@ impl TestEnvironment {
     async fn new() -> Self {
         let test_cluster = TestClusterBuilder::new().build().await;
 
-        let move_package = publish_move_package(&test_cluster).await.0;
+        let move_package = publish_move_package(&test_cluster).await.object_id;
 
         Self {
             test_cluster,
@@ -176,22 +179,12 @@ impl TestEnvironment {
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(
-                    |(oref, _)| {
-                        if oref.0 == child.0 { Some(*oref) } else { None }
-                    },
-                )
+                .find_map(|(oref, _)| (oref.object_id == child.object_id).then_some(*oref))
                 .unwrap();
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| {
-                    if oref.0 == parent.0 {
-                        Some(*oref)
-                    } else {
-                        None
-                    }
-                })
+                .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
                 .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
@@ -205,13 +198,7 @@ impl TestEnvironment {
         assert!(fx.0.status().is_ok());
         fx.0.mutated_excluding_gas()
             .iter()
-            .find_map(|(oref, _)| {
-                if oref.0 == parent.0 {
-                    Some(*oref)
-                } else {
-                    None
-                }
-            })
+            .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
             .unwrap()
     }
 }

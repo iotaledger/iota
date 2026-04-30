@@ -16,7 +16,6 @@ use iota_json_rpc_types::{
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -252,7 +251,7 @@ fn move_call() {
             let tx_bytes = client
                 .move_call(
                     sender,
-                    ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    ObjectID::FRAMEWORK,
                     "coin".to_string(),
                     "join".to_string(),
                     type_args![GAS::type_tag()].unwrap(),
@@ -411,7 +410,7 @@ fn batch_transaction() {
                     sender,
                     vec![
                         RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                            package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                            package_object_id: ObjectID::FRAMEWORK,
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,
@@ -806,8 +805,8 @@ async fn create_coins_and_wait_for_indexer(
                 address,
             )
             .await;
-        indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-        coins.push(coin.0);
+        indexer_wait_for_object(indexer_client, coin.object_id, coin.version).await;
+        coins.push(coin.object_id);
     }
     coins
 }

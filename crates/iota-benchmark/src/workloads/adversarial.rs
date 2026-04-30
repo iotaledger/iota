@@ -9,14 +9,13 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
     transaction::{CallArg, Command, ObjectArg, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::identifier::Identifier;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
@@ -239,7 +238,7 @@ impl AdversarialTestPayload {
                 builder.command(Command::move_call(
                     self.package_id,
                     Identifier::new(module_name).unwrap(),
-                    Identifier::new(args.fn_name.as_str()).unwrap(),
+                    Identifier::new(args.fn_name).unwrap(),
                     vec![],
                     vec![],
                 ));
@@ -302,8 +301,8 @@ impl AdversarialTestPayload {
                 fn_name: "read_n_dynamic_fields".to_owned(),
                 args: [
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: self.df_parent_obj_ref.0,
-                        initial_shared_version: self.df_parent_obj_ref.1,
+                        id: self.df_parent_obj_ref.object_id,
+                        initial_shared_version: self.df_parent_obj_ref.version,
                         mutable: true,
                     })
                     .into(),
@@ -402,7 +401,7 @@ impl WorkloadBuilder<dyn Payload> for AdversarialWorkloadBuilder {
             shared_objs: vec![],
             df_parent_obj_ref: {
                 let mut f = random_object_ref();
-                f.0 = ObjectID::ZERO;
+                f.object_id = ObjectID::ZERO;
                 f
             },
             init_gas: init_gas.pop().unwrap(),
@@ -497,7 +496,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             .unwrap();
 
         for o in &created {
-            let obj = proxy.get_object(o.0.0).await.unwrap();
+            let obj = proxy.get_object(o.0.object_id).await.unwrap();
             if let Some(tag) = obj.data.struct_tag() {
                 if tag.to_string().contains("::adversarial::Obj") {
                     self.df_parent_obj_ref = o.0;
@@ -505,13 +504,13 @@ impl Workload<dyn Payload> for AdversarialWorkload {
             }
         }
         assert!(
-            self.df_parent_obj_ref.0 != ObjectID::ZERO,
+            self.df_parent_obj_ref.object_id != ObjectID::ZERO,
             "Dynamic field parent must be created"
         );
-        self.package_id = package_obj.0.0;
+        self.package_id = package_obj.0.object_id;
 
         let gas_ref = proxy
-            .get_object(gas.0.0)
+            .get_object(gas.0.object_id)
             .await
             .unwrap()
             .compute_object_reference();
@@ -522,7 +521,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         let transaction = move_call_pt_impl(
             gas.1,
             &gas.2,
-            package_obj.0.0,
+            package_obj.0.object_id,
             "adversarial",
             "create_min_size_shared_objects",
             vec![],
@@ -541,7 +540,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         // read them in MaxReads workload
         self.shared_objs = created
             .iter()
-            .map(|o| BenchMoveCallArg::Shared((o.0.0, o.0.1, false)))
+            .map(|o| BenchMoveCallArg::Shared((o.0.object_id, o.0.version, false)))
             .collect();
     }
 

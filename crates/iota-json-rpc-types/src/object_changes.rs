@@ -5,11 +5,10 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, StructTag},
     iota_serde::IotaStructTag,
     object::Owner,
 };
-use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -169,7 +168,7 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => (*package_id, *version, *digest),
+            } => ObjectRef::new(*package_id, *version, *digest),
             ObjectChange::Transferred {
                 object_id,
                 version,
@@ -193,13 +192,13 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => (*object_id, *version, *digest),
+            } => ObjectRef::new(*object_id, *version, *digest),
             ObjectChange::Deleted {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DELETED),
+            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_DELETED),
             ObjectChange::Wrapped {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
+            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 

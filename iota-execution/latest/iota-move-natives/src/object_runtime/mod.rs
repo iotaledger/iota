@@ -13,13 +13,11 @@ use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
-    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
-    id::UID,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     metrics::LimitsMetrics,
     object::{MoveObject, Owner},
     storage::ChildObjectResolver,
@@ -261,12 +259,12 @@ impl<'a> ObjectRuntime<'a> {
         // - If it was not in the input objects, it must have been wrapped or must have
         //   been a child object
         let is_framework_obj = [
-            IOTA_SYSTEM_STATE_OBJECT_ID,
-            IOTA_CLOCK_OBJECT_ID,
-            IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-            IOTA_RANDOMNESS_STATE_OBJECT_ID,
-            IOTA_DENY_LIST_OBJECT_ID,
-            GENESIS_IOTA_BRIDGE_OBJECT_ID,
+            ObjectID::SYSTEM_STATE,
+            ObjectID::CLOCK,
+            ObjectID::AUTHENTICATOR_STATE,
+            ObjectID::RANDOMNESS_STATE,
+            ObjectID::DENY_LIST,
+            ObjectID::GENESIS_IOTA_BRIDGE,
         ]
         .contains(&id);
         let transfer_result = if self.state.new_ids.contains(&id) {
@@ -833,7 +831,7 @@ pub fn get_all_uids(
             &mut self,
             driver: &mut AV::StructDriver<'_, 'b, 'l>,
         ) -> Result<(), Self::Error> {
-            if driver.struct_layout().type_ == UID::type_() {
+            if struct_tag_core_to_sdk(&driver.struct_layout().type_).is_uid() {
                 while driver.next_field(&mut UIDCollector(self.0))?.is_some() {}
             } else {
                 while driver.next_field(self)?.is_some() {}
