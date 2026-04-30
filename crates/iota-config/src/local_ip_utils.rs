@@ -124,7 +124,7 @@ fn get_ephemeral_port(host: &str) -> std::io::Result<u16> {
 /// Returns a new unique TCP address for the given host, by finding a new
 /// available port.
 pub fn new_tcp_address_for_testing(host: &str) -> Multiaddr {
-    format!("/ip4/{}/tcp/{}/http", host, get_available_port(host))
+    format!("/ip4/{}/tcp/{}/https", host, get_available_port(host))
         .parse()
         .unwrap()
 }
