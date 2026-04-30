@@ -297,6 +297,7 @@ pub struct AuthorityMetrics {
     pub(crate) authority_load_shedding_percentage: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
     pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
+    pub(crate) cache_backpressure_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
@@ -560,6 +561,11 @@ impl AuthorityMetrics {
             consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_queue_load_shedding_percentage",
                 "Percentage of transactions shed due to consensus queue length.",
+                registry)
+                .unwrap(),
+            cache_backpressure_load_shedding_percentage: register_int_gauge_with_registry!(
+                "cache_backpressure_load_shedding_percentage",
+                "Percentage of transactions shed due to writeback-cache backpressure.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(

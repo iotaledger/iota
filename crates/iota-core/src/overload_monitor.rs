@@ -135,10 +135,13 @@ fn check_execution_overload(
     let txn_ready_rate = authority.metrics.txn_ready_rate_tracker.lock().rate();
     let execution_rate = authority.metrics.execution_rate_tracker.lock().rate();
     let inflight_queue_len = authority.transaction_manager().inflight_queue_len();
+    let cache_pending_count = authority
+        .get_cache_commit()
+        .approximate_pending_transaction_count() as usize;
 
     debug!(
-        "Check authority overload signal, queueing latency {:?}, ready rate {:?}, execution rate {:?}, inflight queue len {:?}.",
-        queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len
+        "Check authority overload signal, queueing latency {:?}, ready rate {:?}, execution rate {:?}, inflight queue len {:?}, cache pending count {:?}.",
+        queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len, cache_pending_count
     );
 
     // Use the quorum load shedding percentage (from consensus) as the reference
@@ -162,16 +165,35 @@ fn check_execution_overload(
         config.max_transaction_manager_queue_length_soft_limit_pct(),
     );
 
-    // The final load shedding percentage combines the latency/rate-based
-    // shedding percentage with a queue length based percentage.
+    let cache_config = &authority.config.execution_cache_config.writeback_cache;
+    let cache_based_percentage = compute_graduated_load_shedding_percentage(
+        cache_pending_count,
+        cache_config.backpressure_threshold() as usize,
+        cache_config.backpressure_soft_limit_pct(),
+    );
+    authority
+        .metrics
+        .cache_backpressure_load_shedding_percentage
+        .set(cache_based_percentage as i64);
+
+    // The final load shedding percentage combines three signals:
+    //   - latency/rate-based, from execution queueing latency,
+    //   - queue-length-based, from the txn manager's inflight queue,
+    //   - cache-backpressure-based, from the writeback cache's pending count.
     //
-    // The two signals are correlated — by Little's Law, `inflight_queue_len ≈
-    // txn_ready_rate × queueing_latency` in steady state — so they are combined
-    // with `max` rather than summed, to avoid double-counting. Under transients
-    // they diverge: queue length reacts to bursts before averaged latency does,
-    // while latency catches sustained slow execution even when queue depth is
-    // modest. Each therefore guards a different failure mode.
-    let load_shedding_percentage = max(latency_based_percentage, queue_based_percentage);
+    // All three are correlated in steady state — by Little's Law,
+    // `inflight_queue_len ≈ txn_ready_rate × queueing_latency`; cache pending
+    // count tracks uncommitted writes which accumulate when execution outpaces
+    // checkpoint flush — so they are combined with `max` rather than summed,
+    // to avoid double-counting. Under transients they diverge: queue length
+    // reacts to arrival bursts before averaged latency does, latency catches
+    // sustained slow execution even when queue depth is modest, and cache
+    // pressure shows up when checkpoint flush stalls even if execution itself
+    // is keeping up. Each therefore guards a different failure mode.
+    let load_shedding_percentage = max(
+        max(latency_based_percentage, queue_based_percentage),
+        cache_based_percentage,
+    );
     let is_overload = load_shedding_percentage > 0;
 
     if is_overload {
