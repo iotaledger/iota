@@ -11070,7 +11070,9 @@
       },
       "SequenceNumberU64": {
         "description": "Sequence number as a u64 integer",
-        "type": "integer"
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0.0
       },
       "Stake": {
         "type": "object",
