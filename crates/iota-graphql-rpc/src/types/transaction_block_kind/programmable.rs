@@ -421,7 +421,7 @@ impl From<NativeArgument> for TransactionArgument {
             N::Input(ix) => A::Input(Input { ix }),
             N::Result(cmd) => A::Result(TxResult { cmd, ix: None }),
             N::NestedResult(cmd, ix) => A::Result(TxResult { cmd, ix: Some(ix) }),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
         }
     }
 }

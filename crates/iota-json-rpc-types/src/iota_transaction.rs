@@ -2258,7 +2258,7 @@ impl From<Argument> for IotaArgument {
             Argument::Input(i) => Self::Input(i),
             Argument::Result(i) => Self::Result(i),
             Argument::NestedResult(i, j) => Self::NestedResult(i, j),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
         }
     }
 }
