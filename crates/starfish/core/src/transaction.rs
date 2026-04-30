@@ -386,6 +386,7 @@ mod tests {
         block_header::{BlockHeaderDigest, BlockRef},
         block_verifier::SignedBlockVerifier,
         context::Context,
+        leader_schedule::{LeaderSchedule, LeaderSwapTable},
         transaction::{
             BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
             TransactionConsumer,
@@ -747,8 +748,15 @@ mod tests {
             assert_eq!(transactions.len() as u64, max_num_transactions_in_block);
 
             // Now create a block and verify that transactions are within the size limits
-            let block_verifier =
-                SignedBlockVerifier::new(context.clone(), Arc::new(NoopTransactionVerifier {}));
+            let leader_schedule = Arc::new(LeaderSchedule::new(
+                context.clone(),
+                LeaderSwapTable::default(),
+            ));
+            let block_verifier = SignedBlockVerifier::new(
+                context.clone(),
+                Arc::new(NoopTransactionVerifier {}),
+                leader_schedule,
+            );
 
             let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
             assert!(
@@ -807,8 +815,15 @@ mod tests {
             assert!(size <= max_transactions_in_block_bytes);
 
             // Now create a block and verify that transactions are within the size limits
-            let block_verifier =
-                SignedBlockVerifier::new(context.clone(), Arc::new(NoopTransactionVerifier {}));
+            let leader_schedule = Arc::new(LeaderSchedule::new(
+                context.clone(),
+                LeaderSwapTable::default(),
+            ));
+            let block_verifier = SignedBlockVerifier::new(
+                context.clone(),
+                Arc::new(NoopTransactionVerifier {}),
+                leader_schedule,
+            );
 
             assert!(
                 block_verifier.check_transactions(&batch).is_ok(),
