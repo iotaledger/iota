@@ -11,7 +11,6 @@
 /crates/iota-analytics-indexer-derive/ @iotaledger/infrastructure
 /crates/iota-archival/ @iotaledger/node
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
-/crates/iota-aws-orchestrator/ @iotaledger/consensus
 /crates/iota-benchmark/ @iotaledger/node
 /crates/iota-build-cache-server/ @iotaledger/node
 /crates/iota-cluster-test/ @iotaledger/infrastructure

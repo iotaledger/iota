@@ -10,8 +10,6 @@ iota-archival:
   - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
-iota-aws-orchestrator:
-  - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
 iota-build-cache-server:
