@@ -7,11 +7,14 @@ use std::sync::{
 };
 
 use arc_swap::ArcSwap;
-use iota_types::{base_types::AuthorityName, messages_consensus::VersionedMisbehaviorReport};
+use iota_types::{
+    base_types::AuthorityName,
+    messages_consensus::{MisbehaviorObservations, VersionedMisbehaviorReport},
+};
 
 use crate::{
     authority::authority_per_epoch_store::misbehavior::{
-        MisbehaviorCounts, MisbehaviorReportVersion,
+        MisbehaviorReportVersion, observations_from_consensus_output, zero_observations,
     },
     consensus_types::consensus_output_api::ConsensusOutputMisbehavior,
 };
@@ -28,7 +31,7 @@ pub struct MisbehaviorMonitor {
     committee_size: usize,
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
-    current_local_counts: ArcSwap<MisbehaviorCounts>,
+    current_local_counts: ArcSwap<MisbehaviorObservations>,
     // Single-writer: the three rate-limit fields below are only mutated by
     // SubmitCheckpointToConsensus::checkpoint_created. Don't add additional writers without
     // revisiting the atomicity story — `last_report_summary` and `last_report_checkpoint_seq`
@@ -55,10 +58,8 @@ impl MisbehaviorMonitor {
         report_version: MisbehaviorReportVersion,
         committee_size: usize,
     ) -> Self {
-        let current_local_counts = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
-            report_version,
-            committee_size,
-        )));
+        let current_local_counts =
+            ArcSwap::new(Arc::new(zero_observations(report_version, committee_size)));
 
         Self {
             authority,
@@ -98,16 +99,18 @@ impl MisbehaviorMonitor {
     }
 
     pub fn generate_report(&self, generation: u64) -> VersionedMisbehaviorReport {
-        self.current_local_counts
-            .load()
-            .to_report(self.authority, generation)
+        match self.current_local_counts.load().as_ref() {
+            MisbehaviorObservations::V1(o) => {
+                VersionedMisbehaviorReport::new_v1(self.authority, generation, o.clone())
+            }
+        }
     }
 
     pub fn update_from_consensus_output(
         &self,
         output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
     ) {
-        let new_counts = MisbehaviorCounts::from_consensus_output(
+        let new_counts = observations_from_consensus_output(
             output_misbehavior_counts,
             self.report_version,
             self.committee_size,

@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
+use iota_types::messages_consensus::{MisbehaviorObservations, MisbehaviorObservationsV1};
 
 use crate::authority::authority_per_epoch_store::{
-    misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
-    report_aggregator::ReportAggregator,
+    misbehavior::MisbehaviorReportVersion, report_aggregator::ReportAggregator,
 };
 
 /// Must match MAX_SCORE in validator_set.move in iota-framework.
@@ -97,7 +97,7 @@ impl VersionedScorer {
 }
 
 /// V1 scoring parameters and implementation. Field order mirrors
-/// `MisbehaviorCountsV1` / `ReportPayloadV1` so the score loop can iterate
+/// `MisbehaviorObservationsV1` so the score loop can iterate
 /// `(row, params)` pairs without an indirection through `Misbehavior`.
 struct ScorerV1 {
     faulty_blocks_provable: MetricParams,
@@ -193,11 +193,11 @@ impl ScorerV1 {
 
     /// `(row in median, params)` pairs for the explicit named-field iteration
     /// used by both phases of the score formula. Adding a metric to
-    /// `MisbehaviorCountsV1` / `ScorerV1` makes this array a missing-field
-    /// error, forcing the new metric to be wired in.
+    /// `MisbehaviorObservationsV1` / `ScorerV1` makes this array a
+    /// missing-field error, forcing the new metric to be wired in.
     fn metric_pairs<'a>(
         &'a self,
-        median: &'a MisbehaviorCountsV1,
+        median: &'a MisbehaviorObservationsV1,
     ) -> [(&'a [u64], &'a MetricParams); 4] {
         [
             (&median.faulty_blocks_provable, &self.faulty_blocks_provable),
@@ -216,7 +216,7 @@ impl ScorerV1 {
         &self,
         voting_power: &[u64],
         aggregator: &ReportAggregator,
-    ) -> Option<MisbehaviorCountsV1> {
+    ) -> Option<MisbehaviorObservationsV1> {
         let reporters = aggregator.reporters_with_voting_power(voting_power);
         if reporters.is_empty() {
             return None;
@@ -227,10 +227,10 @@ impl ScorerV1 {
         // TODO: when V2 lands, this match becomes non-exhaustive — branch the
         // whole computation on the variant rather than papering over it with
         // an `if let`, which would silently drop V2 reports from the median.
-        let reporters_v1: Vec<(&MisbehaviorCountsV1, VotingPower)> = reporters
+        let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
             .iter()
-            .map(|(counts, vp)| match counts.as_ref() {
-                MisbehaviorCounts::V1(c) => (c, *vp),
+            .map(|(observations, vp)| match observations.as_ref() {
+                MisbehaviorObservations::V1(c) => (c, *vp),
             })
             .collect();
 
@@ -242,7 +242,7 @@ impl ScorerV1 {
         // Reused across all (metric, authority) pairs — one allocation total.
         let mut chunk: Vec<(u64, VotingPower)> = Vec::with_capacity(reporters_v1.len());
 
-        let mut weighted_median_for = |select: &dyn Fn(&MisbehaviorCountsV1) -> &[u64]| {
+        let mut weighted_median_for = |select: &dyn Fn(&MisbehaviorObservationsV1) -> &[u64]| {
             let mut median_for_metric = Vec::with_capacity(committee_size);
             for authority in 0..committee_size {
                 chunk.clear();
@@ -271,7 +271,7 @@ impl ScorerV1 {
             median_for_metric
         };
 
-        Some(MisbehaviorCountsV1 {
+        Some(MisbehaviorObservationsV1 {
             faulty_blocks_provable: weighted_median_for(&|c| &c.faulty_blocks_provable),
             faulty_blocks_unprovable: weighted_median_for(&|c| &c.faulty_blocks_unprovable),
             missing_proposals: weighted_median_for(&|c| &c.missing_proposals),
@@ -286,7 +286,11 @@ impl ScorerV1 {
     /// `sum(minor_weights) + baseline_score = SCALE_FACTOR`, so we need
     /// `MAX_SCORE * SCALE_FACTOR < 2^64` to avoid overflow (asserted at init).
     /// Major metrics are multiplicative (factor 0 or 1).
-    fn score_from_median(&self, voting_power: &[u64], median: &MisbehaviorCountsV1) -> Vec<u64> {
+    fn score_from_median(
+        &self,
+        voting_power: &[u64],
+        median: &MisbehaviorObservationsV1,
+    ) -> Vec<u64> {
         let committee_size = voting_power.len();
         let mut final_scores = vec![self.baseline_score * MAX_SCORE; committee_size];
 
@@ -356,10 +360,10 @@ impl MetricParams {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{MisbehaviorObservationsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior::{MisbehaviorCountsV1, MisbehaviorReportVersion},
+        misbehavior::MisbehaviorReportVersion,
         report_aggregator::ReportAggregator,
         scorer::{MAX_SCORE, Scorer, ScorerV1},
     };
@@ -384,7 +388,7 @@ mod tests {
         VersionedMisbehaviorReport::new_v1(
             iota_types::base_types::AuthorityName::default(),
             0,
-            ReportPayloadV1 {
+            MisbehaviorObservationsV1 {
                 faulty_blocks_provable: raw_counts[0].clone(),
                 faulty_blocks_unprovable: raw_counts[1].clone(),
                 missing_proposals: raw_counts[2].clone(),
@@ -482,7 +486,7 @@ mod tests {
             let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCountsV1 {
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -518,7 +522,7 @@ mod tests {
             let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCountsV1 {
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -563,7 +567,7 @@ mod tests {
             let median = scorer.median_report(&voting_power, &aggregator).unwrap();
             assert_eq!(
                 median,
-                MisbehaviorCountsV1 {
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![6, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -591,7 +595,7 @@ mod tests {
         assert_eq!(
             scorer.score_from_median(
                 &voting_power,
-                &MisbehaviorCountsV1 {
+                &MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![0, 0, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -605,7 +609,7 @@ mod tests {
         assert_eq!(
             scorer.score_from_median(
                 &voting_power,
-                &MisbehaviorCountsV1 {
+                &MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![0, 0, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -621,7 +625,7 @@ mod tests {
         assert_eq!(
             scorer.score_from_median(
                 &voting_power,
-                &MisbehaviorCountsV1 {
+                &MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![5, 0, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],

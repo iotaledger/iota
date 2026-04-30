@@ -16,7 +16,7 @@ type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransactio
 // Variants are constructed by future Starfish wiring of misbehavior counts;
 // today `misbehavior_counts()` returns `vec![]`. Kept as the contract surface
 // so the rest of the misbehavior pipeline (`Misbehavior::from`,
-// `MisbehaviorCounts::from_consensus_output`) compiles and exhaustively
+// `observations_from_consensus_output`) compiles and exhaustively
 // matches before Starfish populates it.
 #[allow(dead_code)]
 #[derive(Debug)]

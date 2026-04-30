@@ -265,7 +265,7 @@ pub struct VersionedMisbehaviorReport {
     /// from consensus. Verified at the consensus boundary.
     pub authority: AuthorityName,
     /// Versioned payload of the misbehavior report.
-    pub payload: ReportPayload,
+    pub payload: MisbehaviorObservations,
     /// Generation number set by the sending authority. Used to identify the
     /// most recent report from each authority. Currently set to the
     /// checkpoint sequence number at which the report was generated.
@@ -274,23 +274,25 @@ pub struct VersionedMisbehaviorReport {
     digest: OnceCell<MisbehaviorReportDigest>,
 }
 
-/// Versioned wire payload of a misbehavior report. New variants get their own
-/// named-field payload type (`ReportPayloadV2`, `ReportPayloadV3`, ...) so the
-/// wire schema stays compile-time checked.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ReportPayload {
-    V1(ReportPayloadV1),
+/// Versioned per-authority misbehavior observations. New variants get their
+/// own named-field payload type (`MisbehaviorObservationsV2`,
+/// `MisbehaviorObservationsV3`, ...) so the wire schema stays compile-time
+/// checked. Also serves as the in-memory representation in
+/// `MisbehaviorMonitor` / `ReportAggregator`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MisbehaviorObservations {
+    V1(MisbehaviorObservationsV1),
 }
 
 impl VersionedMisbehaviorReport {
     pub fn new_v1(
         authority: AuthorityName,
         generation: u64,
-        misbehaviors: ReportPayloadV1,
+        observations: MisbehaviorObservationsV1,
     ) -> Self {
         Self {
             authority,
-            payload: ReportPayload::V1(misbehaviors),
+            payload: MisbehaviorObservations::V1(observations),
             generation,
             digest: OnceCell::new(),
         }
@@ -298,7 +300,7 @@ impl VersionedMisbehaviorReport {
 
     pub fn verify(&self, committee_size: usize) -> bool {
         match &self.payload {
-            ReportPayload::V1(report) => report.verify(committee_size),
+            MisbehaviorObservations::V1(report) => report.verify(committee_size),
         }
     }
 
@@ -313,7 +315,7 @@ impl VersionedMisbehaviorReport {
     /// metrics for all authorities.
     pub fn summary(&self) -> u64 {
         let summary = match &self.payload {
-            ReportPayload::V1(report) => [
+            MisbehaviorObservations::V1(report) => [
                 &report.faulty_blocks_provable,
                 &report.faulty_blocks_unprovable,
                 &report.missing_proposals,
@@ -330,26 +332,27 @@ impl VersionedMisbehaviorReport {
     }
 }
 
-/// V1 wire payload: per-authority counts for each tracked misbehavior
-/// category (faulty blocks, equivocations, missing proposals). Field order
-/// is part of the wire format — BCS serializes named struct fields in
-/// declaration order. This first version does not include any type of proof.
+/// V1 misbehavior observations: per-authority counts for each tracked
+/// misbehavior category (faulty blocks, equivocations, missing proposals).
+/// Field order is part of the wire format — BCS serializes named struct
+/// fields in declaration order. This first version does not include any
+/// type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ReportPayloadV1 {
+pub struct MisbehaviorObservationsV1 {
     pub faulty_blocks_provable: Vec<u64>,
     pub faulty_blocks_unprovable: Vec<u64>,
     pub missing_proposals: Vec<u64>,
     pub equivocations: Vec<u64>,
 }
 
-impl ReportPayloadV1 {
+impl MisbehaviorObservationsV1 {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
         // authorities. Future versions may contain proofs that need verification.
         // However, since the validity of a proof is deeply coupled with the protocol
         // version and the consensus mechanism being used, we cannot verify it here. In
         // the future, reports should be unwrapped (or translated) to a type verifiable
-        // by the consensus crate, which means that the verification logic will probably
+        // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
         if (self.faulty_blocks_provable.len() != committee_size)
             | (self.faulty_blocks_unprovable.len() != committee_size)
@@ -605,11 +608,11 @@ mod tests {
     /// post-refactor bytes against the legacy encoding.
     #[derive(Serialize)]
     struct LegacyVersionedMisbehaviorReport<'a> {
-        payload: &'a ReportPayload,
+        payload: &'a MisbehaviorObservations,
     }
 
-    fn sample_payload() -> ReportPayload {
-        ReportPayload::V1(ReportPayloadV1 {
+    fn sample_payload() -> MisbehaviorObservations {
+        MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
             faulty_blocks_provable: vec![1, 2, 3],
             faulty_blocks_unprovable: vec![4, 5, 6],
             missing_proposals: vec![7, 8, 9],
