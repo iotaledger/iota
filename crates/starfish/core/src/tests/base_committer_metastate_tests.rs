@@ -8,7 +8,9 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     authority_set::AuthoritySet,
-    base_committer::base_committer_builder::BaseCommitterBuilder,
+    base_committer::{
+        BaseCommitter, BaseCommitterOptions, base_committer_builder::BaseCommitterBuilder,
+    },
     block_header::{
         BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
         TransactionsCommitment, VerifiedBlockHeader, genesis_block_headers,
@@ -17,6 +19,7 @@ use crate::{
     context::Context,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
+    linearizer::Linearizer,
     storage::mem_store::MemStore,
     universal_committer::universal_committer_builder::UniversalCommitterBuilder,
 };
@@ -690,5 +693,103 @@ async fn pending_leader_resolves_to_standard() {
     assert_eq!(
         round_3_metastate(&universal, &decided),
         Some(CommitMetastate::Standard),
+    );
+}
+
+/// Two validators on the same DAG holding different `LeaderSwapTable`s commit
+/// disjoint round-3 subdags. Asserts the safety property that the two subdags
+/// must be equal — fails by design, demonstrating the divergence in committed
+/// transactions.
+#[tokio::test]
+async fn validators_with_different_swap_tables_diverge_on_committed_subdag() {
+    telemetry_subscribers::init_for_testing();
+    let (context, dag_state) = test_context_with_flag(true);
+
+    // Committer A: default swap table. Test mode: `elect_leader(3, 0)` returns
+    // `(3 + 0) % 4 = 3`, no swap fires.
+    let committer_a = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+
+    // Committer B: swap table flagging auth 3 as bad → auth 1 takes round 3.
+    let alt_table = {
+        let auth_3 = AuthorityIndex::from(3u8);
+        let auth_1 = AuthorityIndex::from(1u8);
+        let host_3 = context.committee.authority(auth_3).hostname.clone();
+        let stake_3 = context.committee.authority(auth_3).stake;
+        let host_1 = context.committee.authority(auth_1).hostname.clone();
+        let stake_1 = context.committee.authority(auth_1).stake;
+        LeaderSwapTable {
+            good_nodes: vec![(auth_1, host_1, stake_1)],
+            bad_nodes: std::iter::once((auth_3, (host_3, stake_3))).collect(),
+            ..LeaderSwapTable::default()
+        }
+    };
+    let alt_schedule = Arc::new(LeaderSchedule::new(context.clone(), alt_table));
+    let committer_b = BaseCommitter::new(
+        context.clone(),
+        alt_schedule,
+        dag_state.clone(),
+        BaseCommitterOptions::default(),
+    );
+
+    let leader_round = committer_a.leader_round(1);
+    let leader_a = committer_a
+        .elect_leader(leader_round)
+        .expect("leader at round 3");
+    let leader_b = committer_b
+        .elect_leader(leader_round)
+        .expect("leader at round 3");
+    assert_ne!(
+        leader_a.authority, leader_b.authority,
+        "test setup invalid: swap tables agree on the leader"
+    );
+
+    // Every round-4 voter carries `strong_vote = Some(empty)` and references
+    // all four round-3 blocks.
+    build_metastate_dag(
+        context.clone(),
+        dag_state.clone(),
+        &committer_a,
+        [strong_vote(); 4],
+    );
+
+    let block_a = match committer_a.try_direct_decide(leader_a) {
+        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), _) => b,
+        other => panic!("committer_a: expected Optimistic Commit, got {other}"),
+    };
+    let block_b = match committer_b.try_direct_decide(leader_b) {
+        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), _) => b,
+        other => panic!("committer_b: expected Optimistic Commit, got {other}"),
+    };
+
+    // Linearize each leader's subdag from a fresh "no prior commits" state —
+    // the set of blocks each validator would commit at this height.
+    let last_committed_rounds = vec![0u32; context.committee.size()];
+    let gc_depth = context.protocol_config.gc_depth();
+    let dag_state_guard = dag_state.read();
+    let subdag_a: BTreeSet<BlockRef> = Linearizer::linearize_sub_dag(
+        block_a,
+        last_committed_rounds.clone(),
+        &dag_state_guard,
+        gc_depth,
+    )
+    .iter()
+    .map(|h| h.reference())
+    .collect();
+    let subdag_b: BTreeSet<BlockRef> =
+        Linearizer::linearize_sub_dag(block_b, last_committed_rounds, &dag_state_guard, gc_depth)
+            .iter()
+            .map(|h| h.reference())
+            .collect();
+    drop(dag_state_guard);
+
+    let only_in_a: Vec<_> = subdag_a.difference(&subdag_b).collect();
+    let only_in_b: Vec<_> = subdag_b.difference(&subdag_a).collect();
+
+    // Safety property: two honest validators must produce the same committed
+    // subdag at the same height.
+    assert_eq!(
+        subdag_a, subdag_b,
+        "validators with different swap tables committed different block sets \
+         at round {leader_round}\n  only-in-A: {only_in_a:?}\n  only-in-B: {only_in_b:?}",
     );
 }
