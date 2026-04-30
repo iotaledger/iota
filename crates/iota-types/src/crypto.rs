@@ -8,7 +8,7 @@
 
 use std::{
     collections::BTreeMap,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
     str::FromStr,
 };
@@ -42,6 +42,7 @@ use fastcrypto::{
         Secp256r1SignatureAsBytes,
     },
 };
+pub use iota_sdk_types::RandomnessRound;
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
@@ -1783,60 +1784,3 @@ pub type RandomnessSignature = fastcrypto_tbls::types::Signature;
 pub type RandomnessPartialSignature = fastcrypto_tbls::tbls::PartialSignature<RandomnessSignature>;
 pub type RandomnessPrivateKey =
     fastcrypto_tbls::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;
-
-/// Round number of generated randomness.
-#[derive(Clone, Copy, Hash, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RandomnessRound(pub u64);
-
-impl Display for RandomnessRound {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::ops::Add for RandomnessRound {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
-    }
-}
-
-impl std::ops::Add<u64> for RandomnessRound {
-    type Output = Self;
-    fn add(self, other: u64) -> Self {
-        Self(self.0 + other)
-    }
-}
-
-impl std::ops::Sub for RandomnessRound {
-    type Output = Self;
-    fn sub(self, other: Self) -> Self {
-        Self(self.0 - other.0)
-    }
-}
-
-impl std::ops::Sub<u64> for RandomnessRound {
-    type Output = Self;
-    fn sub(self, other: u64) -> Self {
-        Self(self.0 - other)
-    }
-}
-
-impl RandomnessRound {
-    pub fn new(round: u64) -> Self {
-        Self(round)
-    }
-
-    pub fn checked_add(self, rhs: u64) -> Option<Self> {
-        self.0.checked_add(rhs).map(Self)
-    }
-
-    pub fn signature_message(&self) -> Vec<u8> {
-        "random_beacon round "
-            .as_bytes()
-            .iter()
-            .cloned()
-            .chain(bcs::to_bytes(&self.0).expect("serialization should not fail"))
-            .collect()
-    }
-}
