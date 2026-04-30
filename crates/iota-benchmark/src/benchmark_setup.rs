@@ -239,7 +239,7 @@ impl Env {
 
             let primary_gas_account = *primary_gas_obj
                 .owner
-                .address()
+                .address_or_object()
                 .ok_or_else(|| anyhow!("Not an address or object owner"))?;
 
             let keypair = Arc::new(get_ed25519_keypair_from_keystore(
@@ -273,7 +273,7 @@ impl Env {
             let current_gas_object = proxy.get_object(genesis_gas_obj.id()).await?;
             let current_gas_account = *current_gas_object
                 .owner
-                .address()
+                .address_or_object()
                 .ok_or_else(|| anyhow::anyhow!("Not an address or object owner"))?;
 
             let keypair = Arc::new(get_ed25519_keypair_from_keystore(

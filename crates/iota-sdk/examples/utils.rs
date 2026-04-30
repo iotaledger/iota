@@ -166,7 +166,7 @@ pub async fn request_tokens_from_faucet(
             let owner_address = *owner
                 .owner()
                 .unwrap()
-                .address()
+                .address_or_object()
                 .ok_or_else(|| anyhow::anyhow!("owner is not an address or object"))?;
             if owner_address == address {
                 break;

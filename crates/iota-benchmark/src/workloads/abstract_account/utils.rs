@@ -378,7 +378,7 @@ pub fn update_gas_from_effects(current: &Gas, effects: &ExecutionEffects) -> Res
         updated.0,
         *updated
             .1
-            .address()
+            .address_or_object()
             .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?,
         current.2.clone(),
     ))

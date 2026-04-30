@@ -22,7 +22,7 @@ pub(crate) struct BalanceChange {
 impl BalanceChange {
     /// The address or object whose balance has changed.
     async fn owner(&self) -> Option<Owner> {
-        self.stored.owner.address().map(|addr| Owner {
+        self.stored.owner.address_or_object().map(|addr| Owner {
             address: IotaAddress::from(*addr),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
             root_version: None,

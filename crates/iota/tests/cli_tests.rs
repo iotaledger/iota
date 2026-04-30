@@ -2868,14 +2868,14 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
         panic!();
     };
 
-    let (gas, obj) = if *mut_obj1.owner.unwrap().address().unwrap() == address {
+    let (gas, obj) = if *mut_obj1.owner.unwrap().address_or_object().unwrap() == address {
         (mut_obj1, mut_obj2)
     } else {
         (mut_obj2, mut_obj1)
     };
 
-    assert_eq!(*gas.owner.unwrap().address().unwrap(), address);
-    assert_eq!(*obj.owner.unwrap().address().unwrap(), recipient);
+    assert_eq!(*gas.owner.unwrap().address_or_object().unwrap(), address);
+    assert_eq!(*obj.owner.unwrap().address_or_object().unwrap(), recipient);
 
     let object_refs = client
         .read_api()
@@ -3940,7 +3940,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     // assert that all the objects_returned are owned by the address
     for resp in &object_responses.data {
         let obj_owner = resp.object().unwrap().owner.unwrap();
-        assert_eq!(*obj_owner.address().unwrap(), address)
+        assert_eq!(*obj_owner.address_or_object().unwrap(), address)
     }
     // assert that has next page is false
     assert!(!object_responses.has_next_page);

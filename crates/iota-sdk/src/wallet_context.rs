@@ -228,7 +228,7 @@ impl WalletContext {
         Ok(*object
             .owner
             .ok_or_else(|| anyhow!("Owner field is None"))?
-            .address()
+            .address_or_object()
             .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
     }
 

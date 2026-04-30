@@ -68,7 +68,7 @@ fn get_owner_type(object: &Object) -> OwnerType {
 }
 
 fn get_owner_address(object: &Object) -> Option<String> {
-    object.owner.address().map(ToString::to_string)
+    object.owner.address_or_object().map(ToString::to_string)
 }
 
 // Helper class to track input object kind.

@@ -634,7 +634,7 @@ impl ObjectInner {
     }
 
     pub fn get_single_owner(&self) -> Option<IotaAddress> {
-        self.owner.address().copied()
+        self.owner.address_or_object().copied()
     }
 
     // It's a common pattern to retrieve both the owner and object ID

@@ -78,7 +78,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     let object_read = fullnode.state().get_object_read(&transferred_object)?;
     let object = object_read.into_object()?;
 
-    assert_eq!(*object.owner.address().unwrap(), receiver);
+    assert_eq!(*object.owner.address_or_object().unwrap(), receiver);
 
     Ok(())
 }

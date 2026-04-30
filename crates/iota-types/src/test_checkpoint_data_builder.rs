@@ -792,7 +792,8 @@ mod tests {
                 .created()
                 .iter()
                 .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
-                    && owner.address().unwrap() == &TestCheckpointDataBuilder::derive_address(0))
+                    && owner.address_or_object().unwrap()
+                        == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
 
@@ -918,7 +919,8 @@ mod tests {
                 .mutated()
                 .iter()
                 .any(|(object_ref, owner)| object_ref.object_id == obj_id
-                    && owner.address().unwrap() == &TestCheckpointDataBuilder::derive_address(1))
+                    && owner.address_or_object().unwrap()
+                        == &TestCheckpointDataBuilder::derive_address(1))
         );
     }
 

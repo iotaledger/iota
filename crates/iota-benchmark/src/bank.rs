@@ -147,7 +147,7 @@ impl BenchmarkBank {
         init_coin.0 = updated_gas.0;
         init_coin.1 = *updated_gas
             .1
-            .address()
+            .address_or_object()
             .ok_or_else(|| Error::msg("not an address or object owner"))?;
         init_coin.2 = self.primary_coin.2.clone();
 
@@ -161,7 +161,7 @@ impl BenchmarkBank {
             .into_iter()
             .map(|c| {
                 let address =
-                    *c.1.address()
+                    *c.1.address_or_object()
                         .ok_or_else(|| Error::msg("not an address or object owner"))?;
                 let keypair = address_map
                     .get(&address)
@@ -204,7 +204,7 @@ impl BenchmarkBank {
             updated_gas.0,
             *updated_gas
                 .1
-                .address()
+                .address_or_object()
                 .ok_or_else(|| Error::msg("not an address or object owner"))?,
             self.primary_coin.2.clone(),
         );
@@ -214,7 +214,7 @@ impl BenchmarkBank {
                 created_coin.0,
                 *created_coin
                     .1
-                    .address()
+                    .address_or_object()
                     .ok_or_else(|| Error::msg("not an address or object owner"))?,
                 self.primary_coin.2.clone(),
             )),

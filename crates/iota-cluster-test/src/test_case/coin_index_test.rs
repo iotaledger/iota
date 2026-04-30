@@ -95,7 +95,7 @@ impl TestCaseImpl for CoinIndexTest {
             ..
         } = client
             .coin_read_api()
-            .get_balance(*recipient_balance.owner.address().unwrap(), None)
+            .get_balance(*recipient_balance.owner.address_or_object().unwrap(), None)
             .await?;
         assert_eq!(coin_object_count, 1);
         assert!(recipient_balance.amount > 0);

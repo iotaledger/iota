@@ -791,7 +791,7 @@ impl SimpleFaucet {
 
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(*owner.address().unwrap())
+                .entry(*owner.address_or_object().unwrap())
                 .or_default()
                 .push(coin_obj_ref);
         });

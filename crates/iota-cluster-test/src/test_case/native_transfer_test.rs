@@ -91,7 +91,7 @@ impl NativeTransferTest {
         );
         // Order of balance change is not fixed so need to check who's balance come
         // first. this make sure recipient always come first
-        if *balance_changes[0].owner.address().unwrap() == signer {
+        if *balance_changes[0].owner.address_or_object().unwrap() == signer {
             balance_changes.reverse()
         }
         BalanceChangeChecker::new()
