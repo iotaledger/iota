@@ -7,11 +7,11 @@ use std::sync::{
 };
 
 use arc_swap::ArcSwapOption;
-use iota_types::messages_consensus::{ReportPayload, VersionedMisbehaviorReport};
+use iota_types::messages_consensus::{MisbehaviorObservations, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior::{
-    MisbehaviorCounts, MisbehaviorReportVersion,
+    MisbehaviorReportVersion, merge_max,
 };
 
 /// Reasons a peer-submitted report fails `validate_report`. Surfaced in the
@@ -71,7 +71,7 @@ impl ReportAggregator {
             return Err(ReportValidationError::WrongReportVersion);
         }
         match &report.payload {
-            ReportPayload::V1(payload) => {
+            MisbehaviorObservations::V1(payload) => {
                 if payload.verify(committee_size) {
                     Ok(())
                 } else {
@@ -81,19 +81,19 @@ impl ReportAggregator {
         }
     }
 
-    /// Processes a validated report from a peer: converts it to
-    /// `MisbehaviorCounts` and performs a monotone merge (element-wise max)
-    /// with any previously received counts from the same authority.
+    /// Processes a validated report from a peer: performs a monotone merge
+    /// (element-wise max) with any previously received observations from the
+    /// same authority.
     ///
     /// Uses `rcu` so the load + merge + store is atomic against concurrent
     /// callers; the closure may run more than once under contention.
     pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
-        let incoming_counts = MisbehaviorCounts::from_report(report);
+        let incoming = &report.payload;
         let state = &self.received_reports_state[authority as usize];
         state.received_metrics.rcu(|current| {
             Some(Arc::new(match current.as_deref() {
-                Some(counts) => counts.merge_max(&incoming_counts),
-                None => incoming_counts.clone(),
+                Some(existing) => merge_max(existing, incoming),
+                None => incoming.clone(),
             }))
         });
     }
@@ -133,7 +133,7 @@ impl ReportAggregator {
     pub(crate) fn reporters_with_voting_power(
         &self,
         voting_power: &[u64],
-    ) -> Vec<(Arc<MisbehaviorCounts>, u64)> {
+    ) -> Vec<(Arc<MisbehaviorObservations>, u64)> {
         self.received_reports_state
             .0
             .iter()
@@ -169,7 +169,7 @@ pub(crate) struct ReceivedReportsStatePerAuthority {
     // The misbehavior counts received from the authority, i.e., the information
     // contained in the MisbehaviorReports received. `None` if the authority has
     // not yet sent a report in this epoch.
-    received_metrics: ArcSwapOption<MisbehaviorCounts>,
+    received_metrics: ArcSwapOption<MisbehaviorObservations>,
     // The count of invalid reports received from the authority. Bumped by
     // `validate_report` / `verify_consensus_transaction` when a report fails
     // checks; validity must be evaluated deterministically since invalid
@@ -184,7 +184,7 @@ impl ReceivedReportsStatePerAuthority {
     }
 
     #[cfg(test)]
-    pub fn received_metrics_snapshot(&self) -> Option<MisbehaviorCounts> {
+    pub fn received_metrics_snapshot(&self) -> Option<MisbehaviorObservations> {
         self.received_metrics.load().as_deref().cloned()
     }
 
@@ -210,17 +210,19 @@ impl ReceivedReportsStatePerAuthority {
 /// sent at least one report have an entry (i.e., `received_metrics` is `Some`).
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct DBReceivedReportsStatePerAuthority {
-    pub received_metrics: Option<MisbehaviorCounts>,
+    pub received_metrics: Option<MisbehaviorObservations>,
     pub invalid_reports_count: u64,
 }
 
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{ReportPayloadV1, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{
+        MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
+    };
 
     use crate::authority::authority_per_epoch_store::{
-        misbehavior::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorReportVersion},
+        misbehavior::MisbehaviorReportVersion,
         report_aggregator::{
             DBReceivedReportsStatePerAuthority, ReportAggregator, ReportValidationError,
         },
@@ -242,7 +244,7 @@ mod tests {
         VersionedMisbehaviorReport::new_v1(
             iota_types::base_types::AuthorityName::default(),
             0,
-            ReportPayloadV1 {
+            MisbehaviorObservationsV1 {
                 faulty_blocks_provable: raw_counts[0].clone(),
                 faulty_blocks_unprovable: raw_counts[1].clone(),
                 missing_proposals: raw_counts[2].clone(),
@@ -300,7 +302,7 @@ mod tests {
         let snapshot = full_snapshot(&aggregator, 3);
         assert_eq!(
             snapshot[0].received_metrics,
-            Some(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+            Some(MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
                 faulty_blocks_provable: vec![1, 2, 3],
                 faulty_blocks_unprovable: vec![4, 5, 6],
                 missing_proposals: vec![7, 8, 9],
@@ -326,7 +328,7 @@ mod tests {
         // Should be element-wise max
         assert_eq!(
             full_snapshot(&aggregator, 3)[0].received_metrics,
-            Some(MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+            Some(MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
                 faulty_blocks_provable: vec![3, 5, 10],
                 faulty_blocks_unprovable: vec![4, 10, 6],
                 missing_proposals: vec![7, 8, 9],
