@@ -351,9 +351,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
             self.argument = source
                 .arg
                 .map(|arg| -> Result<_, RpcError> {
-                    let sdk_arg: iota_sdk_types::Argument = arg.into();
-                    sdk_arg
-                        .try_into()
+                    arg.try_into()
                         .map_err(|e| RpcError::from(e).with_context("failed to merge argument"))
                 })
                 .transpose()?;
