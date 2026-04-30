@@ -751,6 +751,130 @@ mod tests {
         assert!(!check_execution_overload(&authority, &config));
     }
 
+    /// Wires `WritebackCacheConfig`'s backpressure thresholds into
+    /// `compute_graduated_load_shedding_percentage` and verifies the
+    /// post-consensus cache-pressure signal at cache-relevant scales.
+    /// Catches regressions in either the config getter defaults or the
+    /// call signature used in `check_execution_overload`.
+    #[test]
+    fn test_writeback_cache_backpressure_soft_limit_pct() {
+        use iota_config::node::WritebackCacheConfig;
+
+        // Default getter: 50% with no explicit value or env override.
+        let default_config = WritebackCacheConfig::default();
+        assert_eq!(default_config.backpressure_soft_limit_pct(), 50);
+        assert_eq!(default_config.backpressure_threshold(), 100_000);
+
+        // Explicit config: soft_limit_pct of 75 against a 1000-pending-tx
+        // hard limit. Soft limit = 1000 * 75 / 100 = 750.
+        let config = WritebackCacheConfig {
+            backpressure_threshold: Some(1000),
+            backpressure_soft_limit_pct: Some(75),
+            ..Default::default()
+        };
+        assert_eq!(config.backpressure_threshold(), 1000);
+        assert_eq!(config.backpressure_soft_limit_pct(), 75);
+
+        // Below soft limit: no shedding.
+        for pending in [0u64, 100, 750] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(
+                    pending as usize,
+                    config.backpressure_threshold() as usize,
+                    config.backpressure_soft_limit_pct(),
+                ),
+                0,
+                "no shedding expected at pending={pending} <= soft_limit=750",
+            );
+        }
+
+        // Halfway between soft (750) and hard (1000): 50% shedding.
+        assert_eq!(
+            compute_graduated_load_shedding_percentage(
+                875,
+                config.backpressure_threshold() as usize,
+                config.backpressure_soft_limit_pct(),
+            ),
+            50,
+        );
+
+        // At and above hard limit: 100% shedding.
+        for pending in [1000u64, 1500, 100_000] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(
+                    pending as usize,
+                    config.backpressure_threshold() as usize,
+                    config.backpressure_soft_limit_pct(),
+                ),
+                100,
+                "100% shedding expected at pending={pending} >= hard_limit=1000",
+            );
+        }
+
+        // Out-of-range soft_limit_pct is clamped to 100 by the getter.
+        let clamped = WritebackCacheConfig {
+            backpressure_soft_limit_pct: Some(150),
+            ..Default::default()
+        };
+        assert_eq!(clamped.backpressure_soft_limit_pct(), 100);
+    }
+
+    /// Verifies that the cache-pressure signal flows end-to-end from
+    /// `WritebackCacheConfig` → `check_execution_overload` →
+    /// `overload_info.load_shedding_percentage` and the new metric.
+    ///
+    /// We can't easily inject a non-zero `approximate_pending_transaction_count`
+    /// into the test cache without an additional test hook, so this test
+    /// instead degenerates the threshold by setting `backpressure_threshold =
+    /// 0`, which makes `compute_graduated_load_shedding_percentage` return
+    /// 100% even with `pending_count = 0` (the `current >= hard_limit` branch
+    /// with `0 >= 0`). That exercises the full wiring while keeping the test
+    /// self-contained.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_check_execution_overload_cache_signal_drives_shedding() {
+        use iota_config::node::{ExecutionCacheConfig, WritebackCacheConfig};
+
+        telemetry_subscribers::init_for_testing();
+
+        let cache_config = ExecutionCacheConfig {
+            writeback_cache: WritebackCacheConfig {
+                backpressure_threshold: Some(0),
+                ..Default::default()
+            },
+        };
+        let overload_config = AuthorityOverloadConfig::default();
+        let state = TestAuthorityBuilder::new()
+            .with_authority_overload_config(overload_config.clone())
+            .with_cache_config(cache_config)
+            .build()
+            .await;
+
+        let authority = Arc::downgrade(&state);
+        assert!(check_execution_overload(&authority, &overload_config));
+
+        // Cache signal alone should drive 100% shedding via the degenerate
+        // threshold; latency and queue signals contribute 0 in a fresh state.
+        assert_eq!(
+            state
+                .metrics
+                .cache_backpressure_load_shedding_percentage
+                .get(),
+            100,
+        );
+        assert!(state.overload_info.is_overload.load(Ordering::Relaxed));
+        assert_eq!(
+            state
+                .overload_info
+                .load_shedding_percentage
+                .load(Ordering::Relaxed),
+            100,
+        );
+        assert_eq!(
+            state.metrics.authority_load_shedding_percentage.get(),
+            100,
+        );
+    }
+
     // Creates an AuthorityState and starts an overload monitor that monitors its
     // metrics.
     async fn start_overload_monitor() -> (Arc<AuthorityState>, JoinHandle<()>) {
