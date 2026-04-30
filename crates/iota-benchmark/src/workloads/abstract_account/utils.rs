@@ -374,13 +374,12 @@ pub fn update_gas_from_effects(current: &Gas, effects: &ExecutionEffects) -> Res
         .find(|(r, _)| r.object_id == current.0.object_id)
         .ok_or_else(|| anyhow::anyhow!("init coin not found in mutated effects"))?;
 
-    // TODO: ok_or_else was added during a rebase, please check!
     Ok((
         updated.0,
         *updated
             .1
             .address()
-            .ok_or_else(|| anyhow::anyhow!("not an address owner"))?,
+            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?,
         current.2.clone(),
     ))
 }

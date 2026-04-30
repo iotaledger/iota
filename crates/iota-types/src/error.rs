@@ -420,9 +420,6 @@ pub enum IotaError {
     #[error("Error checking transaction object: {error}")]
     IotaObjectResponse { error: IotaObjectResponseError },
 
-    #[error("Expecting a single owner, shared ownership found")]
-    UnexpectedOwnerType,
-
     #[error("There are already {queue_len} transactions pending, above threshold of {threshold}")]
     TooManyTransactionsPendingExecution { queue_len: usize, threshold: usize },
 
