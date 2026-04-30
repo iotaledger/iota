@@ -515,6 +515,14 @@ pub struct WritebackCacheConfig {
     /// if unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
+
+    /// Percentage of `backpressure_threshold` at which graduated load shedding
+    /// based on writeback-cache pending transaction count begins. Sheds
+    /// linearly from 0% to 100% between
+    /// `backpressure_threshold * backpressure_soft_limit_pct / 100` and
+    /// `backpressure_threshold`. Defaults to 50.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_soft_limit_pct: Option<u32>,
 }
 
 impl WritebackCacheConfig {
@@ -612,6 +620,15 @@ impl WritebackCacheConfig {
             .and_then(|s| s.parse().ok())
             .or(self.backpressure_threshold_for_rpc)
             .unwrap_or(self.backpressure_threshold())
+    }
+
+    pub fn backpressure_soft_limit_pct(&self) -> u32 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_SOFT_LIMIT_PCT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_soft_limit_pct)
+            .unwrap_or(50)
+            .min(100)
     }
 }
 
