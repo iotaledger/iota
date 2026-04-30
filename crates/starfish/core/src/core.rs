@@ -588,10 +588,18 @@ impl Core {
             dag_state.set_fast_sync_ongoing_flag(true);
         }
 
+        // After a positive commit advance, refresh the quorum commit index
+        // on `DagState` so the eviction inside `flush()` is bounded.
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+
         // Flush commits to storage so they're available for
         // get_block_refs_for_recent_commits when close-to-quorum mode
         // triggers header fetching.
-        self.dag_state.write().flush();
+        {
+            let mut dag_state = self.dag_state.write();
+            dag_state.set_last_known_quorum_commit_index(quorum_commit_index);
+            dag_state.flush();
+        }
 
         // Then process subdags as usual
         self.commit_observer.finalize_and_send_solid_subdags(
@@ -751,31 +759,8 @@ impl Core {
             .with_label_values(&["Core::try_new_block"])
             .start_timer();
 
-        // Ensure the new block has a higher round than the last proposed block
-        // and, under `consensus_block_restrictions`, also the approximate quorum commit
-        // round. Blocks at or below the quorum commit round will not improve
-        // the commit rule.
-        let clock_round = {
-            let dag_state = self.dag_state.read();
-            let clock_round = dag_state.threshold_clock_round();
-            let last_proposed_round = dag_state.get_last_proposed_block_header().round();
-            let min_round = if self.context.protocol_config.consensus_block_restrictions() {
-                let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
-                let local_commit_index = dag_state.last_commit_index();
-                let local_commit_round = dag_state.last_commit_round();
-                // Lower bound on the quorum commit round: at least 1 round per
-                // commit, so the gap in indices maps to at least that many rounds.
-                let approx_quorum_round =
-                    local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
-                last_proposed_round.max(approx_quorum_round)
-            } else {
-                last_proposed_round
-            };
-            if clock_round <= min_round {
-                return None;
-            }
-            clock_round
-        };
+        // All round / restriction gates are enforced upstream in `should_propose`.
+        let clock_round = self.dag_state.read().threshold_clock_round();
 
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
@@ -1114,6 +1099,12 @@ impl Core {
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
 
+            // After a positive commit advance, refresh the quorum commit index
+            // on `DagState` so the eviction of `pending_commit_votes` is bounded.
+            self.dag_state
+                .write()
+                .set_last_known_quorum_commit_index(self.commit_vote_monitor.quorum_commit_index());
+
             // Check for duplicates before extending
             assert!(
                 !missing_transactions_refs
@@ -1200,7 +1191,15 @@ impl Core {
 
     /// Whether the core should propose new blocks.
     pub(crate) fn should_propose(&self) -> bool {
-        let clock_round = self.dag_state.read().threshold_clock_round();
+        let (clock_round, last_proposed_round, local_commit_index, local_commit_round) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.threshold_clock_round(),
+                dag_state.get_last_proposed_block_header().round(),
+                dag_state.last_commit_index(),
+                dag_state.last_commit_round(),
+            )
+        };
         let core_skipped_proposals = &self.context.metrics.node_metrics.core_skipped_proposals;
 
         if !self.quorum_subscribers_exists {
@@ -1228,6 +1227,40 @@ impl Core {
                 .with_label_values(&["higher_last_known_proposed_round"])
                 .inc();
             return false;
+        }
+
+        if clock_round <= last_proposed_round {
+            debug!(
+                "Skip proposing for round {clock_round} as last proposed round is {last_proposed_round}"
+            );
+            core_skipped_proposals
+                .with_label_values(&["higher_last_proposed_round"])
+                .inc();
+            return false;
+        }
+
+        // Under `consensus_block_restrictions`, skip if the candidate round
+        // does not exceed an approximation of the quorum commit round. Blocks
+        // at or below it cannot improve the commit rule.
+        if self.context.protocol_config.consensus_block_restrictions() {
+            let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+            let approx_quorum_round =
+                local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
+            if clock_round <= approx_quorum_round {
+                debug!(
+                    "Skip proposing for round {clock_round}, behind approximate quorum commit round {approx_quorum_round}"
+                );
+                core_skipped_proposals
+                    .with_label_values(&["behind_quorum_commit_round"])
+                    .inc();
+                return false;
+            }
+
+            // We are about to propose: refresh DagState's known quorum commit
+            // index so the eviction of `pending_commit_votes` is bounded.
+            self.dag_state
+                .write()
+                .set_last_known_quorum_commit_index(quorum_commit_index);
         }
 
         true
