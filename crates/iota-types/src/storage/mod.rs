@@ -172,7 +172,7 @@ impl<T: Storage + ChildObjectResolver> StorageView for T {}
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
 pub trait ChildObjectResolver {
-    /// `child` must have an `Object` ownership equal to `owner`.
+    /// `child` must have an `Object` ownership equal to `parent`.
     fn read_child_object(
         &self,
         parent: &ObjectID,
