@@ -65,13 +65,10 @@ impl TestCaseImpl for SharedCounterTest {
             .mutated()
             .iter()
             .find_map(|obj| {
-                obj.owner
-                    .as_shared_opt()
-                    .and_then(|initial_shared_version| {
-                        (obj.reference.object_id == counter_ref.object_id
-                            && *initial_shared_version == counter_ref.version)
-                            .then_some(obj.reference.version)
-                    })
+                let initial_shared_version = obj.owner.as_shared_opt()?;
+                (obj.reference.object_id == counter_ref.object_id
+                    && *initial_shared_version == counter_ref.version)
+                    .then_some(obj.reference.version)
             })
             .unwrap_or_else(|| panic!("expect obj {} in mutated", counter_ref.object_id));
 
