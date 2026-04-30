@@ -1080,7 +1080,7 @@ impl AuthorityPerEpochStore {
 
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
-        let misbehavior_monitor = MisbehaviorMonitor::new(report_version, committee_size);
+        let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scorer = Scorer::new(voting_power, &protocol_config, report_version);
@@ -2834,13 +2834,13 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
+                kind: ConsensusTransactionKind::MisbehaviorReport(report),
                 ..
             }) => {
-                if &transaction.sender_authority() != authority {
+                if transaction.sender_authority() != report.authority {
                     warn!(
                         "MisbehaviorReport authority {} does not match its author from consensus {}",
-                        authority, transaction.certificate_author_index
+                        report.authority, transaction.certificate_author_index
                     );
                     self.report_aggregator
                         .increment_invalid_reports_count(transaction.certificate_author_index);
@@ -2849,7 +2849,7 @@ impl AuthorityPerEpochStore {
                 if !self.protocol_config().calculate_validator_scores() {
                     warn!(
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
-                        authority.concise()
+                        report.authority.concise()
                     );
                     return None;
                 }
@@ -2860,7 +2860,7 @@ impl AuthorityPerEpochStore {
                 {
                     warn!(
                         "Received invalid misbehavior report from {:?}: {reason}",
-                        authority.concise()
+                        report.authority.concise()
                     );
                     self.report_aggregator
                         .increment_invalid_reports_count(transaction.certificate_author_index);
@@ -4184,13 +4184,13 @@ impl AuthorityPerEpochStore {
                 panic!("process_consensus_transaction called with end-of-publish transaction");
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
+                kind: ConsensusTransactionKind::MisbehaviorReport(report),
                 ..
             }) => {
                 if !self.protocol_config().calculate_validator_scores() {
                     warn!(
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
-                        authority.concise()
+                        report.authority.concise()
                     );
                     return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
@@ -4200,7 +4200,7 @@ impl AuthorityPerEpochStore {
                 {
                     debug!(
                         "Ignoring misbehavior report from {:?} because of end of epoch",
-                        authority.concise()
+                        report.authority.concise()
                     );
                     return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
@@ -4211,7 +4211,7 @@ impl AuthorityPerEpochStore {
                 // covers the end-of-epoch lock-out.
                 let authority_index = self
                     .committee
-                    .authority_index(authority)
+                    .authority_index(&report.authority)
                     .expect("authority in committee");
                 self.report_aggregator
                     .process_report(authority_index, report);

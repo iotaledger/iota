@@ -4,7 +4,10 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{ReportPayload, ReportPayloadV1, VersionedMisbehaviorReport};
+use iota_types::{
+    base_types::AuthorityName,
+    messages_consensus::{ReportPayload, ReportPayloadV1, VersionedMisbehaviorReport},
+};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -228,9 +231,17 @@ impl MisbehaviorCounts {
     /// broadcast to peers as a `MisbehaviorReport` transaction. Each
     /// `MisbehaviorCounts` variant maps 1:1 to a `ReportPayload` variant — the
     /// version is implicit in `self`, no separate version argument needed.
-    pub fn to_report(&self) -> VersionedMisbehaviorReport {
+    pub fn to_report(
+        &self,
+        authority: AuthorityName,
+        generation: u64,
+    ) -> VersionedMisbehaviorReport {
         match self {
-            Self::V1(c) => VersionedMisbehaviorReport::new_v1(ReportPayloadV1::from(c)),
+            Self::V1(counts) => VersionedMisbehaviorReport::new_v1(
+                authority,
+                generation,
+                ReportPayloadV1::from(counts),
+            ),
         }
     }
 

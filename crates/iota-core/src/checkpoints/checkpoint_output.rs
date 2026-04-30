@@ -158,16 +158,14 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                     >= highest_verified_checkpoint)
                 || should_send_last_report)
         {
-            let misbehavior_report = epoch_store.misbehavior_monitor.generate_report();
+            let misbehavior_report = epoch_store
+                .misbehavior_monitor
+                .generate_report(checkpoint_seq);
             let new_report_summary = misbehavior_report.summary();
             if new_report_summary != epoch_store.misbehavior_monitor.last_report_summary()
                 || should_send_last_report
             {
-                let transaction = ConsensusTransaction::new_misbehavior_report(
-                    epoch_store.name,
-                    &misbehavior_report,
-                    checkpoint_seq,
-                );
+                let transaction = ConsensusTransaction::new_misbehavior_report(misbehavior_report);
                 info!(?transaction, "submitting misbehavior report to consensus");
                 self.sender
                     .submit_to_consensus(&[transaction], epoch_store)?;
