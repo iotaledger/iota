@@ -852,11 +852,14 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self.dag_state.write().take_acknowledgments(
-            self.context
-                .protocol_config
-                .consensus_max_acknowledgments_per_block_or_default() as usize,
-        );
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(self.context.committee.size());
+        let acknowledgments = self
+            .dag_state
+            .write()
+            .take_acknowledgments(max_acknowledgments);
 
         self.context
             .metrics
@@ -1315,17 +1318,7 @@ impl Core {
         if !self.context.protocol_config.consensus_fast_commit_sync() {
             return GENESIS_ROUND;
         }
-        let gc_depth = self.context.protocol_config.gc_depth();
-        let depth = if self
-            .leaders(clock_round)
-            .iter()
-            .any(|slot| slot.authority == self.context.own_index)
-        {
-            gc_depth
-        } else {
-            gc_depth.saturating_sub(1)
-        };
-        clock_round.saturating_sub(depth)
+        self.context.min_ref_round(clock_round)
     }
 
     /// Returns the 1st leader of the round.
@@ -1879,11 +1872,11 @@ mod test {
             }
         }
 
-        // Second set dummy acknowledgments in DagState. First 200 acknowledgments are
-        // from eligible round; the rest are from the clock round, thereby they
-        // will not be taken when creating a block
+        // Second set dummy acknowledgments in DagState. First `num_acks`
+        // acknowledgments are from an eligible round; the rest are from the
+        // clock round, thereby they will not be taken when creating a block.
         let mut acknowledgments = vec![];
-        let num_acks = 200;
+        let num_acks = 2 * context.committee.size();
         let mut num_pending_acks = 0;
         let mut rng = &mut rand::thread_rng();
         loop {
@@ -2079,12 +2072,8 @@ mod test {
     ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
     ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
     ///      genesis/quorum-round ancestors can never be accidentally dropped.
-    ///   2. Well above `gc_depth`, the returned value is either `clock_round -
-    ///      gc_depth` (leader at `clock_round`, uses its own commit's
-    ///      `gc_round`) or `clock_round - (gc_depth - 1)` (non- leader, uses
-    ///      the tighter `gc_round` of the leader at `clock_round + 1`). These
-    ///      are the only two valid outcomes; any other value would indicate a
-    ///      regression in the leader-awareness or the depth arithmetic.
+    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth`
+    ///      (matching `Context::min_ref_round` and the verifier's bound).
     ///   3. When the `consensus_fast_commit_sync` protocol flag is off the
     ///      helper returns `GENESIS_ROUND = 0` unconditionally — the filter
     ///      becomes a no-op, preserving backwards compatibility on networks
@@ -2117,38 +2106,14 @@ mod test {
             );
         }
 
-        // (2) Well above gc_depth, the value is either the leader bound
-        // (clock_round - gc_depth) or the non-leader bound
-        // (clock_round - (gc_depth - 1)). We sample multiple rounds to
-        // cover both leader and non-leader cases given an arbitrary schedule.
-        let leader_bound = |r: Round| r - gc_depth;
-        let non_leader_bound = |r: Round| r - (gc_depth - 1);
-        let mut saw_leader = false;
-        let mut saw_non_leader = false;
+        // (2) Well above gc_depth, the value is exactly clock_round - gc_depth.
         for clock_round in (gc_depth + 2)..(gc_depth + 20) {
-            let got = core.min_ancestor_round(clock_round);
-            let l = leader_bound(clock_round);
-            let nl = non_leader_bound(clock_round);
-            assert!(
-                got == l || got == nl,
-                "min_ancestor_round({clock_round}) = {got}; \
-                 expected leader={l} or non-leader={nl} (gc_depth={gc_depth})"
+            assert_eq!(
+                core.min_ancestor_round(clock_round),
+                clock_round - gc_depth,
+                "min_ancestor_round({clock_round}) should be clock_round - gc_depth (gc_depth={gc_depth})",
             );
-            if got == l {
-                saw_leader = true;
-            }
-            if got == nl {
-                saw_non_leader = true;
-            }
         }
-        // Over a window of ~gc_depth rounds we expect the leader schedule to
-        // put us in both the leader and non-leader position at least once.
-        assert!(
-            saw_leader && saw_non_leader,
-            "expected to observe both leader (gc_depth) and non-leader \
-             (gc_depth - 1) bounds over the sampled range; \
-             saw_leader={saw_leader}, saw_non_leader={saw_non_leader}",
-        );
 
         // (3) Flag off → no-op. Build a fresh fixture with the flag disabled
         // and confirm the helper returns GENESIS_ROUND for a round well
