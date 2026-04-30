@@ -1703,7 +1703,12 @@ impl ProtocolConfig {
     }
 
     pub fn consensus_starfish_speed(&self) -> bool {
-        self.feature_flags.consensus_starfish_speed
+        let res = self.feature_flags.consensus_starfish_speed;
+        assert!(
+            !res || self.consensus_fast_commit_sync(),
+            "consensus_starfish_speed requires consensus_fast_commit_sync to be enabled"
+        );
+        res
     }
 }
 

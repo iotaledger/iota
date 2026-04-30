@@ -207,6 +207,7 @@ impl Linearizer {
                 .collect::<Vec<BlockRef>>(),
             committed_transactions_refs,
             reputation_scores_desc.clone(),
+            metastate == Some(CommitMetastate::Optimistic),
         );
         let serialized = commit
             .serialize()
