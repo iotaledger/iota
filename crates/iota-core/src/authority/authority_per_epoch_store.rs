@@ -154,7 +154,7 @@ use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
 use iota_types::crypto::AuthorityPublicKey;
-use scorer::Scorer;
+use scorer::Scoreboard;
 
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -679,8 +679,8 @@ pub struct AuthorityPerEpochStore {
     pub(crate) misbehavior_monitor: MisbehaviorMonitor,
     /// Aggregates incoming misbehavior reports from peers.
     pub(crate) report_aggregator: ReportAggregator,
-    /// Pure score computation engine.
-    pub(crate) scorer: Scorer,
+    /// Published per-authority score state for this epoch.
+    pub(crate) scoreboard: Scoreboard,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -1083,7 +1083,7 @@ impl AuthorityPerEpochStore {
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
-        let scorer = Scorer::new(voting_power, &protocol_config, report_version);
+        let scoreboard = Scoreboard::new(voting_power, &protocol_config, report_version);
 
         let s = Arc::new(Self {
             name,
@@ -1121,7 +1121,7 @@ impl AuthorityPerEpochStore {
             randomness_reporter: OnceCell::new(),
             misbehavior_monitor,
             report_aggregator,
-            scorer,
+            scoreboard,
         });
 
         s.update_buffer_stake_metric();
@@ -3163,7 +3163,7 @@ impl AuthorityPerEpochStore {
         // aggregator — the checkpoint service only reads the published score
         // snapshot (`ArcSwap<Vec<u64>>`).
         if self.protocol_config().calculate_validator_scores() {
-            self.scorer.update_scores(&self.report_aggregator);
+            self.scoreboard.update_scores(&self.report_aggregator);
         }
         self.process_user_signatures(
             verified_non_randomness_transactions

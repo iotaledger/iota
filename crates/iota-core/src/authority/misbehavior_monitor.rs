@@ -14,7 +14,7 @@ use iota_types::{
 
 use crate::{
     authority::authority_per_epoch_store::misbehavior::{
-        MisbehaviorReportVersion, observations_from_consensus_output, zero_observations,
+        MisbehaviorReportVersion, merge_max, observations_from_consensus_output, zero_observations,
     },
     consensus_types::consensus_output_api::ConsensusOutputMisbehavior,
 };
@@ -115,6 +115,11 @@ impl MisbehaviorMonitor {
             self.report_version,
             self.committee_size,
         );
-        self.current_local_counts.store(Arc::new(new_counts));
+        // Defensive merge: counts reported within an epoch are expected to be
+        // monotonic, but folding in via element-wise max guarantees the local
+        // view never goes backwards even if upstream produces a transient dip.
+        // RCU keeps the load+merge+store atomic against concurrent updaters.
+        self.current_local_counts
+            .rcu(|current| Arc::new(merge_max(current, &new_counts)));
     }
 }

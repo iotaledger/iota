@@ -20,40 +20,40 @@ const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
 type VotingPower = u64;
 
-/// Thin published-state wrapper. Owns the snapshot readers see and the voting
-/// power table; per-version scoring math lives inside `VersionedScorer`.
-pub struct Scorer {
+/// Published score state for the current epoch. Owns the snapshot readers see
+/// and the voting power table; the actual scoring math lives in
+/// `VersionedScorer` and its per-version structs (`ScorerV1`, ...).
+pub struct Scoreboard {
     // Published as a single `Arc<Vec<u64>>` so readers always see a consistent
     // snapshot across all authorities (no torn reads mixing old and new scores).
     current_scores: ArcSwap<Vec<u64>>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
-    // The version of the scorer being used; carries its own parameters and
-    // implementation.
-    version: VersionedScorer,
+    // The active scorer version; carries its own parameters and implementation.
+    scorer: VersionedScorer,
 }
 
-impl Scorer {
+impl Scoreboard {
     pub fn new(
         voting_power: Vec<u64>,
         protocol_config: &ProtocolConfig,
         _report_version: MisbehaviorReportVersion,
     ) -> Self {
         let committee_size = voting_power.len();
-        let version = VersionedScorer::from_protocol(protocol_config);
+        let scorer = VersionedScorer::from_protocol(protocol_config);
         let current_scores = ArcSwap::from_pointee(vec![MAX_SCORE; committee_size]);
 
         Self {
             current_scores,
             voting_power,
-            version,
+            scorer,
         }
     }
 
     /// Recomputes all authority scores from the aggregated reports in the
     /// `ReportAggregator` and atomically publishes the new vector.
     pub(crate) fn update_scores(&self, aggregator: &ReportAggregator) {
-        if let Some(scores) = self.version.update_scores(&self.voting_power, aggregator) {
+        if let Some(scores) = self.scorer.update_scores(&self.voting_power, aggregator) {
             // Single pointer swap publishes the whole vector; checkpoint readers
             // never observe a mix of old and new scores.
             self.current_scores.store(Arc::new(scores));
@@ -66,8 +66,13 @@ impl Scorer {
 }
 
 /// Versioned scoring engine. Each variant is a self-contained struct that
-/// owns its parameters and implements `update_scores` for that version. The
-/// outer `Scorer` just delegates here and stores the result.
+/// owns its parameters and the math for the matching `MisbehaviorObservations`
+/// version. `Scoreboard` delegates here and stores the result.
+///
+/// Per-version variants are tied to the corresponding observations variant:
+/// `V1(ScorerV1)` consumes only `MisbehaviorObservationsV1`. The unwrap from
+/// the `MisbehaviorObservations` enum happens here at the dispatch boundary,
+/// so per-version scorer impls take typed inputs and never re-match.
 enum VersionedScorer {
     V1(ScorerV1),
 }
@@ -87,10 +92,24 @@ impl VersionedScorer {
         voting_power: &[u64],
         aggregator: &ReportAggregator,
     ) -> Option<Vec<u64>> {
+        let reporters = aggregator.reporters_with_voting_power(voting_power);
+        if reporters.is_empty() {
+            return None;
+        }
         match self {
-            Self::V1(s) => {
-                let median = s.median_report(voting_power, aggregator)?;
-                Some(s.score_from_median(voting_power, &median))
+            Self::V1(scorer) => {
+                // Destructure each reporter into its V1 inner once. When V2
+                // lands this `match` becomes non-exhaustive, forcing a
+                // deliberate decision about cross-version reports rather than
+                // silently dropping them.
+                let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
+                    .iter()
+                    .map(|(observations, vp)| match observations.as_ref() {
+                        MisbehaviorObservations::V1(o) => (o, *vp),
+                    })
+                    .collect();
+                let median = scorer.median_report(voting_power, &reporters_v1);
+                Some(scorer.score_from_median(voting_power, &median))
             }
         }
     }
@@ -211,43 +230,30 @@ impl ScorerV1 {
     }
 
     /// Calculates the weighted median across all reporters for each metric and
-    /// authority. Returns `None` if no authority has sent a report yet.
+    /// authority. Caller is responsible for ensuring `reporters` is non-empty.
     fn median_report(
         &self,
         voting_power: &[u64],
-        aggregator: &ReportAggregator,
-    ) -> Option<MisbehaviorObservationsV1> {
-        let reporters = aggregator.reporters_with_voting_power(voting_power);
-        if reporters.is_empty() {
-            return None;
-        }
-
-        // Destructure each reporter into its V1 inner once so the per-metric
-        // closures don't repeat the match.
-        // TODO: when V2 lands, this match becomes non-exhaustive — branch the
-        // whole computation on the variant rather than papering over it with
-        // an `if let`, which would silently drop V2 reports from the median.
-        let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
-            .iter()
-            .map(|(observations, vp)| match observations.as_ref() {
-                MisbehaviorObservations::V1(c) => (c, *vp),
-            })
-            .collect();
-
+        reporters: &[(&MisbehaviorObservationsV1, VotingPower)],
+    ) -> MisbehaviorObservationsV1 {
+        debug_assert!(
+            !reporters.is_empty(),
+            "median_report requires at least one reporter"
+        );
         let committee_size = voting_power.len();
         // Sum only over reporters, not the full committee — the median is
         // weighted by the voting power of authorities that actually submitted.
-        let total_voting_power: VotingPower = reporters_v1.iter().map(|(_, vp)| *vp).sum();
+        let total_voting_power: VotingPower = reporters.iter().map(|(_, vp)| *vp).sum();
 
         // Reused across all (metric, authority) pairs — one allocation total.
-        let mut chunk: Vec<(u64, VotingPower)> = Vec::with_capacity(reporters_v1.len());
+        let mut chunk: Vec<(u64, VotingPower)> = Vec::with_capacity(reporters.len());
 
         let mut weighted_median_for = |select: &dyn Fn(&MisbehaviorObservationsV1) -> &[u64]| {
             let mut median_for_metric = Vec::with_capacity(committee_size);
             for authority in 0..committee_size {
                 chunk.clear();
                 chunk.extend(
-                    reporters_v1
+                    reporters
                         .iter()
                         .map(|(counts, vp)| (select(counts)[authority], *vp)),
                 );
@@ -271,12 +277,12 @@ impl ScorerV1 {
             median_for_metric
         };
 
-        Some(MisbehaviorObservationsV1 {
+        MisbehaviorObservationsV1 {
             faulty_blocks_provable: weighted_median_for(&|c| &c.faulty_blocks_provable),
             faulty_blocks_unprovable: weighted_median_for(&|c| &c.faulty_blocks_unprovable),
             missing_proposals: weighted_median_for(&|c| &c.missing_proposals),
             equivocations: weighted_median_for(&|c| &c.equivocations),
-        })
+        }
     }
 
     /// Given the median report, produces the per-authority final score vector.
@@ -360,12 +366,14 @@ impl MetricParams {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{MisbehaviorObservationsV1, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{
+        MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
+    };
 
     use crate::authority::authority_per_epoch_store::{
         misbehavior::MisbehaviorReportVersion,
         report_aggregator::ReportAggregator,
-        scorer::{MAX_SCORE, Scorer, ScorerV1},
+        scorer::{MAX_SCORE, Scoreboard, ScorerV1, VotingPower},
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -376,8 +384,22 @@ mod tests {
         MisbehaviorReportVersion::from_protocol(&mock_protocol_config())
     }
 
-    fn mock_scorer(voting_power: Vec<u64>) -> Scorer {
-        Scorer::new(voting_power, &mock_protocol_config(), mock_report_version())
+    fn mock_scoreboard(voting_power: Vec<u64>) -> Scoreboard {
+        Scoreboard::new(voting_power, &mock_protocol_config(), mock_report_version())
+    }
+
+    /// Test helper: pull the V1-typed reporter view out of an aggregator the
+    /// same way `VersionedScorer::update_scores` does, so `ScorerV1`'s typed
+    /// API can be exercised directly. Returns owned arcs so the borrowed
+    /// view lives as long as needed.
+    fn reporters_v1<'a>(
+        arcs: &'a [(std::sync::Arc<MisbehaviorObservations>, VotingPower)],
+    ) -> Vec<(&'a MisbehaviorObservationsV1, VotingPower)> {
+        arcs.iter()
+            .map(|(arc, vp)| match arc.as_ref() {
+                MisbehaviorObservations::V1(o) => (o, *vp),
+            })
+            .collect()
     }
 
     fn mock_aggregator(committee_size: usize) -> ReportAggregator {
@@ -410,7 +432,7 @@ mod tests {
     fn test_scorer_initialization() {
         let voting_power = vec![10, 20, 30];
         let committee_size = voting_power.len();
-        let scorer = mock_scorer(voting_power);
+        let scorer = mock_scoreboard(voting_power);
 
         let scores = scorer.current_scores();
         assert_eq!(scores.len(), committee_size);
@@ -437,7 +459,7 @@ mod tests {
         let voting_power = vec![2, 5, 20];
         let committee_size = voting_power.len();
         let aggregator = mock_aggregator(committee_size);
-        let scorer = mock_scorer(voting_power);
+        let scorer = mock_scoreboard(voting_power);
 
         assert!(scorer.current_scores().iter().all(|&s| s == MAX_SCORE));
 
@@ -483,7 +505,8 @@ mod tests {
                     vec![1, 2, 3],
                 ]),
             );
-            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
             assert_eq!(
                 median,
                 MisbehaviorObservationsV1 {
@@ -519,7 +542,8 @@ mod tests {
                     vec![10, 20, 30],
                 ]),
             );
-            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
             assert_eq!(
                 median,
                 MisbehaviorObservationsV1 {
@@ -564,7 +588,8 @@ mod tests {
                     vec![1, 2, 30],
                 ]),
             );
-            let median = scorer.median_report(&voting_power, &aggregator).unwrap();
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
             assert_eq!(
                 median,
                 MisbehaviorObservationsV1 {

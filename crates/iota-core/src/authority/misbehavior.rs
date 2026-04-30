@@ -13,7 +13,7 @@ use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
 
 /// Selects which `VersionedMisbehaviorReport` variant peers may submit for
 /// the current epoch. Loaded once from `ProtocolConfig` and threaded through
-/// `MisbehaviorMonitor` / `ReportAggregator` / `Scorer` as a `Copy` token.
+/// `MisbehaviorMonitor` / `ReportAggregator` / `Scoreboard` as a `Copy` token.
 ///
 /// The schema itself (which categories exist and their layout) lives in
 /// `MisbehaviorObservationsV1`; this enum only versions the wire format and
@@ -25,7 +25,7 @@ pub enum MisbehaviorReportVersion {
 
 impl MisbehaviorReportVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
-        match protocol_config.misbehavior_monitor_version_as_option() {
+        match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self::V1,
             Some(version) => panic!("Unsupported misbehavior report version {version}"),
         }
@@ -43,7 +43,7 @@ impl MisbehaviorReportVersion {
 /// `ConsensusOutputMisbehavior` in `observations_from_consensus_output` for
 /// the dedup/missing-category warning loop. Variants are not serialized — the
 /// wire format uses named-field `MisbehaviorObservationsV1` (and future
-/// `MisbehaviorObservationsVN`) structs. The `Scorer` also stores parameters
+/// `MisbehaviorObservationsVN`) structs. `ScorerV1` also stores parameters
 /// per named field rather than by enum index. Reordering or renaming variants
 /// is therefore safe at the type level.
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]

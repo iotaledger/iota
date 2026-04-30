@@ -22,7 +22,7 @@ use crate::{
     base_types::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
-    crypto::{default_hash, AuthoritySignature, DefaultHash},
+    crypto::{AuthoritySignature, DefaultHash, default_hash},
     digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
