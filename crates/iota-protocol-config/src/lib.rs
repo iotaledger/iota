@@ -1315,9 +1315,10 @@ pub struct ProtocolConfig {
     /// the MisbehaviorReports messages, where `version` determines the scoring
     /// formulas and metrics to be used. Even if set to None, the Scorer
     /// component is created, having access to metrics and being able to expose
-    /// validator scores.
+    /// validator scores. Also gates the wire format of the
+    /// `MisbehaviorReport` consensus transaction — scorer and report bump
+    /// together.
     scorer_version: Option<u16>,
-    misbehavior_monitor_version: Option<u16>,
 
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
@@ -2250,7 +2251,6 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             scorer_version: None,
-            misbehavior_monitor_version: None,
 
             // `auth_context` module
             auth_context_digest_cost_base: None,

@@ -41,7 +41,7 @@ impl std::fmt::Display for ReportValidationError {
 
 pub struct ReportAggregator {
     report_version: MisbehaviorReportVersion,
-    received_reports_state: ReceivedReportsState,
+    received_reports_state: Vec<ReceivedReportsStatePerAuthority>,
 }
 
 impl ReportAggregator {
@@ -51,7 +51,7 @@ impl ReportAggregator {
                 received_metrics: ArcSwapOption::empty(),
                 invalid_reports_count: AtomicU64::new(0),
             })
-            .collect::<ReceivedReportsState>();
+            .collect();
 
         Self {
             report_version,
@@ -124,7 +124,7 @@ impl ReportAggregator {
         &self,
         authority_index: u32,
     ) -> DBReceivedReportsStatePerAuthority {
-        self.received_reports_state.0[authority_index as usize].to_serializable()
+        self.received_reports_state[authority_index as usize].to_serializable()
     }
 
     /// Returns the received counts paired with voting power for each authority
@@ -134,30 +134,13 @@ impl ReportAggregator {
         &self,
         voting_power: &[u64],
     ) -> Vec<(Arc<MisbehaviorObservations>, u64)> {
-        self.received_reports_state
-            .0
-            .iter()
-            .zip(voting_power.iter())
-            .filter_map(|(state, &vp)| {
-                let guard = state.received_metrics.load();
-                guard.as_ref().map(|arc| (Arc::clone(arc), vp))
-            })
-            .collect()
-    }
-}
-
-pub(crate) struct ReceivedReportsState(Vec<ReceivedReportsStatePerAuthority>);
-
-impl std::ops::Index<usize> for ReceivedReportsState {
-    type Output = ReceivedReportsStatePerAuthority;
-    fn index(&self, authority: usize) -> &Self::Output {
-        &self.0[authority]
-    }
-}
-
-impl FromIterator<ReceivedReportsStatePerAuthority> for ReceivedReportsState {
-    fn from_iter<T: IntoIterator<Item = ReceivedReportsStatePerAuthority>>(iter: T) -> Self {
-        Self(iter.into_iter().collect())
+        let mut reporters = Vec::new();
+        for (state, &vp) in self.received_reports_state.iter().zip(voting_power) {
+            if let Some(arc) = state.received_metrics.load_full() {
+                reporters.push((arc, vp));
+            }
+        }
+        reporters
     }
 }
 
