@@ -4369,7 +4369,7 @@ mod test {
 
         // Field defaults to GENESIS_COMMIT_INDEX (= 0): saturating sub gives 0,
         // pivot = (1, MIN), so all index >= 1 are kept (no real eviction).
-        let mut unset = DagState::new(context.clone(), Arc::new(MemStore::new(context.clone())));
+        let mut unset = DagState::new(context.clone(), Arc::new(MemStore::new(context)));
         let votes: Vec<CommitRef> = (1..=10)
             .map(|i| CommitRef::new(i, CommitDigest::MIN))
             .collect();
@@ -4383,10 +4383,8 @@ mod test {
             .protocol_config
             .set_consensus_block_restrictions_for_testing(false);
         let context_off = Arc::new(context_off);
-        let mut dag_state_off = DagState::new(
-            context_off.clone(),
-            Arc::new(MemStore::new(context_off.clone())),
-        );
+        let mut dag_state_off =
+            DagState::new(context_off.clone(), Arc::new(MemStore::new(context_off)));
         dag_state_off.set_last_known_quorum_commit_index(1_000);
         let votes: Vec<CommitRef> = (1..=10)
             .map(|i| CommitRef::new(i, CommitDigest::MIN))

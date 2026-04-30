@@ -155,6 +155,34 @@ impl ReasonToCreateBlock {
     }
 }
 
+/// Reason a `Core::should_propose` call returned `false`. Used as the `reason`
+/// label on the `core_skipped_proposals` metric. Keeping the variants in one
+/// enum makes the label space disjoint and centrally visible. Variant data is
+/// the per-reason context interpolated into the corresponding `debug!` line.
+///
+/// The "already proposed at this round" branch is intentionally not modeled
+/// here: it fires on every block accepted in a round we have already proposed
+/// in, which is a normal high-rate event. Counting and logging it would drown
+/// the genuinely interesting reasons below.
+#[derive(Clone, Copy)]
+pub(crate) enum SkipProposalReason {
+    NoQuorumSubscriber,
+    NoLastKnownProposedRound,
+    HigherLastKnownProposedRound { last_known: Round },
+    BehindQuorumCommitRound { approx_quorum: Round },
+}
+
+impl SkipProposalReason {
+    fn label(self) -> &'static str {
+        match self {
+            Self::NoQuorumSubscriber => "no_quorum_subscriber",
+            Self::NoLastKnownProposedRound => "no_last_known_proposed_round",
+            Self::HigherLastKnownProposedRound { .. } => "higher_last_known_proposed_round",
+            Self::BehindQuorumCommitRound { .. } => "behind_quorum_commit_round",
+        }
+    }
+}
+
 impl Core {
     pub(crate) fn new(
         context: Arc<Context>,
@@ -759,7 +787,8 @@ impl Core {
             .with_label_values(&["Core::try_new_block"])
             .start_timer();
 
-        // All round / restriction gates are enforced upstream in `should_propose`.
+        // Eligibility checks (round bounds, block restrictions) are enforced
+        // upstream in `should_propose`.
         let clock_round = self.dag_state.read().threshold_clock_round();
 
         // There must be a quorum of blocks from the previous round.
@@ -1099,12 +1128,6 @@ impl Core {
                 .commit_observer
                 .handle_committed_leaders(sequenced_leaders, source)?;
 
-            // After a positive commit advance, refresh the quorum commit index
-            // on `DagState` so the eviction of `pending_commit_votes` is bounded.
-            self.dag_state
-                .write()
-                .set_last_known_quorum_commit_index(self.commit_vote_monitor.quorum_commit_index());
-
             // Check for duplicates before extending
             assert!(
                 !missing_transactions_refs
@@ -1114,10 +1137,16 @@ impl Core {
             );
             all_missing_committed_txns.extend(missing_transactions_refs);
 
+            // After a positive commit advance, refresh the quorum commit index
+            // on `DagState` so the eviction of `pending_commit_votes` is bounded.
             // Both pending and solid sub DAGs should be added to scoring subdags.
-            self.dag_state
-                .write()
-                .add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
+            {
+                let mut dag_state = self.dag_state.write();
+                dag_state.set_last_known_quorum_commit_index(
+                    self.commit_vote_monitor.quorum_commit_index(),
+                );
+                dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
+            }
 
             committed_sub_dags.extend(subdags);
 
@@ -1200,42 +1229,26 @@ impl Core {
                 dag_state.last_commit_round(),
             )
         };
-        let core_skipped_proposals = &self.context.metrics.node_metrics.core_skipped_proposals;
 
         if !self.quorum_subscribers_exists {
-            debug!("Skip proposing for round {clock_round}, don't have a quorum of subscribers.");
-            core_skipped_proposals
-                .with_label_values(&["no_quorum_subscriber"])
-                .inc();
-            return false;
+            return self.skip_proposal(clock_round, SkipProposalReason::NoQuorumSubscriber);
         }
 
         let Some(last_known_proposed_round) = self.last_known_proposed_round else {
-            debug!(
-                "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
-            );
-            core_skipped_proposals
-                .with_label_values(&["no_last_known_proposed_round"])
-                .inc();
-            return false;
+            return self.skip_proposal(clock_round, SkipProposalReason::NoLastKnownProposedRound);
         };
         if clock_round <= last_known_proposed_round {
-            debug!(
-                "Skip proposing for round {clock_round} as last known proposed round is {last_known_proposed_round}"
+            return self.skip_proposal(
+                clock_round,
+                SkipProposalReason::HigherLastKnownProposedRound {
+                    last_known: last_known_proposed_round,
+                },
             );
-            core_skipped_proposals
-                .with_label_values(&["higher_last_known_proposed_round"])
-                .inc();
-            return false;
         }
 
+        // Silently skip when we already proposed at or above `clock_round`.
+        // This branch fires on every accepted block within the same clock round
         if clock_round <= last_proposed_round {
-            debug!(
-                "Skip proposing for round {clock_round} as last proposed round is {last_proposed_round}"
-            );
-            core_skipped_proposals
-                .with_label_values(&["higher_last_proposed_round"])
-                .inc();
             return false;
         }
 
@@ -1247,13 +1260,12 @@ impl Core {
             let approx_quorum_round =
                 local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
             if clock_round <= approx_quorum_round {
-                debug!(
-                    "Skip proposing for round {clock_round}, behind approximate quorum commit round {approx_quorum_round}"
+                return self.skip_proposal(
+                    clock_round,
+                    SkipProposalReason::BehindQuorumCommitRound {
+                        approx_quorum: approx_quorum_round,
+                    },
                 );
-                core_skipped_proposals
-                    .with_label_values(&["behind_quorum_commit_round"])
-                    .inc();
-                return false;
             }
 
             // We are about to propose: refresh DagState's known quorum commit
@@ -1264,6 +1276,41 @@ impl Core {
         }
 
         true
+    }
+
+    /// Records a skipped proposal: emits the per-reason `debug!` line and
+    /// increments `core_skipped_proposals` with the matching label. Always
+    /// returns `false` so call sites can `return self.skip_proposal(...)`.
+    fn skip_proposal(&self, clock_round: Round, reason: SkipProposalReason) -> bool {
+        match reason {
+            SkipProposalReason::NoQuorumSubscriber => {
+                debug!(
+                    "Skip proposing for round {clock_round}, don't have a quorum of subscribers."
+                );
+            }
+            SkipProposalReason::NoLastKnownProposedRound => {
+                debug!(
+                    "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
+                );
+            }
+            SkipProposalReason::HigherLastKnownProposedRound { last_known } => {
+                debug!(
+                    "Skip proposing for round {clock_round} as last known proposed round is {last_known}"
+                );
+            }
+            SkipProposalReason::BehindQuorumCommitRound { approx_quorum } => {
+                debug!(
+                    "Skip proposing for round {clock_round}, behind approximate quorum commit round {approx_quorum}"
+                );
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .core_skipped_proposals
+            .with_label_values(&[reason.label()])
+            .inc();
+        false
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
