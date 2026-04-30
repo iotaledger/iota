@@ -98,7 +98,7 @@ impl From<Owner> for OwnerSchema {
                 initial_shared_version,
             },
             Owner::Immutable => OwnerSchema::Immutable,
-            _ => unreachable!("a new Owner enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 }
