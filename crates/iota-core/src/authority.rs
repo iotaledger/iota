@@ -1208,7 +1208,7 @@ impl AuthorityState {
         let shedding_pct = compute_graduated_load_shedding_percentage(
             num_inflight_txs,
             consensus_adapter.max_pending_transactions(),
-            consensus_adapter.graduated_load_shed_start_pct(),
+            consensus_adapter.graduated_load_shedding_soft_limit_pct(),
         );
 
         self.metrics

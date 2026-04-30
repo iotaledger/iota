@@ -824,9 +824,9 @@ pub struct ConsensusConfig {
     /// Hard limit on the number of pending transactions to submit to
     /// consensus, including those in submission wait. Used as the upper
     /// bound for graduated pre-consensus load shedding
-    /// (`graduated_load_shed_start_pct`) in the certificate-less (pcool
-    /// / white-flag) mode, and as the threshold for the binary cutoff
-    /// in `ConsensusAdapter::check_consensus_overload()` in both
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (pcool / white-flag) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
     /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
@@ -851,13 +851,14 @@ pub struct ConsensusConfig {
     #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
     pub parameters: Option<StarfishParameters>,
 
-    /// Percentage of `max_pending_transactions` (hard limit) at which graduated
-    /// pre-consensus load shedding begins. At and below this threshold, no
-    /// shedding occurs; above it, the shedding rate scales linearly from 0% to
-    /// 100% at `max_pending_transactions`. Used in the certificate-less
-    /// (pcool / white-flag) mode.
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (pcool /
+    /// white-flag) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub graduated_load_shed_start_pct: Option<u32>,
+    pub graduated_load_shedding_soft_limit_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -872,11 +873,14 @@ impl ConsensusConfig {
         self.max_pending_transactions.unwrap_or(20_000)
     }
 
-    /// Returns the percentage of `max_pending_transactions` at which
-    /// graduated pre-consensus load shedding begins. Defaults to 50%.
-    /// Used in the certificate-less (pcool / white-flag) mode.
-    pub fn graduated_load_shed_start_pct(&self) -> u32 {
-        self.graduated_load_shed_start_pct.unwrap_or(50).min(100)
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (pcool / white-flag) mode.
+    pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+            .unwrap_or(50)
+            .min(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {

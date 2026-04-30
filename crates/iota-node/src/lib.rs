@@ -1427,7 +1427,7 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
-            consensus_config.graduated_load_shed_start_pct(),
+            consensus_config.graduated_load_shedding_soft_limit_pct(),
         )
     }
 
