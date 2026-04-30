@@ -261,11 +261,7 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
-    MisbehaviorReport(
-        AuthorityName,
-        VersionedMisbehaviorReport,
-        CheckpointSequenceNumber,
-    ),
+    MisbehaviorReport(VersionedMisbehaviorReport),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -282,13 +278,24 @@ impl ConsensusTransactionKind {
 
 /// A misbehavior report carrying a versioned payload plus a memoized digest.
 ///
-/// The digest cache is `#[serde(skip)]`, so BCS sees only `payload` and the
-/// wire layout is exactly that of `ReportPayload`. Adding any non-`skip`
-/// field to this struct would silently change the wire format and break
-/// compatibility — keep the digest the only non-payload field.
+/// Wire format is BCS over the `Serialize`-derived fields in declaration order:
+/// `authority || payload || generation`. This exactly matches the pre-refactor
+/// `ConsensusTransactionKind::MisbehaviorReport(AuthorityName,
+/// VersionedMisbehaviorReport { payload }, CheckpointSequenceNumber)` 3-tuple
+/// — see `tests::misbehavior_report_wire_format_unchanged` which pins the
+/// equivalence. Reordering or inserting any non-`skip` field here would change
+/// the consensus wire format and halt a running testnet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionedMisbehaviorReport {
+    /// Originating authority — must match the transaction source authority
+    /// from consensus. Verified at the consensus boundary.
+    pub authority: AuthorityName,
+    /// Versioned payload of the misbehavior report.
     pub payload: ReportPayload,
+    /// Generation number set by the sending authority. Used to identify the
+    /// most recent report from each authority. Currently set to the
+    /// checkpoint sequence number at which the report was generated.
+    pub generation: u64,
     #[serde(skip)]
     digest: OnceCell<MisbehaviorReportDigest>,
 }
@@ -302,9 +309,15 @@ pub enum ReportPayload {
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: ReportPayloadV1) -> Self {
+    pub fn new_v1(
+        authority: AuthorityName,
+        generation: u64,
+        misbehaviors: ReportPayloadV1,
+    ) -> Self {
         Self {
+            authority,
             payload: ReportPayload::V1(misbehaviors),
+            generation,
             digest: OnceCell::new(),
         }
     }
@@ -538,23 +551,15 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_misbehavior_report(
-        authority: AuthorityName,
-        report: &VersionedMisbehaviorReport,
-        checkpoint_seq: CheckpointSequenceNumber,
-    ) -> Self {
+    pub fn new_misbehavior_report(report: VersionedMisbehaviorReport) -> Self {
         let serialized_report =
-            bcs::to_bytes(report).expect("report serialization should not fail");
+            bcs::to_bytes(&report).expect("report serialization should not fail");
         let mut hasher = DefaultHasher::new();
         serialized_report.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::MisbehaviorReport(
-                authority,
-                report.clone(),
-                checkpoint_seq,
-            ),
+            kind: ConsensusTransactionKind::MisbehaviorReport(report),
         }
     }
 
@@ -598,11 +603,11 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(authority, report, checkpoint_seq) => {
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
                 ConsensusTransactionKey::MisbehaviorReport(
-                    *authority,
+                    report.authority,
                     *report.digest(),
-                    *checkpoint_seq,
+                    report.generation,
                 )
             }
         }
@@ -614,5 +619,99 @@ impl ConsensusTransaction {
 
     pub fn is_end_of_publish(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pre-refactor wire shape of `VersionedMisbehaviorReport` — only `payload`
+    /// crossed the wire (the digest cache was `#[serde(skip)]`). Used to pin
+    /// post-refactor bytes against the legacy encoding.
+    #[derive(Serialize)]
+    struct LegacyVersionedMisbehaviorReport<'a> {
+        payload: &'a ReportPayload,
+    }
+
+    fn sample_payload() -> ReportPayload {
+        ReportPayload::V1(ReportPayloadV1 {
+            faulty_blocks_provable: vec![1, 2, 3],
+            faulty_blocks_unprovable: vec![4, 5, 6],
+            missing_proposals: vec![7, 8, 9],
+            equivocations: vec![10, 11, 12],
+        })
+    }
+
+    /// Pins the BCS encoding of `VersionedMisbehaviorReport` against the
+    /// pre-refactor 3-tuple layout `(AuthorityName, { payload }, u64)`. Testnet
+    /// is running the legacy format; if the bytes ever drift, validators on
+    /// the new build will reject reports from validators on the old build (or
+    /// vice versa) and consensus halts. Reordering struct fields, adding a
+    /// non-`skip` field, or renaming a field's serde tag will all trip this
+    /// test.
+    #[test]
+    fn misbehavior_report_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 42;
+        let payload = sample_payload();
+
+        let legacy_bytes = bcs::to_bytes(&(
+            authority,
+            LegacyVersionedMisbehaviorReport { payload: &payload },
+            generation,
+        ))
+        .unwrap();
+
+        let new = VersionedMisbehaviorReport {
+            authority,
+            payload,
+            generation,
+            digest: OnceCell::new(),
+        };
+        let new_bytes = bcs::to_bytes(&new).unwrap();
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "VersionedMisbehaviorReport wire format must not change — testnet is live"
+        );
+    }
+
+    /// `ConsensusTransactionKind::MisbehaviorReport`'s variant tag is its
+    /// position in the enum (BCS encodes enum variants as ULEB128 of the
+    /// declaration index). Reordering variants — even if the new wrapping
+    /// layout is byte-identical otherwise — would shift the tag and break
+    /// every node still on the old build. This test catches that and also
+    /// confirms the post-tag bytes equal the legacy 3-tuple encoding.
+    #[test]
+    fn misbehavior_report_consensus_kind_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 7;
+        let payload = sample_payload();
+
+        let new_kind = ConsensusTransactionKind::MisbehaviorReport(VersionedMisbehaviorReport {
+            authority,
+            payload: payload.clone(),
+            generation,
+            digest: OnceCell::new(),
+        });
+        let new_bytes = bcs::to_bytes(&new_kind).unwrap();
+
+        // Legacy encoding: variant tag (8 = position of MisbehaviorReport in
+        // the enum, ULEB128 single byte) followed by the 3-tuple body.
+        let mut legacy_bytes = vec![8u8];
+        legacy_bytes.extend(
+            bcs::to_bytes(&(
+                authority,
+                LegacyVersionedMisbehaviorReport { payload: &payload },
+                generation,
+            ))
+            .unwrap(),
+        );
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "ConsensusTransactionKind::MisbehaviorReport wire format must not change — testnet is live"
+        );
     }
 }

@@ -7,7 +7,7 @@ use std::sync::{
 };
 
 use arc_swap::ArcSwap;
-use iota_types::messages_consensus::VersionedMisbehaviorReport;
+use iota_types::{base_types::AuthorityName, messages_consensus::VersionedMisbehaviorReport};
 
 use crate::{
     authority::authority_per_epoch_store::misbehavior::{
@@ -23,6 +23,7 @@ use crate::{
 /// them as `MisbehaviorReport` transactions submitted to consensus at
 /// checkpoint boundaries.
 pub struct MisbehaviorMonitor {
+    authority: AuthorityName,
     report_version: MisbehaviorReportVersion,
     committee_size: usize,
     // The current metrics counts collected by the authority, i.e., the local view of the node
@@ -49,13 +50,18 @@ pub struct MisbehaviorMonitor {
 }
 
 impl MisbehaviorMonitor {
-    pub fn new(report_version: MisbehaviorReportVersion, committee_size: usize) -> Self {
+    pub fn new(
+        authority: AuthorityName,
+        report_version: MisbehaviorReportVersion,
+        committee_size: usize,
+    ) -> Self {
         let current_local_counts = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
             report_version,
             committee_size,
         )));
 
         Self {
+            authority,
             report_version,
             committee_size,
             current_local_counts,
@@ -91,8 +97,10 @@ impl MisbehaviorMonitor {
             .store(true, Ordering::Relaxed);
     }
 
-    pub fn generate_report(&self) -> VersionedMisbehaviorReport {
-        self.current_local_counts.load().to_report()
+    pub fn generate_report(&self, generation: u64) -> VersionedMisbehaviorReport {
+        self.current_local_counts
+            .load()
+            .to_report(self.authority, generation)
     }
 
     pub fn update_from_consensus_output(

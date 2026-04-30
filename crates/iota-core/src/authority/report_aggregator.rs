@@ -225,12 +225,16 @@ mod tests {
     }
 
     fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {
-        VersionedMisbehaviorReport::new_v1(ReportPayloadV1 {
-            faulty_blocks_provable: raw_counts[0].clone(),
-            faulty_blocks_unprovable: raw_counts[1].clone(),
-            missing_proposals: raw_counts[2].clone(),
-            equivocations: raw_counts[3].clone(),
-        })
+        VersionedMisbehaviorReport::new_v1(
+            iota_types::base_types::AuthorityName::default(),
+            0,
+            ReportPayloadV1 {
+                faulty_blocks_provable: raw_counts[0].clone(),
+                faulty_blocks_unprovable: raw_counts[1].clone(),
+                missing_proposals: raw_counts[2].clone(),
+                equivocations: raw_counts[3].clone(),
+            },
+        )
     }
 
     fn full_snapshot(
