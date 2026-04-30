@@ -393,6 +393,13 @@ impl Core {
             .block_manager
             .try_accept_block_headers(block_headers, source);
 
+        if !accepted_block_headers.is_empty() {
+            self.record_strong_vote_complaints(
+                &mut self.dag_state.write(),
+                &accepted_block_headers,
+            );
+        }
+
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
                 "Accepted block headers: {}",
@@ -638,6 +645,7 @@ impl Core {
             let mut dag_state = self.dag_state.write();
 
             // 1. Store block headers on disk
+            self.record_strong_vote_complaints(&mut dag_state, &block_headers);
             dag_state.accept_block_headers(block_headers, DataSource::FastCommitSyncer);
 
             // 1.5. Clear fast sync flag (will be persisted with the flush)
@@ -909,11 +917,29 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self.dag_state.write().take_acknowledgments(
+        let mut acknowledgments = self.dag_state.write().take_acknowledgments(
             self.context
                 .protocol_config
                 .consensus_max_acknowledgments_per_block_or_default() as usize,
         );
+
+        // Adaptive acknowledgment filtering: drop refs whose author has been
+        // persistently blamed by recent strong-vote masks for this node's
+        // leader rounds. Local heuristic, gated on protocol + local flags.
+        if self.context.protocol_config.consensus_starfish_speed()
+            && self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            let excluded = self
+                .dag_state
+                .read()
+                .starfish_speed_excluded_ack_authorities();
+            if !excluded.is_empty() {
+                acknowledgments.retain(|r| !excluded.contains(r.author));
+            }
+        }
 
         self.context
             .metrics
@@ -1377,6 +1403,42 @@ impl Core {
         StrongVote {
             leader_authority: leader_header.author(),
             missing,
+        }
+    }
+
+    /// Records strong-vote complaints from each freshly-accepted block into
+    /// DagState's per-leader-round hint tables. Caller passes a write-locked
+    /// DagState. No-op when the StarfishSpeed flag is off.
+    fn record_strong_vote_complaints(
+        &self,
+        dag_state: &mut DagState,
+        blocks: &[VerifiedBlockHeader],
+    ) {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            return;
+        }
+        for block in blocks {
+            let Some(mask) = block.strong_vote() else {
+                continue;
+            };
+            if mask.is_empty() {
+                continue;
+            }
+            let leader_round = block.round().saturating_sub(1);
+            if leader_round == GENESIS_ROUND {
+                continue;
+            }
+            let Some(leader_authority) =
+                self.committer.get_leaders(leader_round).into_iter().next()
+            else {
+                continue;
+            };
+            // Only record complaints for our own leader rounds — that's all
+            // `starfish_speed_excluded_ack_authorities` will ever read.
+            if leader_authority != self.context.own_index {
+                continue;
+            }
+            dag_state.record_strong_vote_complaint(block.author(), leader_round, mask);
         }
     }
 

@@ -23,6 +23,7 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
+    authority_set::AuthoritySet,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
         TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
@@ -113,6 +114,48 @@ impl DataSource {
 impl std::fmt::Display for DataSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+/// Number of recent leader rounds whose strong-vote complaints contribute to
+/// the adaptive-acknowledgment exclusion score for StarfishSpeed.
+const STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS: usize = 10;
+
+/// Per-leader-round complaint history derived from the strong-vote masks of
+/// blocks that voted for that leader. Each voter's latest mask is kept in
+/// `voter_masks` so a re-vote replaces the previous contribution; the rolling
+/// `complaint_counts[authority]` aggregates how many voters currently blame
+/// that authority at this leader round.
+#[derive(Default)]
+struct StarfishSpeedLeaderRoundHints {
+    voter_masks: BTreeMap<AuthorityIndex, AuthoritySet>,
+    complaint_counts: Vec<u16>,
+}
+
+impl StarfishSpeedLeaderRoundHints {
+    fn new(committee_size: usize) -> Self {
+        Self {
+            voter_masks: BTreeMap::new(),
+            complaint_counts: vec![0; committee_size],
+        }
+    }
+
+    fn apply_mask_delta(&mut self, mask: AuthoritySet, delta: i32) {
+        for authority in mask.iter() {
+            let count = &mut self.complaint_counts[authority.value()];
+            if delta > 0 {
+                *count = count.saturating_add(delta as u16);
+            } else {
+                *count = count.saturating_sub((-delta) as u16);
+            }
+        }
+    }
+
+    fn update_vote(&mut self, voter: AuthorityIndex, mask: AuthoritySet) {
+        if let Some(previous_mask) = self.voter_masks.insert(voter, mask) {
+            self.apply_mask_delta(previous_mask, -1);
+        }
+        self.apply_mask_delta(mask, 1);
     }
 }
 
@@ -229,6 +272,10 @@ pub(crate) struct DagState {
 
     /// Cordial Knowledge senders (main updates, eviction rounds).
     cordial_knowledge_senders: Option<(Sender<CordialKnowledgeMessage>, watch::Sender<Vec<Round>>)>,
+
+    /// History of strong-vote complaint masks against this node's own
+    /// leader rounds, keyed by leader round.
+    starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
 }
 
 impl DagState {
@@ -329,6 +376,7 @@ impl DagState {
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
+            starfish_speed_leader_hints: BTreeMap::new(),
         };
 
         // Load cached data for each authority from storage
@@ -2440,6 +2488,77 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
+    }
+
+    /// Records a strong-vote complaint from `voter` against this node when
+    /// it was the leader at `leader_round`. Caller is responsible for
+    /// confirming `leader_round`'s leader was the local authority. No-op
+    /// when the feature is off.
+    pub(crate) fn record_strong_vote_complaint(
+        &mut self,
+        voter: AuthorityIndex,
+        leader_round: Round,
+        mask: AuthoritySet,
+    ) {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return;
+        }
+        let committee_size = self.context.committee.size();
+        let entry = self
+            .starfish_speed_leader_hints
+            .entry(leader_round)
+            .or_insert_with(|| StarfishSpeedLeaderRoundHints::new(committee_size));
+        entry.update_vote(voter, mask);
+
+        while self.starfish_speed_leader_hints.len() > STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS {
+            let Some(&oldest) = self.starfish_speed_leader_hints.keys().next() else {
+                break;
+            };
+            self.starfish_speed_leader_hints.remove(&oldest);
+        }
+    }
+
+    /// Returns the set of authorities the local node should drop from the
+    /// `acknowledgments` field of new blocks: those whose aggregated
+    /// complaint count over the last `STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS`
+    /// of the local node's leader rounds reaches
+    /// `Committee::validity_threshold` (= f+1). Returns an empty set when
+    /// the feature is off.
+    pub(crate) fn starfish_speed_excluded_ack_authorities(&self) -> AuthoritySet {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return AuthoritySet::default();
+        }
+        let committee_size = self.context.committee.size();
+        let mut scores = vec![0usize; committee_size];
+        for hints in self
+            .starfish_speed_leader_hints
+            .iter()
+            .rev()
+            .take(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS)
+            .map(|(_, h)| h)
+        {
+            for (auth, score) in scores.iter_mut().enumerate() {
+                *score += hints.complaint_counts[auth] as usize;
+            }
+        }
+        let threshold = self.context.committee.validity_threshold() as usize;
+        let mut mask = AuthoritySet::default();
+        for (auth, score) in scores.into_iter().enumerate() {
+            if score >= threshold {
+                mask.insert(AuthorityIndex::from(auth as u8));
+            }
+        }
+        mask
     }
 }
 #[cfg(test)]
