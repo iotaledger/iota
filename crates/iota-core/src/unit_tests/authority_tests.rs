@@ -7105,8 +7105,8 @@ async fn test_consensus_queue_graduated_load_shedding() {
     let gas_object2 = Object::with_owner_for_testing(sender);
 
     let hard_limit = 20_000;
-    let start_pct: u32 = 50;
-    let soft_limit = hard_limit * start_pct as usize / 100;
+    let soft_limit_pct: u32 = 50;
+    let soft_limit = hard_limit * soft_limit_pct as usize / 100;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
     authority_state
@@ -7123,7 +7123,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         None,
         None,
         ConsensusAdapterMetrics::new_test(),
-        start_pct,
+        soft_limit_pct,
     ));
 
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();

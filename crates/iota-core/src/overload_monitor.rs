@@ -272,35 +272,37 @@ pub fn overload_monitor_accept_tx(
 
 /// Computes the graduated load shedding percentage based on the current value
 /// relative to its hard limit. Returns 0 if `current` is at or below the soft
-/// limit (computed as `hard_limit * start_pct / 100`), linearly scales from 0%
-/// to 100% between soft and hard limits, and returns 100% if `current` is at
-/// or above `hard_limit`.
+/// limit (computed as `hard_limit * soft_limit_pct / 100`), linearly scales
+/// from 0% to 100% between soft and hard limits, and returns 100% if `current`
+/// is at or above `hard_limit`.
 ///
-/// `start_pct` is expected to be in `[0, 100]`. Values above 100 are clamped
-/// to 100 in release builds and trigger a debug assertion in debug builds.
+/// `soft_limit_pct` is expected to be in `[0, 100]`. Values above 100 are
+/// clamped to 100 in release builds and trigger a debug assertion in debug
+/// builds.
 ///
-/// Setting `start_pct = 100` degenerates into a hard binary cutoff: no
+/// Setting `soft_limit_pct = 100` degenerates into a hard binary cutoff: no
 /// shedding below `hard_limit`, full (100%) shedding at and above it.
 ///
-/// NOTE: `soft_limit` uses integer division, so it floors `hard_limit *
-/// start_pct / 100`. This is negligible for typical queue sizes (thousands).
+/// NOTE: `soft_limit` is computed via integer division `hard_limit *
+/// soft_limit_pct / 100`, so it floors. This is negligible for typical
+/// queue sizes (thousands).
 pub(crate) fn compute_graduated_load_shedding_percentage(
     current: usize,
     hard_limit: usize,
-    start_pct: u32,
+    soft_limit_pct: u32,
 ) -> u32 {
     debug_assert!(
-        start_pct <= 100,
-        "start_pct must be <= 100, got {start_pct}"
+        soft_limit_pct <= 100,
+        "soft_limit_pct must be <= 100, got {soft_limit_pct}"
     );
-    // Clamp `start_pct` to 100% to be safe in release builds.
-    let start_pct = start_pct.min(100);
-    // Convert start percentage to absolute soft limit.
-    let soft_limit = hard_limit * start_pct as usize / 100;
+    // Clamp `soft_limit_pct` to 100% to be safe in release builds.
+    let soft_limit_pct = soft_limit_pct.min(100);
+    // Convert soft limit percentage to absolute soft limit.
+    let soft_limit = hard_limit * soft_limit_pct as usize / 100;
 
     // At or above hard limit, shed at maximum percentage.
     // WARN: this hard limit check must come BEFORE the soft limit check.
-    // When `start_pct == 100`, soft_limit == hard_limit, and at `current ==
+    // When `soft_limit_pct == 100`, soft_limit == hard_limit, and at `current ==
     // hard_limit`, we want 100% shedding (binary cutoff behavior), not 0%.
     // Swapping the order would incorrectly return 0 in this degenerate case.
     if current >= hard_limit {
@@ -483,20 +485,20 @@ mod tests {
     }
 
     /// Tests [`compute_graduated_load_shedding_percentage`]:
-    /// - 0% at or below the soft limit (`hard_limit * start_pct / 100`)
+    /// - 0% at or below the soft limit (`hard_limit * soft_limit_pct / 100`)
     /// - linear scaling between soft and hard limits
     /// - 100% at or above the hard limit
-    /// - degenerate cases for `start_pct = 0` and `start_pct = 100`
+    /// - degenerate cases for `soft_limit_pct = 0` and `soft_limit_pct = 100`
     #[test]
     fn test_compute_graduated_load_shedding_percentage() {
         let hard_limit = 20_000;
-        let start_pct = 50;
-        let soft_limit = hard_limit * start_pct as usize / 100; // 10_000
+        let soft_limit_pct = 50;
+        let soft_limit = hard_limit * soft_limit_pct as usize / 100; // 10_000
 
         // Below and at soft limit: no shedding.
         for current in [0, soft_limit - 1, soft_limit] {
             assert_eq!(
-                compute_graduated_load_shedding_percentage(current, hard_limit, start_pct),
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
                 0,
                 "no shedding expected at or below soft limit ({current} <= {soft_limit})",
             );
@@ -514,7 +516,7 @@ mod tests {
             (hard_limit - 1, 99),
         ] {
             assert_eq!(
-                compute_graduated_load_shedding_percentage(current, hard_limit, start_pct),
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
                 expected_pct,
                 "expected shedding percentage to be {expected_pct}% at current={current}",
             );
@@ -523,45 +525,45 @@ mod tests {
         // At and above hard limit: 100%.
         for current in [hard_limit, hard_limit + 1, 30_000] {
             assert_eq!(
-                compute_graduated_load_shedding_percentage(current, hard_limit, start_pct),
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
                 100,
                 "expected 100% shedding at/above hard limit ({current} >= {hard_limit})",
             );
         }
 
-        // Degenerate: start_pct = 100 acts as a binary cutoff:
+        // Degenerate: soft_limit_pct = 100 acts as a binary cutoff:
         // - below hard_limit: 0%; at/above: 100%.
         for current in [0, hard_limit - 1] {
             assert_eq!(
                 compute_graduated_load_shedding_percentage(current, hard_limit, 100),
                 0,
-                "start_pct=100: no shedding expected below hard limit ({current} < {hard_limit})",
+                "soft_limit_pct=100: no shedding expected below hard limit ({current} < {hard_limit})",
             );
         }
         for current in [hard_limit, hard_limit + 1] {
             assert_eq!(
                 compute_graduated_load_shedding_percentage(current, hard_limit, 100),
                 100,
-                "start_pct=100: full shedding expected at/above hard limit ({current} >= \
+                "soft_limit_pct=100: full shedding expected at/above hard limit ({current} >= \
                     {hard_limit})",
             );
         }
 
-        // Degenerate: start_pct = 0 means soft_limit = 0; any current > 0 sheds.
+        // Degenerate: soft_limit_pct = 0 means soft_limit = 0; any current > 0 sheds.
         assert_eq!(
             compute_graduated_load_shedding_percentage(0, hard_limit, 0),
             0,
-            "start_pct=0: at current=0, no shedding expected (current <= soft_limit=0)",
+            "soft_limit_pct=0: at current=0, no shedding expected (current <= soft_limit=0)",
         );
         assert_eq!(
             compute_graduated_load_shedding_percentage(hard_limit / 2, hard_limit, 0),
             50,
-            "start_pct=0: at midpoint of hard_limit, 50% shedding expected",
+            "soft_limit_pct=0: at midpoint of hard_limit, 50% shedding expected",
         );
         assert_eq!(
             compute_graduated_load_shedding_percentage(hard_limit, hard_limit, 0),
             100,
-            "start_pct=0: at hard_limit, 100% shedding expected",
+            "soft_limit_pct=0: at hard_limit, 100% shedding expected",
         );
     }
 

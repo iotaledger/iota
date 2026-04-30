@@ -248,9 +248,9 @@ pub struct ConsensusAdapter {
 
     /// The hard limit on the number of inflight transactions at this node.
     /// Used as the upper bound for graduated pre-consensus load shedding
-    /// (`graduated_load_shed_start_pct`) in the certificate-less (pcool /
-    /// white-flag) mode, and as the threshold for the binary cutoff in
-    /// `ConsensusAdapter::check_consensus_overload()` in both
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (pcool / white-flag) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
     /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
 
@@ -282,12 +282,13 @@ pub struct ConsensusAdapter {
     /// Tracks consensus submission latency for adaptive submit-delay backoff.
     latency_observer: LatencyObserver,
 
-    /// Percentage of `max_pending_transactions` (hard limit) at which graduated
-    /// pre-consensus load shedding begins. At and below this threshold, no
-    /// shedding occurs; above it, the shedding rate scales linearly from 0% to
-    /// 100% at `max_pending_transactions`. Used in the certificate-less
-    /// (pcool / white-flag) mode.
-    graduated_load_shed_start_pct: u32,
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (pcool /
+    /// white-flag) mode.
+    graduated_load_shedding_soft_limit_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -320,7 +321,7 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
-        graduated_load_shed_start_pct: u32,
+        graduated_load_shedding_soft_limit_pct: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -338,7 +339,7 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            graduated_load_shed_start_pct,
+            graduated_load_shedding_soft_limit_pct,
         }
     }
 
@@ -647,11 +648,12 @@ impl ConsensusAdapter {
         self.max_pending_transactions
     }
 
-    /// Returns the percentage of `max_pending_transactions` at which
-    /// graduated pre-consensus load shedding begins. Used in the
-    /// certificate-less (pcool / white-flag) mode.
-    pub(super) fn graduated_load_shed_start_pct(&self) -> u32 {
-        self.graduated_load_shed_start_pct
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (pcool / white-flag) mode.
+    pub(super) fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
     }
 
     /// Returns the number of transactions currently in-flight in consensus.
