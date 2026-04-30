@@ -100,15 +100,19 @@ impl ReportAggregator {
 
     /// Increments the invalid report counter for the given authority.
     ///
-    /// TODO: this counter is currently write-only — nothing reads it. It is
-    /// not exported as a Prometheus metric, not persisted (despite the
-    /// `DBReceivedReportsStatePerAuthority` naming and its `to_serializable`
-    /// machinery, no `DBMap` actually stores it), not consumed by the
-    /// `Scorer`, and not propagated in outgoing reports. Decide whether to
-    /// wire it to a per-authority operator metric or drop the scaffolding;
-    /// for now the field exists so the validation paths in
-    /// `verify_consensus_transaction` have somewhere to record rejected
-    /// reports.
+    /// On this branch the counter is in-memory only and has no consumer in
+    /// tree (no Prometheus metric, no `Scorer` input, not echoed in outgoing
+    /// reports). The `DBReceivedReportsStatePerAuthority` /
+    /// `to_serializable` / `update_from_serializable` machinery exists as
+    /// forward-looking scaffolding for the
+    /// `score-integration-persist-scorer-state` follow-up PR, which adds a
+    /// `DBMap<u32, DBReceivedReportsStatePerAuthority>` to
+    /// `AuthorityEpochTables`, snapshots into it through
+    /// `ConsensusCommitOutput` whenever a misbehavior-report transaction is
+    /// seen, and restores it at epoch start. Until that PR lands, restarts
+    /// reset this counter to zero — acceptable because no consumer yet
+    /// observes it. Operator visibility (e.g. a per-authority Prometheus
+    /// gauge) is still TODO and orthogonal to the persistence work.
     pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.received_reports_state[authority as usize]
             .invalid_reports_count
