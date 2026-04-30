@@ -583,7 +583,7 @@ impl IotaValue {
                 let obj_ref = obj.compute_object_reference();
                 Ok(ObjectArg::ImmOrOwnedObject(obj_ref))
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 

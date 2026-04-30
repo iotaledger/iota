@@ -425,7 +425,9 @@ mod checked {
                         }
                         .into()
                     ),
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 };
             }
 
@@ -637,7 +639,9 @@ mod checked {
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 };
             }
             InputObjectKind::SharedMoveObject {
@@ -702,7 +706,9 @@ mod checked {
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             }
         };
@@ -793,7 +799,9 @@ mod checked {
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 };
             }
             InputObjectKind::SharedMoveObject {
@@ -831,7 +839,9 @@ mod checked {
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             }
         };

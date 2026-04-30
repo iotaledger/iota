@@ -246,7 +246,7 @@ pub fn end_transaction(
                     .or_default()
                     .insert(id);
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
@@ -860,7 +860,7 @@ fn transaction_effects(
             )),
             Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
             Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 

@@ -264,7 +264,7 @@ impl SurferState {
                     // means we should already have it in
                     // the inventory.
                 }
-                _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
             }
             if obj_ref.object_id == self.gas_object.object_id {
                 self.gas_object = obj_ref;

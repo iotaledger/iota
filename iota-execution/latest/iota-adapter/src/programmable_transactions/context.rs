@@ -1457,7 +1457,7 @@ mod checked {
                 // protected by transaction input checker
                 invariant_violation!("Object-owned objects cannot be inputs")
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         };
         let owner = obj.owner;
         let version = obj.version();

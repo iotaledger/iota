@@ -588,7 +588,9 @@ impl TemporaryStore<'_> {
                     Owner::Object(_parent) => {
                         unreachable!("Input objects must be address owned, shared, or immutable")
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             })
             .filter(|id| {
@@ -655,7 +657,9 @@ impl TemporaryStore<'_> {
                         );
                         continue;
                     }
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             };
             // we now assume the object is authenticated and must check the parent

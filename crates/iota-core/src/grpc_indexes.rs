@@ -729,7 +729,9 @@ impl IndexStoreTables {
                         )?;
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             }
 
@@ -752,7 +754,9 @@ impl IndexStoreTables {
                             }
                         }
                         Owner::Shared { .. } | Owner::Immutable => {}
-                        _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                        _ => unimplemented!(
+                            "a new Owner enum variant was added and needs to be handled"
+                        ),
                     }
                 }
 
@@ -769,7 +773,9 @@ impl IndexStoreTables {
                         }
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             }
 
@@ -1269,7 +1275,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
                 }
             }
             Owner::Shared { .. } | Owner::Immutable => {}
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects

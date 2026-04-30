@@ -802,7 +802,7 @@ fn check_circular_ownership(
                 }
                 object_owner_map.insert(id, new_owner);
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
     Ok(())

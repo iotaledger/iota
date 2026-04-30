@@ -144,7 +144,7 @@ impl<'a> Resolver<'a> for ToObject {
                     "{obj_id} is an object-owned object, you can only use immutable, shared, or owned objects here."
                 }, "Cannot use an object-owned object as an argument")
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         };
         // Insert the correct object arg that we built above into the transaction.
         builder.ptb.obj(obj_arg).map_err(|e| err!(loc, "{e}"))
