@@ -140,6 +140,16 @@ impl BlockVerifier for SignedBlockVerifier {
                     max: max_acknowledgments,
                 });
             }
+            let max_commit_votes = self
+                .context
+                .protocol_config
+                .max_commit_votes_per_block(committee.size());
+            if block.commit_votes().len() > max_commit_votes {
+                return Err(ConsensusError::TooManyCommitVotes {
+                    count: block.commit_votes().len(),
+                    max: max_commit_votes,
+                });
+            }
         }
         let gc_depth = self.context.protocol_config.gc_depth();
         let min_ref_round = self.context.min_ref_round(block.round());
@@ -449,6 +459,20 @@ pub(crate) mod test {
             assert!(matches!(
                 verifier.verify(&signed_block),
                 Err(ConsensusError::TooManyAcknowledgments { .. })
+            ));
+        }
+
+        // Block with too many commit votes.
+        {
+            let committee_size = 4u32;
+            let commit_votes = (0..=committee_size)
+                .map(|i| crate::commit::CommitVote::new(i, crate::commit::CommitDigest::MIN))
+                .collect::<Vec<_>>();
+            let block = test_block.clone().set_commit_votes(commit_votes).build();
+            let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::TooManyCommitVotes { .. })
             ));
         }
 

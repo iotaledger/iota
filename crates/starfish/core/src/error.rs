@@ -145,6 +145,9 @@ pub(crate) enum ConsensusError {
     #[error("Too many acknowledgments in the block: {count} > {max}")]
     TooManyAcknowledgments { count: usize, max: usize },
 
+    #[error("Too many commit votes in the block: {count} > {max}")]
+    TooManyCommitVotes { count: usize, max: usize },
+
     #[error(
         "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
     )]
