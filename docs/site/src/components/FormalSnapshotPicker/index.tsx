@@ -10,9 +10,18 @@ type Setup = (typeof SETUPS)[number];
 
 type EpochSelection = number | 'latest';
 
+// Supports both the legacy schema (`available_epochs: number[]`) and the
+// current one (`available_epochs: [epoch, startTimestampMs | null][]`).
 interface Manifest {
-    available_epochs: number[];
-    epoch_start_timestamps_ms?: Record<string, number>;
+    available_epochs: Array<number | [number, number | null]>;
+}
+
+function normalizeEpochs(
+    raw: Manifest['available_epochs'] | undefined,
+): Array<[number, number | null]> {
+    return (raw ?? []).map((entry) =>
+        Array.isArray(entry) ? entry : [entry, null],
+    );
 }
 
 function formatTimestamp(ms: number): string {
@@ -65,10 +74,7 @@ function buildCommand(
 function Picker() {
     const [setup, setSetup] = useState<Setup>('binary');
     const [network, setNetwork] = useState<Network>('mainnet');
-    const [epochs, setEpochs] = useState<number[]>([]);
-    const [startTimestamps, setStartTimestamps] = useState<
-        Record<string, number>
-    >({});
+    const [epochs, setEpochs] = useState<Array<[number, number | null]>>([]);
     const [epoch, setEpoch] = useState<EpochSelection>('latest');
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -78,7 +84,6 @@ function Picker() {
         setLoading(true);
         setError(null);
         setEpochs([]);
-        setStartTimestamps({});
 
         fetch(manifestUrl(network))
             .then((r) => {
@@ -87,11 +92,10 @@ function Picker() {
             })
             .then((m: Manifest) => {
                 if (cancelled) return;
-                const sorted = [...(m.available_epochs ?? [])].sort(
-                    (a, b) => b - a,
+                const sorted = normalizeEpochs(m.available_epochs).sort(
+                    ([a], [b]) => b - a,
                 );
                 setEpochs(sorted);
-                setStartTimestamps(m.epoch_start_timestamps_ms ?? {});
             })
             .catch((e) => {
                 if (!cancelled) setError(String(e?.message ?? e));
@@ -181,8 +185,7 @@ function Picker() {
                         <option value="latest">
                             {loading ? 'Loading…' : 'Latest'}
                         </option>
-                        {epochs.map((ep) => {
-                            const ts = startTimestamps[String(ep)];
+                        {epochs.map(([ep, ts]) => {
                             const label = ts
                                 ? `${ep} — started ${formatTimestamp(ts)}`
                                 : String(ep);
