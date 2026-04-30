@@ -61,11 +61,12 @@ pub(crate) type WaveNumber = u32;
 pub(crate) enum Commit {
     V1(CommitV1),
     V2(CommitV2),
+    V3(CommitV3),
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1 or V2) is determined by the
-    /// consensus_fast_commit_sync protocol flag.
+    /// Create a new commit. The variant (V1, V2, or V3) is determined by the
+    /// consensus_fast_commit_sync and consensus_starfish_speed protocol flags.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -75,8 +76,33 @@ impl Commit {
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<GenericTransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        is_optimistic: bool,
     ) -> Self {
-        if context.protocol_config.consensus_fast_commit_sync() {
+        if context.protocol_config.consensus_starfish_speed() {
+            debug!("Creating CommitV3 as consensus_starfish_speed is enabled");
+            // consensus_starfish_speed implies consensus_fast_commit_sync (asserted in
+            // protocol config), so all committed transactions are TransactionRefs.
+            let transaction_refs: Vec<TransactionRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::TransactionRef(tr) => tr,
+                    GenericTransactionRef::BlockRef(_) => {
+                        panic!("Expected TransactionRef when consensus_starfish_speed is enabled")
+                    }
+                })
+                .collect();
+
+            Commit::V3(CommitV3 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                block_headers: blocks,
+                committed_transactions: transaction_refs,
+                reputation_scores_desc,
+                is_optimistic,
+            })
+        } else if context.protocol_config.consensus_fast_commit_sync() {
             debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
@@ -138,6 +164,7 @@ pub(crate) trait CommitAPI {
     fn block_headers(&self) -> &[BlockRef];
     fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
+    fn is_optimistic(&self) -> bool;
 }
 
 /// Specifies one consensus commit.
@@ -199,6 +226,10 @@ impl CommitAPI for CommitV1 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         // CommitV1 does not have reputation scores
         &[]
+    }
+
+    fn is_optimistic(&self) -> bool {
+        false
     }
 }
 
@@ -265,6 +296,82 @@ impl CommitAPI for CommitV2 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         &self.reputation_scores_desc
     }
+
+    fn is_optimistic(&self) -> bool {
+        false
+    }
+}
+
+/// Specifies one consensus commit.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CommitV3 {
+    /// Index of the commit.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
+    index: CommitIndex,
+    /// Digest of the previous commit.
+    /// Set to CommitDigest::MIN for the first commit after genesis.
+    previous_digest: CommitDigest,
+    /// Timestamp of the commit, max of the timestamp of the leader block and
+    /// previous Commit timestamp.
+    timestamp_ms: BlockTimestampMs,
+    /// A reference to the commit leader.
+    leader: BlockRef,
+    /// Refs to committed headers, in the commit order.
+    block_headers: Vec<BlockRef>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<TransactionRef>,
+    /// Optional scores that are provided as part of the consensus output to
+    /// IOTA that can then be used by IOTA for future transaction submission to
+    /// consensus.
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+    /// True if the leader was committed via the StarfishSpeed Optimistic
+    /// metastate.
+    is_optimistic: bool,
+}
+
+impl CommitAPI for CommitV3 {
+    fn round(&self) -> Round {
+        self.leader.round
+    }
+
+    fn index(&self) -> CommitIndex {
+        self.index
+    }
+
+    fn previous_digest(&self) -> CommitDigest {
+        self.previous_digest
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn leader(&self) -> BlockRef {
+        self.leader
+    }
+
+    fn block_headers(&self) -> &[BlockRef] {
+        &self.block_headers
+    }
+
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions
+            .iter()
+            .map(|t| GenericTransactionRef::TransactionRef(*t))
+            .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &self.reputation_scores_desc
+    }
+
+    fn is_optimistic(&self) -> bool {
+        self.is_optimistic
+    }
 }
 
 /// A commit is trusted when it is produced locally or certified by a quorum of
@@ -310,6 +417,7 @@ impl TrustedCommit {
             blocks,
             committed_transactions,
             vec![],
+            false,
         );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)
