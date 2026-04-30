@@ -156,11 +156,10 @@ fn check_execution_overload(
         execution_rate,
     );
 
-    let queue_based_percentage = compute_queue_load_shedding_percentage(
+    let queue_based_percentage = compute_graduated_load_shedding_percentage(
         inflight_queue_len,
-        config.max_transaction_manager_queue_length_soft_limit(),
         config.max_transaction_manager_queue_length,
-        config.max_load_shedding_percentage,
+        config.max_transaction_manager_queue_length_soft_limit_pct(),
     );
 
     // The final load shedding percentage combines the latency/rate-based
