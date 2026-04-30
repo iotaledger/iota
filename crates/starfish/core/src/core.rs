@@ -55,10 +55,6 @@ use crate::{
     },
 };
 
-// Maximum number of commit votes to include in a block.
-// TODO: Move to protocol config, and verify in BlockVerifier.
-const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
-
 pub(crate) struct Core {
     context: Arc<Context>,
     /// The consumer to use in order to pull transactions to be included for the
@@ -881,10 +877,11 @@ impl Core {
         }
 
         // Consume the commit votes to be included.
-        let commit_votes = self
-            .dag_state
-            .write()
-            .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
+        let max_commit_votes = self
+            .context
+            .protocol_config
+            .max_commit_votes_per_block(self.context.committee.size());
+        let commit_votes = self.dag_state.write().take_commit_votes(max_commit_votes);
 
         // Get current timestamp and record drift but don't enforce ancestor timestamp
         // checks.
