@@ -99,6 +99,16 @@ impl ReportAggregator {
     }
 
     /// Increments the invalid report counter for the given authority.
+    ///
+    /// TODO: this counter is currently write-only — nothing reads it. It is
+    /// not exported as a Prometheus metric, not persisted (despite the
+    /// `DBReceivedReportsStatePerAuthority` naming and its `to_serializable`
+    /// machinery, no `DBMap` actually stores it), not consumed by the
+    /// `Scorer`, and not propagated in outgoing reports. Decide whether to
+    /// wire it to a per-authority operator metric or drop the scaffolding;
+    /// for now the field exists so the validation paths in
+    /// `verify_consensus_transaction` have somewhere to record rejected
+    /// reports.
     pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.received_reports_state[authority as usize]
             .invalid_reports_count
