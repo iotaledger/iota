@@ -755,22 +755,13 @@ async fn pending_leader_resolves_to_standard() {
     );
 }
 
-/// Optimistic-commit injects phantom acks: when the canonical leader at commit
-/// time differs from the leader the producers were "voting for" (e.g. block
-/// built before a schedule rotation, committed after), the strong-vote bytes
-/// — which carry no leader identity — get credited as acks for the canonical
-/// leader's `acknowledgments` set. The test sets up a single-validator view
-/// where:
-///   - The canonical leader of round 3 (per the post-rotation table) is
-///     authority 1, whose round-3 block has acks=[round-2 block from authority
-///     3].
-///   - That round-2 block's transaction data is *not* locally available.
-///   - Round-4 voters carry `strong_vote = Some(empty)`, consistent with the
-///     pre-rotation leader (different acks, all available).
-/// Optimistic linearization injects phantom acks for the canonical leader's
-/// ack set, committing the round-2 block via fictional 2f+1 evidence — even
-/// though no validator has its data. Asserts the system invariant
-/// "Z committed via Optimistic ⇒ ≥1 stake has Z's data" — fails by design.
+/// Asserts the StarfishSpeed safety invariant: every ref in
+/// `committed_transaction_refs` has locally-available transaction data.
+///
+/// Setup: round-3 leaders have asymmetric ack lists — A (auth 0) acks
+/// nothing; B (auth 1) acks `r2[3]`. Local data state covers everything
+/// except `r2[3]`. Round-4 voters cast strong votes computed against A.
+/// The committer's swap table designates B as canonical leader of round 3.
 #[tokio::test]
 async fn optimistic_commits_ref_without_actual_data_backing() {
     telemetry_subscribers::init_for_testing();
@@ -836,12 +827,8 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         r3_blocks.push(block);
     }
 
-    // Mark transaction data as locally available for everything *except*
-    //   - r2[3] (the block in B's acks)
-    //   - r3[1..=3] (B, C, D themselves)
-    // The producer's data state covers A's set ({A, A.acks=∅}) cleanly, so
-    // `Core::compute_strong_vote_for(A_block)` returns `Some(empty)` — a
-    // legitimate strong vote for A.
+    // Mark transaction data available for everything except `r2[3]` and
+    // round-3 blocks other than A.
     for block in &r1_blocks {
         add_transactions_for(&dag_state, block);
     }
@@ -852,25 +839,14 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
     }
     add_transactions_for(&dag_state, &r3_blocks[0]);
 
-    // Sanity: with this data state, A is a legitimate strong-vote target; B
-    // is *not* (data for B itself and for `r2[3]` is missing).
     let a_block = &r3_blocks[0];
     let b_block = &r3_blocks[1];
     {
         let dag = dag_state.read();
-        assert!(
-            Core::compute_strong_vote_for(&dag, a_block).is_strong_vote(),
-            "producer should be able to legitimately strong-vote for A"
-        );
-        assert!(
-            !Core::compute_strong_vote_for(&dag, b_block).is_strong_vote(),
-            "producer should NOT be able to legitimately strong-vote for B"
-        );
+        assert!(Core::compute_strong_vote_for(&dag, a_block).is_strong_vote());
+        assert!(!Core::compute_strong_vote_for(&dag, b_block).is_strong_vote());
     }
 
-    // Build round-4 voters using the production strong-vote computation
-    // against A — this is what an honest validator on the pre-rotation table
-    // would produce.
     let voter_strong_vote = {
         let dag = dag_state.read();
         Core::compute_strong_vote_for(&dag, a_block)
@@ -900,9 +876,7 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
             .accept_block_header(block, DataSource::Test);
     }
 
-    // Force canonical leader of round 3 to authority 1 (B).
-    // Test mode: `elect_leader(3, 0)` returns `(3 + 0) % 4 = 3`. The swap
-    // table flags auth 3 as bad and remaps to auth 1.
+    // Swap table forcing canonical leader of round 3 to authority 1.
     let alt_table = LeaderSwapTable {
         good_nodes: vec![(
             auth_1,
@@ -948,17 +922,9 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         });
     let p_data_available = dag_state.read().is_data_available(&r2_refs[3]);
 
-    // Safety invariant: a ref committed at this height must have its
-    // transaction data locally available. Pre-fix, the Optimistic phantom-ack
-    // injection commits B's ack target (`r2[3]`) without backing — assertion
-    // fails. Post-fix, voters' strong-votes pinned to A get filtered out at
-    // the committer's leader check, no Optimistic, no injection — invariant
-    // holds (vacuously: the ref is not committed at all).
     assert!(
         !p_committed || p_data_available,
-        "round-2 block from auth 3 (B's ack target) was committed via phantom \
-         acks: strong-vote bytes had been computed against leader A, got \
-         credited as acks for B's ack set, despite no validator having that \
-         block's transaction data"
+        "ref {:?} committed without locally-available transaction data",
+        r2_refs[3]
     );
 }
