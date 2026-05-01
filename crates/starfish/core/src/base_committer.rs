@@ -538,8 +538,10 @@ impl BaseCommitter {
         (is_cert, is_strong)
     }
 
-    /// Check whether 2f+1 blocks at `r+1` both vote for `leader_block` and
-    /// carry `is_strong_blame() == true`.
+    /// Check whether 2f+1 blocks at `r+1` vote for `leader_block`, pin their
+    /// strong-blame to `leader_block.author()`, and carry
+    /// `is_strong_blame() == true`. Strong blames whose pinned leader doesn't
+    /// match are ignored — same misattribution rule as for strong votes.
     fn has_strong_blame_quorum(&self, leader_block: &VerifiedBlockHeader) -> bool {
         let voting_round = leader_block.round() + 1;
         let voting_blocks = self
@@ -550,6 +552,9 @@ impl BaseCommitter {
         let mut strong_blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
             if !voting_block.is_strong_blame() {
+                continue;
+            }
+            if voting_block.strong_vote_leader() != Some(leader_block.author()) {
                 continue;
             }
             if !self.is_vote(voting_block, leader_block) {
