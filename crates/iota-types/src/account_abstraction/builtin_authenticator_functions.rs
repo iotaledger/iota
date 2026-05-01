@@ -1,3 +1,6 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
