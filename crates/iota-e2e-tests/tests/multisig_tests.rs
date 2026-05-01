@@ -8,17 +8,18 @@ use fastcrypto::traits::EncodeDecodeBase64;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{IotaKeyPair, PublicKey, Signature, SignatureScheme, ToFromBytes, get_key_pair},
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey},
     passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{keys, make_upgraded_multisig_tx, multisig_keys},
+    utils::{make_upgraded_multisig_tx, multisig_keys},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -263,12 +264,14 @@ async fn test_multisig_e2e() {
 
     let multisig_pk = MultiSigPublicKey::insecure_new(
         vec![
-            MultisigMember::new(pk0, 1),
-            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk0.clone(), 1),
+            MultisigMember::new(pk1.clone(), 1),
             MultisigMember::new(pk2, 1),
         ],
         2,
     );
+
+    let keys: [SimpleKeypair; 3] = [kp1.into(), kp2.into(), kp3.into()];
     let multisig_addr = IotaAddress::from(&multisig_pk);
 
     // fund wallet and get a gas object to use later.
@@ -348,14 +351,17 @@ async fn test_multisig_e2e() {
     );
 
     // 7. mismatch pks in sig with multisig address fails to execute.
-    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair().1);
-    let pk3 = kp3.public();
-    let wrong_multisig_pk = MultiSigPublicKey::new(
-        vec![pk0.clone(), pk1.clone(), pk3.clone()],
-        vec![1, 1, 1],
+    let pk3: MultisigMemberPublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
+        .public_key()
+        .into();
+    let wrong_multisig_pk = MultiSigPublicKey::insecure_new(
+        vec![
+            MultisigMember::new(pk0.clone(), 1),
+            MultisigMember::new(pk1.clone(), 1),
+            MultisigMember::new(pk3.clone(), 1),
+        ],
         2,
-    )
-    .unwrap();
+    );
     let wrong_sender = IotaAddress::from(&wrong_multisig_pk);
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), wrong_sender)
@@ -367,7 +373,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains(format!("Invalid sig for pk={}", pk3.encode_base64()).as_str())
+            .contains(format!("Invalid sig for pk={}", pk3.to_base64()).as_str())
     );
 }
 

@@ -13,12 +13,13 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_crypto::{Signer as SdkSigner, simple::SimpleKeypair};
+use iota_sdk_types::crypto::{Intent, IntentMessage, SimpleSignature};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
-    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
+    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey, MultisigMemberSignature},
     object::Owner,
     signature::GenericSignature,
     transaction::{
@@ -387,27 +388,30 @@ impl TestTransactionBuilder {
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn Signer<Signature>],
+        signers: &[&SimpleKeypair],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let intent_msg = IntentMessage::new(Intent::iota_transaction(), data.clone());
+        let msg = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_message();
 
-        let mut signatures = Vec::with_capacity(signers.len());
-        for signer in signers {
-            signatures.push(
-                GenericSignature::from(Signature::new_secure(&intent_msg, *signer))
-                    .to_compressed()
-                    .unwrap(),
-            );
-        }
+        let signatures = signers
+            .iter()
+            .map(|kp| match SdkSigner::sign(*kp, &*msg) {
+                SimpleSignature::Ed25519 { signature, .. } => {
+                    MultisigMemberSignature::Ed25519(signature)
+                }
+                SimpleSignature::Secp256k1 { signature, .. } => {
+                    MultisigMemberSignature::Secp256k1(signature)
+                }
+                SimpleSignature::Secp256r1 { signature, .. } => {
+                    MultisigMemberSignature::Secp256r1(signature)
+                }
+                _ => panic!("unsupported signature scheme for multisig"),
+            })
+            .collect();
 
-        panic!();
-
-        // let multisig = GenericSignature::MultiSig(MultiSig::new(signatures,
-        // bitmap, multisig_pk));
-
-        // Transaction::from_generic_sig_data(data, vec![multisig])
+        let multisig = GenericSignature::MultiSig(MultiSig::new(signatures, bitmap, multisig_pk));
+        Transaction::from_generic_sig_data(data, vec![multisig])
     }
 }
 
