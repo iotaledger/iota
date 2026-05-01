@@ -13,7 +13,7 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     ChangeEpoch,
     crypto::{
-        Ed25519Signature, Intent, IntentMessage, Jwk, JwkId, PersonalMessage, Secp256k1Signature,
+        Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
         Secp256r1Signature,
     },
 };
@@ -25,8 +25,7 @@ use iota_types::{
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        Ed25519IotaSignature, IotaKeyPair, KeypairTraits, Signature, Signer, ToFromBytes,
-        get_key_pair, get_key_pair_from_rng,
+        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
     },
     digests::ConsensusCommitDigest,
     effects::{

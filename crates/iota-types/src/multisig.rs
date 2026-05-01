@@ -2,12 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    hash::{Hash, Hasher},
-    str::FromStr,
-    sync::Arc,
-};
-
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::HashFunction;
 use iota_sdk_crypto::multisig::MultisigVerifier;
@@ -16,17 +10,13 @@ pub use iota_sdk_types::crypto::{
     MultisigMember, MultisigMemberPublicKey, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
 use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
-use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde::Serialize;
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
-    crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
+    base_types::IotaAddress,
+    crypto::DefaultHash,
     error::IotaError,
-    passkey_authenticator::PasskeyAuthenticator,
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
+    signature::{AuthenticatorTrait, VerifyParams},
 };
 
 #[cfg(test)]

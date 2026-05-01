@@ -6249,6 +6249,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "iota-simulator",
  "iota-storage",
@@ -6641,7 +6642,7 @@ dependencies = [
  "iota-move-build",
  "iota-move-natives-latest",
  "iota-protocol-config",
- "iota-sdk-crypto",
+ "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=24d9b65f00a19f2c8e08d1c55f227e90386c88a9)",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "iota-simulator",
  "iota-stardust-types",
@@ -7999,10 +8000,10 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d883dc28d5b68561ed8dffd966257de7162c04da#d883dc28d5b68561ed8dffd966257de7162c04da"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463#9ac60e4a7aead0337e44402cdce398e88bd32463"
 dependencies = [
  "ed25519-dalek",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d883dc28d5b68561ed8dffd966257de7162c04da)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "k256",
  "p256",
  "rand_core 0.6.4",
@@ -8583,6 +8584,7 @@ dependencies = [
  "iota-network-stack",
  "iota-proc-macros",
  "iota-protocol-config",
+ "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9ac60e4a7aead0337e44402cdce398e88bd32463)",
  "itertools 0.13.0",
  "lru 0.12.5",

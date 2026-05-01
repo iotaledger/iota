@@ -18,14 +18,8 @@ use iota_types::{
     error::{IotaError, UserInputError},
     messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    signature::GenericSignature,
-    transaction::{
-        AuthenticatorStateUpdateV1, GenesisTransaction, TransactionDataAPI, TransactionKind,
-    },
-    utils::{get_one_zklogin_inputs, load_test_vectors, to_sender_signed_transaction},
-    zk_login_authenticator::ZkLoginAuthenticator,
-    zk_login_util::DEFAULT_JWK_BYTES,
+    transaction::{GenesisTransaction, TransactionDataAPI, TransactionKind},
+    utils::to_sender_signed_transaction,
 };
 
 use crate::{

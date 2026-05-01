@@ -18,8 +18,7 @@ use iota_types::{
     passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{keys, load_test_vectors, make_upgraded_multisig_tx, multisig_keys},
-    zk_login_authenticator::ZkLoginAuthenticator,
+    utils::{keys, make_upgraded_multisig_tx, multisig_keys},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};

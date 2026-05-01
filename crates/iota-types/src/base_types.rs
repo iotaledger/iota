@@ -25,10 +25,7 @@ use serde::{
 
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{
-        AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
-        SignatureScheme,
-    },
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
