@@ -40,10 +40,9 @@ pub(crate) struct BeforeVersion {
 /// # Query Parameters
 ///
 /// * `before_version` (optional, default `false`): only valid when `item_type`
-///   is [`ItemType::Object`](iota_storage::http_key_value_store::ItemType::Object).
-///   When `true`, returns the latest stored version strictly less than the
-///   version encoded in the key. Returns `400 Bad Request` if used with any
-///   other [`ItemType`](iota_storage::http_key_value_store::ItemType).
+///   is [`ItemType::Object`]. When `true`, returns the latest stored version
+///   strictly less than the version encoded in the key. Returns `400 Bad
+///   Request` if used with any other [`ItemType`].
 ///
 /// # Returns
 ///
@@ -92,10 +91,9 @@ pub async fn data_as_bytes(
 /// # Query Parameters
 ///
 /// * `before_version` (optional, default `false`): only valid when `item_type`
-///   is [`ItemType::Object`](iota_storage::http_key_value_store::ItemType::Object).
-///   When `true`, returns the latest stored version strictly less than the
-///   version encoded in each key. Returns `400 Bad Request` if used with any
-///   other [`ItemType`](iota_storage::http_key_value_store::ItemType).
+///   is [`ItemType::Object`]. When `true`, returns the latest stored version
+///   strictly less than the version encoded in each key. Returns `400 Bad
+///   Request` if used with any other [`ItemType`].
 ///
 /// # Request Body
 ///
