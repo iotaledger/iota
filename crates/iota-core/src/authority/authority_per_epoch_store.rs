@@ -2868,16 +2868,33 @@ impl AuthorityPerEpochStore {
             .get(authority)?)
     }
 
+    /// Loads the persisted overload notifications keyed by authority.
+    pub(crate) fn load_overload_notifications(
+        &self,
+    ) -> IotaResult<HashMap<AuthorityName, u8>> {
+        Ok(self
+            .tables()?
+            .authority_overload_notifications
+            .safe_iter()
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?)
+    }
+
     /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
     /// received via OverloadNotificationV1 consensus transactions. Authorities
     /// that have not sent a notification are assumed to have a percentage of 0.
     pub fn get_quorum_load_shedding_percentage(&self) -> IotaResult<u8> {
-        let notifications = self
-            .tables()?
-            .authority_overload_notifications
-            .safe_iter()
-            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?;
+        let notifications = self.load_overload_notifications()?;
+        Ok(self.compute_quorum_load_shedding_percentage(&notifications))
+    }
 
+    /// Computes the stake-weighted 2f+1 percentile from an in-memory
+    /// notifications map. Used both by `get_quorum_load_shedding_percentage`
+    /// and by the consensus commit pre-pass that overlays in-batch
+    /// `OverloadNotificationV1` entries on top of the persisted state.
+    pub(crate) fn compute_quorum_load_shedding_percentage(
+        &self,
+        notifications: &HashMap<AuthorityName, u8>,
+    ) -> u8 {
         let committee = self.committee();
 
         // Build a vec of (percentage, stake) for every committee member.
@@ -2901,13 +2918,13 @@ impl AuthorityPerEpochStore {
         for (percentage, stake) in weighted_values {
             accumulated_stake += stake;
             if accumulated_stake >= quorum_threshold {
-                return Ok(percentage);
+                return percentage;
             }
         }
 
         // Unreachable with a valid committee (total stake >= quorum threshold),
         // but return 0 as a safe fallback.
-        Ok(0)
+        0
     }
 
     pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
@@ -3304,8 +3321,29 @@ impl AuthorityPerEpochStore {
 
         // Post-consensus load shedding: compute the drop percentage once before
         // the loop so user transactions can be dropped inline during categorization.
+        // OverloadNotificationV1 transactions in this same commit batch are
+        // overlaid on top of the persisted notifications so user txs in the
+        // batch are dropped using the latest load shedding percentage rather
+        // than the previous round's value. The actual DB write still happens
+        // later inside `process_consensus_transactions` and is gated by
+        // `should_accept_consensus_certs`; this overlay mirrors that gate.
         let drop_percentage = if enable_white_flag {
-            self.get_quorum_load_shedding_percentage()? as u32
+            let mut notifications = self.load_overload_notifications()?;
+            if self
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_consensus_certs()
+            {
+                for tx in &verified_transactions {
+                    if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                        kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                        ..
+                    }) = &tx.0.transaction
+                    {
+                        notifications.insert(*authority, *percentage);
+                    }
+                }
+            }
+            self.compute_quorum_load_shedding_percentage(&notifications) as u32
         } else {
             0
         };

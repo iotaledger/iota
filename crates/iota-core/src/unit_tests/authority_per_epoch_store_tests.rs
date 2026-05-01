@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use iota_types::base_types::TransactionDigest;
 use tokio::time::timeout;
@@ -144,4 +147,72 @@ async fn wait_for_transactions_in_checkpoint_times_out_without_notify() {
         elapsed < wait_timeout * 5,
         "wait took unreasonably long: {elapsed:?}"
     );
+}
+
+/// Persisted overload notifications must round-trip through
+/// `record_overload_notification_v1` -> `load_overload_notifications`.
+/// Re-recording overwrites the previous percentage.
+#[tokio::test]
+async fn test_load_overload_notifications_round_trip() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    assert!(
+        store.load_overload_notifications().unwrap().is_empty(),
+        "no notifications recorded yet",
+    );
+
+    store.record_overload_notification_v1(&me, 25).unwrap();
+    assert_eq!(
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&me)
+            .copied(),
+        Some(25),
+    );
+
+    // A subsequent record from the same authority overwrites the prior value.
+    store.record_overload_notification_v1(&me, 75).unwrap();
+    assert_eq!(
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&me)
+            .copied(),
+        Some(75),
+    );
+}
+
+/// `compute_quorum_load_shedding_percentage` must read the percentile from
+/// the supplied map without consulting the DB. With a single-authority test
+/// committee the 2f+1 quorum value is just that authority's reported value
+/// (or 0 when absent). This is the same code path used to apply in-batch
+/// `OverloadNotificationV1` overrides on top of the persisted map before
+/// dropping user transactions.
+#[tokio::test]
+async fn test_compute_quorum_load_shedding_percentage_uses_overlay() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    // Empty overlay -> 0%.
+    let empty: HashMap<_, _> = HashMap::new();
+    assert_eq!(store.compute_quorum_load_shedding_percentage(&empty), 0);
+
+    // Overlay-only value is reflected without touching the DB.
+    let mut overlay = HashMap::new();
+    overlay.insert(me, 60);
+    assert_eq!(store.compute_quorum_load_shedding_percentage(&overlay), 60);
+
+    // Persist a different value and confirm the overlay wins, mirroring the
+    // last-writer-wins behavior of the pre-pass merge step.
+    store.record_overload_notification_v1(&me, 10).unwrap();
+    let mut merged = store.load_overload_notifications().unwrap();
+    merged.insert(me, 90);
+    assert_eq!(store.compute_quorum_load_shedding_percentage(&merged), 90);
+
+    // Without the overlay, only the persisted value is visible.
+    assert_eq!(store.get_quorum_load_shedding_percentage().unwrap(), 10);
 }
