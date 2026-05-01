@@ -421,9 +421,11 @@ impl BaseCommitter {
     }
 
     /// `(vote_refs, strong_vote_refs)` at r+1 for `leader_block`, built in a
-    /// single pass. Strong votes are a subset of votes; `is_strong_vote()`
-    /// alone is insufficient (a voter may flag itself strong while supporting
-    /// an equivocating leader).
+    /// single pass. Strong votes are a subset of votes; the strong-vote filter
+    /// also requires the voter's pinned leader (`strong_vote_leader`) to
+    /// match `leader_block.author()` — strong votes computed against a
+    /// different leader (e.g. before a schedule rotation) don't count toward
+    /// this leader's quorum.
     fn vote_and_strong_vote_refs_for_leader(
         &self,
         leader_block: &VerifiedBlockHeader,
@@ -439,7 +441,9 @@ impl BaseCommitter {
             if self.is_vote(voter, leader_block) {
                 let r = voter.reference();
                 vote_refs.insert(r);
-                if voter.is_strong_vote() {
+                if voter.is_strong_vote()
+                    && voter.strong_vote_leader() == Some(leader_block.author())
+                {
                     strong_vote_refs.insert(r);
                 }
             }
@@ -463,7 +467,11 @@ impl BaseCommitter {
 
         let strong_vote_refs: HashSet<BlockRef> = voters
             .into_iter()
-            .filter(|b| b.is_strong_vote() && self.is_vote(b, leader_block))
+            .filter(|b| {
+                b.is_strong_vote()
+                    && b.strong_vote_leader() == Some(leader_block.author())
+                    && self.is_vote(b, leader_block)
+            })
             .map(|b| b.reference())
             .collect();
 
