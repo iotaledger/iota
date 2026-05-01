@@ -795,15 +795,17 @@ impl Core {
             leader_header.as_ref()?;
 
             // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
-            // soft-timeout): 2f+1 strong votes at clock_round-1 pinned to the
-            // leader at clock_round-2.
-            let prev_leader_round = quorum_round.saturating_sub(1);
+            // soft-timeout): 2f+1 strong votes at quorum_round pinned to the
+            // leader at quorum_round - 1.
             if !strong_vote_timed_out
                 && self.context.protocol_config.consensus_starfish_speed()
-                && prev_leader_round > GENESIS_ROUND
-                && !self.has_strong_vote_quorum(quorum_round, self.first_leader(prev_leader_round))
+                && quorum_round > GENESIS_ROUND
             {
-                return None;
+                if let Some(prev_leader) = self.leader_header(quorum_round - 1) {
+                    if !self.has_strong_vote_quorum(quorum_round, prev_leader.author()) {
+                        return None;
+                    }
+                }
             }
 
             if Duration::from_millis(

@@ -755,6 +755,8 @@ async fn pending_leader_resolves_to_standard() {
     );
 }
 
+/// A strong vote computed against one leader must not be counted as evidence
+/// for a different canonical leader (e.g. across a leader-schedule swap).
 /// Asserts the StarfishSpeed safety invariant: every ref in
 /// `committed_transaction_refs` has locally-available transaction data.
 ///

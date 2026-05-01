@@ -195,7 +195,7 @@ impl BlockVerifier for SignedBlockVerifier {
                 }
             }
             // Self-consistency: the pinned leader must appear in the block's
-            // ancestors at round-1. Independent of the verifier's swap table.
+            // ancestors at round-1.
             let leader_round = block.round().saturating_sub(1);
             if leader_round != GENESIS_ROUND {
                 let leader_seen = block
