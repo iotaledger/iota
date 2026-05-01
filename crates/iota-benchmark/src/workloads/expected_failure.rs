@@ -133,10 +133,17 @@ impl ExpectedFailureWorkloadBuilder {
                 duration,
                 group,
             };
+            // Expected-failure transactions (e.g. InvalidSignature) are rejected
+            // before execution so gas is never consumed — the same gas objects can
+            // be reused across all in-flight slots. Capping num_payloads to
+            // num_workers avoids allocating O(target_qps * in_flight_ratio) gas
+            // coins during setup, which can take minutes at high QPS and prevent
+            // the benchmark from starting within the run interval.
+            let num_payloads = num_workers.max(1);
             let workload_builder = Box::<dyn WorkloadBuilder<dyn Payload>>::from(Box::new(
                 ExpectedFailureWorkloadBuilder {
                     expected_failure_cfg,
-                    num_payloads: max_ops,
+                    num_payloads,
                     num_transfer_accounts,
                 },
             ));
