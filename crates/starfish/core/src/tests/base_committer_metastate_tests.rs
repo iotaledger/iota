@@ -845,13 +845,13 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
     let b_block = &r3_blocks[1];
     {
         let dag = dag_state.read();
-        assert!(Core::compute_strong_vote_for(&dag, a_block).is_strong_vote());
-        assert!(!Core::compute_strong_vote_for(&dag, b_block).is_strong_vote());
+        assert!(Core::compute_strong_vote(&dag, a_block).is_strong_vote());
+        assert!(!Core::compute_strong_vote(&dag, b_block).is_strong_vote());
     }
 
     let voter_strong_vote = {
         let dag = dag_state.read();
-        Core::compute_strong_vote_for(&dag, a_block)
+        Core::compute_strong_vote(&dag, a_block)
     };
     let r4_refs: Vec<BlockRef> = (0..4u8)
         .map(|author| {

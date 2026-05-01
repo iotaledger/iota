@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -822,7 +822,9 @@ impl Core {
         // Compute the strong_vote once; reused for readiness check 2 and
         // the block header below.
         let strong_vote = if self.context.protocol_config.consensus_starfish_speed() {
-            leader_header.as_ref().map(|h| self.compute_strong_vote(h))
+            leader_header
+                .as_ref()
+                .map(|h| Self::compute_strong_vote(&self.dag_state.read(), h))
         } else {
             None
         };
@@ -1350,21 +1352,12 @@ impl Core {
         included_ancestors
     }
 
-    /// Given a leader block header, computes the `StrongVote` payload for a
-    /// block voting on that leader: pins the leader's authority and records
-    /// the set of authorities (the leader itself and those it acknowledges)
-    /// whose transaction data is not locally available. An empty `missing`
-    /// set means a strong vote; a non-empty set means strong blame.
-    fn compute_strong_vote(&self, leader_header: &VerifiedBlockHeader) -> StrongVote {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            error!("compute_strong_vote called while consensus_starfish_speed is disabled");
-        }
-        Self::compute_strong_vote_for(&self.dag_state.read(), leader_header)
-    }
-
-    /// Static form of [`Self::compute_strong_vote`]: builds the `StrongVote`
-    /// payload from a borrowed `DagState`, no `Core` instance required.
-    pub(crate) fn compute_strong_vote_for(
+    /// Builds the `StrongVote` payload for a block voting on `leader_header`:
+    /// pins the leader's authority and records the set of authorities (the
+    /// leader itself and those it acknowledges) whose transaction data is not
+    /// locally available. An empty `missing` set means a strong vote; a
+    /// non-empty set means strong blame.
+    pub(crate) fn compute_strong_vote(
         dag_state: &DagState,
         leader_header: &VerifiedBlockHeader,
     ) -> StrongVote {
