@@ -6,16 +6,16 @@
 use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
-use iota_sdk_types::{
-    ChangeEpoch,
-    crypto::{Intent, IntentMessage, PersonalMessage},
 use iota_sdk_crypto::{
     Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::crypto::{
-    Ed25519Signature, Intent, IntentMessage, Jwk, JwkId, PersonalMessage, Secp256k1Signature,
-    Secp256r1Signature,
+use iota_sdk_types::{
+    ChangeEpoch,
+    crypto::{
+        Ed25519Signature, Intent, IntentMessage, Jwk, JwkId, PersonalMessage, Secp256k1Signature,
+        Secp256r1Signature,
+    },
 };
 use iota_types::{
     base_types::{
@@ -24,10 +24,9 @@ use iota_types::{
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
-        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
+        Ed25519IotaSignature, IotaKeyPair, KeypairTraits, Signature, Signer, ToFromBytes,
+        get_key_pair, get_key_pair_from_rng,
     },
     digests::ConsensusCommitDigest,
     effects::{

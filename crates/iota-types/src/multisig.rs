@@ -7,7 +7,6 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use std::sync::Arc;
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::HashFunction;
@@ -16,25 +15,17 @@ pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberPublicKey, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
+use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    base_types::IotaAddress,
+    base_types::{EpochId, IotaAddress},
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
-use serde::Serialize;
-
-use crate::{
-    base_types::{EpochId, IotaAddress},
-    crypto::DefaultHash,
-    digests::ZKLoginInputsDigest,
-    error::IotaError,
-    signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
 };
 
@@ -128,7 +119,7 @@ impl AuthenticatorTrait for MultiSig {
             }
 
             let res = match signature {
-                 // MultisigMemberSignature::Passkey(bytes) => {
+                // MultisigMemberSignature::Passkey(bytes) => {
                 //     let authenticator =
                 //         PasskeyAuthenticator::from_bytes(&bytes.0).map_err(|_| {
                 //             IotaError::InvalidSignature {
@@ -174,7 +165,6 @@ impl AuthenticatorTrait for MultiSig {
 }
 
 // impl MultiSig {
-
 
 // /// The struct that contains the public key used for authenticating a
 // MultiSig. #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,

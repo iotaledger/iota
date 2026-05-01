@@ -362,9 +362,9 @@ use std::{str::FromStr, sync::Arc};
 //         MultiSig::combine(vec![sig3.into(), sig2.into(), sig1.into()],
 // multisig_pk).unwrap();
 
-    // Indexes of public keys in multisig public key instance according to the
-    // combined sigs.
-    assert!(multi_sig1.get_indices().unwrap() == vec![1, 2]);
-    assert!(multi_sig2.get_indices().unwrap() == vec![0, 1, 2]);
-    assert!(invalid_multisig.get_indices().unwrap() == vec![0, 1, 2]);
-}
+// Indexes of public keys in multisig public key instance according to the
+// combined sigs.
+//     assert!(multi_sig1.get_indices().unwrap() == vec![1, 2]);
+//     assert!(multi_sig2.get_indices().unwrap() == vec![0, 1, 2]);
+//     assert!(invalid_multisig.get_indices().unwrap() == vec![0, 1, 2]);
+// }
