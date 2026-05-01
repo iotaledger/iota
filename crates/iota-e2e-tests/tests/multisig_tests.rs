@@ -211,7 +211,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
             authenticator_data.to_vec(),
             String::from_utf8(client_data_json.to_vec()).unwrap(),
             SimpleSignature::Secp256r1 {
-                signature: Secp256r1Signature::new(sig_bytes.try_into().unwrap()),
+                signature: Secp256r1Signature::new(sig_bytes.into()),
                 public_key: Secp256r1PublicKey::new(pk_bytes),
             },
         )
@@ -279,8 +279,8 @@ async fn test_multisig_e2e() {
 
     let multisig_pk = MultiSigPublicKey::insecure_new(
         vec![
-            MultisigMember::new(pk0.clone(), 1),
-            MultisigMember::new(pk1.clone(), 1),
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
             MultisigMember::new(pk2, 1),
         ],
         2,
@@ -371,8 +371,8 @@ async fn test_multisig_e2e() {
         .into();
     let wrong_multisig_pk = MultiSigPublicKey::insecure_new(
         vec![
-            MultisigMember::new(pk0.clone(), 1),
-            MultisigMember::new(pk1.clone(), 1),
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
             MultisigMember::new(pk3.clone(), 1),
         ],
         2,
