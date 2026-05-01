@@ -389,7 +389,6 @@ url = "2.3.1"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
-
 bin-version = { path = "crates/bin-version" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
@@ -465,7 +464,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9ac60e4a7aead0337e44402cdce398e88bd32463" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9ac60e4a7aead0337e44402cdce398e88bd32463", features = ["hash", "serde"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9ac60e4a7aead0337e44402cdce398e88bd32463" }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
