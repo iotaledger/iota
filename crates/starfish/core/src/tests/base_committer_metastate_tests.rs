@@ -13,7 +13,7 @@ use crate::{
     },
     block_header::{
         BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        TransactionsCommitment, VerifiedBlockHeader, genesis_block_headers,
+        TransactionsCommitment, VerifiedBlockHeader, VerifiedTransactions, genesis_block_headers,
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus},
     context::Context,
@@ -21,6 +21,7 @@ use crate::{
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::Linearizer,
     storage::mem_store::MemStore,
+    transaction_ref::GenericTransactionRef,
     universal_committer::universal_committer_builder::UniversalCommitterBuilder,
 };
 
@@ -45,6 +46,38 @@ fn v2_block(
         strong_vote,
     );
     VerifiedBlockHeader::new_for_test(BlockHeader::V2(header))
+}
+
+/// `v2_block` variant that takes a non-empty `acks` list.
+fn v2_block_with_acks(
+    round: Round,
+    author: u8,
+    ancestors: Vec<BlockRef>,
+    acks: Vec<BlockRef>,
+    strong_vote: Option<AuthoritySet>,
+    timestamp_ms: BlockTimestampMs,
+) -> VerifiedBlockHeader {
+    let header = BlockHeaderV2::new(
+        0,
+        round,
+        AuthorityIndex::from(author),
+        timestamp_ms,
+        ancestors,
+        acks,
+        vec![],
+        TransactionsCommitment::DEFAULT_FOR_TEST,
+        strong_vote,
+    );
+    VerifiedBlockHeader::new_for_test(BlockHeader::V2(header))
+}
+
+/// Marks `header`'s transaction data as locally available, so
+/// `DagState::is_data_available` returns true for that ref.
+fn add_transactions_for(dag_state: &Arc<RwLock<DagState>>, header: &VerifiedBlockHeader) {
+    let verified = VerifiedTransactions::new_for_test(header, vec![]);
+    dag_state
+        .write()
+        .add_transactions(verified, DataSource::Test);
 }
 
 /// Default timestamp for single-block-per-slot callers.
@@ -696,100 +729,185 @@ async fn pending_leader_resolves_to_standard() {
     );
 }
 
-/// Two validators on the same DAG holding different `LeaderSwapTable`s commit
-/// disjoint round-3 subdags. Asserts the safety property that the two subdags
-/// must be equal — fails by design, demonstrating the divergence in committed
-/// transactions.
+/// Optimistic-commit injects phantom acks: when the canonical leader at commit
+/// time differs from the leader the producers were "voting for" (e.g. block
+/// built before a schedule rotation, committed after), the strong-vote bytes
+/// — which carry no leader identity — get credited as acks for the canonical
+/// leader's `acknowledgments` set. The test sets up a single-validator view
+/// where:
+///   - The canonical leader of round 3 (per the post-rotation table) is
+///     authority 1, whose round-3 block has acks=[round-2 block from authority
+///     3].
+///   - That round-2 block's transaction data is *not* locally available.
+///   - Round-4 voters carry `strong_vote = Some(empty)`, consistent with the
+///     pre-rotation leader (different acks, all available).
+/// Optimistic linearization injects phantom acks for the canonical leader's
+/// ack set, committing the round-2 block via fictional 2f+1 evidence — even
+/// though no validator has its data. Asserts the system invariant
+/// "Z committed via Optimistic ⇒ ≥1 stake has Z's data" — fails by design.
 #[tokio::test]
-async fn validators_with_different_swap_tables_diverge_on_committed_subdag() {
+async fn optimistic_commits_ref_without_actual_data_backing() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context_with_flag(true);
+    let auth_1 = AuthorityIndex::from(1u8);
+    let auth_3 = AuthorityIndex::from(3u8);
 
-    // Committer A: default swap table. Test mode: `elect_leader(3, 0)` returns
-    // `(3 + 0) % 4 = 3`, no swap fires.
-    let committer_a = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    // Round 1.
+    let r1_refs: Vec<BlockRef> = (0..4u8)
+        .map(|author| {
+            let block = v2_block(
+                1,
+                author,
+                genesis_block_headers(&context)
+                    .iter()
+                    .map(|b| b.reference())
+                    .collect(),
+                None,
+                default_ts(1, author),
+            );
+            let r = block.reference();
+            dag_state
+                .write()
+                .accept_block_header(block, DataSource::Test);
+            r
+        })
+        .collect();
 
-    // Committer B: swap table flagging auth 3 as bad → auth 1 takes round 3.
-    let alt_table = {
-        let auth_3 = AuthorityIndex::from(3u8);
-        let auth_1 = AuthorityIndex::from(1u8);
-        let host_3 = context.committee.authority(auth_3).hostname.clone();
-        let stake_3 = context.committee.authority(auth_3).stake;
-        let host_1 = context.committee.authority(auth_1).hostname.clone();
-        let stake_1 = context.committee.authority(auth_1).stake;
-        LeaderSwapTable {
-            good_nodes: vec![(auth_1, host_1, stake_1)],
-            bad_nodes: std::iter::once((auth_3, (host_3, stake_3))).collect(),
-            ..LeaderSwapTable::default()
+    // Round 2.
+    let mut r2_blocks = Vec::new();
+    let mut r2_refs = Vec::new();
+    for author in 0..4u8 {
+        let block = v2_block(2, author, r1_refs.clone(), None, default_ts(2, author));
+        r2_refs.push(block.reference());
+        dag_state
+            .write()
+            .accept_block_header(block.clone(), DataSource::Test);
+        r2_blocks.push(block);
+    }
+
+    // Round 3: only B (auth 1) has acks=[round-2 block from auth 3].
+    let mut r3_refs = Vec::new();
+    for author in 0..4u8 {
+        let acks = if author == 1 {
+            vec![r2_refs[3]]
+        } else {
+            vec![]
+        };
+        let block = v2_block_with_acks(
+            3,
+            author,
+            r2_refs.clone(),
+            acks,
+            None,
+            default_ts(3, author),
+        );
+        r3_refs.push(block.reference());
+        dag_state
+            .write()
+            .accept_block_header(block, DataSource::Test);
+    }
+
+    // Round 4 voters: all carry strong_vote = Some(empty).
+    let r4_refs: Vec<BlockRef> = (0..4u8)
+        .map(|author| {
+            let block = v2_block(
+                4,
+                author,
+                r3_refs.clone(),
+                strong_vote(),
+                default_ts(4, author),
+            );
+            let r = block.reference();
+            dag_state
+                .write()
+                .accept_block_header(block, DataSource::Test);
+            r
+        })
+        .collect();
+
+    // Round 5 certifiers.
+    for author in 0..4u8 {
+        let block = v2_block(5, author, r4_refs.clone(), None, default_ts(5, author));
+        dag_state
+            .write()
+            .accept_block_header(block, DataSource::Test);
+    }
+
+    // Mark transaction data as locally available for everything except r2[3]
+    // (the block in B's acks). This models a producer state where the bytes
+    // `Some(empty)` are consistent with voting for any *other* leader, but not
+    // for B — yet the committer attributes the votes to B.
+    for (i, block) in r2_blocks.iter().enumerate() {
+        if i != 3 {
+            add_transactions_for(&dag_state, block);
         }
+    }
+
+    // Force canonical leader of round 3 to authority 1 (B).
+    // Test mode: `elect_leader(3, 0)` returns `(3 + 0) % 4 = 3`. The swap
+    // table flags auth 3 as bad and remaps to auth 1.
+    let alt_table = LeaderSwapTable {
+        good_nodes: vec![(
+            auth_1,
+            context.committee.authority(auth_1).hostname.clone(),
+            context.committee.authority(auth_1).stake,
+        )],
+        bad_nodes: std::iter::once((
+            auth_3,
+            (
+                context.committee.authority(auth_3).hostname.clone(),
+                context.committee.authority(auth_3).stake,
+            ),
+        ))
+        .collect(),
+        ..LeaderSwapTable::default()
     };
     let alt_schedule = Arc::new(LeaderSchedule::new(context.clone(), alt_table));
-    let committer_b = BaseCommitter::new(
+    let committer = BaseCommitter::new(
         context.clone(),
-        alt_schedule,
+        alt_schedule.clone(),
         dag_state.clone(),
         BaseCommitterOptions::default(),
     );
 
-    let leader_round = committer_a.leader_round(1);
-    let leader_a = committer_a
-        .elect_leader(leader_round)
-        .expect("leader at round 3");
-    let leader_b = committer_b
-        .elect_leader(leader_round)
-        .expect("leader at round 3");
-    assert_ne!(
-        leader_a.authority, leader_b.authority,
-        "test setup invalid: swap tables agree on the leader"
-    );
+    let leader_b_slot = committer.elect_leader(3).expect("leader at round 3");
+    assert_eq!(leader_b_slot.authority, auth_1);
 
-    // Every round-4 voter carries `strong_vote = Some(empty)` and references
-    // all four round-3 blocks.
-    build_metastate_dag(
-        context.clone(),
-        dag_state.clone(),
-        &committer_a,
-        [strong_vote(); 4],
-    );
-
-    let block_a = match committer_a.try_direct_decide(leader_a) {
-        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), _) => b,
-        other => panic!("committer_a: expected Optimistic Commit, got {other}"),
-    };
-    let block_b = match committer_b.try_direct_decide(leader_b) {
-        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), _) => b,
-        other => panic!("committer_b: expected Optimistic Commit, got {other}"),
+    let (block_b, strong_voters) = match committer.try_direct_decide(leader_b_slot) {
+        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), sv) => (b, sv),
+        other => panic!("expected Optimistic Commit, got {other}"),
     };
 
-    // Linearize each leader's subdag from a fresh "no prior commits" state —
-    // the set of blocks each validator would commit at this height.
-    let last_committed_rounds = vec![0u32; context.committee.size()];
-    let gc_depth = context.protocol_config.gc_depth();
-    let dag_state_guard = dag_state.read();
-    let subdag_a: BTreeSet<BlockRef> = Linearizer::linearize_sub_dag(
-        block_a,
-        last_committed_rounds.clone(),
-        &dag_state_guard,
-        gc_depth,
-    )
-    .iter()
-    .map(|h| h.reference())
-    .collect();
-    let subdag_b: BTreeSet<BlockRef> =
-        Linearizer::linearize_sub_dag(block_b, last_committed_rounds, &dag_state_guard, gc_depth)
-            .iter()
-            .map(|h| h.reference())
-            .collect();
-    drop(dag_state_guard);
+    let mut linearizer = Linearizer::new(context, dag_state.clone(), alt_schedule);
+    let pending = linearizer.get_pending_sub_dags(vec![(
+        block_b,
+        Some(CommitMetastate::Optimistic),
+        strong_voters,
+    )]);
+    assert_eq!(pending.len(), 1);
 
-    let only_in_a: Vec<_> = subdag_a.difference(&subdag_b).collect();
-    let only_in_b: Vec<_> = subdag_b.difference(&subdag_a).collect();
+    // The Optimistic injection records each strong voter as acking
+    // {leader_ref, leader.acks}. With B.acks = [r2[3]], r2[3] crosses the
+    // 2f+1 threshold via these phantom acks and lands in committed_refs.
+    let p_committed = pending[0]
+        .committed_transaction_refs
+        .iter()
+        .any(|r| match r {
+            GenericTransactionRef::BlockRef(br) => br.round == 2 && br.author == auth_3,
+            GenericTransactionRef::TransactionRef(tr) => tr.round == 2 && tr.author == auth_3,
+        });
+    assert!(
+        p_committed,
+        "round-2 block from auth 3 (B's ack target) should be committed via the \
+         Optimistic injection"
+    );
 
-    // Safety property: two honest validators must produce the same committed
-    // subdag at the same height.
-    assert_eq!(
-        subdag_a, subdag_b,
-        "validators with different swap tables committed different block sets \
-         at round {leader_round}\n  only-in-A: {only_in_a:?}\n  only-in-B: {only_in_b:?}",
+    let p_data_available = dag_state.read().is_data_available(&r2_refs[3]);
+
+    assert!(
+        !p_committed || p_data_available,
+        "Optimistic committed round-2 block from auth 3 via phantom acks: \
+         strong-vote bytes were leader-agnostic, got credited as acks for B's \
+         ack set, despite no validator having that block's transaction data"
     );
 }
