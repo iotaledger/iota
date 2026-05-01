@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::Parser;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
@@ -20,8 +20,8 @@ use iota_sdk::{
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
-    crypto::PublicKey,
-    multisig::{MultiSig, MultiSigPublicKey},
+    crypto::{IotaSignature, PublicKey, Signature, SignatureScheme},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMemberSignature},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -711,21 +711,23 @@ impl Client {
         admin_key: MultiSigPublicKey,
         data: TransactionData,
     ) -> Result<Transaction> {
-        let sponsor_sig: GenericSignature = self
+        let sponsor_sig: Signature = self
             .wallet
             .config()
             .keystore()
             .sign_secure(&sender, &data, Intent::iota_transaction())
-            .context("Signing transaction")?
-            .into();
+            .context("Signing transaction")?;
 
-        let multi_sig: GenericSignature = MultiSig::combine(vec![sponsor_sig.clone()], admin_key)
+        let member_sig = signature_to_multisig_member(&sponsor_sig)
+            .context("Converting sponsor signature for multisig")?;
+
+        let multi_sig: GenericSignature = MultiSig::combine(vec![member_sig], admin_key)
             .context("Signing as admin")?
             .into();
 
         Ok(Transaction::from_generic_sig_data(
             data,
-            vec![multi_sig, sponsor_sig],
+            vec![multi_sig, GenericSignature::Signature(sponsor_sig)],
         ))
     }
 
@@ -755,4 +757,24 @@ impl Client {
             .await
             .context("Error fetching client")
     }
+}
+
+fn signature_to_multisig_member(sig: &Signature) -> Result<MultisigMemberSignature> {
+    use iota_sdk_types::crypto::{Ed25519Signature, Secp256k1Signature, Secp256r1Signature};
+    let bytes = sig.signature_bytes();
+    Ok(match sig.scheme() {
+        SignatureScheme::ED25519 => MultisigMemberSignature::Ed25519(
+            Ed25519Signature::from_bytes(bytes)
+                .map_err(|e| anyhow!("invalid ed25519 sig bytes: {e}"))?,
+        ),
+        SignatureScheme::Secp256k1 => MultisigMemberSignature::Secp256k1(
+            Secp256k1Signature::from_bytes(bytes)
+                .map_err(|e| anyhow!("invalid secp256k1 sig bytes: {e}"))?,
+        ),
+        SignatureScheme::Secp256r1 => MultisigMemberSignature::Secp256r1(
+            Secp256r1Signature::from_bytes(bytes)
+                .map_err(|e| anyhow!("invalid secp256r1 sig bytes: {e}"))?,
+        ),
+        scheme => bail!("Unsupported signature scheme for multisig member: {scheme:?}"),
+    })
 }
