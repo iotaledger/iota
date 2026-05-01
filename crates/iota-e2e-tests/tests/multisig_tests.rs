@@ -4,19 +4,24 @@
 
 use std::net::SocketAddr;
 
-use fastcrypto::traits::EncodeDecodeBase64;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::crypto::{
+    Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, Secp256r1PublicKey,
+    Secp256r1Signature, SimpleSignature,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{IotaKeyPair, PublicKey, Signature, SignatureScheme, ToFromBytes, get_key_pair},
+    crypto::SignatureScheme,
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey},
-    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
+    multisig::{
+        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey,
+        MultisigMemberSignature,
+    },
+    passkey_authenticator::to_signing_message,
     signature::GenericSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
@@ -54,169 +59,179 @@ async fn do_upgraded_multisig_test() -> IotaResult {
         .map(|_| ())
 }
 
-// async fn create_credential_and_sign_test_tx_with_passkey_multisig(
-//     test_cluster: &TestCluster,
-//     sender: Option<IotaAddress>,
-//     change_intent: bool,
-//     change_tx: bool,
-// ) -> Transaction {
-//     // set up authenticator and client
-//     let my_aaguid = Aaguid::new_empty();
-//     let user_validation_method = MyUserValidationMethod {};
-//     let store: Option<Passkey> = None;
-//     let my_authenticator = Authenticator::new(my_aaguid, store,
-// user_validation_method);     let mut my_client =
-// Client::new(my_authenticator);     let origin = Url::parse("https://www.iota.org").unwrap();
+async fn create_credential_and_sign_test_tx_with_passkey_multisig(
+    test_cluster: &TestCluster,
+    sender: Option<IotaAddress>,
+    change_intent: bool,
+    change_tx: bool,
+) -> Transaction {
+    // set up authenticator and client
+    let my_aaguid = Aaguid::new_empty();
+    let user_validation_method = MyUserValidationMethod {};
+    let store: Option<Passkey> = None;
+    let my_authenticator = Authenticator::new(my_aaguid, store, user_validation_method);
+    let mut my_client = Client::new(my_authenticator);
+    let origin = Url::parse("https://www.iota.org").unwrap();
 
-//     // Create credential.
-//     let challenge_bytes_from_rp: Bytes = random_vec(32).into();
-//     let user_entity = PublicKeyCredentialUserEntity {
-//         id: random_vec(32).into(),
-//         display_name: "Johnny Passkey".into(),
-//         name: "jpasskey@example.org".into(),
-//     };
-//     let request = CredentialCreationOptions {
-//         public_key: PublicKeyCredentialCreationOptions {
-//             rp: PublicKeyCredentialRpEntity {
-//                 id: None, // Leaving the ID as None means use the effective
-// domain                 name: origin.domain().unwrap().into(),
-//             },
-//             user: user_entity,
-//             challenge: challenge_bytes_from_rp,
-//             pub_key_cred_params: vec![PublicKeyCredentialParameters {
-//                 ty: PublicKeyCredentialType::PublicKey,
-//                 alg: coset::iana::Algorithm::ES256,
-//             }],
-//             timeout: None,
-//             exclude_credentials: None,
-//             authenticator_selection: None,
-//             hints: None,
-//             attestation: AttestationConveyancePreference::None,
-//             attestation_formats: None,
-//             extensions: None,
-//         },
-//     };
-//     let my_webauthn_credential = my_client.register(&origin, request,
-// None).await.unwrap();     let verifying_key =
-// p256::ecdsa::VerifyingKey::from_public_key_der(
-//         my_webauthn_credential
-//             .response
-//             .public_key
-//             .unwrap()
-//             .as_slice(),
-//     )
-//     .unwrap();
+    // Create credential.
+    let challenge_bytes_from_rp: Bytes = random_vec(32).into();
+    let user_entity = PublicKeyCredentialUserEntity {
+        id: random_vec(32).into(),
+        display_name: "Johnny Passkey".into(),
+        name: "jpasskey@example.org".into(),
+    };
+    let request = CredentialCreationOptions {
+        public_key: PublicKeyCredentialCreationOptions {
+            rp: PublicKeyCredentialRpEntity {
+                id: None, // Leaving the ID as None means use the effective domain
+                name: origin.domain().unwrap().into(),
+            },
+            user: user_entity,
+            challenge: challenge_bytes_from_rp,
+            pub_key_cred_params: vec![PublicKeyCredentialParameters {
+                ty: PublicKeyCredentialType::PublicKey,
+                alg: coset::iana::Algorithm::ES256,
+            }],
+            timeout: None,
+            exclude_credentials: None,
+            authenticator_selection: None,
+            hints: None,
+            attestation: AttestationConveyancePreference::None,
+            attestation_formats: None,
+            extensions: None,
+        },
+    };
+    let my_webauthn_credential = my_client.register(&origin, request, None).await.unwrap();
+    let verifying_key = p256::ecdsa::VerifyingKey::from_public_key_der(
+        my_webauthn_credential
+            .response
+            .public_key
+            .unwrap()
+            .as_slice(),
+    )
+    .unwrap();
 
-//     // Derive compact pubkey from DER format.
-//     let encoded_point = verifying_key.to_encoded_point(false);
-//     let x = encoded_point.x();
-//     let y = encoded_point.y();
-//     let prefix = if y.unwrap()[31] % 2 == 0 { 0x02 } else { 0x03 };
-//     let mut pk_bytes = vec![prefix];
-//     pk_bytes.extend_from_slice(x.unwrap());
-//     let passkey_pk =
-//         PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator,
-// &pk_bytes).unwrap();
+    // Derive compact pubkey from DER format.
+    let encoded_point = verifying_key.to_encoded_point(false);
+    let x = encoded_point.x();
+    let y = encoded_point.y();
+    let prefix = if y.unwrap()[31] % 2 == 0 { 0x02 } else { 0x03 };
+    let mut pk_bytes = [prefix; Secp256r1PublicKey::LENGTH];
+    pk_bytes[1..].copy_from_slice(x.unwrap());
+    // pk_bytes.extend_from_slice(x.unwrap());
+    // let passkey_pk =
+    //     PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator,
+    // &pk_bytes).unwrap();
+    let passkey_pk = PasskeyPublicKey::new(Secp256r1PublicKey::new(pk_bytes));
 
-//    Construct a multisig with 5 pks (ed25519, secp256k1, secp256r1,
-// passkey) with threshold = 1.
-//   let (kp1, kp2, kp3) = multisig_keys();
-//     let pk0 = kp1.public_key(); // ed25519
-//     let pk1 = kp2.public_key(); // secp256k1
-//     let pk2 = kp3.public_key(); // secp256r1
+    // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey) with
+    // threshold = 1.
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk0 = kp1.public_key(); // ed25519
+    let pk1 = kp2.public_key(); // secp256k1
+    let pk2 = kp3.public_key(); // secp256r1
 
-// let multisig_pk =
-// MultiSigPublicKey::new(         vec![
-//             MultisigMember::new(pk0, 1),
-//             MultisigMember::new(pk1, 1),
-//             MultisigMember::new(pk2, 1),
-//             MultisigMember::new(passkey_pk, 1),
-//         ],
-//         1,
-//     )
-//     .unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(passkey_pk, 1),
+        ],
+        1,
+    )
+    .unwrap();
 
-//     // Compute iota address as sender, fund gas and make a test transaction.
-//     let sender = match sender {
-//         Some(s) => s,
-//         None => IotaAddress::from(&multisig_pk),
-//     };
+    // Compute iota address as sender, fund gas and make a test transaction.
+    let sender = match sender {
+        Some(s) => s,
+        None => IotaAddress::from(&multisig_pk),
+    };
 
-//     let rgp = test_cluster.get_reference_gas_price().await;
-//     let gas = test_cluster
-//         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
-//         .await;
-//     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-//         .transfer_iota(None, IotaAddress::ZERO)
-//         .build();
-//     let intent_msg = IntentMessage::new(Intent::iota_transaction(),
-// tx_data.clone());
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), sender)
+        .await;
+    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+        .transfer_iota(None, IotaAddress::ZERO)
+        .build();
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
 
-//     // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey
-// credential     // request. If change_intent, mangle the intent bytes. If
-// change_tx, mangle     // the hashed tx bytes.
-//     let passkey_challenge = if change_intent {
-//         to_signing_message(&IntentMessage::new(
-//             Intent::personal_message(),
-//             intent_msg.value.clone(),
-//         ))
-//         .to_vec()
-//     } else if change_tx {
-//         random_vec(32)
-//     } else {
-//         to_signing_message(&intent_msg).to_vec()
-//     };
+    // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey credential
+    // request. If change_intent, mangle the intent bytes. If change_tx, mangle the
+    // hashed tx bytes.
+    let passkey_challenge = if change_intent {
+        to_signing_message(&IntentMessage::new(
+            Intent::personal_message(),
+            intent_msg.value.clone(),
+        ))
+        .to_vec()
+    } else if change_tx {
+        random_vec(32)
+    } else {
+        to_signing_message(&intent_msg).to_vec()
+    };
 
-//     // Request a signature from passkey with challenge set to passkey_digest.
-//     let credential_request = CredentialRequestOptions {
-//         public_key: PublicKeyCredentialRequestOptions {
-//             challenge: Bytes::from(passkey_challenge),
-//             timeout: None,
-//             rp_id: Some(String::from(origin.domain().unwrap())),
-//             allow_credentials: None,
-//             user_verification: UserVerificationRequirement::default(),
-//             attestation: Default::default(),
-//             attestation_formats: None,
-//             extensions: None,
-//             hints: None,
-//         },
-//     };
+    // Request a signature from passkey with challenge set to passkey_digest.
+    let credential_request = CredentialRequestOptions {
+        public_key: PublicKeyCredentialRequestOptions {
+            challenge: Bytes::from(passkey_challenge),
+            timeout: None,
+            rp_id: Some(String::from(origin.domain().unwrap())),
+            allow_credentials: None,
+            user_verification: UserVerificationRequirement::default(),
+            attestation: Default::default(),
+            attestation_formats: None,
+            extensions: None,
+            hints: None,
+        },
+    };
 
-//     let authenticated_cred = my_client
-//         .authenticate(&origin, credential_request, None)
-//         .await
-//         .unwrap();
+    let authenticated_cred = my_client
+        .authenticate(&origin, credential_request, None)
+        .await
+        .unwrap();
 
-//     // Parse signature from der format in response and normalize it to lower
-// s.     let sig_bytes_der = authenticated_cred.response.signature.as_slice();
-//     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
-//     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
+    // Parse signature from der format in response and normalize it to lowers.
+    let sig_bytes_der = authenticated_cred.response.signature.as_slice();
+    let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
+    let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
 
-//     let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
-//     user_sig_bytes.extend_from_slice(&sig_bytes);
-//     user_sig_bytes.extend_from_slice(&pk_bytes);
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
+    user_sig_bytes.extend_from_slice(&sig_bytes);
+    user_sig_bytes.extend_from_slice(&pk_bytes);
 
-//     // Parse authenticator_data and client_data_json from response.
-//     let authenticator_data =
-// authenticated_cred.response.authenticator_data.as_slice();
-//     let client_data_json =
-// authenticated_cred.response.client_data_json.as_slice();
+    // Parse authenticator_data and client_data_json from response.
+    let authenticator_data = authenticated_cred.response.authenticator_data.as_slice();
+    let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
-//     let sig = GenericSignature::PasskeyAuthenticator(
-//         PasskeyAuthenticator::new_for_testing(
-//             authenticator_data.to_vec(),
-//             String::from_utf8(client_data_json.to_vec()).unwrap(),
-//             Signature::from_bytes(&user_sig_bytes).unwrap(),
-//         )
-//         .unwrap(),
-//     );
-//     let multisig =
-//         GenericSignature::MultiSig(MultiSig::combine(vec![sig],
-// multisig_pk.clone()).unwrap());
-//     Transaction::from_generic_sig_data(tx_data, vec![multisig])
-// }
+    // TODO yeah I'm too sure about this...
+    let sig = MultisigMemberSignature::from(
+        PasskeyAuthenticator::new(
+            authenticator_data.to_vec(),
+            String::from_utf8(client_data_json.to_vec()).unwrap(),
+            SimpleSignature::Secp256r1 {
+                signature: Secp256r1Signature::new(sig_bytes.try_into().unwrap()),
+                public_key: Secp256r1PublicKey::new(pk_bytes),
+            },
+        )
+        .unwrap(),
+    );
+    // let sig = GenericSignature::PasskeyAuthenticator(
+    //     PasskeyAuthenticator::new_for_testing(
+    //         authenticator_data.to_vec(),
+    //         String::from_utf8(client_data_json.to_vec()).unwrap(),
+    //         Signature::from_bytes(&user_sig_bytes).unwrap(),
+    //     )
+    //     .unwrap(),
+    // );
+    let multisig =
+        GenericSignature::MultiSig(MultiSig::combine(vec![sig], multisig_pk.clone()).unwrap());
+    Transaction::from_generic_sig_data(tx_data, vec![multisig])
+}
 
 struct MyUserValidationMethod {}
+
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
     type PasskeyItem = Passkey;
@@ -377,73 +392,67 @@ async fn test_multisig_e2e() {
     );
 }
 
-// #[sim_test]
-// async fn test_multisig_passkey_feature_deny() {
-//     // if feature disabled, fails to execute.
-//     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config|
-// {         config.set_accept_passkey_in_multisig_for_testing(false);
-//         config.set_enable_jwk_consensus_updates_for_testing(true);
-//         config
-//     });
-//     let test_cluster = TestClusterBuilder::new()
-//         .with_default_jwks()
-//         .with_epoch_duration_ms(15000)
-//         .build()
-//         .await;
-//     test_cluster.wait_for_authenticator_state_update().await;
-//     let tx =
-//         create_credential_and_sign_test_tx_with_passkey_multisig(&
-// test_cluster, None, false, false)             .await;
-//     // feature flag disabled fails latest multisig tx.
-//     let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
-//     assert!(
-//         res.unwrap_err()
-//             .to_string()
-//             .contains("Passkey sig not supported inside multisig")
-//     );
-// }
+#[sim_test]
+async fn test_multisig_passkey_feature_deny() {
+    // if feature disabled, fails to execute.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_accept_passkey_in_multisig_for_testing(false);
+        config
+    });
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
+        .build()
+        .await;
+    let tx =
+        create_credential_and_sign_test_tx_with_passkey_multisig(&test_cluster, None, false, false)
+            .await;
+    // feature flag disabled fails latest multisig tx.
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("Passkey sig not supported inside multisig")
+    );
+}
 
-// #[sim_test]
-// async fn test_multisig_passkey_scenarios() {
-//     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config|
-// {         config.set_accept_passkey_in_multisig_for_testing(true);
-//         config.set_enable_jwk_consensus_updates_for_testing(true);
-//         config
-//     });
-//     let test_cluster = TestClusterBuilder::new()
-//         .with_default_jwks()
-//         .with_epoch_duration_ms(15000)
-//         .build()
-//         .await;
-//     test_cluster.wait_for_authenticator_state_update().await;
-//     let tx =
-//         create_credential_and_sign_test_tx_with_passkey_multisig(&
-// test_cluster, None, false, false)             .await;
-//     let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
-//     assert!(res.is_ok());
+#[sim_test]
+async fn test_multisig_passkey_scenarios() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_accept_passkey_in_multisig_for_testing(true);
+        config
+    });
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15000)
+        .build()
+        .await;
+    let tx =
+        create_credential_and_sign_test_tx_with_passkey_multisig(&test_cluster, None, false, false)
+            .await;
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx).await;
+    assert!(res.is_ok());
 
-//     // wrong sender fails to verify
-//     let tx2 = create_credential_and_sign_test_tx_with_passkey_multisig(
-//         &test_cluster,
-//         Some(IotaAddress::ZERO),
-//         false,
-//         false,
-//     )
-//     .await;
-//     let res = test_cluster.wallet.execute_transaction_may_fail(tx2).await;
-//     assert!(res.is_err());
+    // wrong sender fails to verify
+    let tx2 = create_credential_and_sign_test_tx_with_passkey_multisig(
+        &test_cluster,
+        Some(IotaAddress::ZERO),
+        false,
+        false,
+    )
+    .await;
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx2).await;
+    assert!(res.is_err());
 
-//     // wrong intent fails to verify
-//     let tx3 =
-//         create_credential_and_sign_test_tx_with_passkey_multisig(&
-// test_cluster, None, true, false)             .await;
-//     let res = test_cluster.wallet.execute_transaction_may_fail(tx3).await;
-//     assert!(res.is_err());
+    // wrong intent fails to verify
+    let tx3 =
+        create_credential_and_sign_test_tx_with_passkey_multisig(&test_cluster, None, true, false)
+            .await;
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx3).await;
+    assert!(res.is_err());
 
-//     // wrong challenge mismatch tx fails to verify
-//     let tx4 =
-//         create_credential_and_sign_test_tx_with_passkey_multisig(&
-// test_cluster, None, false, true)             .await;
-//     let res = test_cluster.wallet.execute_transaction_may_fail(tx4).await;
-//     assert!(res.is_err());
-// }
+    // wrong challenge mismatch tx fails to verify
+    let tx4 =
+        create_credential_and_sign_test_tx_with_passkey_multisig(&test_cluster, None, false, true)
+            .await;
+    let res = test_cluster.wallet.execute_transaction_may_fail(tx4).await;
+    assert!(res.is_err());
+}

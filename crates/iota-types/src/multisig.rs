@@ -109,22 +109,25 @@ impl AuthenticatorTrait for MultiSig {
             }
 
             let res = match signature {
-                // MultisigMemberSignature::Passkey(bytes) => {
-                //     let authenticator =
-                //         PasskeyAuthenticator::from_bytes(&bytes.0).map_err(|_| {
-                //             IotaError::InvalidSignature {
-                //                 error: "Invalid passkey authenticator bytes".to_string(),
-                //             }
-                //         })?;
-                //     authenticator
-                //         .verify_claims(
-                //             value,
-                //             IotaAddress::from(subsig_pubkey),
-                //             verify_params,
-                //             zklogin_inputs_cache.clone(),
-                //         )
-                //         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
-                // }
+                MultisigMemberSignature::Passkey(_bytes) => {
+                    //     let authenticator =
+                    //         PasskeyAuthenticator::from_bytes(&bytes.0).
+                    // map_err(|_| {
+                    // IotaError::InvalidSignature {
+                    //                 error: "Invalid passkey authenticator
+                    // bytes".to_string(),             }
+                    //         })?;
+                    //     authenticator
+                    //         .verify_claims(
+                    //             value,
+                    //             IotaAddress::from(subsig_pubkey),
+                    //             verify_params,
+                    //             zklogin_inputs_cache.clone(),
+                    //         )
+                    //         .map_err(|e|
+                    // FastCryptoError::GeneralError(e.to_string()))
+                    panic!()
+                }
                 _ => verifier.verify_member_signature(&digest, member.public_key(), signature),
             };
 

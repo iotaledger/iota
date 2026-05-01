@@ -181,9 +181,9 @@ fn get_registry() -> Result<Registry> {
     let sig: Signature = Signer::sign(&s_kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let kp1 = Ed25519PrivateKey::generate(&mut StdRng::from_seed([0; 32]));
-    let kp2 = Secp256k1PrivateKey::generate(&mut StdRng::from_seed([0; 32]));
-    let kp3 = Secp256r1PrivateKey::generate(&mut StdRng::from_seed([0; 32]));
+    let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
 
     let multisig_pk = MultiSigPublicKey::new(
         vec![
@@ -207,9 +207,9 @@ fn get_registry() -> Result<Registry> {
 
     let multi_sig = MultiSig::combine(
         vec![
-            MultisigMemberSignature::from(sig1.clone()),
-            MultisigMemberSignature::from(sig2.clone()),
-            MultisigMemberSignature::from(sig3.clone()),
+            MultisigMemberSignature::from(sig1),
+            MultisigMemberSignature::from(sig2),
+            MultisigMemberSignature::from(sig3),
         ],
         multisig_pk,
     )

@@ -159,9 +159,9 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 
     let multisig_pk = MultiSigPublicKey::new(
         vec![
-            MultisigMember::new(pk1.clone(), 1),
-            MultisigMember::new(pk2.clone(), 1),
-            MultisigMember::new(pk3.clone(), 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(pk3, 1),
         ],
         2,
     )
