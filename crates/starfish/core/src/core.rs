@@ -1361,8 +1361,7 @@ impl Core {
     }
 
     /// Static form of [`Self::compute_strong_vote`]: derives the missing-data
-    /// mask from a borrowed `DagState`, no `Core` instance required. Tests use
-    /// this to produce strong-vote bytes the same way production does.
+    /// mask from a borrowed `DagState`, no `Core` instance required.
     pub(crate) fn compute_strong_vote_for(
         dag_state: &DagState,
         leader_header: &VerifiedBlockHeader,

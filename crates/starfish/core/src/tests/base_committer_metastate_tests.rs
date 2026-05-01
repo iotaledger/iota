@@ -17,6 +17,7 @@ use crate::{
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus},
     context::Context,
+    core::Core,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::Linearizer,
@@ -753,25 +754,25 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
     let auth_3 = AuthorityIndex::from(3u8);
 
     // Round 1.
-    let r1_refs: Vec<BlockRef> = (0..4u8)
-        .map(|author| {
-            let block = v2_block(
-                1,
-                author,
-                genesis_block_headers(&context)
-                    .iter()
-                    .map(|b| b.reference())
-                    .collect(),
-                None,
-                default_ts(1, author),
-            );
-            let r = block.reference();
-            dag_state
-                .write()
-                .accept_block_header(block, DataSource::Test);
-            r
-        })
-        .collect();
+    let mut r1_blocks = Vec::new();
+    let mut r1_refs = Vec::new();
+    for author in 0..4u8 {
+        let block = v2_block(
+            1,
+            author,
+            genesis_block_headers(&context)
+                .iter()
+                .map(|b| b.reference())
+                .collect(),
+            None,
+            default_ts(1, author),
+        );
+        r1_refs.push(block.reference());
+        dag_state
+            .write()
+            .accept_block_header(block.clone(), DataSource::Test);
+        r1_blocks.push(block);
+    }
 
     // Round 2.
     let mut r2_blocks = Vec::new();
@@ -785,7 +786,9 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         r2_blocks.push(block);
     }
 
-    // Round 3: only B (auth 1) has acks=[round-2 block from auth 3].
+    // Round 3: A (auth 0) has no acks. B (auth 1) has acks=[round-2 block from
+    // auth 3]. Other authorities have no acks.
+    let mut r3_blocks = Vec::new();
     let mut r3_refs = Vec::new();
     for author in 0..4u8 {
         let acks = if author == 1 {
@@ -804,17 +807,56 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         r3_refs.push(block.reference());
         dag_state
             .write()
-            .accept_block_header(block, DataSource::Test);
+            .accept_block_header(block.clone(), DataSource::Test);
+        r3_blocks.push(block);
     }
 
-    // Round 4 voters: all carry strong_vote = Some(empty).
+    // Mark transaction data as locally available for everything *except*
+    //   - r2[3] (the block in B's acks)
+    //   - r3[1..=3] (B, C, D themselves)
+    // The producer's data state covers A's set ({A, A.acks=∅}) cleanly, so
+    // `Core::compute_strong_vote_for(A_block)` returns `Some(empty)` — a
+    // legitimate strong vote for A.
+    for block in &r1_blocks {
+        add_transactions_for(&dag_state, block);
+    }
+    for (i, block) in r2_blocks.iter().enumerate() {
+        if i != 3 {
+            add_transactions_for(&dag_state, block);
+        }
+    }
+    add_transactions_for(&dag_state, &r3_blocks[0]);
+
+    // Sanity: with this data state, A is a legitimate strong-vote target; B
+    // is *not* (data for B itself and for `r2[3]` is missing).
+    let a_block = &r3_blocks[0];
+    let b_block = &r3_blocks[1];
+    {
+        let dag = dag_state.read();
+        assert!(
+            Core::compute_strong_vote_for(&dag, a_block).is_empty(),
+            "producer should be able to legitimately strong-vote for A"
+        );
+        assert!(
+            !Core::compute_strong_vote_for(&dag, b_block).is_empty(),
+            "producer should NOT be able to legitimately strong-vote for B"
+        );
+    }
+
+    // Build round-4 voters using the production strong-vote computation
+    // against A — this is what an honest validator on the pre-rotation table
+    // would produce.
+    let voter_strong_vote = {
+        let dag = dag_state.read();
+        Core::compute_strong_vote_for(&dag, a_block)
+    };
     let r4_refs: Vec<BlockRef> = (0..4u8)
         .map(|author| {
             let block = v2_block(
                 4,
                 author,
                 r3_refs.clone(),
-                strong_vote(),
+                Some(voter_strong_vote),
                 default_ts(4, author),
             );
             let r = block.reference();
@@ -831,16 +873,6 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         dag_state
             .write()
             .accept_block_header(block, DataSource::Test);
-    }
-
-    // Mark transaction data as locally available for everything except r2[3]
-    // (the block in B's acks). This models a producer state where the bytes
-    // `Some(empty)` are consistent with voting for any *other* leader, but not
-    // for B — yet the committer attributes the votes to B.
-    for (i, block) in r2_blocks.iter().enumerate() {
-        if i != 3 {
-            add_transactions_for(&dag_state, block);
-        }
     }
 
     // Force canonical leader of round 3 to authority 1 (B).
