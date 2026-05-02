@@ -94,7 +94,7 @@ impl ValidatorClientMonitor {
                 let start = Instant::now();
                 let result = match timeout(
                     timeout_duration,
-                    client.validator_health(ValidatorHealthRequest {}),
+                    client.health_check(ValidatorHealthRequest {}),
                 )
                 .await
                 {

@@ -196,7 +196,6 @@ impl TransactionSubmitter {
         let feedback_builder =
             &OperationFeedback::builder(validator, display_name, OperationType::Submit);
         let submit_start = Instant::now();
-        let is_ping = transaction.is_none();
 
         let statuses = timeout(
             SUBMIT_TRANSACTION_TIMEOUT,

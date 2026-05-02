@@ -343,7 +343,7 @@ impl ValidatorClientStats {
         &self,
         operation: OperationType,
         now: Instant,
-        config: &ValidatorClientMonitorConfig,
+        _config: &ValidatorClientMonitorConfig,
     ) -> (f64, f64, f64, f64, Option<f64>) {
         assert!((operation as usize) < self.latency_per_operation.len());
         self.latency_per_operation[operation as usize]
