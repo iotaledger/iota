@@ -144,17 +144,12 @@ impl ValidatorClientMonitor {
         self.metrics.record_interaction_result(&feedback, score);
     }
 
-    /// Select validators based on client-observed performance for the given
-    /// transaction type.
+    /// Select validators based on client-observed performance.
     ///
-    /// Scores are computed live from the current `client_stats` so that
-    /// recently recorded failures or latency spikes are reflected immediately
-    /// without waiting for the next health-check cache refresh.
-    ///
-    /// The preferred prefix (validators within `delta` of the best score) is
-    /// shuffled to spread traffic; the rest are returned in score order.
-    /// The prefix is guaranteed to contain at least `min_preferred_group_size`
-    /// validators to prevent a single validator from monopolising all traffic.
+    /// Validators with the best performance and exploration scores are shuffled
+    /// and placed in the front of the list to avoid overload and guarantee
+    /// uniform exploration. The rest of the validators follow in the order
+    /// from best to worst combined score.
     pub fn select_shuffled_preferred_validators<'a>(
         &self,
         committee: impl Iterator<Item = &'a AuthorityName>,
