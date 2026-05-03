@@ -108,13 +108,6 @@ impl Epoch {
     /// past epochs) or the current state (for the current epoch).
     ///
     /// Requires `bcs_system_state` in the read_mask.
-    // TODO: Implement when IotaSystemState type is available in iota-sdk-types.
-    // Use `system_state_bcs()` for raw bytes access in the meantime.
-    // See https://github.com/iotaledger/iota/issues/10077
-    //
-    // pub fn system_state(&self) -> Result<iota_sdk_types::IotaSystemState,
-    // TryFromProtoError> {     ...
-    // }
     pub fn system_state_bcs(&self) -> Result<&[u8], TryFromProtoError> {
         self.bcs_system_state
             .as_ref()
