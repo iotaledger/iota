@@ -6671,7 +6671,7 @@ dependencies = [
  "http 1.4.0",
  "iota-grpc-types",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e5bac9dabdbf74d8e60704aacf666eafad513419)",
- "prost 0.14.1",
+ "prost 0.14.3",
  "serde",
  "thiserror 1.0.69",
  "tokio",
@@ -6719,8 +6719,8 @@ version = "1.23.0-alpha"
 dependencies = [
  "bcs",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e5bac9dabdbf74d8e60704aacf666eafad513419)",
- "prost 0.14.1",
- "prost-types 0.14.1",
+ "prost 0.14.3",
+ "prost-types 0.14.3",
  "serde",
  "serde_json",
  "tap",
@@ -7102,7 +7102,7 @@ dependencies = [
  "iota-ledger",
  "iota-sdk",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e5bac9dabdbf74d8e60704aacf666eafad513419)",
- "thiserror 1.0.64",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -7906,7 +7906,7 @@ dependencies = [
  "serde_with",
  "strum 0.27.2",
  "thiserror 2.0.18",
- "winnow 0.7.11",
+ "winnow 0.7.15",
 ]
 
 [[package]]
@@ -14209,7 +14209,7 @@ dependencies = [
  "insta",
  "iota-network-stack",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e5bac9dabdbf74d8e60704aacf666eafad513419)",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rs_merkle",
  "serde",
  "tracing",
