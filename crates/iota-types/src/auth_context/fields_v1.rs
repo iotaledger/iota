@@ -185,7 +185,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{Argument, CallArg, Command, ProgrammableMoveCall},
+        transaction::{Argument, CallArg, Command, ProgrammableMoveCall, SharedObjectRef},
         type_input::{StructInput, TypeInput},
     };
 
@@ -251,16 +251,14 @@ mod tests {
         assert_eq!(converted, MoveCallArg::Pure(data));
     }
 
-    // TODO(thibault): commented during a rebase
-    // #[test]
-    // fn call_arg_from_object() {
-    //     let obj_arg = CallArg::ImmutableOrOwned(obj_ref());
-    //     let converted = MoveCallArg::from(&CallArg::Object(obj_arg));
-    //     assert_eq!(
-    //         converted,
-    //         MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(obj_ref()))
-    //     );
-    // }
+    #[test]
+    fn call_arg_from_object() {
+        let converted = MoveCallArg::from(&CallArg::ImmutableOrOwned(obj_ref()));
+        assert_eq!(
+            converted,
+            MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject(obj_ref()))
+        );
+    }
 
     #[test]
     fn call_arg_from_call_arg() {
@@ -269,44 +267,41 @@ mod tests {
         assert!(matches!(converted, MoveCallArg::Pure(_)));
     }
 
-    // ── BCS compatibility: MoveObjectArg ↔ ObjectArg ─────────────────
+    // ── BCS compatibility: MoveCallArg ↔ CallArg ─────────────────────
 
-    // TODO(thibault): commented during a rebase
-    // #[test]
-    // fn object_arg_bcs_compatible_imm_or_owned() {
-    //     let tx_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
-    //     let ctx_arg = MoveObjectArg::from(&tx_arg);
-    //     assert_eq!(
-    //         bcs::to_bytes(&tx_arg).unwrap(),
-    //         bcs::to_bytes(&ctx_arg).unwrap()
-    //     );
-    // }
+    #[test]
+    fn call_arg_bcs_compatible_imm_or_owned() {
+        let tx_arg = CallArg::ImmutableOrOwned(obj_ref());
+        let ctx_arg = MoveCallArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
 
-    // TODO(thibault): commented during a rebase
-    // #[test]
-    // fn object_arg_bcs_compatible_shared() {
-    //     let tx_arg = ObjectArg::SharedObject {
-    //         id: obj_id(),
-    //         initial_shared_version: SequenceNumber::from(5),
-    //         mutable: true,
-    //     };
-    //     let ctx_arg = MoveObjectArg::from(&tx_arg);
-    //     assert_eq!(
-    //         bcs::to_bytes(&tx_arg).unwrap(),
-    //         bcs::to_bytes(&ctx_arg).unwrap()
-    //     );
-    // }
+    #[test]
+    fn call_arg_bcs_compatible_shared() {
+        let tx_arg = CallArg::Shared(SharedObjectRef {
+            object_id: obj_id(),
+            initial_shared_version: SequenceNumber::from(5),
+            mutable: true,
+        });
+        let ctx_arg = MoveCallArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
 
-    // TODO(thibault): commented during a rebase
-    // #[test]
-    // fn object_arg_bcs_compatible_receiving() {
-    //     let tx_arg = ObjectArg::Receiving(obj_ref());
-    //     let ctx_arg = MoveObjectArg::from(&tx_arg);
-    //     assert_eq!(
-    //         bcs::to_bytes(&tx_arg).unwrap(),
-    //         bcs::to_bytes(&ctx_arg).unwrap()
-    //     );
-    // }
+    #[test]
+    fn call_arg_bcs_compatible_receiving() {
+        let tx_arg = CallArg::Receiving(obj_ref());
+        let ctx_arg = MoveCallArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
 
     // ── MoveCommand round-trips ────────────────────────────────────────
 
