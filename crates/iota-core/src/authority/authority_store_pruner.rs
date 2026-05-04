@@ -212,12 +212,11 @@ impl AuthorityStorePruner {
 
         // Instead of using range deletes, we
         // need to do a scan of all the keys for the deleted objects and then do
-        // point deletes to delete all the existing keys. This is because to improve
-        // read performance, we set `ignore_range_deletions` on all read
-        // options, and using range delete to delete tombstones may leak object
-        // (imagine a tombstone is compacted away, but earlier version is still not).
-        // Using point deletes guarantees that all earlier versions are deleted
-        // in the database.
+        // point deletes to delete all the existing keys. This is because using
+        // range delete to delete tombstones may leak objects (imagine a tombstone
+        // is compacted away, but earlier version is still not). Using point
+        // deletes guarantees that all earlier versions are deleted in the
+        // database.
         if !object_tombstones_to_prune.is_empty() {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {

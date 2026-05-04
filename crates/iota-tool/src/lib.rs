@@ -793,9 +793,10 @@ pub async fn get_latest_available_epoch(
     let epoch = root_manifest
         .available_epochs
         .iter()
+        .map(|(epoch, _)| *epoch)
         .max()
         .ok_or(anyhow!("No snapshot found in manifest"))?;
-    Ok(*epoch)
+    Ok(epoch)
 }
 
 pub async fn check_completed_snapshot(

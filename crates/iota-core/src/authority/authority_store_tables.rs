@@ -641,7 +641,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: db_options.rw_options.set_ignore_range_deletions(false),
+        rw_options: db_options.rw_options,
     }
 }
 

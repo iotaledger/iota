@@ -837,7 +837,7 @@ fn owned_object_locked_transactions_table_default_config() -> DBOptions {
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: ReadWriteOptions::default().set_ignore_range_deletions(false),
+        rw_options: ReadWriteOptions::default(),
     }
 }
 
