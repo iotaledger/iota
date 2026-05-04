@@ -112,11 +112,12 @@ fn tombstones_from_objects_version(
     let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
     let checkpoint_viewed_at = checkpoint_viewed_at as i64;
 
-    // Inner query: select from objects_version, bounded by the backward
-    // history watermark below and `checkpoint_viewed_at` above, and excluding
-    // versions that already exist in checkpointed_objects or
-    // objects_backward_history.
-    let inner = query!(format!(
+    // Apply the keys filter directly to the bare table select so its disjunctive
+    // `(object_id = ... AND object_version = ...)` clauses become the leading
+    // WHERE — this lets the planner use the `(object_id, object_version)`
+    // primary key for the lookup instead of scanning the whole cp window. The
+    // cp bounds and the two `NOT EXISTS` checks are then AND'd on top.
+    let base = query!(format!(
         "SELECT object_id, object_version, \
          {wrapped_or_deleted}::smallint AS object_status, \
          NULL::bytea AS object_digest, \
@@ -131,12 +132,24 @@ fn tombstones_from_objects_version(
          NULL::bigint AS coin_balance, \
          NULL::smallint AS df_kind, \
          FALSE AS from_backward_history \
-         FROM objects_version ov \
-         WHERE cp_sequence_number >= COALESCE(\
-             (SELECT min_available_cp FROM watermarks \
-              WHERE entity = '{BACKWARD_HISTORY_WATERMARK_ENTITY}'), 0) \
-         AND cp_sequence_number <= {checkpoint_viewed_at} \
-         AND NOT EXISTS (\
+         FROM objects_version ov"
+    ));
+
+    let with_keys = filter_fn(base);
+
+    let with_bounds = filter!(
+        with_keys,
+        format!(
+            "cp_sequence_number >= COALESCE(\
+                 (SELECT min_available_cp FROM watermarks \
+                  WHERE entity = '{BACKWARD_HISTORY_WATERMARK_ENTITY}'), 0) \
+             AND cp_sequence_number <= {checkpoint_viewed_at}"
+        )
+    );
+
+    let inner = filter!(
+        with_bounds,
+        "NOT EXISTS (\
              SELECT 1 FROM checkpointed_objects co \
              WHERE co.object_id = ov.object_id \
                AND co.object_version = ov.object_version) \
@@ -144,11 +157,8 @@ fn tombstones_from_objects_version(
              SELECT 1 FROM objects_backward_history bh \
              WHERE bh.object_id = ov.object_id \
                AND bh.object_version = ov.object_version)"
-    ));
+    );
 
-    // Wrap in a subquery so filter_fn can apply objectKeys WHERE clause cleanly.
-    let version_filtered = filter_fn(query!("SELECT * FROM ({}) ov_filtered", inner));
-
-    let source = query!("SELECT candidates.* FROM ({}) candidates", version_filtered);
+    let source = query!("SELECT candidates.* FROM ({}) candidates", inner);
     page.apply::<StoredBackwardObject>(source)
 }
