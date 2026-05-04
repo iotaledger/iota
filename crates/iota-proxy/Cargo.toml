@@ -33,7 +33,7 @@ serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 snap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true

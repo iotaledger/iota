@@ -36,7 +36,7 @@ serde.workspace = true
 strum_macros.workspace = true
 tap.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "net"] }
 tokio-rustls.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true

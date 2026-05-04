@@ -20,7 +20,7 @@ regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tracing.workspace = true
 uuid.workspace = true
 

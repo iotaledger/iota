@@ -43,7 +43,7 @@ signature.workspace = true
 strum.workspace = true
 tabled.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 url.workspace = true
 
