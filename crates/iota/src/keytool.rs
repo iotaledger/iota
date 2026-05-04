@@ -38,7 +38,7 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_types::{
     SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey},
 };
 use iota_types::{
     base_types::{IotaAddress, address_from_iota_pub_key},
@@ -48,8 +48,8 @@ use iota_types::{
     },
     error::IotaResult,
     multisig::{
-        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey,
-        MultisigMemberSignature, ThresholdUnit, WeightUnit,
+        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature, ThresholdUnit,
+        WeightUnit,
     },
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
@@ -169,7 +169,7 @@ pub enum KeyToolCommand {
         #[arg(long)]
         threshold: ThresholdUnit,
         #[arg(long, num_args(1..))]
-        pks: Vec<MultisigMemberPublicKey>,
+        pks: Vec<PublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
@@ -187,7 +187,7 @@ pub enum KeyToolCommand {
         #[arg(long, num_args(1..))]
         sigs: Vec<MultisigMemberSignature>,
         #[arg(long, num_args(1..))]
-        pks: Vec<MultisigMemberPublicKey>,
+        pks: Vec<PublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
         #[arg(long)]

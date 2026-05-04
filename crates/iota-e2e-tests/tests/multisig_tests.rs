@@ -15,12 +15,9 @@ use iota_sdk_types::crypto::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::SignatureScheme,
+    crypto::{PublicKey, SignatureScheme},
     error::{IotaError, IotaResult},
-    multisig::{
-        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey,
-        MultisigMemberSignature,
-    },
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature},
     passkey_authenticator::to_signing_message,
     signature::GenericSignature,
     transaction::Transaction,

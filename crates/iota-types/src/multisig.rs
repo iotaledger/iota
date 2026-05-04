@@ -7,7 +7,7 @@ use fastcrypto::hash::HashFunction;
 use iota_sdk_crypto::multisig::MultisigVerifier;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
-    MultisigMember, MultisigMemberPublicKey, MultisigMemberSignature, ThresholdUnit, WeightUnit,
+    MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
 use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
 use serde::Serialize;

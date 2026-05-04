@@ -11,11 +11,8 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    ChangeEpoch,
-    crypto::{
-        Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
-        Secp256r1Signature,
-    },
+    ChangeEpoch, SimpleSignature,
+    crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
     base_types::{
@@ -45,7 +42,7 @@ use iota_types::{
     messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
@@ -201,15 +198,15 @@ fn get_registry() -> Result<Registry> {
     )
     .signing_message();
 
-    let sig1: Ed25519Signature = kp1.sign(&*msg);
-    let sig2: Secp256k1Signature = kp2.sign(&*msg);
-    let sig3: Secp256r1Signature = kp3.sign(&*msg);
+    let sig1: SimpleSignature = kp1.sign(&*msg);
+    let sig2: SimpleSignature = kp2.sign(&*msg);
+    let sig3: SimpleSignature = kp3.sign(&*msg);
 
     let multi_sig = MultiSig::combine(
         vec![
-            MultisigMemberSignature::from(sig1),
-            MultisigMemberSignature::from(sig2),
-            MultisigMemberSignature::from(sig3),
+            sig1.clone().into(),
+            sig2.clone().into(),
+            sig3.clone().into(),
         ],
         multisig_pk,
     )
@@ -583,7 +580,8 @@ fn get_registry() -> Result<Registry> {
         // TODO conversion could be removed at some point
         vec![GenericSignature::Signature(
             Signature::Ed25519IotaSignature(
-                Ed25519IotaSignature::from_bytes(sig1.as_bytes()).unwrap(),
+                // TODO check if flag needed or not
+                Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
             ),
         )],
     );

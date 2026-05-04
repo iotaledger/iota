@@ -9,7 +9,10 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::crypto::{Ed25519Signature, Intent, IntentMessage, Secp256k1Signature};
+use iota_sdk_types::{
+    SimpleSignature,
+    crypto::{Intent, IntentMessage},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -171,8 +174,8 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
         .signing_message();
-    let sig1: Ed25519Signature = kp1.sign(&*msg);
-    let sig2: Secp256k1Signature = kp2.sign(&*msg);
+    let sig1: SimpleSignature = kp1.sign(&*msg);
+    let sig2: SimpleSignature = kp2.sign(&*msg);
 
     // Any 2 of 3 signatures verifies ok.
     let multi_sig1 = MultiSig::combine(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();

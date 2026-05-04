@@ -16,10 +16,10 @@ use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
-    multisig::{MultisigMemberPublicKey, MultisigMemberSignature},
+    multisig::MultisigMemberSignature,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -742,8 +742,14 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let threshold = 2;
 
     // Signatures (Base64)
-    let sig1 = MultisigMemberSignature::from_base64("AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQo=").unwrap();
-    let sig2 = MultisigMemberSignature::from_base64("AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAo=").unwrap();
+    let sig1 = MultisigMemberSignature::from_base64(
+        "AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQo=",
+    )
+    .unwrap();
+    let sig2 = MultisigMemberSignature::from_base64(
+        "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAo=",
+    )
+    .unwrap();
     let sigs = vec![sig1, sig2];
 
     let output = KeyToolCommand::MultiSigCombinePartialSig {

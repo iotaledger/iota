@@ -8,9 +8,12 @@ use std::str::FromStr;
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
-use iota_sdk_types::crypto::{
-    Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
-    Secp256r1Signature, UserSignature,
+use iota_sdk_types::{
+    SimpleSignature,
+    crypto::{
+        Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
+        Secp256r1Signature, UserSignature,
+    },
 };
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
@@ -40,15 +43,15 @@ fn test_combine_sigs() {
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
     .signing_message();
-    let sig1: Ed25519Signature = kp1.sign(&*msg);
-    let sig2: Secp256k1Signature = kp2.sign(&*msg);
-    let sig3: Secp256r1Signature = kp3.sign(&*msg);
+    let sig1: SimpleSignature = kp1.sign(&*msg);
+    let sig2: SimpleSignature = kp2.sign(&*msg);
+    let sig3: SimpleSignature = kp3.sign(&*msg);
 
     // MultiSigPublicKey contains only 2 public key but 3 signatures are passed,
     // fails to combine.
     assert!(
         MultiSig::combine(
-            vec![sig1.into(), sig2.into(), sig3.into()],
+            vec![sig1.clone().into(), sig2.into(), sig3.into()],
             multisig_pk.clone()
         )
         .is_err()
@@ -56,7 +59,7 @@ fn test_combine_sigs() {
 
     // Cannot create malformed MultiSig.
     assert!(MultiSig::combine(vec![], multisig_pk.clone()).is_err());
-    assert!(MultiSig::combine(vec![sig1.into(), sig1.into()], multisig_pk).is_err());
+    assert!(MultiSig::combine(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
 }
 
 #[test]
@@ -257,7 +260,7 @@ fn test_max_sig() {
         WeightUnit::MAX.into(),
     )
     .unwrap();
-    let sig: Ed25519Signature = keys[0].sign(&*msg);
+    let sig: SimpleSignature = keys[0].sign(&*msg);
     assert!(
         MultiSig::combine(vec![sig.into()], low_threshold_pk)
             .unwrap()
@@ -281,10 +284,14 @@ fn multisig_get_pk() {
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
     .signing_message();
-    let sig1: Ed25519Signature = kp1.sign(msg.as_ref());
-    let sig2: Secp256k1Signature = kp2.sign(msg.as_ref());
+    let sig1: SimpleSignature = kp1.sign(msg.as_ref());
+    let sig2: SimpleSignature = kp2.sign(msg.as_ref());
 
-    let multi_sig = MultiSig::combine(vec![sig1.into(), sig2.into()], multisig_pk.clone()).unwrap();
+    let multi_sig = MultiSig::combine(
+        vec![sig1.clone().into(), sig2.clone().into()],
+        multisig_pk.clone(),
+    )
+    .unwrap();
 
     assert_eq!(multi_sig.committee(), &multisig_pk);
     assert_eq!(
@@ -314,15 +321,22 @@ fn multisig_get_indices() {
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
     .signing_message();
-    let sig1: Ed25519Signature = kp1.sign(msg.as_ref());
-    let sig2: Secp256k1Signature = kp2.sign(msg.as_ref());
-    let sig3: Secp256r1Signature = kp3.sign(msg.as_ref());
+    let sig1: SimpleSignature = kp1.sign(msg.as_ref());
+    let sig2: SimpleSignature = kp2.sign(msg.as_ref());
+    let sig3: SimpleSignature = kp3.sign(msg.as_ref());
 
-    let multi_sig1 =
-        MultiSig::combine(vec![sig2.into(), sig3.into()], multisig_pk.clone()).unwrap();
+    let multi_sig1 = MultiSig::combine(
+        vec![sig2.clone().into(), sig3.clone().into()],
+        multisig_pk.clone(),
+    )
+    .unwrap();
 
     let multi_sig2 = MultiSig::combine(
-        vec![sig1.into(), sig2.into(), sig3.into()],
+        vec![
+            sig1.clone().into(),
+            sig2.clone().into(),
+            sig3.clone().into(),
+        ],
         multisig_pk.clone(),
     )
     .unwrap();
