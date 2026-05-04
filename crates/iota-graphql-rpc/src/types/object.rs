@@ -34,7 +34,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backward_view::{consistent, historical},
+    backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
@@ -1120,13 +1120,6 @@ fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
 }
 
 impl ObjectFilter {
-    /// Returns `true` if the filter only constrains on object ID and/or version
-    /// (no type or owner filters). Such filters are safe to apply against
-    /// tables that lack type/owner columns (e.g. `objects_version`).
-    pub(crate) fn is_keys_only(&self) -> bool {
-        self.type_.is_none() && self.owner.is_none()
-    }
-
     /// Try to create a filter whose results are the intersection of objects in
     /// `self`'s results and objects in `other`'s results. This may not be
     /// possible if the resulting filter is inconsistent in some way (e.g. a
@@ -1935,18 +1928,14 @@ fn backward_objects_query(
         })
         .finish();
 
-        let keys_filter = ObjectFilter {
+        let keys_filter: HistoricalFilter = ObjectFilter {
             object_ids: None,
             ..filter.clone()
-        };
-        let (key_query, key_bindings) = if keys_filter.is_keys_only() {
-            historical::query_keys_only(checkpoint_viewed_at, page, move |query| {
-                keys_filter.apply(query)
-            })
-            .finish()
-        } else {
-            historical::query_with_filter(page, move |query| keys_filter.apply(query)).finish()
-        };
+        }
+        .try_into()
+        .expect("object_keys is Some by match-arm guard");
+        let (key_query, key_bindings) =
+            historical::query(checkpoint_viewed_at, page, &keys_filter).finish();
 
         RawQuery::new(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
@@ -1954,14 +1943,8 @@ fn backward_objects_query(
         )
         .order_by("object_id")
         .limit(page.limit() as i64)
-    } else if filter.object_keys.is_some() {
-        if filter.is_keys_only() {
-            historical::query_keys_only(checkpoint_viewed_at, page, move |query| {
-                filter.apply(query)
-            })
-        } else {
-            historical::query_with_filter(page, move |query| filter.apply(query))
-        }
+    } else if let Ok(keys_filter) = HistoricalFilter::try_from(filter.clone()) {
+        historical::query(checkpoint_viewed_at, page, &keys_filter)
     } else {
         consistent::query(checkpoint_viewed_at, page, move |query| filter.apply(query))
     }

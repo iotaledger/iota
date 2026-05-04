@@ -11,7 +11,48 @@ use iota_indexer::{
     models::objects::BackwardHistoryObjectStatus, types::ObjectStatus as NativeObjectStatus,
 };
 
-use crate::{query, raw_query::RawQuery};
+use crate::{query, raw_query::RawQuery, types::object::ObjectFilter};
+
+/// An `ObjectFilter` validated for use against the historical view.
+///
+/// The historical view is keyed on `(object_id, object_version)` lookups
+/// against `checkpointed_objects`, `objects_backward_history`, and (for
+/// keys-only queries) `objects_version`, so it only makes sense when the
+/// filter pins down specific keys. Constructible only via
+/// `TryFrom<ObjectFilter>`, which requires `object_keys` to be set.
+#[derive(Debug)]
+pub(crate) struct HistoricalFilter(ObjectFilter);
+
+#[derive(thiserror::Error, Debug)]
+pub(crate) enum HistoricalFilterError {
+    #[error(
+        "ObjectFilter is missing object_keys; the historical view requires explicit (object_id, object_version) keys"
+    )]
+    MissingKeys,
+}
+
+impl TryFrom<ObjectFilter> for HistoricalFilter {
+    type Error = HistoricalFilterError;
+
+    fn try_from(filter: ObjectFilter) -> Result<Self, Self::Error> {
+        if filter.object_keys.is_some() {
+            Ok(Self(filter))
+        } else {
+            Err(HistoricalFilterError::MissingKeys)
+        }
+    }
+}
+
+impl HistoricalFilter {
+    /// Whether the filter additionally constrains `type_` or `owner`.
+    pub(crate) fn has_type_or_owner(&self) -> bool {
+        self.0.type_.is_some() || self.0.owner.is_some()
+    }
+
+    pub(crate) fn apply(&self, query: RawQuery) -> RawQuery {
+        self.0.apply(query)
+    }
+}
 
 /// Status value for objects that did not exist yet. These entries are excluded
 /// from backward diff results.

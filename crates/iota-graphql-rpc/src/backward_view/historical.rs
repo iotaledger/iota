@@ -6,8 +6,8 @@
 //! past versions from `objects_backward_history`.
 
 use super::{
-    BACKWARD_HISTORY_WATERMARK_ENTITY, CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED,
-    NativeObjectStatus, merge_and_deduplicate, merge_and_deduplicate_three,
+    BACKWARD_HISTORY_WATERMARK_ENTITY, CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, HistoricalFilter,
+    NOT_YET_CREATED, NativeObjectStatus, merge_and_deduplicate, merge_and_deduplicate_three,
 };
 use crate::{
     filter, query,
@@ -18,32 +18,30 @@ use crate::{
     },
 };
 
-/// Builds a historical view with additional filters (type, owner, etc.).
-/// Since tombstones have NULL data fields, they can never match these
-/// filters, so the `objects_version` fallback is skipped.
-pub(crate) fn query_with_filter(
-    page: &Page<Cursor>,
-    filter_fn: impl Fn(RawQuery) -> RawQuery,
-) -> RawQuery {
-    merge_and_deduplicate(
-        checkpointed_objects(page, &filter_fn),
-        historical_objects(page, &filter_fn),
-    )
-}
-
-/// Builds a historical view with only key filters (no type/owner).
-/// Includes synthetic tombstones from `objects_version` for versions not
-/// found in the other sources, since tombstones could match.
-pub(crate) fn query_keys_only(
+/// Builds a historical view query for a `HistoricalFilter`. Internally
+/// branches on whether type/owner are also constrained: keys-only filters
+/// include the `objects_version` source so real tombstone versions are
+/// reachable, while filters with type/owner skip it (tombstones can't
+/// match).
+pub(crate) fn query(
     checkpoint_viewed_at: u64,
     page: &Page<Cursor>,
-    filter_fn: impl Fn(RawQuery) -> RawQuery,
+    filter: &HistoricalFilter,
 ) -> RawQuery {
-    merge_and_deduplicate_three(
-        checkpointed_objects(page, &filter_fn),
-        historical_objects(page, &filter_fn),
-        tombstones_from_objects_version(checkpoint_viewed_at, page, &filter_fn),
-    )
+    let filter_fn = |q| filter.apply(q);
+
+    if filter.has_type_or_owner() {
+        merge_and_deduplicate(
+            checkpointed_objects(page, &filter_fn),
+            historical_objects(page, &filter_fn),
+        )
+    } else {
+        merge_and_deduplicate_three(
+            checkpointed_objects(page, &filter_fn),
+            historical_objects(page, &filter_fn),
+            tombstones_from_objects_version(checkpoint_viewed_at, page, &filter_fn),
+        )
+    }
 }
 
 /// Returns all objects from `checkpointed_objects` (including tombstones)
