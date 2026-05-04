@@ -1,12 +1,19 @@
 ---
-title: Transaction Data Cryptographic Protection in Authenticators
-tags: [move-sc, account-abstraction, how-to]
-teams:
-  - iotaledger/vm-language
-description: Learn how to properly implement transaction data cryptographic protection in authenticator functions to prevent transaction tampering attacks.
+description: "How to properly implement transaction data cryptographic protection in authenticator functions to prevent transaction tampering attacks."
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
 ---
 
-This guide explains the importance of cryptographic protection for the transaction data when building authenticator functions and demonstrates a critical vulnerability that can occur when it's missing.
+# Transaction Data Cryptographic Protection in Authenticators
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains the importance of cryptographic protection for the transaction data when building authenticator functions and demonstrates a critical vulnerability that can occur when it's missing.
 
 ## The Vulnerability
 

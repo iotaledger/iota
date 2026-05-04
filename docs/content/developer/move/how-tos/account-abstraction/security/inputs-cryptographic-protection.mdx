@@ -1,12 +1,19 @@
 ---
-title: Cryptographic Protection for Authenticator Inputs
-tags: [move-sc, account-abstraction, how-to]
-teams:
-  - iotaledger/vm-language
-description: Learn how to properly protect authenticator input parameters with cryptographic verification to prevent input tampering attacks.
+description: "How to properly protect authenticator input parameters with cryptographic verification to prevent input tampering attacks"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
 ---
 
-This guide explains the importance of cryptographically protecting all authenticator input parameters, not just the transaction digest, to prevent attackers from tampering with inputs after authentication.
+# Cryptographic Protection for Authenticator Inputs
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains the importance of cryptographically protecting all authenticator input parameters, not just the transaction digest, to prevent attackers from tampering with inputs after authentication.
 
 ## The Vulnerability
 

@@ -1,12 +1,19 @@
 ---
-title: Authenticator Shared Object Inputs
-tags: [move-sc, account-abstraction, how-to]
-teams:
-  - iotaledger/vm-language
-description: Understand the risks of using shared objects as inputs to authenticator functions and how to mitigate them.
+description: "How to mitigate the risks of using shared objects as inputs to authenticator functions."
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
 ---
 
-This guide explains a critical security vulnerability that can occur when authenticator functions accept shared objects as input parameters, potentially allowing attackers to bypass authentication checks.
+# Authenticator Shared Object Inputs
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains a critical security vulnerability that can occur when authenticator functions accept shared objects as input parameters, potentially allowing attackers to bypass authentication checks.
 
 ## The Vulnerability
 
