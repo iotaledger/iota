@@ -1462,13 +1462,16 @@ pub(crate) fn resolve_tombstone_versions(
     })?;
 
     // Key by (object_id, backward_history_version) → real_version
-    let resolved_map: HashMap<(Vec<u8>, i64), i64> = rows
+    let resolved_map: HashMap<Vec<u8>, HashMap<i64, i64>> = rows
         .into_iter()
         .filter_map(|r| {
             r.real_version
-                .map(|real| ((r.object_id, r.backward_history_version), real))
+                .map(|real| (r.object_id, r.backward_history_version, real))
         })
-        .collect();
+        .fold(HashMap::new(), |mut acc, (id, ver, real)| {
+            acc.entry(id).or_default().insert(ver, real);
+            acc
+        });
 
     Ok(results
         .into_iter()
@@ -1476,8 +1479,10 @@ pub(crate) fn resolve_tombstone_versions(
             if r.from_backward_history
                 && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
             {
-                let key = (r.object_id.clone(), r.object_version);
-                if let Some(&real_version) = resolved_map.get(&key) {
+                if let Some(&real_version) = resolved_map
+                    .get(&r.object_id)
+                    .and_then(|versions| versions.get(&r.object_version))
+                {
                     r.object_version = real_version;
                 }
             }
