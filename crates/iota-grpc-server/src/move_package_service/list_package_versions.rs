@@ -54,6 +54,7 @@ pub(crate) fn list_package_versions(
                     format!("Object {pkg_id} is not a package"),
                 ));
             }
+
             current_object
                 .data
                 .try_as_package()
