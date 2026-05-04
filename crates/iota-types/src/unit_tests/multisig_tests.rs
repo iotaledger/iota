@@ -10,18 +10,16 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::crypto::{
     Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
-    Secp256r1Signature,
+    Secp256r1Signature, UserSignature,
 };
-use once_cell::sync::OnceCell;
-use rand::{SeedableRng, rngs::StdRng};
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
     base_types::IotaAddress,
-    crypto::{Ed25519IotaSignature, IotaSignatureInner, Signature},
+    crypto::{Ed25519IotaSignature, IotaSignatureInner},
     multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, MultisigMember},
     signature::GenericSignature,
-    utils::{keys, multisig_keys},
+    utils::multisig_keys,
 };
 
 #[test]
@@ -60,62 +58,53 @@ fn test_combine_sigs() {
     assert!(MultiSig::combine(vec![], multisig_pk.clone()).is_err());
     assert!(MultiSig::combine(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
 }
+
 #[test]
 fn test_serde_roundtrip() {
+    let (kp1, kp2, kp3) = multisig_keys();
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
-    );
+    )
+    .signing_message();
 
-    for kp in multisig_keys() {
-        let pk = kp.public();
-        let multisig_pk = MultiSigPublicKey::new(vec![pk], vec![1], 1).unwrap();
-        let sig = Signature::new_secure(&msg, &kp).into();
-        let multisig = MultiSig::combine(vec![sig], multisig_pk).unwrap();
-        let plain_bytes = bcs::to_bytes(&multisig).unwrap();
+    let check_roundtrip = |multisig: MultiSig| {
+        let user_sig = UserSignature::Multisig(multisig);
+        let user_sig_bytes = user_sig.to_bytes();
+        let user_sig_roundtrip = UserSignature::from_bytes(&user_sig_bytes).unwrap();
+        assert_eq!(user_sig, user_sig_roundtrip);
 
-        let generic_sig = GenericSignature::MultiSig(multisig);
-        let generic_sig_bytes = generic_sig.as_bytes();
-        let generic_sig_roundtrip = GenericSignature::from_bytes(generic_sig_bytes).unwrap();
-        assert_eq!(generic_sig, generic_sig_roundtrip);
+        // The serialized form is prefixed with the MultiSig flag 0x03.
+        assert_eq!(user_sig_bytes.first().unwrap(), &0x03);
+    };
 
-        // A MultiSig flag 0x03 is appended before the bcs serialized bytes.
-        assert_eq!(plain_bytes.len() + 1, generic_sig_bytes.len());
-        assert_eq!(generic_sig_bytes.first().unwrap(), &0x03);
-    }
+    let pk1 = kp1.public_key();
+    let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk1, 1)], 1).unwrap();
+    let sig: Ed25519Signature = kp1.sign(&*msg);
+    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
+
+    let pk2 = kp2.public_key();
+    let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk2, 1)], 1).unwrap();
+    let sig: Secp256k1Signature = kp2.sign(&*msg);
+    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
+
+    let pk3 = kp3.public_key();
+    let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk3, 1)], 1).unwrap();
+    let sig: Secp256r1Signature = kp3.sign(&*msg);
+    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
 
     // Malformed multisig cannot be deserialized
-    let multisig_pk = MultiSigPublicKey {
-        pk_map: vec![(keys()[0].public(), 1)],
-        threshold: 1,
-    };
-    let multisig = MultiSig {
-        sigs: vec![], // No sigs
-        bitmap: 0,
-        multisig_pk,
-        bytes: OnceCell::new(),
-    };
-
-    let generic_sig = GenericSignature::MultiSig(multisig);
-    let generic_sig_bytes = generic_sig.as_bytes();
-    assert!(GenericSignature::from_bytes(generic_sig_bytes).is_err());
+    let multisig_pk =
+        MultiSigPublicKey::insecure_new(vec![MultisigMember::new(kp1.public_key(), 1)], 1);
+    let multisig = MultiSig::new(vec![], 0, multisig_pk);
+    let user_sig = UserSignature::Multisig(multisig);
+    assert!(UserSignature::from_bytes(&user_sig.to_bytes()).is_err());
 
     // Malformed multisig_pk cannot be deserialized
-    let multisig_pk_1 = MultiSigPublicKey {
-        pk_map: vec![],
-        threshold: 0,
-    };
-
-    let multisig_1 = MultiSig {
-        sigs: vec![],
-        bitmap: 0,
-        multisig_pk: multisig_pk_1,
-        bytes: OnceCell::new(),
-    };
-
-    let generic_sig_1 = GenericSignature::MultiSig(multisig_1);
-    let generic_sig_bytes = generic_sig_1.as_bytes();
-    assert!(GenericSignature::from_bytes(generic_sig_bytes).is_err());
+    let multisig_pk_1 = MultiSigPublicKey::insecure_new(vec![], 0);
+    let multisig_1 = MultiSig::new(vec![], 0, multisig_pk_1);
+    let user_sig_1 = UserSignature::Multisig(multisig_1);
+    assert!(UserSignature::from_bytes(&user_sig_1.to_bytes()).is_err());
 
     // Single sig serialization unchanged.
     let sig = Ed25519IotaSignature::default();
@@ -221,8 +210,8 @@ fn test_max_sig() {
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
-    );
-    let mut seed = StdRng::from_seed([0; 32]);
+    )
+    .signing_message();
     let mut keys = Vec::new();
     let mut pks = Vec::new();
 
@@ -232,39 +221,47 @@ fn test_max_sig() {
         keys.push(kp);
     }
 
+    let members_with_weight = |count: usize, weight: WeightUnit| -> Vec<MultisigMember> {
+        pks[..count]
+            .iter()
+            .cloned()
+            .map(|pk| MultisigMember::new(pk, weight))
+            .collect()
+    };
+
     // multisig_pk with unreachable threshold fails.
-    assert!(MultiSigPublicKey::new(pks.clone()[..5].to_vec(), vec![3; 5], 16).is_err());
+    assert!(!MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16).is_valid());
 
     // multisig_pk with max weights for each pk and max reachable threshold is ok.
-    let res = MultiSigPublicKey::new(
-        pks.clone()[..10].to_vec(),
-        vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG],
-        (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
+    assert!(
+        MultiSigPublicKey::insecure_new(
+            members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
+            (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
+        )
+        .is_valid()
     );
-    assert!(res.is_ok());
 
     // multisig_pk with unreachable threshold fails.
-    let res = MultiSigPublicKey::new(
-        pks.clone()[..10].to_vec(),
-        vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG],
-        (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
+    assert!(
+        !MultiSigPublicKey::insecure_new(
+            members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
+            (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
+        )
+        .is_valid()
     );
-    assert!(res.is_err());
 
     // multisig_pk with max weights for each pk with threshold is 1x max weight
     // validates ok.
     let low_threshold_pk = MultiSigPublicKey::new(
-        pks.clone()[..10].to_vec(),
-        vec![WeightUnit::MAX; 10],
+        members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
         WeightUnit::MAX.into(),
     )
     .unwrap();
-    let sig = Signature::new_secure(&msg, &keys[0]).into();
+    let sig: Ed25519Signature = keys[0].sign(&*msg);
     assert!(
-        MultiSig::combine(vec![sig; 1], low_threshold_pk)
+        MultiSig::combine(vec![sig.into()], low_threshold_pk)
             .unwrap()
-            .init_and_validate()
-            .is_ok()
+            .is_valid()
     );
 }
 
@@ -282,16 +279,17 @@ fn multisig_get_pk() {
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
-    );
-    let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
-    let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
+    )
+    .signing_message();
+    let sig1: Ed25519Signature = kp1.sign(msg.as_ref());
+    let sig2: Secp256k1Signature = kp2.sign(msg.as_ref());
 
-    let multi_sig =
-        MultiSig::combine(vec![sig1.clone(), sig2.clone()], multisig_pk.clone()).unwrap();
+    let multi_sig = MultiSig::combine(vec![sig1.into(), sig2.into()], multisig_pk.clone()).unwrap();
 
-    assert!(multi_sig.get_pk().clone() == multisig_pk);
-    assert!(
-        *multi_sig.get_sigs() == vec![sig1.to_compressed().unwrap(), sig2.to_compressed().unwrap()]
+    assert_eq!(multi_sig.committee(), &multisig_pk);
+    assert_eq!(
+        multi_sig.signatures(),
+        [sig1.into(), sig2.into()].as_slice(),
     );
 }
 
@@ -315,11 +313,10 @@ fn multisig_get_indices() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message()
-    .as_ref();
-    let sig1: Ed25519Signature = kp1.sign(msg);
-    let sig2: Secp256k1Signature = kp2.sign(msg);
-    let sig3: Secp256r1Signature = kp3.sign(msg);
+    .signing_message();
+    let sig1: Ed25519Signature = kp1.sign(msg.as_ref());
+    let sig2: Secp256k1Signature = kp2.sign(msg.as_ref());
+    let sig3: Secp256r1Signature = kp3.sign(msg.as_ref());
 
     let multi_sig1 =
         MultiSig::combine(vec![sig2.into(), sig3.into()], multisig_pk.clone()).unwrap();
