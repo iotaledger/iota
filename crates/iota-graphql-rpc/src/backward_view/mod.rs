@@ -79,37 +79,35 @@ pub(super) const HISTORY_COLUMNS: &str = "\
     object_type_name, serialized_object, coin_type, coin_balance, df_kind, \
     TRUE AS from_backward_history";
 
-/// Merges two sources with UNION ALL and picks the most recent version per
-/// `object_id` using `DISTINCT ON`.
+/// Merges any non-empty set of sources with `UNION ALL` and picks the most
+/// recent version per `object_id` using `DISTINCT ON`.
 ///
 /// The result is wrapped so cursor pagination can reference
 /// `candidates.object_id`.
-pub(super) fn merge_and_deduplicate(source_a: RawQuery, source_b: RawQuery) -> RawQuery {
-    let combined = query!(
-        r#"SELECT DISTINCT ON (object_id) * FROM (({}) UNION ALL ({})) candidates"#,
-        source_a,
-        source_b
-    )
-    .order_by("object_id")
-    .order_by("object_version DESC");
+pub(super) fn merge_and_deduplicate(sources: Vec<RawQuery>) -> RawQuery {
+    assert!(
+        !sources.is_empty(),
+        "merge_and_deduplicate requires at least one source"
+    );
 
-    query!("SELECT * FROM ({}) candidates", combined)
-}
+    let mut binds: Vec<String> = Vec::new();
+    let union_terms: Vec<String> = sources
+        .into_iter()
+        .map(|source| {
+            let (sql, source_binds) = source.finish();
+            binds.extend(source_binds);
+            format!("({sql})")
+        })
+        .collect();
 
-/// Like `merge_and_deduplicate` but for three sources.
-pub(super) fn merge_and_deduplicate_three(
-    source_a: RawQuery,
-    source_b: RawQuery,
-    source_c: RawQuery,
-) -> RawQuery {
-    let combined = query!(
-        r#"SELECT DISTINCT ON (object_id) * FROM (({}) UNION ALL ({}) UNION ALL ({})) candidates"#,
-        source_a,
-        source_b,
-        source_c
-    )
-    .order_by("object_id")
-    .order_by("object_version DESC");
+    let select = format!(
+        r#"SELECT DISTINCT ON (object_id) * FROM ({}) candidates"#,
+        union_terms.join(" UNION ALL ")
+    );
+
+    let combined = RawQuery::new(select, binds)
+        .order_by("object_id")
+        .order_by("object_version DESC");
 
     query!("SELECT * FROM ({}) candidates", combined)
 }

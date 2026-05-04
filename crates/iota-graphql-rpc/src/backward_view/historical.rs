@@ -8,7 +8,7 @@
 use crate::{
     backward_view::{
         BACKWARD_HISTORY_WATERMARK_ENTITY, CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, HistoricalFilter,
-        NOT_YET_CREATED, NativeObjectStatus, merge_and_deduplicate, merge_and_deduplicate_three,
+        NOT_YET_CREATED, NativeObjectStatus, merge_and_deduplicate,
     },
     filter, query,
     raw_query::RawQuery,
@@ -30,18 +30,18 @@ pub(crate) fn query(
 ) -> RawQuery {
     let filter_fn = |q| filter.apply(q);
 
-    if filter.has_type_or_owner() {
-        merge_and_deduplicate(
-            checkpointed_objects(page, &filter_fn),
-            historical_objects(page, &filter_fn),
-        )
-    } else {
-        merge_and_deduplicate_three(
-            checkpointed_objects(page, &filter_fn),
-            historical_objects(page, &filter_fn),
-            tombstones_from_objects_version(checkpoint_viewed_at, page, &filter_fn),
-        )
+    let mut sources = vec![
+        checkpointed_objects(page, &filter_fn),
+        historical_objects(page, &filter_fn),
+    ];
+    if !filter.has_type_or_owner() {
+        sources.push(tombstones_from_objects_version(
+            checkpoint_viewed_at,
+            page,
+            &filter_fn,
+        ));
     }
+    merge_and_deduplicate(sources)
 }
 
 /// Returns all objects from `checkpointed_objects` (including tombstones)

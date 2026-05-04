@@ -26,10 +26,10 @@ pub(crate) fn query(
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let checkpoint_viewed_at = checkpoint_viewed_at as i64;
-    merge_and_deduplicate(
+    merge_and_deduplicate(vec![
         consistent_checkpointed_objects(checkpoint_viewed_at, page, &filter_fn),
         consistent_historical_objects(checkpoint_viewed_at, page, &filter_fn),
-    )
+    ])
 }
 
 /// Returns objects from `checkpointed_objects` (including tombstones) that
