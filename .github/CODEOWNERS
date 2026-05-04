@@ -12,7 +12,6 @@
 /crates/iota-archival/ @iotaledger/node
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-benchmark/ @iotaledger/node
-/crates/iota-build-cache-server/ @iotaledger/node
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node

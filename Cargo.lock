@@ -5615,30 +5615,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-build-cache-server"
-version = "1.24.0-alpha"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "futures",
- "http 1.4.0",
- "http-body-util",
- "hyper",
- "hyper-util",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 1.0.64",
- "tokio",
- "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
 name = "iota-cluster-test"
 version = "1.24.0-alpha"
 dependencies = [
