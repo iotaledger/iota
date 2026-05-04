@@ -43,12 +43,3 @@ warning[Lint W99001]: non-composable transfer to sender
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Transfer of an object to transaction sender address
    │
    = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[Lint W99010]: function can be marked '#[view]'
-   ┌─ tests/iota_mode/linter/self_transfer.move:72:16
-   │
-72 │     public fun sender(_: &TxContext): address {
-   │                ^^^^^^ Function 'sender' satisfies view constraints and can be annotated with '#[view]'
-   │
-   = Add '#[view]' to make the function explicitly callable as a view function.
-   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')

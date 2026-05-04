@@ -624,24 +624,6 @@ fn view_signature(
     view_return_ty(context, view_loc, name, return_type);
 }
 
-pub(crate) fn is_valid_view_signature(
-    visibility: &Visibility,
-    signature: &FunctionSignature,
-) -> bool {
-    let FunctionSignature {
-        type_parameters,
-        parameters,
-        return_type,
-    } = signature;
-
-    is_valid_view_visibility(visibility)
-        && type_parameters.iter().all(is_valid_view_type_parameter)
-        && is_valid_view_return_ty(return_type)
-        && parameters
-            .iter()
-            .all(|(mutability, _, param_ty)| is_valid_view_param_ty(mutability, param_ty))
-}
-
 fn is_valid_view_visibility(visibility: &Visibility) -> bool {
     matches!(visibility, Visibility::Public(_))
 }
@@ -720,10 +702,6 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
     }
 }
 
-fn is_valid_view_return_ty(return_type: &Type) -> bool {
-    !matches!(return_type.value, Type_::Unit) && !contains_view_unsafe_by_value_ty(return_type)
-}
-
 /// A valid view param type is
 /// - A primitive (including strings and non-object structs)
 /// - A vector of primitives (including nested vectors)
@@ -776,12 +754,6 @@ fn view_param_ty(
         }
         _ => (),
     }
-}
-
-fn is_valid_view_param_ty(mutability: &Mutability, param_ty: &Type) -> bool {
-    !matches!(mutability, Mutability::Mut(_))
-        && !contains_mutable_reference_ty(param_ty)
-        && !contains_view_unsafe_by_value_ty(param_ty)
 }
 
 fn contains_mutable_reference_ty(param_ty: &Type) -> bool {
