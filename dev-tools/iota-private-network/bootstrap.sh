@@ -60,32 +60,32 @@ EOF
             cat >> "$GENESIS_TEMPLATE" <<EOF
   - address: "0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
     gas_amounts:
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
   - address: "0xcd2617da70a7b430103ad101ae570db412156521851fb18cc1acbdd59720c2c1"
     gas_amounts:
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
   - address: "0x0b75ee76891aeab997785963407e6add2ed6a7cd3a414e11dad8b7204d0d3f4b"
     gas_amounts:
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
   - address: "0x05febd29e0f349b6fbfbed1f279481517f162c5653c5c98173cc1aa79d4d2fdd"
     gas_amounts:
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
-      - 500000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
+      - 700000000000000000
 EOF
             echo "Benchmark gas accounts added to genesis template"
         fi
@@ -164,6 +164,8 @@ generate_genesis_files() {
         .genesis.genesis-file-location = $overlay.genesis.genesis-file-location |
         .db-path = $overlay.db-path |
         .consensus-config.db-path = $overlay.consensus-config.db-path |
+        .consensus-config.max-pending-transactions = $overlay.consensus-config.max-pending-transactions |
+        .consensus-config.graduated-load-shed-start-pct = $overlay.consensus-config.graduated-load-shed-start-pct |
         .expensive-safety-check-config = $overlay.expensive-safety-check-config |
         .epoch_duration_ms = $overlay.epoch_duration_ms
       ' "$file" "$OVERLAY_PATH" >"${file}.tmp" && mv "${file}.tmp" "$file"
