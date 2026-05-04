@@ -742,8 +742,8 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let threshold = 2;
 
     // Signatures (Base64)
-    let sig1 = MultisigMemberSignature::from_base64("AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==").unwrap();
-    let sig2 = MultisigMemberSignature::from_base64("AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==").unwrap();
+    let sig1 = MultisigMemberSignature::from_base64("AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQo=").unwrap();
+    let sig2 = MultisigMemberSignature::from_base64("AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAo=").unwrap();
     let sigs = vec![sig1, sig2];
 
     let output = KeyToolCommand::MultiSigCombinePartialSig {
