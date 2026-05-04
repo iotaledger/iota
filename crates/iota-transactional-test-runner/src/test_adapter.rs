@@ -1438,7 +1438,7 @@ impl IotaTestAdapter {
                     "abstract: account must be an object representing the abstract account"
                 ));
             }
-            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
         };
 
         Ok((

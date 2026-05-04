@@ -583,7 +583,7 @@ impl CallArgExt for CallArg {
                 mutable: *mutable,
             }),
             CallArg::Pure(_) | CallArg::Receiving(_) => None,
-            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
         }
     }
 
@@ -601,7 +601,7 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
-            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
         }
         Ok(())
     }
@@ -1009,7 +1009,7 @@ impl ProgrammableTransaction {
             .filter_map(|arg| match arg {
                 CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
                 CallArg::Shared(shared) => Some(vec![*shared]),
-                _ => unreachable!("a new CallArg variant was added and needs to be handled"),
+                _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
             })
             .flatten()
     }
