@@ -30,9 +30,9 @@ mod checked {
         id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
-            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            AuthenticatorMetadataV1, IotaAttribute, ModuleMetadataV1, MovePackage, PackageMetadata,
+            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy,
+            UpgradeReceipt, UpgradeTicket, ViewFunctionMetadataV1, normalize_deserialized_modules,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -938,24 +938,28 @@ mod checked {
                         })?;
 
                 // PackageMetadataV1 specific:
-                // - Process functions for each module in order to create function metadata:
-                //    - Authenticator attributes, if present, are extracted to create
-                //      AuthenticatorMetadata to insert into the PackageMetadata
-                let mut module_metadata_map = BTreeMap::new();
+                // Process functions for each module in order to create function metadata.
+                let mut module_metadata = ModuleMetadataV1::default();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                let contains = module_metadata_map.insert(
-                                    fn_name.to_string(),
-                                    TypeName::from(&get_authenticator_first_param_type_tag(
-                                        module, &fn_name,
-                                    )?),
+                                let account_type = TypeName::from(
+                                    &get_authenticator_first_param_type_tag(module, &fn_name)?,
                                 );
-                                debug_assert!(
-                                    contains.is_none(),
-                                    "Duplicate function metadata for authenticator"
+                                module_metadata.authenticator_metadata.push(
+                                    AuthenticatorMetadataV1 {
+                                        function_name: fn_name.to_string(),
+                                        account_type,
+                                    },
+                                );
+                            }
+                            IotaAttribute::View => {
+                                module_metadata.view_function_metadata.push(
+                                    ViewFunctionMetadataV1 {
+                                        function_name: fn_name.to_string(),
+                                    },
                                 );
                             }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
@@ -965,8 +969,8 @@ mod checked {
                 // Fill the package metadata with a module handle (and its related function
                 // metadata) only if there is at least one function with
                 // relevant metadata
-                if !module_metadata_map.is_empty() {
-                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
+                if !module_metadata.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata);
                 }
                 // End of PackageMetadataV1 specific
             }

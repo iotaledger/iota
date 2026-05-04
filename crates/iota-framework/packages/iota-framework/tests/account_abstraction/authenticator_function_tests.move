@@ -46,6 +46,46 @@ fun authenticator_function_ref_v1_create_happy_path() {
 }
 
 #[test]
+fun package_metadata_v1_view_function_happy_path() {
+    let package = object::id_from_address(@0xA);
+    let module_name = ascii::string(b"module");
+    let function_name = ascii::string(b"get_value");
+
+    let metadata = package_metadata::create_package_metadata_v1_for_testing_one_view_function(
+        package,
+        module_name,
+        function_name,
+    );
+
+    let module_metadata = metadata.modules_metadata_v1(&module_name);
+    assert!(module_metadata.is_view_function_v1(&function_name));
+    let view_metadata = module_metadata.view_function_metadata_v1(&function_name);
+    assert_eq(view_metadata.view_function_name(), function_name);
+
+    test_utils::destroy(metadata)
+}
+
+#[test]
+#[expected_failure(abort_code = package_metadata::EViewFunctionMetadataNotFound)]
+fun package_metadata_v1_view_function_unknown_function_name() {
+    let package = object::id_from_address(@0xA);
+    let module_name = ascii::string(b"module");
+    let function_name = ascii::string(b"get_value");
+
+    let metadata = package_metadata::create_package_metadata_v1_for_testing_one_view_function(
+        package,
+        module_name,
+        function_name,
+    );
+
+    metadata
+        .modules_metadata_v1(&module_name)
+        .view_function_metadata_v1(&ascii::string(b"get_other_value"));
+
+    test_utils::destroy(metadata)
+}
+
+#[test]
 #[expected_failure(abort_code = package_metadata::EModuleMetadataNotFound)]
 fun authenticator_function_ref_v1_create_with_unknown_module_name() {
     let package = object::id_from_address(@0xA);

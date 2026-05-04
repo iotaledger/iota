@@ -1441,6 +1441,9 @@ ModuleMetadataV1
 AuthenticatorMetadataV1
 	public struct
 	0x2::package_metadata
+ViewFunctionMetadataV1
+	public struct
+	0x2::package_metadata
 storage_id
 	public fun
 	0x2::package_metadata
@@ -1463,6 +1466,18 @@ authenticator_metadata_v1
 	public fun
 	0x2::package_metadata
 account_type
+	public fun
+	0x2::package_metadata
+try_get_view_function_metadata_v1
+	public fun
+	0x2::package_metadata
+view_function_metadata_v1
+	public fun
+	0x2::package_metadata
+is_view_function_v1
+	public fun
+	0x2::package_metadata
+view_function_name
 	public fun
 	0x2::package_metadata
 AuthenticatorFunctionRefV1

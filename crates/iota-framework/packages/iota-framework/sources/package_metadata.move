@@ -18,6 +18,9 @@ const EModuleMetadataNotFound: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
+#[error(code = 2)]
+const EViewFunctionMetadataNotFound: vector<u8> =
+    b"The requested view function metadata was not found in the module metadata.";
 
 // === Structs ===
 
@@ -43,9 +46,9 @@ public struct PackageMetadataV1 has key {
 }
 
 /// Represents metadata associated with a module in the package.
-/// V1 includes only the authenticator functions information.
 public struct ModuleMetadataV1 has copy, drop, store {
     authenticator_metadata: vector<AuthenticatorMetadataV1>,
+    view_function_metadata: vector<ViewFunctionMetadataV1>,
 }
 
 /// Represents metadata for an authenticator within the package.
@@ -54,6 +57,11 @@ public struct ModuleMetadataV1 has copy, drop, store {
 public struct AuthenticatorMetadataV1 has copy, drop, store {
     function_name: ascii::String,
     account_type: TypeName,
+}
+
+/// Represents metadata for a view function within the package.
+public struct ViewFunctionMetadataV1 has copy, drop, store {
+    function_name: ascii::String,
 }
 
 // === Public functions ===
@@ -119,6 +127,42 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
 }
 
+/// Safely get the `ViewFunctionMetadataV1` associated with the specified
+/// `function_name` within the module metadata.
+public fun try_get_view_function_metadata_v1(
+    self: &ModuleMetadataV1,
+    function_name: &ascii::String,
+): Option<ViewFunctionMetadataV1> {
+    self.view_function_metadata.find_index!(|m| m.function_name == *function_name).and!(|index| {
+        option::some(self.view_function_metadata[index])
+    })
+}
+
+/// Borrow the `ViewFunctionMetadataV1` associated with the specified
+/// `function_name`.
+/// Aborts if the view function metadata is not found for that function.
+public fun view_function_metadata_v1(
+    self: &ModuleMetadataV1,
+    function_name: &ascii::String,
+): &ViewFunctionMetadataV1 {
+    let mut index = self.view_function_metadata.find_index!(|m| m.function_name == *function_name);
+    assert!(index.is_some(), EViewFunctionMetadataNotFound);
+    &self.view_function_metadata[index.extract()]
+}
+
+/// Return true if the function is a view function.
+public fun is_view_function_v1(
+    self: &ModuleMetadataV1,
+    function_name: &ascii::String,
+): bool {
+    self.try_get_view_function_metadata_v1(function_name).is_some()
+}
+
+/// Return the name of the view function represented by this metadata.
+public fun view_function_name(self: &ViewFunctionMetadataV1): ascii::String {
+    self.function_name
+}
+
 // === Test-only functions ===
 
 /// Creates a `PackageMetadataV1` instance for testing, skipping validation.
@@ -134,8 +178,30 @@ public fun create_package_metadata_v1_for_testing(
     functions: vector<ascii::String>,
     type_names: vector<TypeName>,
 ): PackageMetadataV1 {
+    create_package_metadata_v1_for_testing_with_views(
+        storage_id,
+        modules,
+        functions,
+        type_names,
+        vector[],
+        vector[],
+    )
+}
+
+/// Creates a `PackageMetadataV1` instance for testing, including view
+/// functions and skipping validation.
+#[test_only]
+public fun create_package_metadata_v1_for_testing_with_views(
+    storage_id: ID,
+    modules: vector<ascii::String>,
+    functions: vector<ascii::String>,
+    type_names: vector<TypeName>,
+    view_modules: vector<ascii::String>,
+    view_functions: vector<ascii::String>,
+): PackageMetadataV1 {
     assert!(modules.length() == functions.length());
     assert!(modules.length() == type_names.length());
+    assert!(view_modules.length() == view_functions.length());
     let addr = iota::derived_object::derive_address_for_testing(
         storage_id,
         PackageMetadataKey {},
@@ -156,7 +222,30 @@ public fun create_package_metadata_v1_for_testing(
         } else {
             modules_metadata.insert(
                 module_name,
-                ModuleMetadataV1 { authenticator_metadata: vector[authenticator] },
+                ModuleMetadataV1 {
+                    authenticator_metadata: vector[authenticator],
+                    view_function_metadata: vector[],
+                },
+            );
+        };
+        i = i + 1;
+    };
+    i = 0;
+    while (i < view_modules.length()) {
+        let module_name = view_modules[i];
+        let function_name = view_functions[i];
+        let view_function = ViewFunctionMetadataV1 {
+            function_name,
+        };
+        if (modules_metadata.contains(&module_name)) {
+            modules_metadata.get_mut(&module_name).view_function_metadata.push_back(view_function);
+        } else {
+            modules_metadata.insert(
+                module_name,
+                ModuleMetadataV1 {
+                    authenticator_metadata: vector[],
+                    view_function_metadata: vector[view_function],
+                },
             );
         };
         i = i + 1;
@@ -184,5 +273,23 @@ public fun create_package_metadata_v1_for_testing_one_authenticator(
         vector[module_name],
         vector[function_name],
         vector[type_name],
+    )
+}
+
+/// Creates a `PackageMetadataV1` instance for testing with only one view
+/// function, skipping validation.
+#[test_only]
+public fun create_package_metadata_v1_for_testing_one_view_function(
+    storage_id: ID,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): PackageMetadataV1 {
+    create_package_metadata_v1_for_testing_with_views(
+        storage_id,
+        vector[],
+        vector[],
+        vector[],
+        vector[module_name],
+        vector[function_name],
     )
 }

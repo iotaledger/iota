@@ -1080,7 +1080,7 @@ impl PackageMetadata {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         PackageMetadata::V1(PackageMetadataV1::new(
             uid,
@@ -1161,22 +1161,11 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
-        for (module_name, module_metadata_map) in modules_metadata_map {
-            let mut module_metadata = ModuleMetadataV1 {
-                authenticator_metadata: vec![],
-            };
-            for (function_name, account_type) in module_metadata_map {
-                module_metadata
-                    .authenticator_metadata
-                    .push(AuthenticatorMetadataV1 {
-                        function_name,
-                        account_type,
-                    });
-            }
+        for (module_name, module_metadata) in modules_metadata_map {
             modules_metadata.contents.push(Entry {
                 key: module_name,
                 value: module_metadata,
@@ -1207,15 +1196,16 @@ impl PackageMetadataV1 {
     }
 }
 
-/// V1 of IOTA specific module metadata. Only includes authenticator info.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// V1 of IOTA specific module metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModuleMetadataV1 {
     pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+    pub view_function_metadata: Vec<ViewFunctionMetadataV1>,
 }
 
 impl ModuleMetadataV1 {
     pub fn is_empty(&self) -> bool {
-        self.authenticator_metadata.is_empty()
+        self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
     }
 }
 
@@ -1224,4 +1214,10 @@ impl ModuleMetadataV1 {
 pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
     pub account_type: TypeName,
+}
+
+/// V1 of IOTA specific view function metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewFunctionMetadataV1 {
+    pub function_name: String,
 }
