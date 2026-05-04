@@ -136,7 +136,7 @@ async fn simulate_transaction_command_results_split_coins() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let gas_obj = gas.last().unwrap();
     let obj_to_split = gas.first().unwrap();
 

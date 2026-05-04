@@ -8,6 +8,7 @@ use iota_grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_CHECKPOINT_READ_MASK,
     v1::{
+        filter as grpc_filter,
         ledger_service::{
             CheckpointData, GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data,
             ledger_service_client::LedgerServiceClient,
@@ -16,12 +17,14 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_types::transaction::CallArg;
 use prost_types::FieldMask;
 use tokio::time::timeout;
 
 use crate::utils::{
-    FieldPresenceChecker, assert_field_presence, assert_tonic_error,
-    comma_separated_field_mask_to_paths, setup_grpc_test,
+    BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, FieldPresenceChecker, NFT_MINTED_EVENT,
+    NFT_MODULE, NFT_PACKAGE, assert_field_presence, assert_tonic_error,
+    comma_separated_field_mask_to_paths, publish_example_package, setup_grpc_test,
 };
 
 /// `sequence_number` is always populated by the server and not controlled by
