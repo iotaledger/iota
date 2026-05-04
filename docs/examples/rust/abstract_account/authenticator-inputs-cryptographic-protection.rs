@@ -22,23 +22,20 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        IOTA_FRAMEWORK_ADDRESS,
-        base_types::ObjectID,
+        base_types::{Identifier, ObjectID, TypeTag},
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, ObjectArg, Transaction},
+        transaction::{Argument, Transaction},
     },
 };
 use iota_types::{
-    TypeTag,
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
     object::Owner,
     signature::GenericSignature,
-    transaction::CallArg,
+    transaction::{CallArg, SharedObjectRef},
     utils::MoveAuthenticator,
 };
-use move_core_types::ident_str;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -99,7 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
         &pub_key,
     )
     .await?;
-    let account_address = account_ref.0.into();
+    let account_address = account_ref.object_id.into();
 
     // Top up the account address from the faucet
     request_tokens_from_faucet(&iota_client, account_address).await?;
@@ -109,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
         create_blacklist(&iota_client, &mut keystore, publisher, &package_id).await?;
 
     // Create an abstract account transaction
-    let recipient_a = IotaAddress::random_for_testing_only();
+    let recipient_a = IotaAddress::random();
 
     println!("Recipient A address: {recipient_a}");
 
@@ -132,7 +129,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Recipient A coin: {transferred_coin:?}");
 
     // Create one more test transaction
-    let recipient_b = IotaAddress::random_for_testing_only();
+    let recipient_b = IotaAddress::random();
 
     println!("Recipient B address: {recipient_b}");
 
@@ -185,7 +182,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Create one more test transaction
-    let recipient_c = IotaAddress::random_for_testing_only();
+    let recipient_c = IotaAddress::random();
 
     println!("Recipient C address: {recipient_c}");
 
@@ -249,14 +246,14 @@ pub async fn create_account(
         let mut builder = ProgrammableTransactionBuilder::new();
 
         let arguments = vec![
-            builder.obj(ObjectArg::ImmOrOwnedObject(package_metadata_ref))?,
+            builder.obj(CallArg::ImmutableOrOwned(package_metadata_ref))?,
             builder.pure(AA_MODULE_NAME)?,
             builder.pure(AA_AUTHENTICATE_FN_NAME)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
-            ident_str!(IOTA_AUTHENTICATOR_FN_MODULE_NAME).to_owned(),
-            ident_str!(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME).to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::from_static(IOTA_AUTHENTICATOR_FN_MODULE_NAME),
+            Identifier::from_static(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME),
             vec![aa_type_tag(package_id)],
             arguments,
         ) {
@@ -266,8 +263,8 @@ pub async fn create_account(
             ];
             builder.programmable_move_call(
                 *package_id,
-                ident_str!(AA_MODULE_NAME).to_owned(),
-                ident_str!(AA_CREATE_ACCOUNT_FN_NAME).to_owned(),
+                Identifier::from_static(AA_MODULE_NAME),
+                Identifier::from_static(AA_CREATE_ACCOUNT_FN_NAME),
                 vec![],
                 arguments,
             );
@@ -318,8 +315,8 @@ pub async fn create_blacklist(
 
         builder.programmable_move_call(
             *package_id,
-            ident_str!(AA_BLACKLIST_MODULE_NAME).to_owned(),
-            ident_str!(AA_CREATE_BLACKLIST_FN_NAME).to_owned(),
+            Identifier::from_static(AA_BLACKLIST_MODULE_NAME),
+            Identifier::from_static(AA_CREATE_BLACKLIST_FN_NAME),
             vec![],
             vec![],
         );
@@ -341,7 +338,7 @@ pub async fn create_blacklist(
     let blacklist_ref = tx_effects
         .created()
         .first()
-        .map(|blacklist| blacklist.reference.to_object_ref())
+        .map(|blacklist| blacklist.reference.clone())
         .expect("There are no created objects");
 
     println!("Blacklist Ref: {blacklist_ref:?}");
@@ -358,7 +355,7 @@ pub async fn create_test_transaction(
     account_ref: &ObjectRef,
     blacklist_ref: &ObjectRef,
 ) -> Result<Transaction> {
-    let account_address = account_ref.0.into();
+    let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
     let pt = {
@@ -373,14 +370,14 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let account_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: account_ref.0,
-        initial_shared_version: account_ref.1,
+    let account_call_arg = CallArg::Shared(SharedObjectRef {
+        object_id: account_ref.object_id,
+        initial_shared_version: account_ref.version,
         mutable: false,
     });
-    let blacklist_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: blacklist_ref.0,
-        initial_shared_version: blacklist_ref.1,
+    let blacklist_call_arg = CallArg::Shared(SharedObjectRef {
+        object_id: blacklist_ref.object_id,
+        initial_shared_version: blacklist_ref.version,
         mutable: false,
     });
 
@@ -389,7 +386,7 @@ pub async fn create_test_transaction(
 
     let mut message = vec![];
     message.extend_from_slice(tx_digest.as_ref());
-    message.extend_from_slice(&blacklist_ref.0.into_bytes());
+    message.extend_from_slice(&blacklist_ref.object_id.into_bytes());
     message.extend_from_slice(bcs::to_bytes(&raw_value)?.as_slice());
     let message_hash = Sha256::digest(message.as_slice()).digest;
 
@@ -401,7 +398,7 @@ pub async fn create_test_transaction(
             .collect();
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
-    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
         vec![],
         account_call_arg.clone(),
@@ -415,9 +412,9 @@ pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
     new_blacklist_ref: &ObjectRef,
 ) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: new_blacklist_ref.0,
-        initial_shared_version: new_blacklist_ref.1,
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef {
+        object_id: new_blacklist_ref.object_id,
+        initial_shared_version: new_blacklist_ref.version,
         mutable: false,
     });
 
@@ -428,7 +425,7 @@ pub fn swap_blacklist_in_transaction(
 
             let account_call_arg = move_authenticator.object_to_authenticate().clone();
 
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
                 vec![
                     new_blacklist_ref_call_arg,
                     raw_value_call_arg,
@@ -460,7 +457,7 @@ pub fn swap_raw_value_in_transaction(
 
             let account_call_arg = move_authenticator.object_to_authenticate().clone();
 
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
                 vec![
                     blacklist_call_arg,
                     new_raw_value_call_arg,

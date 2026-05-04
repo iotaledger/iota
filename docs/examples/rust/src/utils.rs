@@ -157,7 +157,7 @@ pub async fn publish_aa_package<Keystore: AccountKeystore>(
                 .map(|change| change.object_ref())
         })
         .expect("Package ref must be found");
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
     println!("Package ID: {package_id}");
 
     let package_metadata_id = move_package::derive_package_metadata_id(package_id);
@@ -305,7 +305,7 @@ async fn wait_for_faucet_completion(
             .await?;
 
         if let Some(owner) = object.owner() {
-            if owner.get_owner_address()? == *expected_owner {
+            if owner.into_address() == *expected_owner {
                 break;
             }
         }

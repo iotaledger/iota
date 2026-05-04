@@ -16,15 +16,15 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{Argument, CallArg, ObjectArg, Transaction, TransactionData, TransactionKind},
+    transaction::{
+        Argument, CallArg, SharedObjectRef, Transaction, TransactionData, TransactionKind,
+    },
     utils::MoveAuthenticator,
 };
-use move_core_types::ident_str;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -79,13 +79,13 @@ async fn main() -> Result<(), anyhow::Error> {
         0,
     )
     .await?;
-    let account_address = account_ref.0.into();
+    let account_address = account_ref.object_id.into();
 
     // Top up the account address from the faucet
     request_tokens_from_faucet(&iota_client, account_address).await?;
 
     // Create an abstract account transaction
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random();
 
     println!("Recipient address: {recipient}");
 
@@ -103,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction = create_test_transaction(&iota_client, recipient, &account_ref).await?;
 
     // Swap the recipient in the transaction to an attacker-controlled address
-    let attacker = IotaAddress::random_for_testing_only();
+    let attacker = IotaAddress::random();
 
     println!("Attacker address: {attacker}");
 
@@ -136,14 +136,14 @@ pub async fn create_account(
         let mut builder = ProgrammableTransactionBuilder::new();
 
         let arguments = vec![
-            builder.obj(ObjectArg::ImmOrOwnedObject(package_metadata_ref))?,
+            builder.obj(CallArg::ImmutableOrOwned(package_metadata_ref))?,
             builder.pure(AA_MODULE_NAME)?,
             builder.pure(AA_AUTHENTICATE_FN_NAME)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
-            ident_str!(IOTA_AUTHENTICATOR_FN_MODULE_NAME).to_owned(),
-            ident_str!(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME).to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::from_static(IOTA_AUTHENTICATOR_FN_MODULE_NAME),
+            Identifier::from_static(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME),
             vec![aa_type_tag(package_id)],
             arguments,
         ) {
@@ -153,8 +153,8 @@ pub async fn create_account(
             ];
             builder.programmable_move_call(
                 *package_id,
-                ident_str!(AA_MODULE_NAME).to_owned(),
-                ident_str!(AA_CREATE_ACCOUNT_FN_NAME).to_owned(),
+                Identifier::from_static(AA_MODULE_NAME),
+                Identifier::from_static(AA_CREATE_ACCOUNT_FN_NAME),
                 vec![],
                 arguments,
             );
@@ -198,7 +198,7 @@ pub async fn create_test_transaction(
     recipient: IotaAddress,
     account_ref: &ObjectRef,
 ) -> Result<Transaction> {
-    let account_address = account_ref.0.into();
+    let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
     let pt = {
@@ -211,13 +211,13 @@ pub async fn create_test_transaction(
     let tx_data = create_transaction_data(iota_client, account_address, pt).await?;
 
     // Create a transaction
-    let account_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: account_ref.0,
-        initial_shared_version: account_ref.1,
+    let account_call_arg = CallArg::Shared(SharedObjectRef {
+        object_id: account_ref.object_id,
+        initial_shared_version: account_ref.version,
         mutable: false,
     });
 
-    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![],
         vec![],
         account_call_arg,
