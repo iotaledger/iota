@@ -908,7 +908,7 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
             assert_eq!(type_arguments, serde_json::json!([]));
             assert_eq!(
                 object_to_authenticate,
-                serde_json::json!({"shared": {"objectId": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initialSharedVersion": "4", "mutable": false}})
+                serde_json::json!({"shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
             );
         }
         _ => panic!("Expected MoveAuthenticator variant"),
