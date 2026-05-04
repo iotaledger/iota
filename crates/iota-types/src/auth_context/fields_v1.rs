@@ -117,8 +117,8 @@ impl MoveCommand {
 // MoveCallArg
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ObjectArg`], matching the BCS layout expected
-/// by the Move-side `ptb_call_arg::ObjectArg`.
+/// Mirrors the object variants of [`crate::transaction::CallArg`], matching
+/// the BCS layout expected by the Move-side `ptb_call_arg::ObjectArg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveObjectArg {
     ImmOrOwnedObject(ObjectRef),
@@ -129,24 +129,6 @@ pub enum MoveObjectArg {
     },
     Receiving(ObjectRef),
 }
-
-// impl From<&ObjectArg> for MoveObjectArg {
-//     fn from(obj: &ObjectArg) -> Self {
-//         match obj {
-//             ObjectArg::ImmOrOwnedObject(r) =>
-// MoveObjectArg::ImmOrOwnedObject(*r),             ObjectArg::SharedObject {
-//                 id,
-//                 initial_shared_version,
-//                 mutable,
-//             } => MoveObjectArg::SharedObject {
-//                 id: *id,
-//                 initial_shared_version: *initial_shared_version,
-//                 mutable: *mutable,
-//             },
-//             ObjectArg::Receiving(r) => MoveObjectArg::Receiving(*r),
-//         }
-//     }
-// }
 
 impl MoveObjectArg {
     pub fn type_() -> StructTag {
