@@ -809,7 +809,7 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     _pruner: AuthorityStorePruner,
-    _authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
     /// Take db checkpoints of different dbs
@@ -3054,10 +3054,13 @@ impl AuthorityState {
         ));
         let (tx_execution_shutdown, rx_execution_shutdown) = oneshot::channel();
 
-        let _authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
+        let authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
             epoch_store.get_parent_path(),
-            &config.authority_store_pruning_config,
-        );
+            config
+                .authority_store_pruning_config
+                .num_latest_epoch_dbs_to_retain,
+        )
+        .await;
         let _pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
@@ -3091,7 +3094,7 @@ impl AuthorityState {
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
             _pruner,
-            _authority_per_epoch_pruner,
+            authority_per_epoch_pruner,
             checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
             config,
@@ -3116,6 +3119,10 @@ impl AuthorityState {
             .expect("Error indexing genesis objects.");
 
         state
+    }
+
+    pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
+        &self.authority_per_epoch_pruner
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
