@@ -58,6 +58,7 @@ typed-store.workspace = true
 anyhow.workspace = true
 once_cell.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-common.workspace = true
