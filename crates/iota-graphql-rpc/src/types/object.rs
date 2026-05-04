@@ -1940,7 +1940,10 @@ fn backward_objects_query(
             ..filter.clone()
         };
         let (key_query, key_bindings) = if keys_filter.is_keys_only() {
-            historical::query_keys_only(page, move |query| keys_filter.apply(query)).finish()
+            historical::query_keys_only(checkpoint_viewed_at, page, move |query| {
+                keys_filter.apply(query)
+            })
+            .finish()
         } else {
             historical::query_with_filter(page, move |query| keys_filter.apply(query)).finish()
         };
@@ -1953,7 +1956,9 @@ fn backward_objects_query(
         .limit(page.limit() as i64)
     } else if filter.object_keys.is_some() {
         if filter.is_keys_only() {
-            historical::query_keys_only(page, move |query| filter.apply(query))
+            historical::query_keys_only(checkpoint_viewed_at, page, move |query| {
+                filter.apply(query)
+            })
         } else {
             historical::query_with_filter(page, move |query| filter.apply(query))
         }

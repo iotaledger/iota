@@ -35,13 +35,14 @@ pub(crate) fn query_with_filter(
 /// Includes synthetic tombstones from `objects_version` for versions not
 /// found in the other sources, since tombstones could match.
 pub(crate) fn query_keys_only(
+    checkpoint_viewed_at: u64,
     page: &Page<Cursor>,
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     merge_and_deduplicate_three(
         checkpointed_objects(page, &filter_fn),
         historical_objects(page, &filter_fn),
-        tombstones_from_objects_version(page, &filter_fn),
+        tombstones_from_objects_version(checkpoint_viewed_at, page, &filter_fn),
     )
 }
 
@@ -80,21 +81,41 @@ fn historical_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQ
 /// or `objects_backward_history`. This allows `objectKeys` lookups to find
 /// objects by their real tombstone version.
 ///
+/// Why surviving rows are necessarily `WrappedOrDeleted`: every version in
+/// `objects_version` falls into exactly one of three cases.
+///   1. Currently-latest state of the object (active row or tombstone) — lives
+///      in `checkpointed_objects` and is filtered out by the first `NOT
+///      EXISTS`.
+///   2. Prior active state superseded by a later transaction — recorded in
+///      `objects_backward_history` at its actual `object_version` with status
+///      `ACTIVE`, and filtered out by the second `NOT EXISTS`.
+///   3. Prior wrap/delete tombstone that was later overwritten in
+///      `checkpointed_objects` (typically by an unwrap). The wrap state is
+///      recorded in `objects_backward_history`, but at `lamport - 1` of the
+///      unwrapping transaction — which generally differs from the real
+///      tombstone version. The real version in `objects_version` therefore
+///      survives both `NOT EXISTS` filters. By construction this is the only
+///      surviving case, hence the static `WrappedOrDeleted` tag.
+///
 /// Only used for keys-only queries where the filter contains only
 /// `(object_id, object_version)` pairs — the `NOT EXISTS` subqueries hit
 /// primary keys so the cost is proportional to the number of requested keys.
 ///
-/// Filters out versions below the backward history watermark to avoid
-/// returning false tombstones for pruned ranges.
+/// Filters out versions outside the `[backward-history watermark,
+/// checkpoint_viewed_at]` window to avoid false tombstones from pruned ranges
+/// and concurrent in-flight batch writes.
 fn tombstones_from_objects_version(
+    checkpoint_viewed_at: u64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
+    let checkpoint_viewed_at = checkpoint_viewed_at as i64;
 
-    // Inner query: select from objects_version, excluding versions that already
-    // exist in checkpointed_objects or objects_backward_history, and filtering
-    // out pruned ranges via the backward history watermark.
+    // Inner query: select from objects_version, bounded by the backward
+    // history watermark below and `checkpoint_viewed_at` above, and excluding
+    // versions that already exist in checkpointed_objects or
+    // objects_backward_history.
     let inner = query!(format!(
         "SELECT object_id, object_version, \
          {wrapped_or_deleted}::smallint AS object_status, \
@@ -114,6 +135,7 @@ fn tombstones_from_objects_version(
          WHERE cp_sequence_number >= COALESCE(\
              (SELECT min_available_cp FROM watermarks \
               WHERE entity = '{BACKWARD_HISTORY_WATERMARK_ENTITY}'), 0) \
+         AND cp_sequence_number <= {checkpoint_viewed_at} \
          AND NOT EXISTS (\
              SELECT 1 FROM checkpointed_objects co \
              WHERE co.object_id = ov.object_id \
