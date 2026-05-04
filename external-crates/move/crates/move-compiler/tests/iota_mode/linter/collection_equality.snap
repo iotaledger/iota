@@ -1,10 +1,20 @@
 ---
 source: crates/move-compiler/tests/move_check_testsuite.rs
+assertion_line: 253
 info:
   flavor: iota
   edition: legacy
   lint: true
 ---
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:17:16
+   │
+17 │     public fun bag_eq(bag1: &Bag, bag2: &Bag): bool {
+   │                ^^^^^^ Function 'bag_eq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:18:14
    │
@@ -14,6 +24,15 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::bag::Bag' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:21:16
+   │
+21 │     public fun obj_bag_neq(bag1: &ObjectBag, bag2: &ObjectBag): bool {
+   │                ^^^^^^^^^^^ Function 'obj_bag_neq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:22:14
    │
@@ -22,6 +41,15 @@ warning[Lint W99005]: possibly useless collections compare
    │
    = Equality for collections of type 'iota::object_bag::ObjectBag' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:25:16
+   │
+25 │     public fun table_eq(table1: &Table<u64, u64>, table2: &Table<u64, u64>): bool {
+   │                ^^^^^^^^ Function 'table_eq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:26:16
@@ -41,6 +69,15 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::object_table::ObjectTable' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:36:16
+   │
+36 │     public fun linked_table_neq(table1: &LinkedTable<u64, u64>, table2: &LinkedTable<u64, u64>): bool {
+   │                ^^^^^^^^^^^^^^^^ Function 'linked_table_neq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:37:16
    │
@@ -49,6 +86,15 @@ warning[Lint W99005]: possibly useless collections compare
    │
    = Equality for collections of type 'iota::linked_table::LinkedTable' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:40:16
+   │
+40 │     public fun table_vec_eq(table1: &TableVec<u64>, table2: &TableVec<u64>): bool {
+   │                ^^^^^^^^^^^^ Function 'table_vec_eq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:41:16
@@ -59,6 +105,15 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::table_vec::TableVec' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:44:16
+   │
+44 │     public fun vec_map_eq(vec1: &VecMap<u64, u64>, vec2: &VecMap<u64, u64>): bool {
+   │                ^^^^^^^^^^ Function 'vec_map_eq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:45:14
    │
@@ -67,6 +122,15 @@ warning[Lint W99005]: possibly useless collections compare
    │
    = Equality for collections of type 'iota::vec_map::VecMap' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/collection_equality.move:48:16
+   │
+48 │     public fun vec_set_eq(vec1: &VecSet<u64>, vec2: &VecSet<u64>): bool {
+   │                ^^^^^^^^^^ Function 'vec_set_eq' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:49:14
