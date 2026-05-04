@@ -18,7 +18,7 @@ use iota_types::{
     },
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    move_package::{MovePackage, deserialize_move_package_module},
+    move_package::{MovePackage, MovePackageExt},
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };
@@ -806,8 +806,7 @@ pub fn resolve_move_function_args(
     combined_args_json: Vec<IotaJsonValue>,
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
     // Extract the expected function signature
-    let module =
-        deserialize_move_package_module(package, &module_ident, &BinaryConfig::standard())?;
+    let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
     let fdef = module
         .function_defs
         .iter()

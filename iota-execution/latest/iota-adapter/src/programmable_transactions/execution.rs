@@ -31,10 +31,9 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
+            IotaAttribute, MovePackage, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            move_package_original_package_id, normalize_deserialized_modules,
-            normalize_move_package,
+            normalize_deserialized_modules,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -696,7 +695,7 @@ mod checked {
         let current_package = fetch_package(context, &upgrade_ticket.package.bytes)?;
 
         let mut modules = deserialize_modules::<Mode>(context, &module_bytes)?;
-        let runtime_id = move_package_original_package_id(current_package.move_package());
+        let runtime_id = current_package.move_package().original_package_id();
         substitute_package_id(&mut modules, runtime_id)?;
 
         // Upgraded packages share their predecessor's runtime ID but get a new storage
@@ -770,8 +769,7 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) = normalize_move_package(
-            existing_package,
+        let Ok(current_normalized) = existing_package.normalize(
             pool,
             &binary_config,
             // include code

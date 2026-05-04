@@ -16,7 +16,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
     execution_config_utils::to_binary_config,
-    move_package::normalize_move_package,
+    move_package::MovePackageExt,
     object::{Object, Owner},
     storage::WriteKind,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
@@ -280,52 +280,52 @@ impl SurferState {
         let config = ProtocolConfig::get_for_version(proto_version, Chain::Unknown);
         let binary_config = to_binary_config(&config);
         let pool: &mut normalized::ArcPool = &mut *self.pool.write().await;
-        let entry_functions: Vec<_> = normalize_move_package(
-            &move_package,
-            pool,
-            &binary_config,
-            // include code
-            false,
-        )
-        .unwrap()
-        .into_iter()
-        .flat_map(|(module_name, module)| {
-            module
-                .functions
-                .into_iter()
-                .filter_map(|(func_name, func)| {
-                    // Either public function or entry function is callable.
-                    if !matches!(func.visibility, Visibility::Public) && !func.is_entry {
-                        return None;
-                    }
-                    // Surfer doesn't support chaining transactions in a programmable
-                    // transaction yet.
-                    if !func.return_.is_empty() {
-                        return None;
-                    }
-                    // Surfer doesn't support type parameter yet.
-                    if !func.type_parameters.is_empty() {
-                        return None;
-                    }
-                    let mut parameters = (*func.parameters).clone();
-                    if let Some(last_param) = parameters.last().as_ref() {
-                        if is_type_tx_context(last_param) {
-                            parameters.pop();
+        let entry_functions: Vec<_> = move_package
+            .normalize(
+                pool,
+                &binary_config,
+                // include code
+                false,
+            )
+            .unwrap()
+            .into_iter()
+            .flat_map(|(module_name, module)| {
+                module
+                    .functions
+                    .into_iter()
+                    .filter_map(|(func_name, func)| {
+                        // Either public function or entry function is callable.
+                        if !matches!(func.visibility, Visibility::Public) && !func.is_entry {
+                            return None;
                         }
-                    }
-                    Some(EntryFunction {
-                        package: package_id,
-                        module: module_name.clone(),
-                        function: func_name.to_string(),
-                        parameters: parameters
-                            .into_iter()
-                            .map(|rc_ty| (*rc_ty).clone())
-                            .collect(),
+                        // Surfer doesn't support chaining transactions in a programmable
+                        // transaction yet.
+                        if !func.return_.is_empty() {
+                            return None;
+                        }
+                        // Surfer doesn't support type parameter yet.
+                        if !func.type_parameters.is_empty() {
+                            return None;
+                        }
+                        let mut parameters = (*func.parameters).clone();
+                        if let Some(last_param) = parameters.last().as_ref() {
+                            if is_type_tx_context(last_param) {
+                                parameters.pop();
+                            }
+                        }
+                        Some(EntryFunction {
+                            package: package_id,
+                            module: module_name.clone(),
+                            function: func_name.to_string(),
+                            parameters: parameters
+                                .into_iter()
+                                .map(|rc_ty| (*rc_ty).clone())
+                                .collect(),
+                        })
                     })
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
+                    .collect::<Vec<_>>()
+            })
+            .collect();
         info!(
             "Number of entry functions discovered: {:?}",
             entry_functions.len()

@@ -34,9 +34,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
-    move_package::{
-        MovePackage, new_initial_move_package, new_system_move_package, new_upgraded_move_package,
-    },
+    move_package::{MovePackage, MovePackageExt},
     timelock::timelock::TimeLock,
 };
 
@@ -542,7 +540,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(new_initial_move_package(
+            Data::Package(MovePackage::new_initial(
                 modules,
                 protocol_config,
                 dependencies,
@@ -560,8 +558,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(new_upgraded_move_package(
-                previous_package,
+            Data::Package(previous_package.new_upgraded(
                 new_package_id,
                 modules,
                 protocol_config,
@@ -590,7 +587,7 @@ impl Object {
         previous_transaction: TransactionDigest,
     ) -> Self {
         let ret = Self::new_package_from_data(
-            Data::Package(new_system_move_package(version, modules, dependencies)),
+            Data::Package(MovePackage::new_system(version, modules, dependencies)),
             previous_transaction,
         );
 

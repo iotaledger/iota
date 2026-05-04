@@ -30,10 +30,7 @@ mod checked {
         execution_status::CommandArgumentError,
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
-        move_package::{
-            MovePackage, derive_package_metadata_id, new_initial_move_package,
-            new_upgraded_move_package,
-        },
+        move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
@@ -667,7 +664,7 @@ mod checked {
             modules: &[CompiledModule],
             dependencies: impl IntoIterator<Item = &'p MovePackage>,
         ) -> Result<MovePackage, ExecutionError> {
-            new_initial_move_package(modules, self.protocol_config, dependencies)
+            MovePackage::new_initial(modules, self.protocol_config, dependencies)
         }
 
         /// Create a package upgrade from `previous_package` with `new_modules`
@@ -679,8 +676,7 @@ mod checked {
             new_modules: &[CompiledModule],
             dependencies: impl IntoIterator<Item = &'p MovePackage>,
         ) -> Result<MovePackage, ExecutionError> {
-            new_upgraded_move_package(
-                previous_package,
+            previous_package.new_upgraded(
                 storage_id,
                 new_modules,
                 self.protocol_config,

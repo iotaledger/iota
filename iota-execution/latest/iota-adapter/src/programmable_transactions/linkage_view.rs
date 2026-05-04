@@ -11,7 +11,7 @@ use std::{
 use iota_types::{
     base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo, move_package_original_package_id},
+    move_package::{MovePackage, MovePackageExt, TypeOrigin, UpgradeInfo},
     storage::{BackingPackageStore, PackageObject, get_module},
 };
 use move_core_types::{
@@ -300,7 +300,7 @@ impl From<&MovePackage> for LinkageInfo {
     fn from(package: &MovePackage) -> Self {
         Self {
             storage_id: AccountAddress::new(package.id().into_bytes()),
-            runtime_id: AccountAddress::new(move_package_original_package_id(package).into_bytes()),
+            runtime_id: AccountAddress::new(package.original_package_id().into_bytes()),
             link_table: package.linkage_table().clone(),
         }
     }

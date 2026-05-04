@@ -16,7 +16,7 @@ use iota_types::{
         Identifier, IotaAddress, ObjectID, TxContext, TxContextKind, TypeTag, is_primitive_type_tag,
     },
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    move_package::{MovePackage, deserialize_move_package_module},
+    move_package::{MovePackage, MovePackageExt},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
@@ -531,24 +531,24 @@ impl<'a> PTBBuilder<'a> {
         args: Vec<Spanned<PTBArg>>,
         package_name_loc: Span,
     ) -> PTBResult<Vec<Tx::Argument>> {
-        let module =
-            deserialize_move_package_module(&package, module_name, &BinaryConfig::standard())
-                .map_err(|e| {
-                    let help_message = if package.serialized_module_map().is_empty() {
-                        Some("No modules found in this package".to_string())
-                    } else {
-                        display_did_you_mean(find_did_you_means(
-                            module_name.as_str(),
-                            package.serialized_module_map().keys().map(|x| x.as_str()),
-                        ))
-                    };
-                    let e = err!(*mloc, "{e}");
-                    if let Some(help_message) = help_message {
-                        e.with_help(help_message)
-                    } else {
-                        e
-                    }
-                })?;
+        let module = package
+            .deserialize_module(module_name, &BinaryConfig::standard())
+            .map_err(|e| {
+                let help_message = if package.serialized_module_map().is_empty() {
+                    Some("No modules found in this package".to_string())
+                } else {
+                    display_did_you_mean(find_did_you_means(
+                        module_name.as_str(),
+                        package.serialized_module_map().keys().map(|x| x.as_str()),
+                    ))
+                };
+                let e = err!(*mloc, "{e}");
+                if let Some(help_message) = help_message {
+                    e.with_help(help_message)
+                } else {
+                    e
+                }
+            })?;
         let fdef = module
             .function_defs
             .iter()
