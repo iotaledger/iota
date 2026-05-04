@@ -64,11 +64,6 @@ jobs:
       - name: Install dependencies (emulate a display so VS Code can be started)
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         run: |
-          sudo apt install libgtk-3-0 -y
-          sudo apt-get install -y xvfb x11-apps x11-xkb-utils libx11-6 libx11-xcb1
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
-          sudo apt update
-          sudo apt upgrade -y
           npm install && npm install --save-dev @types/node @types/semver
 
       - name: Build move-analyzer

@@ -135,7 +135,6 @@ jobs:
           npm install
           npm install --save-dev @types/node @types/semver
           npm install -g vsce
-          sudo apt install zsh -y
 
       - name: Build and publish VS Code extension with move-analyzer binaries
         working-directory: external-crates/move/crates/move-analyzer/editors/code/
