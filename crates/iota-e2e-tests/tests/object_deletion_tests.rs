@@ -157,7 +157,7 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .0;
+            .object_id;
 
         (package_id, object_id)
     }
@@ -176,7 +176,7 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .0
+            .object_id
     }
 
     async fn wrap_child(
