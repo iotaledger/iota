@@ -659,10 +659,10 @@ MovePackage:
         MAP:
           KEY: STR
           VALUE: BYTES
-    - typeOriginTable:
+    - type_origin_table:
         SEQ:
           TYPENAME: TypeOrigin
-    - linkageTable:
+    - linkage_table:
         MAP:
           KEY:
             TYPENAME: ObjectId
