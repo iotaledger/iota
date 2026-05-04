@@ -792,31 +792,6 @@ mod checked {
                 ),
             ));
         }
-
-        let mut new_modules_by_name = upgrading_modules
-            .iter()
-            .map(|module| (module.name().to_string(), module))
-            .collect::<BTreeMap<_, _>>();
-        for (module_name, serialized_module) in existing_package.serialized_module_map() {
-            let Some(new_module) = new_modules_by_name.remove(module_name) else {
-                continue;
-            };
-            let old_module =
-                CompiledModule::deserialize_with_config(serialized_module, &binary_config)
-                    .map_err(|e| {
-                        ExecutionError::new_with_source(
-                            ExecutionErrorKind::PackageUpgradeError {
-                                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                            },
-                            format!(
-                                "Unable to deserialize existing module {module_name} while \
-                                 checking package upgrade compatibility: {e}"
-                            ),
-                        )
-                    })?;
-            check_view_function_compatibility(module_name, &old_module, new_module)?;
-        }
-
         let mut new_normalized = normalize_deserialized_modules(
             pool,
             upgrading_modules.iter(),
@@ -869,77 +844,6 @@ mod checked {
                 e,
             )
         })
-    }
-
-    /// Verifies that any function marked `#[view]` in the current package
-    /// remains marked `#[view]` in the upgraded package. Removing the attribute
-    /// would preserve the Move bytecode signature but break clients that rely on
-    /// view-function metadata for read-only execution.
-    fn check_view_function_compatibility(
-        module_name: &str,
-        cur_module: &CompiledModule,
-        new_module: &CompiledModule,
-    ) -> Result<(), ExecutionError> {
-        let cur_view_functions = view_functions(cur_module)?;
-        if cur_view_functions.is_empty() {
-            return Ok(());
-        }
-
-        let new_view_functions = view_functions(new_module)?;
-        for function_name in cur_view_functions {
-            if !new_view_functions.contains(&function_name) {
-                return Err(ExecutionError::new_with_source(
-                    ExecutionErrorKind::PackageUpgradeError {
-                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                    },
-                    format!(
-                        "Function {module_name}::{function_name} was marked #[view] in the \
-                         previous package version but is not marked #[view] in the upgraded \
-                         package"
-                    ),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn view_functions(module: &CompiledModule) -> Result<BTreeSet<String>, ExecutionError> {
-        let Some(metadata) = module
-            .metadata
-            .iter()
-            .find(|metadata| metadata.key == IOTA_METADATA_KEY)
-        else {
-            return Ok(BTreeSet::new());
-        };
-
-        let metadata_wrapper: RuntimeModuleMetadataWrapper = bcs::from_bytes(&metadata.value)
-            .map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::PackageUpgradeError {
-                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                    },
-                    format!("Unable to deserialize IOTA module metadata: {e}"),
-                )
-            })?;
-        let runtime_metadata = RuntimeModuleMetadata::try_from(metadata_wrapper).map_err(|e| {
-            ExecutionError::new_with_source(
-                ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                },
-                e,
-            )
-        })?;
-
-        Ok(runtime_metadata
-            .fun_attributes_iter()
-            .filter_map(|(function_name, attributes)| {
-                attributes
-                    .iter()
-                    .any(|attribute| matches!(attribute, IotaAttribute::View))
-                    .then(|| function_name.clone())
-            })
-            .collect())
     }
 
     /// Retrieves a `PackageObject` from the storage based on the provided
