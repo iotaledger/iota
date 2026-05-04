@@ -5,8 +5,10 @@
 //! by combining unchanged objects from `checkpointed_objects` with previous
 //! versions from `objects_backward_history`.
 
-use super::{CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED, merge_and_deduplicate};
 use crate::{
+    backward_view::{
+        CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED, merge_and_deduplicate,
+    },
     filter, query,
     raw_query::RawQuery,
     types::{

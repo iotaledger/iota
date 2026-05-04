@@ -5,11 +5,11 @@
 //! filtering. Combines all objects from `checkpointed_objects` with all
 //! past versions from `objects_backward_history`.
 
-use super::{
-    BACKWARD_HISTORY_WATERMARK_ENTITY, CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, HistoricalFilter,
-    NOT_YET_CREATED, NativeObjectStatus, merge_and_deduplicate, merge_and_deduplicate_three,
-};
 use crate::{
+    backward_view::{
+        BACKWARD_HISTORY_WATERMARK_ENTITY, CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, HistoricalFilter,
+        NOT_YET_CREATED, NativeObjectStatus, merge_and_deduplicate, merge_and_deduplicate_three,
+    },
     filter, query,
     raw_query::RawQuery,
     types::{
