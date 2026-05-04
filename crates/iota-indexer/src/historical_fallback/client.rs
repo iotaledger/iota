@@ -596,20 +596,15 @@ impl KeyValueStoreClient for HttpRestKVClient {
         object_refs: &[(ObjectID, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>> {
-        let fetches = if before_version {
-            let keys = object_refs
-                .iter()
-                .map(|(object_id, version)| ObjectKey(*object_id, *version))
-                .collect::<Vec<ObjectKey>>();
+        let keys = object_refs
+            .iter()
+            .map(|(object_id, version)| ObjectKey(*object_id, *version));
 
+        let fetches = if before_version {
+            let keys = keys.collect::<Vec<ObjectKey>>();
             self.multi_fetch_objects_before_version(&keys).await?
         } else {
-            let keys = object_refs
-                .iter()
-                .map(|(object_id, version)| Key::ObjectKey(ObjectKey(*object_id, *version)))
-                .collect::<Vec<_>>();
-
-            self.multi_fetch(keys).await?
+            self.multi_fetch(keys.map(Key::ObjectKey).collect()).await?
         };
 
         let objects = fetches
