@@ -56,7 +56,7 @@ fn test_combine_sigs() {
 
     // Cannot create malformed MultiSig.
     assert!(MultiSig::combine(vec![], multisig_pk.clone()).is_err());
-    assert!(MultiSig::combine(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
+    assert!(MultiSig::combine(vec![sig1.into(), sig1.into()], multisig_pk).is_err());
 }
 
 #[test]
@@ -98,13 +98,13 @@ fn test_serde_roundtrip() {
         MultiSigPublicKey::insecure_new(vec![MultisigMember::new(kp1.public_key(), 1)], 1);
     let multisig = MultiSig::new(vec![], 0, multisig_pk);
     let user_sig = UserSignature::Multisig(multisig);
-    assert!(UserSignature::from_bytes(&user_sig.to_bytes()).is_err());
+    assert!(UserSignature::from_bytes(user_sig.to_bytes()).is_err());
 
     // Malformed multisig_pk cannot be deserialized
     let multisig_pk_1 = MultiSigPublicKey::insecure_new(vec![], 0);
     let multisig_1 = MultiSig::new(vec![], 0, multisig_pk_1);
     let user_sig_1 = UserSignature::Multisig(multisig_1);
-    assert!(UserSignature::from_bytes(&user_sig_1.to_bytes()).is_err());
+    assert!(UserSignature::from_bytes(user_sig_1.to_bytes()).is_err());
 
     // Single sig serialization unchanged.
     let sig = Ed25519IotaSignature::default();
