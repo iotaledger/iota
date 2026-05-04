@@ -16,7 +16,7 @@ use crate::{
     authority::authority_per_epoch_store::misbehavior::{
         MisbehaviorReportVersion, merge_max, observations_from_consensus_output, zero_observations,
     },
-    consensus_types::consensus_output_api::ConsensusOutputMisbehavior,
+    consensus_types::consensus_output_api::ConsensusOutputMisbehaviorCounts,
 };
 
 /// Tracks local misbehavior observations for all authorities in the committee
@@ -31,7 +31,7 @@ pub struct MisbehaviorMonitor {
     committee_size: usize,
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
-    current_local_counts: ArcSwap<MisbehaviorObservations>,
+    current_local_observations: ArcSwap<MisbehaviorObservations>,
     // Single-writer: the three rate-limit fields below are only mutated by
     // SubmitCheckpointToConsensus::checkpoint_created. Don't add additional writers without
     // revisiting the atomicity story — `last_report_summary` and `last_report_checkpoint_seq`
@@ -58,14 +58,14 @@ impl MisbehaviorMonitor {
         report_version: MisbehaviorReportVersion,
         committee_size: usize,
     ) -> Self {
-        let current_local_counts =
+        let current_local_observations =
             ArcSwap::new(Arc::new(zero_observations(report_version, committee_size)));
 
         Self {
             authority,
             report_version,
             committee_size,
-            current_local_counts,
+            current_local_observations,
             last_report_summary: AtomicU64::new(0),
             last_report_checkpoint_seq: AtomicU64::new(0),
             has_sent_end_of_epoch_report: AtomicBool::new(false),
@@ -99,27 +99,21 @@ impl MisbehaviorMonitor {
     }
 
     pub fn generate_report(&self, generation: u64) -> VersionedMisbehaviorReport {
-        match self.current_local_counts.load().as_ref() {
+        match self.current_local_observations.load().as_ref() {
             MisbehaviorObservations::V1(o) => {
                 VersionedMisbehaviorReport::new_v1(self.authority, generation, o.clone())
             }
         }
     }
 
-    pub fn update_from_consensus_output(
-        &self,
-        output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
-    ) {
-        let new_counts = observations_from_consensus_output(
-            output_misbehavior_counts,
-            self.report_version,
-            self.committee_size,
-        );
+    pub fn update_from_consensus_output(&self, counts: ConsensusOutputMisbehaviorCounts) {
+        let new_counts =
+            observations_from_consensus_output(counts, self.report_version, self.committee_size);
         // Defensive merge: counts reported within an epoch are expected to be
         // monotonic, but folding in via element-wise max guarantees the local
         // view never goes backwards even if upstream produces a transient dip.
         // RCU keeps the load+merge+store atomic against concurrent updaters.
-        self.current_local_counts
+        self.current_local_observations
             .rcu(|current| Arc::new(merge_max(current, &new_counts)));
     }
 }

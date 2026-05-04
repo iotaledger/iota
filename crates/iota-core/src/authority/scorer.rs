@@ -7,9 +7,7 @@ use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{MisbehaviorObservations, MisbehaviorObservationsV1};
 
-use crate::authority::authority_per_epoch_store::{
-    misbehavior::MisbehaviorReportVersion, report_aggregator::ReportAggregator,
-};
+use crate::authority::authority_per_epoch_store::report_aggregator::ReportAggregator;
 
 /// Must match MAX_SCORE in validator_set.move in iota-framework.
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1;
@@ -34,11 +32,7 @@ pub struct Scoreboard {
 }
 
 impl Scoreboard {
-    pub fn new(
-        voting_power: Vec<u64>,
-        protocol_config: &ProtocolConfig,
-        _report_version: MisbehaviorReportVersion,
-    ) -> Self {
+    pub fn new(voting_power: Vec<u64>, protocol_config: &ProtocolConfig) -> Self {
         let committee_size = voting_power.len();
         let scorer = VersionedScorer::from_protocol(protocol_config);
         let current_scores = ArcSwap::from_pointee(vec![MAX_SCORE; committee_size]);
@@ -385,7 +379,7 @@ mod tests {
     }
 
     fn mock_scoreboard(voting_power: Vec<u64>) -> Scoreboard {
-        Scoreboard::new(voting_power, &mock_protocol_config(), mock_report_version())
+        Scoreboard::new(voting_power, &mock_protocol_config())
     }
 
     /// Test helper: pull the V1-typed reporter view out of an aggregator the
