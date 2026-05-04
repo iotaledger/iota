@@ -146,7 +146,7 @@ impl<'state> LinkageView<'state> {
             };
 
             let Ok(datatype_name) = Identifier::from_str(datatype_name) else {
-                invariant_violation!("Datatype name isn't an identifier: {datatype_name}");
+                invariant_violation!("Struct name isn't an identifier: {datatype_name}");
             };
 
             let runtime_id = ModuleId::new(runtime_id, module_name);
