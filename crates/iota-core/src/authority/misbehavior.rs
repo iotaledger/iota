@@ -1,15 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashSet;
-
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{
     MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
 };
-use tracing::warn;
+use tracing::error;
 
-use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehavior;
+use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviorCounts;
 
 /// Selects which `VersionedMisbehaviorReport` variant peers may submit for
 /// the current epoch. Loaded once from `ProtocolConfig` and threaded through
@@ -27,7 +25,7 @@ impl MisbehaviorReportVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self::V1,
-            Some(version) => panic!("Unsupported misbehavior report version {version}"),
+            Some(version) => panic!("Unsupported scorer version {version}"),
         }
     }
 
@@ -35,32 +33,6 @@ impl MisbehaviorReportVersion {
     pub fn accepts_report(&self, report: &VersionedMisbehaviorReport) -> bool {
         match self {
             Self::V1 => matches!(report.payload, MisbehaviorObservations::V1(_)),
-        }
-    }
-}
-
-/// A single misbehavior category. Used as a name token: constructed from
-/// `ConsensusOutputMisbehavior` in `observations_from_consensus_output` for
-/// the dedup/missing-category warning loop. Variants are not serialized — the
-/// wire format uses named-field `MisbehaviorObservationsV1` (and future
-/// `MisbehaviorObservationsVN`) structs. `ScorerV1` also stores parameters
-/// per named field rather than by enum index. Reordering or renaming variants
-/// is therefore safe at the type level.
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
-pub enum Misbehavior {
-    FaultyBlocksProvable,
-    FaultyBlocksUnprovable,
-    MissingProposals,
-    Equivocations,
-}
-
-impl From<&ConsensusOutputMisbehavior> for Misbehavior {
-    fn from(output_misbehavior: &ConsensusOutputMisbehavior) -> Self {
-        match output_misbehavior {
-            ConsensusOutputMisbehavior::FaultyBlocksProvable => Self::FaultyBlocksProvable,
-            ConsensusOutputMisbehavior::FaultyBlocksUnprovable => Self::FaultyBlocksUnprovable,
-            ConsensusOutputMisbehavior::MissingProposals => Self::MissingProposals,
-            ConsensusOutputMisbehavior::Equivocations => Self::Equivocations,
         }
     }
 }
@@ -109,66 +81,55 @@ pub(crate) fn merge_max(
     }
 }
 
-/// Builds observations from a consensus-output payload, projecting onto the
-/// locally tracked schema. Categories the local schema tracks but consensus
-/// did not report are zero-filled; categories consensus reported but the local
-/// schema does not track are dropped. Both projections are logged so that
-/// schema/protocol drift is visible in operator output.
+/// Maps consensus-output counts onto the locally tracked schema. Per-metric
+/// vectors are projected onto `committee_size`: empty (= "not wired by
+/// consensus yet") is silently zero-filled, correct length is used as-is,
+/// any other length is malformed and is logged + zero-filled.
 pub(crate) fn observations_from_consensus_output(
-    output_misbehavior_counts: Vec<(ConsensusOutputMisbehavior, Vec<u64>)>,
+    counts: ConsensusOutputMisbehaviorCounts,
     version: MisbehaviorReportVersion,
     committee_size: usize,
 ) -> MisbehaviorObservations {
-    match version {
-        MisbehaviorReportVersion::V1 => {
-            let mut counts = MisbehaviorObservationsV1 {
-                faulty_blocks_provable: vec![0u64; committee_size],
-                faulty_blocks_unprovable: vec![0u64; committee_size],
-                missing_proposals: vec![0u64; committee_size],
-                equivocations: vec![0u64; committee_size],
-            };
-            let mut seen = HashSet::new();
-            for (output_misbehavior, row) in output_misbehavior_counts {
-                if row.len() != committee_size {
-                    warn!(
-                        "consensus output row for {output_misbehavior:?} has length {}, \
-                         expected committee_size {committee_size}; dropping row",
-                        row.len()
-                    );
-                    continue;
-                }
-                let category = Misbehavior::from(&output_misbehavior);
-                if !seen.insert(category) {
-                    warn!(
-                        "consensus output contained duplicate row for {category:?}; \
-                         overwriting earlier value"
-                    );
-                }
-                match category {
-                    Misbehavior::FaultyBlocksProvable => counts.faulty_blocks_provable = row,
-                    Misbehavior::FaultyBlocksUnprovable => counts.faulty_blocks_unprovable = row,
-                    Misbehavior::MissingProposals => counts.missing_proposals = row,
-                    Misbehavior::Equivocations => counts.equivocations = row,
-                }
-            }
-            // V1 schema's expected categories. Compiler-checked: adding a
-            // `Misbehavior` variant or a `MisbehaviorObservationsV1` field
-            // will surface here as a missing case.
-            const V1_EXPECTED: [Misbehavior; 4] = [
-                Misbehavior::FaultyBlocksProvable,
-                Misbehavior::FaultyBlocksUnprovable,
-                Misbehavior::MissingProposals,
-                Misbehavior::Equivocations,
-            ];
-            for expected in V1_EXPECTED {
-                if !seen.contains(&expected) {
-                    warn!(
-                        "consensus output omitted misbehavior category {expected:?}; \
-                         zero-filling locally"
-                    );
-                }
-            }
-            MisbehaviorObservations::V1(counts)
+    let project = |row: Vec<u64>, name: &'static str| -> Vec<u64> {
+        if row.is_empty() {
+            vec![0u64; committee_size]
+        } else if row.len() == committee_size {
+            row
+        } else {
+            // A non-empty wrong-length row means consensus and iota-core
+            // disagree on committee size — this is a programmer error, not
+            // adversarial input (consensus is local code). Halt in debug /
+            // tests; in production, log loudly and zero-fill so the node
+            // keeps making progress (zero-fill is harmless: merge_max with
+            // zeros leaves prior state untouched).
+            debug_assert_eq!(
+                row.len(),
+                committee_size,
+                "consensus output row for {name} has wrong length — consensus and \
+                 iota-core disagree on committee size"
+            );
+            error!(
+                name,
+                actual = row.len(),
+                expected = committee_size,
+                "consensus output row has wrong length; consensus and iota-core \
+                 disagree on committee size — zero-filling and continuing"
+            );
+            vec![0u64; committee_size]
         }
+    };
+    match version {
+        MisbehaviorReportVersion::V1 => MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
+            faulty_blocks_provable: project(
+                counts.faulty_blocks_provable,
+                "faulty_blocks_provable",
+            ),
+            faulty_blocks_unprovable: project(
+                counts.faulty_blocks_unprovable,
+                "faulty_blocks_unprovable",
+            ),
+            missing_proposals: project(counts.missing_proposals, "missing_proposals"),
+            equivocations: project(counts.equivocations, "equivocations"),
+        }),
     }
 }

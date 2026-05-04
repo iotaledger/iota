@@ -61,15 +61,16 @@ impl ReportAggregator {
 
     /// Validates an incoming report: checks that the report version matches the
     /// expected version, and that the payload structure is correct for the
-    /// committee size.
+    /// committee size (derived from internal state, so caller and aggregator
+    /// can't disagree).
     pub(crate) fn validate_report(
         &self,
         report: &VersionedMisbehaviorReport,
-        committee_size: usize,
     ) -> Result<(), ReportValidationError> {
         if !self.report_version.accepts_report(report) {
             return Err(ReportValidationError::WrongReportVersion);
         }
+        let committee_size = self.received_reports_state.len();
         match &report.payload {
             MisbehaviorObservations::V1(payload) => {
                 if payload.verify(committee_size) {
@@ -324,16 +325,22 @@ mod tests {
     fn test_validate_report_valid() {
         let aggregator = mock_aggregator(3);
         let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
-        assert!(aggregator.validate_report(&report, 3).is_ok());
+        assert!(aggregator.validate_report(&report).is_ok());
     }
 
     #[test]
     fn test_validate_report_wrong_committee_size() {
+        // Aggregator built for a 3-validator committee; incoming report has
+        // 4-element vectors — should be rejected as malformed.
         let aggregator = mock_aggregator(3);
-        // Report has 3 entries per metric but we validate against committee_size=4
-        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        let report = report_v1(&[
+            vec![1, 2, 3, 4],
+            vec![5, 6, 7, 8],
+            vec![9, 10, 11, 12],
+            vec![0, 0, 0, 0],
+        ]);
         assert_eq!(
-            aggregator.validate_report(&report, 4),
+            aggregator.validate_report(&report),
             Err(ReportValidationError::PayloadShape)
         );
     }

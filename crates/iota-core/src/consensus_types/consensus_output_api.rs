@@ -13,18 +13,23 @@ use crate::consensus_types::AuthorityIndex;
 /// size.
 type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
-// Variants are constructed by future Starfish wiring of misbehavior counts;
-// today `misbehavior_counts()` returns `vec![]`. Kept as the contract surface
-// so the rest of the misbehavior pipeline (`Misbehavior::from`,
-// `observations_from_consensus_output`) compiles and exhaustively
-// matches before Starfish populates it.
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum ConsensusOutputMisbehavior {
-    FaultyBlocksProvable,
-    FaultyBlocksUnprovable,
-    MissingProposals,
-    Equivocations,
+/// Per-authority misbehavior counts observed by consensus in a single commit.
+/// A bridge type between Starfish's internal observation state and IOTA's
+/// wire format: the trait impl on `starfish_core::CommittedSubDag` is
+/// responsible for extracting the counts; `observations_from_consensus_output`
+/// projects this struct onto whichever `MisbehaviorObservationsVN` is active
+/// for the current protocol version.
+///
+/// Per-field empty `Vec`s mean "not wired yet" and are zero-filled by the
+/// mapper. Today this struct is structurally identical to
+/// `MisbehaviorObservationsV1`; the separation exists so consensus's
+/// observation set and the wire schema can evolve on independent cadences.
+#[derive(Debug, Default)]
+pub struct ConsensusOutputMisbehaviorCounts {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+    pub equivocations: Vec<u64>,
 }
 
 pub(crate) trait ConsensusOutputAPI: Display {
@@ -46,7 +51,12 @@ pub(crate) trait ConsensusOutputAPI: Display {
 
     fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
 
-    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehavior, Vec<u64>)>;
+    /// Per-authority misbehavior counts observed in this commit. The default
+    /// impl returns the all-empty struct so unwired implementations get
+    /// correct behavior for free; the mapper zero-fills empty fields.
+    fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
+        ConsensusOutputMisbehaviorCounts::default()
+    }
 }
 impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -124,9 +134,5 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
                 *num_of_committed_headers.entry(author_index).or_insert(0) += 1;
             });
         num_of_committed_headers.into_iter().collect()
-    }
-
-    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehavior, Vec<u64>)> {
-        vec![]
     }
 }

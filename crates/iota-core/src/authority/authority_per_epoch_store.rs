@@ -1083,7 +1083,7 @@ impl AuthorityPerEpochStore {
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
-        let scoreboard = Scoreboard::new(voting_power, &protocol_config, report_version);
+        let scoreboard = Scoreboard::new(voting_power, &protocol_config);
 
         let s = Arc::new(Self {
             name,
@@ -2833,10 +2833,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
                 // Check validity of the report.
-                if let Err(reason) = self
-                    .report_aggregator
-                    .validate_report(report, self.committee.num_members())
-                {
+                if let Err(reason) = self.report_aggregator.validate_report(report) {
                     warn!(
                         "Received invalid misbehavior report from {:?}: {reason}",
                         report.authority.concise()
