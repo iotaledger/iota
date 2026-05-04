@@ -1411,40 +1411,39 @@ impl StoredBackwardObject {
 ///
 /// The backward history stores a lamport-1 version approximation which may be
 /// higher than the actual tombstone version. This function looks up the real
-/// version from `objects_version` using a single batch query with a VALUES
-/// list joined via `MAX(object_version) <= backward_history_version`. Only
-/// entries tagged with `from_backward_history = true` are resolved; entries
-/// from `checkpointed_objects` already have the correct version.
+/// version from `objects_version` using a single batch query that unnests
+/// bound `bytea[]` / `bigint[]` parameter arrays into `(object_id, version)`
+/// pairs and joins them via `MAX(object_version) <= backward_history_version`.
+/// Only entries tagged with `from_backward_history = true` are resolved;
+/// entries from `checkpointed_objects` already have the correct version.
 pub(crate) fn resolve_tombstone_versions(
     conn: &mut crate::data::pg::PgConnection<'_>,
     results: Vec<StoredBackwardObject>,
 ) -> Result<Vec<StoredBackwardObject>, diesel::result::Error> {
-    let to_resolve: Vec<(Vec<u8>, i64)> = results
+    let (ids, versions): (Vec<Vec<u8>>, Vec<i64>) = results
         .iter()
         .filter(|r| {
             r.from_backward_history
                 && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
         })
         .map(|r| (r.object_id.clone(), r.object_version))
-        .collect();
+        .unzip();
 
-    if to_resolve.is_empty() {
+    if ids.is_empty() {
         return Ok(results);
     }
 
-    let values = to_resolve
-        .iter()
-        .map(|(id, ver)| format!("('\\x{}'::bytea, {}::bigint)", hex::encode(id), ver))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let sql = format!(
-        "SELECT pairs.object_id, pairs.backward_history_version, MAX(ov.object_version) AS real_version \
-         FROM (VALUES {values}) AS pairs(object_id, backward_history_version) \
-         LEFT JOIN objects_version ov \
-           ON ov.object_id = pairs.object_id AND ov.object_version <= pairs.backward_history_version \
-         GROUP BY pairs.object_id, pairs.backward_history_version"
-    );
+    // Bound `unnest` arrays (rather than an inlined `VALUES` list) keep the
+    // SQL text constant across calls so Postgres can reuse a cached plan,
+    // and skip the parser cost of every `::bytea` / `::bigint` cast.
+    let sql = "SELECT pairs.object_id, pairs.backward_history_version, \
+                      MAX(ov.object_version) AS real_version \
+               FROM unnest($1::bytea[], $2::bigint[]) \
+                    AS pairs(object_id, backward_history_version) \
+               LEFT JOIN objects_version ov \
+                 ON ov.object_id = pairs.object_id \
+                AND ov.object_version <= pairs.backward_history_version \
+               GROUP BY pairs.object_id, pairs.backward_history_version";
 
     #[derive(diesel::QueryableByName)]
     struct ResolvedVersion {
@@ -1456,7 +1455,11 @@ pub(crate) fn resolve_tombstone_versions(
         real_version: Option<i64>,
     }
 
-    let rows: Vec<ResolvedVersion> = conn.results(move || diesel::sql_query(sql.clone()))?;
+    let rows: Vec<ResolvedVersion> = conn.results(|| {
+        diesel::sql_query(sql)
+            .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
+            .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
+    })?;
 
     // Key by (object_id, backward_history_version) → real_version
     let resolved_map: HashMap<(Vec<u8>, i64), i64> = rows
