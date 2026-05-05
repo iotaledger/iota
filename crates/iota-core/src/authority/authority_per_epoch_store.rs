@@ -3288,7 +3288,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut version_assignment: Vec<CancelledTransaction> = Vec::new();
+        let mut cancelled_transactions: Vec<CancelledTransaction> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
@@ -3302,7 +3302,7 @@ impl AuthorityPerEpochStore {
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
-                    version_assignment.push(CancelledTransaction {
+                    cancelled_transactions.push(CancelledTransaction {
                         digest: *txn.digest(),
                         version_assignments,
                     });
@@ -3314,12 +3314,12 @@ impl AuthorityPerEpochStore {
         fail_point_arg!(
             "additional_cancelled_txns_for_tests",
             |additional_cancelled_txns: Vec<CancelledTransaction>| {
-                version_assignment.extend(additional_cancelled_txns);
+                cancelled_transactions.extend(additional_cancelled_txns);
             }
         );
 
         let transaction = consensus_commit_info
-            .create_consensus_commit_prologue_transaction(self.epoch(), version_assignment);
+            .create_consensus_commit_prologue_transaction(self.epoch(), cancelled_transactions);
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
