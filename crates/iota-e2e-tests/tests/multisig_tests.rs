@@ -9,15 +9,15 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::crypto::{
-    Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, Secp256r1PublicKey,
+    Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey, Secp256r1PublicKey,
     Secp256r1Signature, SimpleSignature,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{PublicKey, SignatureScheme},
+    crypto::SignatureScheme,
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     passkey_authenticator::to_signing_message,
     signature::GenericSignature,
     transaction::Transaction,
@@ -203,17 +203,15 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
     // TODO yeah I'm not too sure about this...
-    let sig = MultisigMemberSignature::from(
-        PasskeyAuthenticator::new(
-            authenticator_data.to_vec(),
-            String::from_utf8(client_data_json.to_vec()).unwrap(),
-            SimpleSignature::Secp256r1 {
-                signature: Secp256r1Signature::new(sig_bytes.into()),
-                public_key: Secp256r1PublicKey::new(pk_bytes),
-            },
-        )
-        .unwrap(),
-    );
+    let sig = PasskeyAuthenticator::new(
+        authenticator_data.to_vec(),
+        String::from_utf8(client_data_json.to_vec()).unwrap(),
+        SimpleSignature::Secp256r1 {
+            signature: Secp256r1Signature::new(sig_bytes.into()),
+            public_key: Secp256r1PublicKey::new(pk_bytes),
+        },
+    )
+    .unwrap();
     // let sig = GenericSignature::PasskeyAuthenticator(
     //     PasskeyAuthenticator::new_for_testing(
     //         authenticator_data.to_vec(),
@@ -364,7 +362,7 @@ async fn test_multisig_e2e() {
     );
 
     // 7. mismatch pks in sig with multisig address fails to execute.
-    let pk3: MultisigMemberPublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
+    let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
         .public_key()
         .into();
     let wrong_multisig_pk = MultiSigPublicKey::insecure_new(
