@@ -333,12 +333,12 @@ if [ "$SPAMMER_ENABLE" = true ]; then
 
     if [ "$SPAMMER_TYPE" = "stress" ]; then
             log "Starting 'stress' benchmark with TPS=$SPAMMER_TPS, duration=${SPAMMER_DURATION}s..."
-            # This command runs the `stress` binary from the iota-tools image inside the docker network
+            # This command runs the `stress` binary from the iotaledger/stress image inside the docker network
             docker run -d --rm --name stress-benchmark \
               --network iota-private-network_iota-network \
               -v "$(pwd)/../configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro" \
               -v "$(pwd)/../configs/faucet/iota.keystore:/opt/iota/config/iota.keystore:ro" \
-              iotaledger/iota-tools /usr/local/bin/stress \
+              iotaledger/stress /usr/local/bin/stress \
                 --local false \
                 --use-fullnode-for-execution true \
                 --fullnode-rpc-addresses http://fullnode-1:9000 \

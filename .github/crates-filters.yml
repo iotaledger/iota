@@ -10,8 +10,6 @@ iota-archival:
   - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
-iota-benchmark:
-  - "crates/iota-benchmark/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:

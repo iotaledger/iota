@@ -68,7 +68,6 @@ members = [
   "crates/iota-analytics-indexer-derive",
   "crates/iota-archival",
   "crates/iota-authority-aggregation",
-  "crates/iota-benchmark",
   "crates/iota-cluster-test",
   "crates/iota-common",
   "crates/iota-config",
@@ -260,7 +259,6 @@ chrono = { version = "0.4.41", features = ["clock", "serde"] }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 codespan-reporting = "0.11.1"
 colored = "2.0.0"
-comfy-table = "6.1.3"
 const-str = "0.5.3"
 coset = "0.3"
 criterion = { version = "0.5.0", features = ["async", "async_tokio", "html_reports"] }
@@ -285,7 +283,6 @@ fs_extra = "1.3.0"
 futures = "0.3.28"
 getset = "0.1"
 git-version = "0.3.5"
-hdrhistogram = "7.5.1"
 hex = "0.4.3"
 http = "1"
 http-body = "1.0"
@@ -355,7 +352,6 @@ static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
-sysinfo = "^0.33"
 tabled = { version = "0.12" }
 tap = "1.0.1"
 tempfile = "3.20.0"
@@ -387,7 +383,6 @@ iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
 iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" }
 iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
-iota-benchmark = { path = "crates/iota-benchmark" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
 iota-common = { path = "crates/iota-common", default-features = false }
 iota-config = { path = "crates/iota-config" }

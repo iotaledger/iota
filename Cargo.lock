@@ -3588,20 +3588,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
-name = "duration-str"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9f037c488d179e21c87ef5fa9c331e8e62f5dddfa84618b41bb197da03edff1"
-dependencies = [
- "chrono",
- "nom",
- "rust_decimal",
- "serde",
- "thiserror 1.0.64",
- "time",
-]
-
-[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5545,56 +5531,6 @@ dependencies = [
  "iota-types",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "iota-benchmark"
-version = "1.24.0-alpha"
-dependencies = [
- "anyhow",
- "async-trait",
- "bcs",
- "clap",
- "comfy-table",
- "duration-str",
- "fastcrypto",
- "futures",
- "hdrhistogram",
- "indicatif",
- "iota-config",
- "iota-core",
- "iota-framework",
- "iota-framework-snapshot",
- "iota-json-rpc-types",
- "iota-keys",
- "iota-macros",
- "iota-metrics",
- "iota-network",
- "iota-protocol-config",
- "iota-sdk",
- "iota-simulator",
- "iota-storage",
- "iota-surfer",
- "iota-swarm-config",
- "iota-test-transaction-builder",
- "iota-types",
- "itertools 0.13.0",
- "move-core-types",
- "prometheus",
- "rand 0.8.6",
- "regex",
- "rustc_version_runtime",
- "serde",
- "serde_json",
- "strum 0.27.2",
- "strum_macros 0.27.2",
- "sysinfo",
- "telemetry-subscribers",
- "test-cluster",
- "tokio",
- "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tracing",
- "typed-store",
 ]
 
 [[package]]
@@ -12279,16 +12215,6 @@ dependencies = [
  "rustc_version",
  "syn 1.0.109",
  "unicode-ident",
-]
-
-[[package]]
-name = "rust_decimal"
-version = "1.36.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b082d80e3e3cc52b2ed634388d436fe1f4de6af5786cc2de9ba9737527bdf555"
-dependencies = [
- "arrayvec",
- "num-traits",
 ]
 
 [[package]]
