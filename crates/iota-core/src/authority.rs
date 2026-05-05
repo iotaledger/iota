@@ -1147,18 +1147,19 @@ impl AuthorityState {
             // to hard limit.
             self.check_consensus_queue_overload(consensus_adapter, tx_data)
                 .tap_err(|_| {
-                    self.update_overload_metrics("consensus");
+                    self.update_overload_metrics("consensus_graduated");
                 })?;
 
             // NOTE: graduated shedding at 100% already rejects everything at or above
             // `max_pending_transactions`, so the queue-length part of the check below
-            // is redundant but harmless. But `check_consensus_overload()` should be
-            // kept here because it also verifies that `submit_semaphore` has permits
-            // (see `check_consensus_limits` in consensus_adapter.rs), which is a
-            // separate concurrency limit not covered by the graduated shedding.
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
-            })?;
+            // is redundant but harmless. But the binary check is kept here because
+            // it also verifies that `submit_semaphore` has permits (see
+            // `check_consensus_limits` in consensus_adapter.rs), which is a separate
+            // concurrency limit not covered by the graduated shedding.
+            if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
+                self.update_overload_metrics(reason.metric_label());
+                return Err(IotaError::TooManyTransactionsPendingConsensus);
+            }
         } else {
             if do_authority_overload_check {
                 self.check_authority_overload(tx_data).tap_err(|_| {
@@ -1170,9 +1171,10 @@ impl AuthorityState {
                 .tap_err(|_| {
                     self.update_overload_metrics("execution_pending");
                 })?;
-            consensus_adapter.check_consensus_overload().tap_err(|_| {
-                self.update_overload_metrics("consensus");
-            })?;
+            if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
+                self.update_overload_metrics(reason.metric_label());
+                return Err(IotaError::TooManyTransactionsPendingConsensus);
+            }
 
             let pending_tx_count = self
                 .get_cache_commit()

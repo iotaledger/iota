@@ -46,6 +46,21 @@ ts=$(date -u -d "@$start_epoch" +%Y-%m-%dT%H-%M-%SZ)
 out="$RUNS_DIR/$ts"
 mkdir -p "$out"
 
+# Snapshot validator-side config so we know which limits + start_pct the run was using.
+VALIDATOR_CFG="dev-tools/iota-private-network/configs/validators/validator-1-8080.yaml"
+max_pending="?"
+start_pct="?"
+if [[ -f "$VALIDATOR_CFG" ]]; then
+    max_pending=$(awk '/max-pending-transactions:/{print $2; exit}' "$VALIDATOR_CFG" || echo "?")
+    start_pct=$(awk '/graduated-load-shedding-soft-limit-pct:/{print $2; exit}' "$VALIDATOR_CFG" || echo "?")
+fi
+
+# Detect white-flag flow (env on the running validator container).
+white_flag="?"
+if command -v docker >/dev/null 2>&1; then
+    white_flag=$(docker exec validator-1 sh -c 'echo "${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW:-unset}"' 2>/dev/null || echo "?")
+fi
+
 cat > "$out/params.txt" <<EOF
 ts_utc=$ts
 start_epoch=$start_epoch
@@ -59,6 +74,9 @@ TRANSFER_OBJECT_PCT=$TRANSFER_OBJECT_PCT
 SHARED_COUNTER_PCT=$SHARED_COUNTER_PCT
 FULLNODE_RPC=$FULLNODE_RPC
 PROM_URL=$PROM_URL
+max_pending_transactions=$max_pending
+graduated_load_shed_start_pct=$start_pct
+white_flag_flow=$white_flag
 extra_args="$*"
 EOF
 
@@ -124,10 +142,12 @@ query_instant() {
 echo
 echo "=> capturing metrics from Prometheus over [${start_epoch}..${end_epoch}] (${run_seconds}s)..."
 
-query_range 'sequencing_in_flight_submissions'                                                  in_flight.json
+query_range 'num_inflight_transactions{host=~"validator.*"}'                                    num_inflight.json
+query_range 'sequencing_in_flight_submissions{host=~"validator.*"}'                             in_flight.json
 query_range 'consensus_queue_load_shedding_percentage{host=~"validator.*"}'                     shed_pct.json
-query_range 'rate(transaction_overload_sources[15s])'                                           overload_rate.json
-query_range 'rate(validator_service_num_rejected_tx_during_overload[15s])'                      rejected_rate.json
+query_range 'rate(transaction_overload_sources[30s])'                                           overload_rate.json
+query_range 'rate(validator_service_num_rejected_tx_during_overload[30s])'                      rejected_rate.json
+query_range 'rate(total_transaction_effects{host=~"validator.*"}[30s])'                         useful_tps.json
 query_instant "sum by (host, source) (increase(transaction_overload_sources[${run_seconds}s]))" overload_total.json
 query_instant "sum by (host, error)  (increase(validator_service_num_rejected_tx_during_overload[${run_seconds}s]))" rejected_total.json
 
@@ -135,10 +155,12 @@ query_instant "sum by (host, error)  (increase(validator_service_num_rejected_tx
 
 {
     echo "timestamp,metric,host,labels,value"
-    for spec in "in_flight.json:sequencing_in_flight_submissions" \
+    for spec in "num_inflight.json:num_inflight_transactions" \
+                "in_flight.json:sequencing_in_flight_submissions" \
                 "shed_pct.json:consensus_queue_load_shedding_percentage" \
                 "overload_rate.json:rate_transaction_overload_sources" \
-                "rejected_rate.json:rate_validator_service_num_rejected_tx_during_overload"; do
+                "rejected_rate.json:rate_validator_service_num_rejected_tx_during_overload" \
+                "useful_tps.json:rate_total_transaction_effects"; do
         file="${spec%%:*}"
         metric="${spec##*:}"
         [[ -f "$out/$file" ]] || continue
@@ -181,9 +203,13 @@ summarize_total() {
     echo "=== Load Shedding Stress Run summary ==="
     echo "ts_utc:        $ts"
     echo "params:        QPS=$QPS  DURATION=$DURATION  WORKERS=$WORKERS  IN_FLIGHT_RATIO=$IN_FLIGHT_RATIO"
+    echo "validator:     max_pending=$max_pending  start_pct=$start_pct  white_flag=$white_flag"
     echo "wall:          ${run_seconds}s   stress_rc=$stress_rc"
     echo
-    echo "[gauge] sequencing_in_flight_submissions"
+    echo "[gauge] num_inflight_transactions (shedding-input; capped at max_pending_transactions)"
+    summarize_gauge num_inflight.json num_inflight
+    echo
+    echo "[gauge] sequencing_in_flight_submissions (post-permit; capped at submit_semaphore size)"
     summarize_gauge in_flight.json in_flight
     echo
     echo "[gauge] consensus_queue_load_shedding_percentage"
@@ -194,6 +220,9 @@ summarize_total() {
     echo
     echo "[counter total over run] validator_service_num_rejected_tx_during_overload by (host, error)"
     summarize_total rejected_total.json
+    echo
+    echo "[useful TPS] rate(total_transaction_effects[30s]) — txs/sec executed (effects produced)"
+    summarize_gauge useful_tps.json useful_tps
     echo
     echo "Output dir: $out/"
     echo "Files: params.txt summary.txt metrics.csv {in_flight,shed_pct,overload_rate,rejected_rate}.json {overload,rejected}_total.json stress-stdout.log"

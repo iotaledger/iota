@@ -165,7 +165,7 @@ generate_genesis_files() {
         .db-path = $overlay.db-path |
         .consensus-config.db-path = $overlay.consensus-config.db-path |
         .consensus-config.max-pending-transactions = $overlay.consensus-config.max-pending-transactions |
-        .consensus-config.graduated-load-shed-start-pct = $overlay.consensus-config.graduated-load-shed-start-pct |
+        .consensus-config.graduated-load-shedding-soft-limit-pct = $overlay.consensus-config.graduated-load-shedding-soft-limit-pct |
         .expensive-safety-check-config = $overlay.expensive-safety-check-config |
         .epoch_duration_ms = $overlay.epoch_duration_ms
       ' "$file" "$OVERLAY_PATH" >"${file}.tmp" && mv "${file}.tmp" "$file"

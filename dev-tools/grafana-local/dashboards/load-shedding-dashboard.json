@@ -17,25 +17,18 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
             "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": { "type": "linear" },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": { "group": "A", "mode": "none" }
           },
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green" }]
-          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
           "unit": "short"
         },
         "overrides": []
@@ -49,12 +42,54 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sequencing_in_flight_submissions",
+          "expr": "num_inflight_transactions{host=~\"validator.*\"}",
           "legendFormat": "{{host}}",
           "refId": "A"
         }
       ],
-      "title": "sequencing_in_flight_submissions (queue length)",
+      "title": "num_inflight_transactions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "id": 5,
+      "options": {
+        "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sequencing_in_flight_submissions{host=~\"validator.*\"}",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "sequencing_in_flight_submissions",
       "type": "timeseries"
     },
     {
@@ -87,7 +122,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
       "id": 2,
       "options": {
         "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
@@ -125,11 +160,11 @@
           },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
-          "unit": "ops"
+          "unit": "suffix:rejs/s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
       "id": 3,
       "options": {
         "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
@@ -138,12 +173,12 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(transaction_overload_sources[15s])",
+          "expr": "rate(transaction_overload_sources[30s])",
           "legendFormat": "{{host}} {{source}}",
           "refId": "A"
         }
       ],
-      "title": "rate(transaction_overload_sources[15s])",
+      "title": "rate(transaction_overload_sources[30s])",
       "type": "timeseries"
     },
     {
@@ -167,11 +202,11 @@
           },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
-          "unit": "ops"
+          "unit": "suffix:rejs/s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
       "id": 4,
       "options": {
         "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
@@ -180,12 +215,54 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(validator_service_num_rejected_tx_during_overload[15s])",
-          "legendFormat": "{{host}} {{error}}",
+          "expr": "sum by (host) (rate(validator_service_num_rejected_tx_during_overload[30s]))",
+          "legendFormat": "{{host}}",
           "refId": "A"
         }
       ],
-      "title": "rate(validator_service_num_rejected_tx_during_overload[15s])",
+      "title": "rate(validator_service_num_rejected_tx_during_overload[30s])",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
+          "unit": "suffix:txs/s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": ["last", "mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(total_transaction_effects{host=~\"validator.*\"}[30s])",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Useful TPS — rate(total_transaction_effects[30s]) (txs/sec executed)",
       "type": "timeseries"
     }
   ],

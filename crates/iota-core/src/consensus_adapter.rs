@@ -79,6 +79,7 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_processed: IntCounterVec,
     pub sequencing_in_flight_semaphore_wait: IntGauge,
     pub sequencing_in_flight_submissions: IntGauge,
+    pub num_inflight_transactions: IntGauge,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
 }
@@ -173,7 +174,13 @@ impl ConsensusAdapterMetrics {
             .unwrap(),
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
-                "Number of transactions submitted to local consensus instance and not yet sequenced",
+                "Number of transactions actively submitting to consensus (post-semaphore permit). Capped at submit_semaphore size.",
+                registry,
+            )
+            .unwrap(),
+            num_inflight_transactions: register_int_gauge_with_registry!(
+                "num_inflight_transactions",
+                "Number of transactions in the consensus queue (waiting for permit + submitting). Used by graduated load shedding.",
                 registry,
             )
             .unwrap(),
@@ -194,6 +201,30 @@ impl ConsensusAdapterMetrics {
 
     pub fn new_test() -> Self {
         Self::new(&Registry::default())
+    }
+}
+
+/// Specific cause of a `check_consensus_limits` failure. Used by callers
+/// to emit distinguishable overload metrics so we can tell which sub-check
+/// rate-limited a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsensusOverloadReason {
+    /// `num_inflight_transactions` exceeded `max_pending_transactions`.
+    MaxPendingTxsExceeded,
+
+    /// `submit_semaphore` had no available permits (concurrent submissions
+    /// are saturated, derived from `max_pending_transactions * 2 /
+    /// committee_size`).
+    SemaphoreNoPermits,
+}
+
+impl ConsensusOverloadReason {
+    /// Stable label for use as a Prometheus metric `source` value.
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            ConsensusOverloadReason::MaxPendingTxsExceeded => "consensus_max_pending_exceeded",
+            ConsensusOverloadReason::SemaphoreNoPermits => "consensus_semaphore_no_permits",
+        }
     }
 }
 
@@ -673,15 +704,25 @@ impl ConsensusAdapter {
     /// and that submission permits are available. Weakly consistent (relaxed
     /// atomic reads).
     fn check_consensus_limits(&self) -> bool {
+        self.check_consensus_limits_reason().is_none()
+    }
+
+    /// Like `check_consensus_limits`, but returns the specific cause of
+    /// overload (if any). `None` means the validator can accept more.
+    pub(crate) fn check_consensus_limits_reason(&self) -> Option<ConsensusOverloadReason> {
         // First check total transactions (waiting and in submission)
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
-            return false;
+            return Some(ConsensusOverloadReason::MaxPendingTxsExceeded);
         }
 
         // Then check if `submit_semaphore` has permits
-        self.submit_semaphore.available_permits() > 0
+        if self.submit_semaphore.available_permits() == 0 {
+            return Some(ConsensusOverloadReason::SemaphoreNoPermits);
+        }
+
+        None
     }
 
     /// Returns an error if the consensus adapter cannot accept more
@@ -1362,6 +1403,7 @@ impl<'a> InflightDropGuard<'a> {
         adapter
             .num_inflight_transactions
             .fetch_add(1, Ordering::SeqCst);
+        adapter.metrics.num_inflight_transactions.inc();
         adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1389,6 +1431,7 @@ impl Drop for InflightDropGuard<'_> {
         self.adapter
             .num_inflight_transactions
             .fetch_sub(1, Ordering::SeqCst);
+        self.adapter.metrics.num_inflight_transactions.dec();
         self.adapter
             .metrics
             .sequencing_certificate_inflight
