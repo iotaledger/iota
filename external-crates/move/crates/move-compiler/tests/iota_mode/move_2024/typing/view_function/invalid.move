@@ -1,4 +1,6 @@
 module a::m {
+    use std::ascii::{String, char};
+
     public struct Object has key {
         id: iota::object::UID,
     }
@@ -94,6 +96,24 @@ module a::m {
         _generic_object: GenericObject<T>,
     ): u64 {
         abort 0
+    }
+
+    #[view]
+    public fun mutable_primitive_param(mut value: u64): u64 {
+        value = value + 1;
+        value
+    }
+
+    #[view]
+    public fun mutable_non_object_param(mut value: NonObject): u64 {
+        value.value = value.value + 1;
+        value.value
+    }
+
+    #[view]
+    public fun update_string_by_value(mut name: String): String {
+        name.push_char(char(43));
+        name
     }
 
     #[view]

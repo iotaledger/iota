@@ -1,7 +1,5 @@
 module a::m {
-    use std::ascii::{String, char};
-
-    public struct Account has key {
+    public struct Object has key {
         id: iota::object::UID,
     }
 
@@ -13,12 +11,7 @@ module a::m {
         value: u64,
     }
 
-    public struct GenericAccount<T: store> has key {
-        id: iota::object::UID,
-        inner: T,
-    }
-
-    public struct GenericAccount2<T: store, U: store> has key {
+    public struct GenericObject2<T: store, U: store> has key {
         id: iota::object::UID,
         inner: T,
         other: U,
@@ -47,32 +40,25 @@ module a::m {
     }
 
     #[view]
-    public fun minimally_viable(account: &Account): u64 {
-        let _ = account;
+    public fun object_immutable_ref(object: &Object): u64 {
+        let _ = object;
         0
     }
 
     #[view]
-    public fun primitive_by_value(account: &Account, val: u8): u64 {
-        let _ = account;
+    public fun primitive_by_value(object: &Object, val: u8): u64 {
+        let _ = object;
         val as u64
     }
 
     #[view]
-    public fun mutable_binding_for_non_object(account: &Account, mut val: u64): u64 {
-        let _ = account;
-        val = val + 1;
-        val
+    public fun multiple_generic_object_immutable_ref(generic_object: &GenericObject2<Wrapped, Wrapped2>): u64 {
+        generic_object.inner.value + generic_object.other.value
     }
 
     #[view]
-    public fun concrete_account(account: &GenericAccount<Wrapped>): u64 {
-        account.inner.value
-    }
-
-    #[view]
-    public fun concrete_multiple_account(account: &GenericAccount2<Wrapped, Wrapped2>): u64 {
-        account.inner.value + account.other.value
+    public fun wrapped_by_value(wrapped: Wrapped) : bool {
+        wrapped.value > 44
     }
 
     #[view]
@@ -159,23 +145,23 @@ module a::m {
     }
 
     #[view]
-    public fun valid_copy_type_param<T: copy>(value: T): T {
+    public fun copy_type_param<T: copy>(value: T): T {
         value
     }
 
     #[view]
-    public fun valid_drop_type_param<T: drop>(value: T): u64 {
+    public fun drop_type_param<T: drop>(value: T): u64 {
         let _ = value;
         0
     }
 
     #[view]
-    public fun valid_copy_store_type_param<T: copy + store>(value: T): T {
+    public fun copy_store_type_param<T: copy + store>(value: T): T {
         value
     }
 
     #[view]
-    public fun valid_primitive_tuple_return(a: u64, b: bool): (u64, bool) {
+    public fun primitive_tuple_return(a: u64, b: bool): (u64, bool) {
         (a, b)
     }
 
@@ -211,11 +197,6 @@ module a::m {
         0
     }
 
-    #[view]
-    public fun update_string_by_value(mut name: String): String {
-        name.push_char(char(43));
-        name
-    }
 }
 
 module iota::object {

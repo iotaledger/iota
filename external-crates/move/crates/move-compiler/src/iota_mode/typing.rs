@@ -675,15 +675,30 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
 /// A valid view param type is
 /// - A primitive (including strings and non-object structs)
 /// - A vector of primitives (including nested vectors)
-/// - A NON mutable reference to a user defined struct type
+/// - A non-mutable parameter binding
+/// - A non-mutable reference to a user defined struct type
 fn view_param_ty(
     context: &mut Context,
     view_loc: Loc,
     name: FunctionName,
-    _mutability: &Mutability,
+    mutability: &Mutability,
     param: &Var,
     param_ty: &Type,
 ) {
+    if let Mutability::Mut(mut_loc) = mutability {
+        let msg = format!("Invalid parameter mutability for view function '{}'", name);
+        let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                *mut_loc,
+                "View function parameters cannot be declared as mutable",
+            ),
+            (param.loc, &param_msg),
+        ));
+    }
+
     match &param_ty.value {
         _ if contains_mutable_reference_ty(param_ty) => {
             let msg = format!("Invalid parameter type for view function '{}'", name);
