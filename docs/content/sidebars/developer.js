@@ -4,7 +4,6 @@
 
 const developer = [
     'developer/developer',
-    'developer/network-overview',
     {
         type: 'category',
         label: 'Getting Started',
@@ -29,35 +28,6 @@ const developer = [
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
             'developer/getting-started/oracles',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'SDKs & CLI',
-        items: [
-            {
-                type: 'category',
-                label: 'IOTA CLI',
-                link: {
-                    type: 'doc',
-                    id: 'references/cli',
-                },
-                items: [
-                    'references/cli/client',
-                    'references/cli/ptb',
-                    'references/cli/keytool',
-                    'references/cli/move',
-                    'references/cli/validator',
-                    'references/cli/ceremony',
-                    'references/cli/cheatsheet',
-                ],
-            },
-            'references/rust-sdk',
-            {
-                type: 'link',
-                label: 'Typescript SDK',
-                href: '/ts-sdk/typescript',
-            },
         ],
     },
     {
@@ -258,41 +228,6 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Standards',
-        link: {
-            type: 'generated-index',
-            title: 'IOTA Standards Overview',
-            description:
-                'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
-            slug: 'developer/standards',
-        },
-        items: [
-            'developer/standards/coin',
-            'developer/standards/coin-manager',
-            {
-                type: 'category',
-                label: 'Closed-Loop Token',
-                link: {
-                    type: 'doc',
-                    id: 'developer/standards/closed-loop-token',
-                },
-                items: [
-                    'developer/standards/closed-loop-token/action-request',
-                    'developer/standards/closed-loop-token/token-policy',
-                    'developer/standards/closed-loop-token/spending',
-                    'developer/standards/closed-loop-token/rules',
-                    'developer/standards/closed-loop-token/coin-token-comparison',
-                    'developer/standards/closed-loop-token/tutorial',
-                ],
-            },
-            'developer/standards/kiosk',
-            'developer/standards/kiosk-apps',
-            'developer/standards/display',
-            'developer/standards/wallet-standard',
-        ],
-    },
-    {
-        type: 'category',
         label: 'Tutorials',
         items: [
             {
@@ -367,22 +302,6 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Advanced Topics',
-        link: {
-            type: 'doc',
-            id: 'developer/advanced',
-        },
-        items: [
-            'developer/advanced/introducing-move-2024',
-            'developer/advanced/iota-repository',
-            'developer/advanced/custom-indexer',
-            'developer/advanced/onchain-randomness',
-            'developer/advanced/asset-tokenization',
-            'developer/advanced/create-review-rating-dao-with-multisig',
-        ],
-    },
-    {
-        type: 'category',
         label: 'Migrating from IOTA Stardust',
         link: {
             type: 'doc',
@@ -436,7 +355,94 @@ const developer = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: "Reference",
+        items: [
+            'developer/network-overview',
+            {
+                type: 'category',
+                label: 'SDKs & CLI',
+                items: [
+                    {
+                        type: 'category',
+                        label: 'IOTA CLI',
+                        link: {
+                            type: 'doc',
+                            id: 'references/cli',
+                        },
+                        items: [
+                            'references/cli/client',
+                            'references/cli/ptb',
+                            'references/cli/keytool',
+                            'references/cli/move',
+                            'references/cli/validator',
+                            'references/cli/ceremony',
+                            'references/cli/cheatsheet',
+                        ],
+                    },
+                    'references/rust-sdk',
+                    {
+                        type: 'link',
+                        label: 'Typescript SDK',
+                        href: '/ts-sdk/typescript',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Standards',
+                link: {
+                    type: 'generated-index',
+                    title: 'IOTA Standards Overview',
+                    description:
+                        'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+                    slug: 'developer/standards',
+                },
+                items: [
+                    'developer/standards/coin',
+                    'developer/standards/coin-manager',
+                    {
+                        type: 'category',
+                        label: 'Closed-Loop Token',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/standards/closed-loop-token',
+                        },
+                        items: [
+                            'developer/standards/closed-loop-token/action-request',
+                            'developer/standards/closed-loop-token/token-policy',
+                            'developer/standards/closed-loop-token/spending',
+                            'developer/standards/closed-loop-token/rules',
+                            'developer/standards/closed-loop-token/coin-token-comparison',
+                            'developer/standards/closed-loop-token/tutorial',
+                        ],
+                    },
+                    'developer/standards/kiosk',
+                    'developer/standards/kiosk-apps',
+                    'developer/standards/display',
+                    'developer/standards/wallet-standard',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Advanced Topics',
+                link: {
+                    type: 'doc',
+                    id: 'developer/advanced',
+                },
+                items: [
+                    'developer/advanced/introducing-move-2024',
+                    'developer/advanced/iota-repository',
+                    'developer/advanced/custom-indexer',
+                    'developer/advanced/onchain-randomness',
+                    'developer/advanced/asset-tokenization',
+                    'developer/advanced/create-review-rating-dao-with-multisig',
+                ],
+            },
+            'developer/dev-cheat-sheet',
+        ]
+    },
     'developer/exchange-integration',
-    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;
