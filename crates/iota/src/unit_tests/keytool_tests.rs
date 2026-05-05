@@ -739,11 +739,11 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
 
     // Signatures (Base64)
     let sig1 = UserSignature::from_base64(
-        "AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQo=",
+        "AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==",
     )
     .unwrap();
     let sig2 = UserSignature::from_base64(
-        "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAo=",
+        "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==",
     )
     .unwrap();
     let sigs = vec![sig1, sig2];
@@ -768,16 +768,16 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     // Check parsed structure
     let parsed_json = serde_json::to_value(&data.multisig_parsed).unwrap();
     let expected_json = serde_json::json!({
-        "sigs": [
-            {"Ed25519": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
-            {"Ed25519": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
+        "signatures": [
+            {"scheme": "ed25519", "signature": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
+            {"scheme": "ed25519", "signature": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
         ],
         "bitmap": 3,
-        "multisig_pk": {
-            "pk_map": [
-                [{"Ed25519": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, 1],
-                [{"Ed25519": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, 1],
-                [{"Ed25519": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, 1]
+        "committee": {
+            "members": [
+                {"public_key": {"scheme": "ed25519", "public_key": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, "weight": 1}
             ],
             "threshold": 2
         }
@@ -785,7 +785,7 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     assert_eq!(parsed_json, expected_json);
     assert_eq!(
         data.multisig_serialized,
-        "AwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA="
+        "A+8BAwIA/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1CgCBvgjzxH6XyQv9QDEl63zxpieISu59pxkae2U62Ft5j4DOsxifr3qRpPgi9BfYoZ83QPvgjNg1FAmDr+Kx60AKAwADAIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87lAQCAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iAEA8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5TgBAgA="
     );
 
     Ok(())
