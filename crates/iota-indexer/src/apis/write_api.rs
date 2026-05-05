@@ -441,15 +441,10 @@ impl WriteApiServer for OptimisticWriteApi {
         options: Option<IotaTransactionBlockResponseOptions>,
         _request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = self
+        Ok(self
             .optimistic_tx_executor
             .execute_and_index_transaction(tx_bytes, signatures, options.clone())
-            .await?;
-        Ok(IotaTransactionBlockResponseWithOptions {
-            response: iota_transaction_response,
-            options: options.unwrap_or_default(),
-        }
-        .into())
+            .await?)
     }
 
     async fn dev_inspect_transaction_block(

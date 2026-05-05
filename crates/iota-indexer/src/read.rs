@@ -116,7 +116,7 @@ pub enum InputObjectsStatus {
 #[derive(Clone)]
 pub struct IndexerReader {
     pool: ConnectionPool,
-    package_resolver: PackageResolver,
+    pub(crate) package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
     fallback: Option<HistoricalFallbackReader>,
     watermark_cache: WatermarkCache,
@@ -779,7 +779,7 @@ impl IndexerReader {
     ///  Retrieval order:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
-    async fn multi_get_transactions(
+    pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<StoredTransaction>> {

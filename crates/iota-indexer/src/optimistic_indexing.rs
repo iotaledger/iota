@@ -13,7 +13,7 @@ use iota_grpc_types::{
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -39,10 +39,7 @@ use crate::{
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
-    types::{
-        IndexedDeletedObject, IndexedObject, IndexerResult,
-        IotaTransactionBlockResponseWithOptions, grpc_conversion,
-    },
+    types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
 };
 
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
@@ -258,85 +255,51 @@ impl OptimisticTransactionExecutor {
             .collect::<Result<Vec<_>, FastCryptoError>>()?;
 
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
+        let tx_digest = *transaction.digest();
 
         let executed_transaction = self.execute_transaction(transaction.clone()).await?;
-
-        let tx_digest = *TransactionEffects::try_from(executed_transaction.effects()?.effects()?)?
-            .transaction_digest();
 
         let optimistic_tx = self
             .maybe_index_executed_transaction(transaction, executed_transaction)
             .await?;
 
+        let indexed_transaction = match optimistic_tx {
+            Some(optimistic_tx) => optimistic_tx.into(),
+            None => self.resolve_checkpointed_transaction(tx_digest).await?,
+        };
+        let package_resolver = self.read.package_resolver.clone();
+        indexed_transaction
+            .try_into_iota_transaction_block_response(
+                options.unwrap_or_default(),
+                &package_resolver,
+            )
+            .await
+    }
+
+    async fn resolve_checkpointed_transaction(
+        &self,
+        tx_digest: TransactionDigest,
+    ) -> Result<StoredTransaction, IndexerError> {
         let db_read_timer = self
             .metrics
             .optimistic_tx_db_wait_and_read_time
             .start_timer();
-        self.wait_for_read_write_consistency(&optimistic_tx, tx_digest)
-            .await?;
-        let tx_block_response = self
-            .get_transaction_block_response(optimistic_tx, tx_digest, options.clone())
-            .await?;
+        // When checkpoint indexing wins over optimistic indexing, the transaction row
+        // may be persisted before objects and other related tables. We wait until all
+        // such updates are completed.
+        self.wait_for_local_indexing(tx_digest).await?;
+        let stored_transaction = self
+            .read
+            .multi_get_transactions(&[tx_digest])
+            .await?
+            .pop()
+            .ok_or_else(|| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "transaction {tx_digest} not found in the DB after being marked as indexed."
+                ))
+            })?;
         db_read_timer.stop_and_record();
-
-        Ok(IotaTransactionBlockResponseWithOptions {
-            response: tx_block_response,
-            options: options.unwrap_or_default(),
-        }
-        .into())
-    }
-
-    /// Waits until it is guaranteed that objects and display table are
-    /// persisted for given tx.
-    ///
-    /// This effectively waits only if we fell back to checkpoint path, as
-    /// optimistic path persists all this data at once.
-    async fn wait_for_read_write_consistency(
-        &self,
-        optimistic_tx: &Option<OptimisticTransaction>,
-        tx_digest: TransactionDigest,
-    ) -> Result<(), IndexerError> {
-        if optimistic_tx.is_none() {
-            // When checkpoint indexing wins over optimistic indexing, the transaction row
-            // may be persisted before objects and other related tables. We wait until all
-            // such updates are completed.
-            self.wait_for_local_indexing(tx_digest).await?;
-        }
-        Ok(())
-    }
-
-    /// Returns the transaction block response, either by converting the
-    /// optimistic transaction directly (if optimistic indexing succeeded) or by
-    /// fetching checkpointed transaction from DB.
-    ///
-    /// It is a requirement that transaction passed to this function is
-    /// completely indexed either on checkpoint path or optimistic path.
-    async fn get_transaction_block_response(
-        &self,
-        optimistic_tx: Option<OptimisticTransaction>,
-        tx_digest: TransactionDigest,
-        options: Option<IotaTransactionBlockResponseOptions>,
-    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
-        if let Some(optimistic_tx) = optimistic_tx {
-            self.optimistic_transaction_to_block_response(
-                optimistic_tx,
-                options.unwrap_or_default(),
-            )
-            .await
-        } else {
-            self.read
-                .multi_get_transaction_block_response_in_blocking_task(
-                    vec![tx_digest],
-                    options.unwrap_or_default(),
-                )
-                .await?
-                .pop()
-                .ok_or_else(|| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "transaction {tx_digest} not found in the DB after being marked as indexed."
-                    ))
-                })
-        }
+        Ok(stored_transaction)
     }
 
     /// Waits until the transaction is fully indexed (via either the optimistic
