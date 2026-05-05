@@ -202,7 +202,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let authenticator_data = authenticated_cred.response.authenticator_data.as_slice();
     let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
-    // TODO yeah I'm too sure about this...
+    // TODO yeah I'm not too sure about this...
     let sig = MultisigMemberSignature::from(
         PasskeyAuthenticator::new(
             authenticator_data.to_vec(),
@@ -222,8 +222,9 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     //     )
     //     .unwrap(),
     // );
-    let multisig =
-        GenericSignature::MultiSig(MultiSig::combine(vec![sig], multisig_pk.clone()).unwrap());
+    let multisig = GenericSignature::MultiSig(
+        MultiSig::combine(vec![sig.into()], multisig_pk.clone()).unwrap(),
+    );
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
 

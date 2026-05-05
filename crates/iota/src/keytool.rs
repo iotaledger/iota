@@ -38,7 +38,7 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_types::{
     SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey},
+    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
 };
 use iota_types::{
     base_types::{IotaAddress, address_from_iota_pub_key},
@@ -47,10 +47,7 @@ use iota_types::{
         get_authority_key_pair,
     },
     error::IotaResult,
-    multisig::{
-        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature, ThresholdUnit,
-        WeightUnit,
-    },
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
@@ -169,7 +166,7 @@ pub enum KeyToolCommand {
         #[arg(long)]
         threshold: ThresholdUnit,
         #[arg(long, num_args(1..))]
-        pks: Vec<PublicKey>,
+        pks: Vec<SdkPublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
@@ -185,9 +182,9 @@ pub enum KeyToolCommand {
     /// [sig2, sig1, sig5] is invalid.
     MultiSigCombinePartialSig {
         #[arg(long, num_args(1..))]
-        sigs: Vec<MultisigMemberSignature>,
+        sigs: Vec<UserSignature>,
         #[arg(long, num_args(1..))]
-        pks: Vec<PublicKey>,
+        pks: Vec<SdkPublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
         #[arg(long)]

@@ -11,12 +11,12 @@ use fastcrypto::{
     traits::{ToFromBytes, VerifyingKey},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::crypto::{Intent, IntentScope, PublicKey as SdkPublicKey};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
     multisig::MultisigMemberSignature,
@@ -731,12 +731,9 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
     // Public keys (Base64)
-    let pk1 = MultisigMemberPublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l")
-        .unwrap();
-    let pk2 = MultisigMemberPublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI")
-        .unwrap();
-    let pk3 = MultisigMemberPublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4")
-        .unwrap();
+    let pk1 = SdkPublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
+    let pk2 = SdkPublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
+    let pk3 = SdkPublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
     let pks = vec![pk1, pk2, pk3];
     let weights = vec![1, 1, 1];
     let threshold = 2;
@@ -750,7 +747,7 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
         "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAo=",
     )
     .unwrap();
-    let sigs = vec![sig1, sig2];
+    let sigs = vec![sig1.into(), sig2.into()];
 
     let output = KeyToolCommand::MultiSigCombinePartialSig {
         sigs,
