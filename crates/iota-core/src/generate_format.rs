@@ -218,6 +218,15 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &generic_sig_multi)
         .unwrap();
 
+    // Seed a `GenericSignature::Signature` sample so that when the tracer
+    // later deserializes `CheckpointContents.user_signatures`
+    // (`Vec<Vec<GenericSignature>>`) it has flag-0/1/2 bytes available.
+    // Otherwise fastcrypto's `from_bytes` rejects synthesized bytes with
+    // "Invalid signature was given to the function".
+    tracer
+        .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
+        .unwrap();
+
     tracer.trace_value(&mut samples, &sig1).unwrap();
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
