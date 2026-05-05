@@ -77,15 +77,14 @@ impl ValidatorService {
         } = self.clone();
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();
-        let white_flag_flow_enabled = epoch_store.protocol_config().enable_white_flag_flow();
 
         // Reject if white flag flow is enabled - transactions should use
-        // `handle_submit_transaction_impl` instead
+        // `submit_tx` (ValidatorV2 service) instead
         fp_ensure!(
-            !white_flag_flow_enabled,
+            !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
                 error: "handle_transaction is disabled when white flag flow is enabled. \
-                    Use handle_submit_transaction_impl instead."
+                    Use submit_tx (ValidatorV2 service) instead."
                     .to_string()
             }
             .into()
@@ -106,7 +105,7 @@ impl ValidatorService {
             &consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            white_flag_flow_enabled, // should be false if this point is reached
+            false, // white_flag_flow_enabled
         );
         if let Err(error) = overload_check_res {
             metrics
@@ -239,13 +238,12 @@ impl ValidatorService {
 
         // 2) Verify the certificates.
         // Check system overload
-        let white_flag_flow_enabled = epoch_store.protocol_config().enable_white_flag_flow();
         for certificate in &certificates {
             let overload_check_res = self.state.check_system_overload(
                 &self.consensus_adapter,
                 certificate.data(),
                 self.state.check_system_overload_at_execution(),
-                white_flag_flow_enabled, // should be false if this point is reached
+                false, // white_flag_flow_enabled
             );
             if let Err(error) = overload_check_res {
                 self.metrics
@@ -599,7 +597,7 @@ impl ValidatorService {
             !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
                 error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is \
-                    enabled. Use batch submission via handle_submit_transactions_impl instead."
+                    enabled. Use submit_tx (ValidatorV2 service) for batch submission instead."
                     .to_string()
             }
             .into()
