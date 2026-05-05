@@ -18,7 +18,8 @@ use iota_protocol_config::{
 };
 use iota_types::{
     base_types::{
-        AuthorityName, Identifier, StructTag, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+        AuthorityName, Identifier, IotaAddress, StructTag, TxContext, dbg_addr, dbg_object_id,
+        random_object_ref,
     },
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -33,7 +34,10 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
+        VersionAssignment,
+    },
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -4636,7 +4640,7 @@ async fn test_shared_object_transaction_ok() {
         .get_assigned_shared_object_versions(&certificate.key())
         .expect("Versions should be set")
         .into_iter()
-        .find_map(|(object_id, version)| {
+        .find_map(|VersionAssignment { object_id, version }| {
             if object_id == shared_object_id {
                 Some(version)
             } else {
@@ -4744,9 +4748,9 @@ async fn test_consensus_commit_prologue_generation() {
             .get_assigned_shared_object_versions(txn_key)
             .expect("versions should be set")
             .iter()
-            .filter_map(|(id, seq)| {
-                if id == &ObjectID::CLOCK {
-                    Some(*seq)
+            .filter_map(|VersionAssignment { object_id, version }| {
+                if object_id == &ObjectID::CLOCK {
+                    Some(*version)
                 } else {
                     None
                 }
@@ -6554,6 +6558,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .get_assigned_shared_object_versions(&cancelled_txn.key())
         .expect("Versions should be set")
         .into_iter()
+        .map(|VersionAssignment { object_id, version }| (object_id, version))
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
@@ -6628,24 +6633,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
-            if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
+            ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions }
+            if cancelled_transactions == &[CancelledTransaction{
+                 digest: *cancelled_txn.digest(),
+                 version_assignments: vec![
+                    VersionAssignment::new(
                         shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
                     )
                 ]
-            )]
+            }]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

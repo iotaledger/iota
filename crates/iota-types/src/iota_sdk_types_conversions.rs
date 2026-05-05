@@ -28,11 +28,9 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, MoveStruct, Object, ObjectData},
     transaction::{
-        CancelledTransaction, Command, ConsensusCommitPrologueV1,
-        ConsensusDeterminedVersionAssignments, GasPayment, GenesisTransaction, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, Transaction, TransactionKind, TransactionV1,
-        TransferObjects, Upgrade, VersionAssignment,
+        Command, GasPayment, GenesisTransaction, MakeMoveVector, MergeCoins, MoveCall,
+        ProgrammableTransaction, Publish, RandomnessStateUpdate, SignedTransaction, SplitCoins,
+        Transaction, TransactionKind, TransactionV1, TransferObjects, Upgrade,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -247,42 +245,17 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .map(|obj| match obj {
                             crate::transaction::GenesisObject::RawObject { data, owner } => {
                                 match data.try_into() {
-                                    Ok(data) => Ok(GenesisObject {
-                                        data,
-                                        owner,
-                                    }),
+                                    Ok(data) => Ok(GenesisObject { data, owner }),
                                     Err(e) => Err(e),
                                 }
                             }
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction.events,
                 })
             }
             InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
-                        ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                            cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
-                                digest: value.0,
-                                version_assignments:
-                                    value
-                                        .1
-                                        .into_iter()
-                                        .map(|value| VersionAssignment { object_id: value.0, version: value.1 })
-                                        .collect(),
-                            }).collect()
-                        },
-                };
-                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
-                    epoch: consensus_commit_prologue_v1.epoch,
-                    round: consensus_commit_prologue_v1.round,
-                    sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                    commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                    consensus_commit_digest: consensus_commit_prologue_v1
-                        .consensus_commit_digest,
-                    consensus_determined_version_assignments,
-                })
+                TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
             }
             #[allow(deprecated)]
             InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -291,9 +264,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                 // only for BCS enum variant compatibility.
                 TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
-            InternalTxnKind::EndOfEpochTransaction(vec) => {
-                TransactionKind::EndOfEpoch(vec)
-            }
+            InternalTxnKind::EndOfEpochTransaction(vec) => TransactionKind::EndOfEpoch(vec),
             InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
@@ -320,7 +291,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .commands
                         .into_iter()
                         .map(TryInto::try_into)
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                 })
             }
             TransactionKind::Genesis(genesis_transaction) => {
@@ -328,47 +299,19 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     objects: genesis_transaction
                         .objects
                         .into_iter()
-                        .map(|obj| {
-                            match obj.data.try_into() {
-                                Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
-                                    data,
-                                    owner: obj.owner,
-                                }),
-                                Err(e) => Err(e),
-                            }
+                        .map(|obj| match obj.data.try_into() {
+                            Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
+                                data,
+                                owner: obj.owner,
+                            }),
+                            Err(e) => Err(e),
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction.events,
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions { cancelled_transactions } =>
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                        cancelled_transactions.into_iter().map(|value|
-                            (
-                                value.digest,
-                                value
-                                    .version_assignments
-                                    .into_iter()
-                                    .map(|value| (value.object_id, value.version))
-                                    .collect()
-                            )
-                        ).collect()
-                    ),
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
-                };
-                Self::ConsensusCommitPrologueV1(
-                    crate::messages_consensus::ConsensusCommitPrologueV1 {
-                        epoch: consensus_commit_prologue_v1.epoch,
-                        round: consensus_commit_prologue_v1.round,
-                        sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                        commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                        consensus_commit_digest: consensus_commit_prologue_v1
-                            .consensus_commit_digest,
-                        consensus_determined_version_assignments,
-                    },
-                )
+                Self::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
             }
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -377,9 +320,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                 // only for BCS enum variant compatibility.
                 Self::AuthenticatorStateUpdateV1Deprecated
             }
-            TransactionKind::EndOfEpoch(vec) => {
-                Self::EndOfEpochTransaction(vec)
-            }
+            TransactionKind::EndOfEpoch(vec) => Self::EndOfEpochTransaction(vec),
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,

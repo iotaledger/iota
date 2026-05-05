@@ -14,11 +14,14 @@ use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
+    messages_consensus::{
+        CancelledTransaction, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind,
+    },
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
@@ -736,14 +739,14 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_txn_version_assignment,
+            cancelled_transactions,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -751,9 +754,9 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> VerifiedExecutableTransaction {
-        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
     }
 }
 

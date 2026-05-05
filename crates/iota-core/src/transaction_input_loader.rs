@@ -174,9 +174,14 @@ impl TransactionInputLoader {
                 InputObjectKind::SharedMoveObject { id, .. } => {
                     let assigned_shared_versions = assigned_shared_versions_cell
                         .get_or_init(|| {
-                            epoch_store
-                                .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect())
+                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                |versions| {
+                                    versions
+                                        .into_iter()
+                                        .map(|v| (v.object_id, v.version))
+                                        .collect()
+                                },
+                            )
                         })
                         .as_ref()
                         .unwrap_or_else(|| {
