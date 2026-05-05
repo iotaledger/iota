@@ -280,7 +280,12 @@ impl Coin {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -298,7 +303,12 @@ impl Coin {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_object_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_object_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -322,6 +332,7 @@ impl Coin {
                 last,
                 before,
                 Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
             )
             .await
     }
@@ -378,8 +389,12 @@ impl Coin {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let object =
-                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
+            let object = Object::try_from_stored_history_object(
+                stored_history,
+                checkpoint_viewed_at,
+                None,
+                None,
+            )?;
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(

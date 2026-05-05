@@ -341,7 +341,12 @@ impl MoveObject {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_)
-            .dynamic_field(ctx, name, Some(self.root_version()))
+            .dynamic_field(
+                ctx,
+                name,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -359,7 +364,12 @@ impl MoveObject {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_)
-            .dynamic_object_field(ctx, name, Some(self.root_version()))
+            .dynamic_object_field(
+                ctx,
+                name,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -376,7 +386,15 @@ impl MoveObject {
         before: Option<object::Cursor>,
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(&self.super_)
-            .dynamic_fields(ctx, first, after, last, before, Some(self.root_version()))
+            .dynamic_fields(
+                ctx,
+                first,
+                after,
+                last,
+                before,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -495,6 +513,12 @@ impl MoveObject {
     /// Check [`Object::root_version`] for details.
     pub(crate) fn root_version(&self) -> u64 {
         self.super_.root_version()
+    }
+
+    /// Tx-sequence-number anchor of the outermost root, propagated through
+    /// nested dynamic-field traversals. See [`Object::root_version_tx_seq`].
+    pub(crate) fn root_version_tx_seq(&self) -> Option<u64> {
+        self.super_.root_version_tx_seq()
     }
 }
 

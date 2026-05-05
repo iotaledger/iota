@@ -872,6 +872,8 @@ impl MovePackage {
             checkpoint_viewed_at,
             // root_version
             None,
+            // root_version_tx_seq
+            None,
         )?;
         Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }

@@ -89,6 +89,19 @@ pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse
         .expect("expected a created object")
 }
 
+/// Collect all created object IDs from a transaction response.
+fn created_ids(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> Vec<ObjectID> {
+    resp.object_changes
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter_map(|c| match c {
+            ObjectChange::Created { object_id, .. } => Some(*object_id),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Extract the version of an unwrapped object from a transaction response.
 fn unwrapped_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
@@ -176,7 +189,8 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        // NotYetCreated rows are anchored at `lamport - 1` of the create tx.
+        assert!(entry.object_version >= 0);
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
@@ -236,14 +250,14 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         );
         assert!(entry.serialized_object.is_some());
 
-        // Box was created → NOT_YET_CREATED.
+        // Box was created → NOT_YET_CREATED at `lamport - 1`.
         let entry = find_backward_entry(store, box_id.as_bytes(), wrap_cp)?
             .expect("box should have backward history at wrap checkpoint");
         assert_eq!(
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        assert!(entry.object_version >= 0);
 
         // ================================================================
         // Step 4: UNWRAP — unwrap the item from the Box
@@ -402,6 +416,171 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
                 BackwardHistoryObjectStatus::WrappedOrDeleted as i16, // unwrap
                 BackwardHistoryObjectStatus::Active as i16,        // delete
             ]
+        );
+
+        Ok(())
+    })
+}
+
+/// Exercises the case where a dynamic-object-field's underlying Field object
+/// is created, deleted, and re-created with the same derived id within the
+/// visible history window. Because the Field-object id is
+/// `derive_dynamic_field_id(parent, type, name)` (deterministic), the
+/// recreate produces the same id as the deletion targets.
+///
+/// We assert that F1's three backward-history rows carry distinct,
+/// monotonically increasing `superseded_at_tx_sequence_number` values. That
+/// finer time axis is what the version-pinned dynamic-field reader uses to
+/// disambiguate intra-checkpoint transitions of the same id.
+#[test]
+fn backward_history_dof_delete_then_recreate() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
+
+        let (package_ref, publish_resp) =
+            publish_test_move_package(client, address, &keypair, "backward_history_test").await?;
+        let package_id = package_ref.object_id;
+        indexer_wait_for_transaction(publish_resp.digest, store, client).await;
+
+        // 1. Create the parent.
+        let resp = call_test_fn(
+            client,
+            store,
+            address,
+            &keypair,
+            package_id,
+            "create_parent",
+            call_args![]?,
+            Some(gas_id),
+        )
+        .await;
+        let parent_id = first_created_id(&resp);
+
+        // 2. Add DOF named 42 → creates Field F1 (derived id) and Child1.
+        let resp = call_test_fn(
+            client,
+            store,
+            address,
+            &keypair,
+            package_id,
+            "add_dof",
+            call_args![parent_id, 42u64, 1u64]?,
+            Some(gas_id),
+        )
+        .await;
+        let add1_created: Vec<ObjectID> = created_ids(&resp);
+
+        // 3. Remove DOF 42 → deletes both F1 and Child1.
+        let _ = call_test_fn(
+            client,
+            store,
+            address,
+            &keypair,
+            package_id,
+            "remove_dof",
+            call_args![parent_id, 42u64]?,
+            Some(gas_id),
+        )
+        .await;
+
+        // 4. Add DOF 42 again → re-creates F1 with the same derived id and a fresh
+        //    Child2.
+        let resp = call_test_fn(
+            client,
+            store,
+            address,
+            &keypair,
+            package_id,
+            "add_dof",
+            call_args![parent_id, 42u64, 2u64]?,
+            Some(gas_id),
+        )
+        .await;
+        let add2_created: Vec<ObjectID> = created_ids(&resp);
+
+        // 5. F1 = the id created by both add_dof calls (Child ids differ because they
+        //    come from `object::new`).
+        let f1_id: ObjectID = add1_created
+            .iter()
+            .find(|id| add2_created.contains(id))
+            .copied()
+            .expect("add_dof should re-create the same Field id on re-add");
+
+        // 6. F1 has three rows in backward_history (NotYetCreated from the first
+        //    create, Active from the remove tx's input, NotYetCreated from the
+        //    recreate). Assert their `superseded_at_tx_sequence_number` values are
+        //    distinct and monotonically increasing.
+        let entries = find_all_entries_for_object(store, f1_id.as_bytes())?;
+
+        assert_eq!(
+            entries.len(),
+            3,
+            "F1 should have 3 backward-history rows (create, remove, recreate); got {:#?}",
+            entries
+                .iter()
+                .map(|e| (
+                    e.object_status,
+                    e.object_version,
+                    e.superseded_at_checkpoint,
+                    e.superseded_at_tx_sequence_number,
+                ))
+                .collect::<Vec<_>>(),
+        );
+
+        let tx_seqs: Vec<i64> = entries
+            .iter()
+            .map(|e| e.superseded_at_tx_sequence_number)
+            .collect();
+        assert!(
+            tx_seqs.windows(2).all(|w| w[0] < w[1]),
+            "F1's superseded_at_tx_sequence_number values must be strictly increasing \
+             across (create, remove, recreate); got {tx_seqs:?}",
+        );
+
+        // Sanity: row order matches the lifecycle — NotYetCreated, Active,
+        // NotYetCreated.
+        let statuses: Vec<i16> = entries.iter().map(|e| e.object_status).collect();
+        assert_eq!(
+            statuses,
+            vec![
+                BackwardHistoryObjectStatus::NotYetCreated as i16, // first create
+                BackwardHistoryObjectStatus::Active as i16,        // remove (prior input)
+                BackwardHistoryObjectStatus::NotYetCreated as i16, // recreate
+            ]
+        );
+
+        // The recreate's NotYetCreated row (anchored at `lamport_recreate - 1`)
+        // must sit strictly above the prior Active row's `object_version`.
+        let active_version = entries
+            .iter()
+            .find(|e| e.object_status == BackwardHistoryObjectStatus::Active as i16)
+            .expect("F1 should have an Active prior-state row from the remove tx")
+            .object_version;
+        let recreate_nyc_version = entries
+            .last()
+            .expect("F1 should have a recreate NotYetCreated row")
+            .object_version;
+        assert!(
+            recreate_nyc_version > active_version,
+            "recreate-NYC's object_version (v={recreate_nyc_version}) must be strictly above \
+             the prior Active row's object_version (v={active_version}) — lamport monotonicity.",
         );
 
         Ok(())

@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 17 tasks
 
@@ -213,7 +214,20 @@ Response: {
   "data": {
     "object": {
       "dynamicFields": {
-        "nodes": []
+        "nodes": [
+          {
+            "value": {
+              "address": "0x45816d0ac2050aff1e9d34ea52cc11f98858a0a9c30a162c349ccd3c9be24ebe",
+              "contents": {
+                "json": {
+                  "count": "0",
+                  "id": "0x45816d0ac2050aff1e9d34ea52cc11f98858a0a9c30a162c349ccd3c9be24ebe"
+                }
+              },
+              "version": 4
+            }
+          }
+        ]
       }
     }
   }

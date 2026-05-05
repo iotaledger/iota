@@ -332,7 +332,12 @@ impl NameRegistration {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -350,7 +355,12 @@ impl NameRegistration {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_object_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_object_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -374,6 +384,7 @@ impl NameRegistration {
                 last,
                 before,
                 Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
             )
             .await
     }
@@ -564,7 +575,7 @@ impl IotaNames {
         // `name_expiration` based on the address.
         for result in results {
             let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None, None)?;
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

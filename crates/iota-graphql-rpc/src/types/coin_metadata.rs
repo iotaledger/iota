@@ -269,7 +269,12 @@ impl CoinMetadata {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -287,7 +292,12 @@ impl CoinMetadata {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(&self.super_.super_)
-            .dynamic_object_field(ctx, name, Some(self.super_.root_version()))
+            .dynamic_object_field(
+                ctx,
+                name,
+                Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -311,6 +321,7 @@ impl CoinMetadata {
                 last,
                 before,
                 Some(self.super_.root_version()),
+                self.super_.root_version_tx_seq(),
             )
             .await
     }

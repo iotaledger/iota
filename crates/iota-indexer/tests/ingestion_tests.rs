@@ -791,7 +791,8 @@ mod ingestion_tests {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        // NotYetCreated rows are anchored at `lamport - 1` of the create tx.
+        assert!(entry.object_version >= 0);
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
@@ -801,7 +802,8 @@ mod ingestion_tests {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        // NotYetCreated rows are anchored at `lamport - 1` of the create tx.
+        assert!(entry.object_version >= 0);
 
         // The gas object was mutated twice in checkpoint 1 — there should be
         // two ACTIVE entries with different previous versions.
@@ -841,7 +843,8 @@ mod ingestion_tests {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        // NotYetCreated rows are anchored at `lamport - 1` of the create tx.
+        assert!(entry.object_version >= 0);
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");

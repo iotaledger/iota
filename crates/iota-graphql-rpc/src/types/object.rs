@@ -84,6 +84,13 @@ pub(crate) struct Object {
     /// that were loaded but not actually mutated don't end up having
     /// their versions updated.
     root_version: u64,
+    /// Tx-sequence-number anchor of the outermost root, resolved once at the
+    /// outer `under_parent` lookup and propagated through nested dynamic-field
+    /// traversals. When set, the version-pinned dynamic-field reader uses it
+    /// directly as the at-tx cutoff instead of re-translating the (per-level)
+    /// `root_version`. `None` when this object wasn't constructed via a
+    /// `under_parent` lookup (e.g. `latest_at`, `at_version`).
+    root_version_tx_seq: Option<u64>,
 }
 
 /// Type to implement GraphQL fields that are shared by all Objects.
@@ -214,6 +221,11 @@ pub(crate) enum ObjectLookup {
         /// for the latest version of a child object whose version is
         /// less than or equal to this upper bound.
         parent_version: u64,
+        /// Tx-sequence-number anchor of the outermost root, stamped onto
+        /// the resolved child `Object` so nested dynamic-field queries reuse
+        /// it instead of re-translating per level. `None` when the caller
+        /// hasn't resolved one.
+        root_version_tx_seq: Option<u64>,
         /// The checkpoint sequence number at which this was viewed at.
         checkpoint_viewed_at: u64,
     },
@@ -570,7 +582,12 @@ impl Object {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_field(ctx, name, Some(self.root_version()))
+            .dynamic_field(
+                ctx,
+                name,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -588,7 +605,12 @@ impl Object {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_object_field(ctx, name, Some(self.root_version()))
+            .dynamic_object_field(
+                ctx,
+                name,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -605,7 +627,15 @@ impl Object {
         before: Option<Cursor>,
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_fields(ctx, first, after, last, before, Some(self.root_version()))
+            .dynamic_fields(
+                ctx,
+                first,
+                after,
+                last,
+                before,
+                Some(self.root_version()),
+                self.root_version_tx_seq(),
+            )
             .await
     }
 
@@ -795,6 +825,7 @@ impl Object {
             kind: ObjectKind::NotIndexed(native),
             checkpoint_viewed_at,
             root_version,
+            root_version_tx_seq: None,
         }
     }
 
@@ -821,6 +852,21 @@ impl Object {
     /// Check [`Object::root_version`] for details.
     pub(crate) fn root_version(&self) -> u64 {
         self.root_version
+    }
+
+    /// Tx-sequence-number anchor for the outermost root (set when the object
+    /// chain originates from a `under_parent` lookup). Propagated through
+    /// nested dynamic-field traversals.
+    pub(crate) fn root_version_tx_seq(&self) -> Option<u64> {
+        self.root_version_tx_seq
+    }
+
+    /// Stamps the `root_version_tx_seq` anchor on this object. Used by
+    /// `Object::query` to propagate the caller's anchor onto a freshly-
+    /// loaded object without baking the anchor into the loader cache key.
+    pub(crate) fn with_root_version_tx_seq(mut self, root_version_tx_seq: Option<u64>) -> Self {
+        self.root_version_tx_seq = root_version_tx_seq;
+        self
     }
 
     /// Query the database for a `page` of objects, optionally `filter`-ed.
@@ -900,8 +946,12 @@ impl Object {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let object =
-                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
+            let object = Object::try_from_stored_history_object(
+                stored_history,
+                checkpoint_viewed_at,
+                None,
+                None,
+            )?;
             conn.edges.push(Edge::new(cursor, downcast(object)?));
         }
 
@@ -917,9 +967,18 @@ impl Object {
 
     /// Look-up the latest version of an object whose version is less than or
     /// equal to its parent's version, as of a given checkpoint.
-    pub(crate) fn under_parent(parent_version: u64, checkpoint_viewed_at: u64) -> ObjectLookup {
+    /// `root_version_tx_seq` is the outermost root's tx-sequence-number
+    /// anchor (or `None` when not yet resolved); it is stamped on the
+    /// resulting object so that nested dynamic-field traversals can reuse
+    /// it.
+    pub(crate) fn under_parent(
+        parent_version: u64,
+        root_version_tx_seq: Option<u64>,
+        checkpoint_viewed_at: u64,
+    ) -> ObjectLookup {
         ObjectLookup::UnderParent {
             parent_version,
+            root_version_tx_seq,
             checkpoint_viewed_at,
         }
     }
@@ -964,15 +1023,21 @@ impl Object {
 
             ObjectLookup::UnderParent {
                 parent_version,
+                root_version_tx_seq,
                 checkpoint_viewed_at,
             } => {
-                loader
+                // `root_version_tx_seq` is propagation metadata, not part of
+                // the lookup — stamp it onto the resolved `Object` post-load
+                // so the loader's batched lookup remains keyed only on
+                // `(id, parent_version, cv)`.
+                let object = loader
                     .load_one(ParentVersionKey {
                         id,
                         parent_version,
                         checkpoint_viewed_at,
                     })
-                    .await
+                    .await?;
+                Ok(object.map(|o| o.with_root_version_tx_seq(root_version_tx_seq)))
             }
 
             ObjectLookup::LatestAt {
@@ -1021,6 +1086,7 @@ impl Object {
         history_object: StoredHistoryObject,
         checkpoint_viewed_at: u64,
         root_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
     ) -> Result<Self, Error> {
         let address = addr(&history_object.object_id)?;
 
@@ -1052,6 +1118,7 @@ impl Object {
                     kind: ObjectKind::Indexed(native_object, history_object),
                     checkpoint_viewed_at,
                     root_version,
+                    root_version_tx_seq,
                 })
             }
             NativeObjectStatus::WrappedOrDeleted => Ok(Self {
@@ -1059,6 +1126,7 @@ impl Object {
                 kind: ObjectKind::WrappedOrDeleted(history_object.object_version as u64),
                 checkpoint_viewed_at,
                 root_version: history_object.object_version as u64,
+                root_version_tx_seq,
             }),
         }
     }
@@ -1097,6 +1165,7 @@ impl Object {
             kind: ObjectKind::Indexed(native_object, stored_history_like),
             checkpoint_viewed_at,
             root_version,
+            root_version_tx_seq: None,
         })
     }
 }
@@ -1591,6 +1660,7 @@ impl Loader<HistoricalKey> for Db {
                 key.checkpoint_viewed_at,
                 // This conversion will use the object's own version as the `Object::root_version`.
                 None,
+                None,
             )?;
             result.insert(*key, object);
         }
@@ -1684,7 +1754,8 @@ impl Loader<ParentVersionKey> for Db {
         keys: &[ParentVersionKey],
     ) -> Result<HashMap<ParentVersionKey, Object>, Error> {
         // Group keys by checkpoint viewed at and parent version -- we'll issue a
-        // separate query for each group.
+        // separate query for each group. `root_version_tx_seq` is not part of the
+        // key; it's stamped onto the loaded object post-load.
         #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
         struct GroupKey {
             checkpoint_viewed_at: u64,
@@ -1758,6 +1829,10 @@ impl Loader<ParentVersionKey> for Db {
                     // If `LatestAtKey::parent_version` is set, it must have been correctly
                     // propagated from the `Object::root_version` of some object.
                     Some(group_key.parent_version),
+                    // `root_version_tx_seq` is stamped onto the loaded
+                    // object by `Object::query`, after the loader returns —
+                    // see [`Object::with_root_version_tx_seq`].
+                    None,
                 )?;
 
                 let key = ParentVersionKey {
@@ -1840,8 +1915,12 @@ impl Loader<LatestAtKey> for Db {
             for (checkpoint_viewed_at, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                let object =
-                    Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+                let object = Object::try_from_stored_history_object(
+                    stored,
+                    checkpoint_viewed_at,
+                    None,
+                    None,
+                )?;
 
                 let key = LatestAtKey {
                     id: object.address,

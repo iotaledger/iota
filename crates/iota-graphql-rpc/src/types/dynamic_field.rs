@@ -6,7 +6,7 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_indexer::types::OwnerType;
 use iota_types::{
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
@@ -16,8 +16,8 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::{View, build_objects_query},
-    data::{Db, QueryExecutor, package_resolver::PackageResolver},
+    backward_view::{self, consistent, dynamic_fields},
+    data::{Conn, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter,
     raw_query::RawQuery,
@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ObjectKind},
+        object::{self, Object, ObjectKind, StoredBackwardObject},
         type_filter::ExactTypeFilter,
     },
 };
@@ -126,7 +126,14 @@ impl DynamicField {
             let obj = MoveObject::query(
                 ctx,
                 df_object_id,
-                Object::under_parent(self.root_version(), self.super_.super_.checkpoint_viewed_at),
+                // Propagate the outermost root's tx_seq anchor (if known) so
+                // a subsequent `dynamicFields` traversal on the resolved
+                // object reuses it instead of re-translating per level.
+                Object::under_parent(
+                    self.root_version(),
+                    self.super_.root_version_tx_seq(),
+                    self.super_.super_.checkpoint_viewed_at,
+                ),
             )
             .await
             .extend()?;
@@ -153,6 +160,7 @@ impl DynamicField {
         ctx: &Context<'_>,
         parent: IotaAddress,
         parent_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
         name: DynamicFieldName,
         kind: DynamicFieldType,
         checkpoint_viewed_at: u64,
@@ -171,7 +179,7 @@ impl DynamicField {
             ctx,
             IotaAddress::from(field_id),
             if let Some(parent_version) = parent_version {
-                Object::under_parent(parent_version, checkpoint_viewed_at)
+                Object::under_parent(parent_version, root_version_tx_seq, checkpoint_viewed_at)
             } else {
                 Object::latest_at(checkpoint_viewed_at)
             },
@@ -186,12 +194,13 @@ impl DynamicField {
     /// `parent_version` if provided - each field will be the latest version
     /// at or before the provided version. If `parent_version` is not provided,
     /// the latest version of each field is returned as bounded by the
-    /// `checkpoint_viewed-at` parameter.`
+    /// `checkpoint_viewed_at` parameter.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<object::Cursor>,
         parent: IotaAddress,
         parent_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, DynamicField>, Error> {
         // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if
@@ -201,17 +210,42 @@ impl DynamicField {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
-        let Some((prev, next, results)) = db
+        let Some((resolved_tx_seq, prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                let (resolved_tx_seq, query) = if let Some(pv) = parent_version {
+                    // Use the propagated `root_version_tx_seq` if the caller
+                    // already resolved it (nested dynamic-field chains do
+                    // this); otherwise lazy-resolve `(parent, pv) → tx_seq`
+                    // here.
+                    let tx_seq = match root_version_tx_seq {
+                        Some(t) => t,
+                        None => match resolve_root_version_tx_seq(conn, parent, pv)? {
+                            Some(t) => t,
+                            None => return Ok(None),
+                        },
+                    };
+                    let q = dynamic_fields::query(tx_seq, &page, |q| apply_filter(q, parent, None));
+                    (Some(tx_seq), q)
+                } else {
+                    let q = consistent::query(checkpoint_viewed_at, &page, |q| {
+                        apply_filter(q, parent, None)
+                    });
+                    (None, q)
+                };
+
+                let (prev, next, iter) = page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    dynamic_fields_query(parent, parent_version, range, &page),
-                )?))
+                    query,
+                )?;
+                Ok(Some((resolved_tx_seq, prev, next, iter)))
             })
             .await?
         else {
@@ -226,11 +260,13 @@ impl DynamicField {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
 
             let object = Object::try_from_stored_history_object(
-                stored,
+                stored_history,
                 checkpoint_viewed_at,
                 parent_version,
+                resolved_tx_seq,
             )?;
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
@@ -280,38 +316,6 @@ impl TryFrom<MoveObject> for DynamicField {
     }
 }
 
-/// Builds the `RawQuery` for fetching dynamic fields attached to a parent
-/// object. If `parent_version` is null, the latest version of each field within
-/// the given checkpoint range [`lhs`, `rhs`] is returned, conditioned on the
-/// fact that there is not a more recent version of the field.
-///
-/// If `parent_version` is provided, it is used to bound both the `candidates`
-/// and `newer` objects subqueries. This is because the dynamic fields of a
-/// parent at version v are dynamic fields owned by the parent whose versions
-/// are <= v. Unlike object ownership, where owned and owner objects
-/// can have arbitrary `object_version`s, dynamic fields on a parent cannot have
-/// a version greater than its parent.
-fn dynamic_fields_query(
-    parent: IotaAddress,
-    parent_version: Option<u64>,
-    range: AvailableRange,
-    page: &Page<object::Cursor>,
-) -> RawQuery {
-    build_objects_query(
-        View::Consistent,
-        range,
-        page,
-        move |query| apply_filter(query, parent, parent_version),
-        move |newer| {
-            if let Some(parent_version) = parent_version {
-                filter!(newer, format!("object_version <= {}", parent_version))
-            } else {
-                newer
-            }
-        },
-    )
-}
-
 fn apply_filter(query: RawQuery, parent: IotaAddress, parent_version: Option<u64>) -> RawQuery {
     let query = filter!(
         query,
@@ -327,4 +331,89 @@ fn apply_filter(query: RawQuery, parent: IotaAddress, parent_version: Option<u64
     } else {
         query
     }
+}
+
+/// Translates `(parent, parent_version)` to a `tx_sequence_number` boundary
+/// suitable as the `root_version_tx_seq` argument to a "consistent view at
+/// root_version_tx_seq" query.
+///
+/// Returns the **last-contained** tx for `parent_version` — the last tx in
+/// which the parent was still at the requested version. This boundary is
+/// chosen because it has wider retention reach than the produced-at boundary
+/// would: the row consulted is the one that ended this version's bracket,
+/// which is recent for any version that was current within the retained
+/// window. (The produced-at boundary would consult the predecessor row,
+/// which for long-lived versions can be many epochs old and out of
+/// retention.)
+///
+/// Mechanics:
+///
+/// 1. Look up the row at `(parent, object_version = parent_version)` in
+///    `objects_backward_history`. Its `superseded_at_tx_sequence_number` is one
+///    past the last tx in the bracket, so `root_version_tx_seq = sup_at_tx -
+///    1`.
+/// 2. Else, if `parent`'s current row in `checkpointed_objects` matches
+///    `parent_version`, the version is the live one and hasn't been superseded
+///    yet — `root_version_tx_seq = max_committed_tx`.
+/// 3. Otherwise the requested version is unknown to us (gap, or out of
+///    retention) — return `None` and let the caller surface an out-of-range
+///    error.
+fn resolve_root_version_tx_seq(
+    conn: &mut Conn,
+    parent: IotaAddress,
+    parent_version: u64,
+) -> diesel::result::QueryResult<Option<u64>> {
+    use diesel::{ExpressionMethods, QueryDsl};
+    use iota_indexer::schema::{checkpointed_objects, objects_backward_history, watermarks};
+
+    let parent_bytes: Vec<u8> = parent.into_vec();
+    let pv = parent_version as i64;
+
+    // 1. Row at exactly (parent, version=parent_version) → last-contained boundary.
+    let parent_bytes_for_bh = parent_bytes.clone();
+    let sup_at_tx: Option<i64> = conn
+        .results(move || {
+            objects_backward_history::table
+                .filter(objects_backward_history::object_id.eq(parent_bytes_for_bh.clone()))
+                .filter(objects_backward_history::object_version.eq(pv))
+                .select(objects_backward_history::superseded_at_tx_sequence_number)
+                .limit(1)
+                .into_boxed()
+        })?
+        .into_iter()
+        .next();
+
+    if let Some(sup_at_tx) = sup_at_tx {
+        return Ok(Some((sup_at_tx - 1).max(0) as u64));
+    }
+
+    // 2. Else, if parent_version is parent's current version, the version is still
+    //    in effect — boundary is max_committed_tx.
+    let cp_match: Option<i64> = conn
+        .results(move || {
+            checkpointed_objects::table
+                .filter(checkpointed_objects::object_id.eq(parent_bytes.clone()))
+                .filter(checkpointed_objects::object_version.eq(pv))
+                .select(checkpointed_objects::object_version)
+                .limit(1)
+                .into_boxed()
+        })?
+        .into_iter()
+        .next();
+
+    if cp_match.is_some() {
+        let max_tx: Option<i64> = conn
+            .results(|| {
+                watermarks::table
+                    .filter(watermarks::entity.eq(backward_view::BACKWARD_HISTORY_WATERMARK_ENTITY))
+                    .select(watermarks::max_committed_tx)
+                    .limit(1)
+                    .into_boxed()
+            })?
+            .into_iter()
+            .next();
+        return Ok(Some(max_tx.unwrap_or(0).max(0) as u64));
+    }
+
+    Ok(None)
 }

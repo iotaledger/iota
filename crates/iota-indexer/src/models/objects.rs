@@ -777,6 +777,10 @@ pub struct StoredBackwardHistoryObject {
     pub object_status: i16,
     pub object_digest: Option<Vec<u8>>,
     pub superseded_at_checkpoint: i64,
+    /// Lamport-monotonic tx-level supersede marker (finer-grained than
+    /// `superseded_at_checkpoint`). Used by version-pinned dynamic-field
+    /// queries to disambiguate intra-checkpoint transitions.
+    pub superseded_at_tx_sequence_number: i64,
     pub owner_type: Option<i16>,
     pub owner_id: Option<Vec<u8>>,
     pub object_type: Option<String>,
@@ -789,22 +793,24 @@ pub struct StoredBackwardHistoryObject {
     pub df_kind: Option<i16>,
 }
 
-impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
-    type Error = IndexerError;
-
-    /// Builds a backward history entry for an active object.
-    ///
-    /// Reuses `StoredHistoryObject::try_from(IndexedObject)` for field
-    /// conversion, then maps `checkpoint_sequence_number` to
-    /// `superseded_at_checkpoint` and sets the status to `Active`.
-    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
+impl StoredBackwardHistoryObject {
+    /// Builds a backward history entry for an active object from an
+    /// `IndexedObject`. Reuses `StoredHistoryObject::try_from` for field
+    /// conversion, then sets the supersede markers from the supplied
+    /// checkpoint and tx values and the status to `Active`.
+    pub fn from_active(
+        o: IndexedObject,
+        superseded_at_checkpoint: i64,
+        superseded_at_tx_sequence_number: i64,
+    ) -> Result<Self, IndexerError> {
         let h = StoredHistoryObject::try_from(o)?;
         Ok(Self {
             object_id: h.object_id,
             object_version: h.object_version,
             object_status: BackwardHistoryObjectStatus::Active as i16,
             object_digest: h.object_digest,
-            superseded_at_checkpoint: h.checkpoint_sequence_number,
+            superseded_at_checkpoint,
+            superseded_at_tx_sequence_number,
             owner_type: h.owner_type,
             owner_id: h.owner_id,
             object_type: h.object_type,
@@ -817,9 +823,7 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
             df_kind: h.df_kind,
         })
     }
-}
 
-impl StoredBackwardHistoryObject {
     /// Builds a backward history entry with no object data.
     ///
     /// Used for `NotYetCreated` and `WrappedOrDeleted` statuses.
@@ -828,6 +832,7 @@ impl StoredBackwardHistoryObject {
         object_version: i64,
         status: BackwardHistoryObjectStatus,
         superseded_at_checkpoint: i64,
+        superseded_at_tx_sequence_number: i64,
     ) -> Self {
         Self {
             object_id: object_id.as_bytes().to_vec(),
@@ -835,6 +840,7 @@ impl StoredBackwardHistoryObject {
             object_status: status as i16,
             object_digest: None,
             superseded_at_checkpoint,
+            superseded_at_tx_sequence_number,
             owner_type: None,
             owner_id: None,
             object_type: None,

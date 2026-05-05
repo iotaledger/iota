@@ -3,27 +3,35 @@
 -- enables consistent view queries via backward diff without the lag and
 -- duplication problems of `objects_snapshot`.
 CREATE TABLE objects_backward_history (
-    object_id                   bytea         NOT NULL,
-    object_version              bigint        NOT NULL,
-    object_status               smallint      NOT NULL,
-    object_digest               bytea,
-    superseded_at_checkpoint    bigint        NOT NULL,
-    owner_type                  smallint,
-    owner_id                    bytea,
-    object_type                 text,
-    object_type_package         bytea,
-    object_type_module          text,
-    object_type_name            text,
-    serialized_object           bytea,
-    coin_type                   text,
-    coin_balance                bigint,
-    df_kind                     smallint,
+    object_id                            bytea         NOT NULL,
+    object_version                       bigint        NOT NULL,
+    object_status                        smallint      NOT NULL,
+    object_digest                        bytea,
+    superseded_at_checkpoint             bigint        NOT NULL,
+    -- Lamport-monotonic tx-level supersede marker. Strictly finer than
+    -- `superseded_at_checkpoint`: distinguishes intra-checkpoint transitions
+    -- of the same object so version-pinned dynamic-field queries can pick the
+    -- correct prior state when a Field-object is deleted and re-created with
+    -- the same derived id within one checkpoint.
+    superseded_at_tx_sequence_number     bigint        NOT NULL,
+    owner_type                           smallint,
+    owner_id                             bytea,
+    object_type                          text,
+    object_type_package                  bytea,
+    object_type_module                   text,
+    object_type_name                     text,
+    serialized_object                    bytea,
+    coin_type                            text,
+    coin_balance                         bigint,
+    df_kind                              smallint,
     CONSTRAINT objects_backward_history_pk PRIMARY KEY (superseded_at_checkpoint, object_id, object_version)
 );
 
 CREATE INDEX objects_backward_history_id_version
     ON objects_backward_history (object_id, object_version, superseded_at_checkpoint);
 
+-- Indexes on the cp-supersede axis support consistent-view queries (which
+-- are pinned to a `checkpoint_viewed_at`).
 CREATE INDEX objects_backward_history_owner
     ON objects_backward_history (superseded_at_checkpoint, owner_type, owner_id)
     WHERE owner_type >= 1 AND owner_type <= 2 AND owner_id IS NOT NULL;
@@ -43,6 +51,30 @@ CREATE INDEX objects_backward_history_coin_only
 
 CREATE INDEX objects_backward_history_coin_owner
     ON objects_backward_history (superseded_at_checkpoint, owner_id, coin_type, object_id)
+    WHERE coin_type IS NOT NULL AND owner_type = 1;
+
+-- Mirror of the above set on the tx-supersede axis. Used by version-pinned
+-- dynamic-field queries (and any future consistent-view-on-tx_seq queries),
+-- which scan with `superseded_at_tx_sequence_number > :tx_n` predicates.
+CREATE INDEX objects_backward_history_tx_owner
+    ON objects_backward_history (superseded_at_tx_sequence_number, owner_type, owner_id)
+    WHERE owner_type >= 1 AND owner_type <= 2 AND owner_id IS NOT NULL;
+
+CREATE INDEX objects_backward_history_tx_owner_package_module_name_full_type
+    ON objects_backward_history (superseded_at_tx_sequence_number, owner_id, object_type_package, object_type_module, object_type_name, object_type);
+
+CREATE INDEX objects_backward_history_tx_package_module_name_full_type
+    ON objects_backward_history (superseded_at_tx_sequence_number, object_type_package, object_type_module, object_type_name, object_type);
+
+CREATE INDEX objects_backward_history_tx_type
+    ON objects_backward_history (superseded_at_tx_sequence_number, object_type);
+
+CREATE INDEX objects_backward_history_tx_coin_only
+    ON objects_backward_history (superseded_at_tx_sequence_number, coin_type, object_id)
+    WHERE coin_type IS NOT NULL;
+
+CREATE INDEX objects_backward_history_tx_coin_owner
+    ON objects_backward_history (superseded_at_tx_sequence_number, owner_id, coin_type, object_id)
     WHERE coin_type IS NOT NULL AND owner_type = 1;
 
 CREATE STATISTICS objects_backward_history_type_stats (dependencies, mcv)

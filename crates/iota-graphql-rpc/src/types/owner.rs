@@ -264,7 +264,10 @@ impl Owner {
             ctx,
             self.address,
             if let Some(parent_version) = self.root_version {
-                Object::under_parent(parent_version, self.checkpoint_viewed_at)
+                // Owner has no `root_version_tx_seq` anchor; if the resulting object
+                // is then traversed for dynamic fields, `DynamicField::paginate`
+                // will lazy-resolve from `parent_version`.
+                Object::under_parent(parent_version, None, self.checkpoint_viewed_at)
             } else {
                 Object::latest_at(self.checkpoint_viewed_at)
             },
@@ -285,7 +288,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_field(ctx, name, self.root_version)
+            .dynamic_field(ctx, name, self.root_version, None)
             .await
     }
 
@@ -303,7 +306,7 @@ impl Owner {
         name: DynamicFieldName,
     ) -> Result<Option<DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_object_field(ctx, name, self.root_version)
+            .dynamic_object_field(ctx, name, self.root_version, None)
             .await
     }
 
@@ -320,7 +323,7 @@ impl Owner {
         before: Option<object::Cursor>,
     ) -> Result<Connection<String, DynamicField>> {
         OwnerImpl::from(self)
-            .dynamic_fields(ctx, first, after, last, before, self.root_version)
+            .dynamic_fields(ctx, first, after, last, before, self.root_version, None)
             .await
     }
 }
@@ -476,12 +479,14 @@ impl OwnerImpl {
         ctx: &Context<'_>,
         name: DynamicFieldName,
         parent_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
             ctx,
             self.address,
             parent_version,
+            root_version_tx_seq,
             name,
             T::DynamicField,
             self.checkpoint_viewed_at,
@@ -495,12 +500,14 @@ impl OwnerImpl {
         ctx: &Context<'_>,
         name: DynamicFieldName,
         parent_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
     ) -> Result<Option<DynamicField>> {
         use DynamicFieldType as T;
         DynamicField::query(
             ctx,
             self.address,
             parent_version,
+            root_version_tx_seq,
             name,
             T::DynamicObject,
             self.checkpoint_viewed_at,
@@ -517,6 +524,7 @@ impl OwnerImpl {
         last: Option<u64>,
         before: Option<object::Cursor>,
         parent_version: Option<u64>,
+        root_version_tx_seq: Option<u64>,
     ) -> Result<Connection<String, DynamicField>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         DynamicField::paginate(
@@ -524,6 +532,7 @@ impl OwnerImpl {
             page,
             self.address,
             parent_version,
+            root_version_tx_seq,
             self.checkpoint_viewed_at,
         )
         .await

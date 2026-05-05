@@ -645,7 +645,28 @@ impl PrimaryWorker {
         let checkpoint_seq = data.checkpoint_summary.sequence_number as i64;
         let mut result = Vec::new();
 
+        // Pair each transaction with its global tx_sequence_number so the
+        // resulting backward-history rows can be ordered at tx granularity
+        // (finer than `superseded_at_checkpoint`). Mirrors the iteration
+        // pattern in `index_transaction_components`.
+        let mut tx_seq_num_iter = data
+            .checkpoint_contents
+            .enumerate_transactions(&data.checkpoint_summary)
+            .map(|(seq, execution_digest)| (execution_digest.transaction, seq));
+
         for tx in &data.transactions {
+            let (tx_digest, tx_sequence_number) = tx_seq_num_iter.next().ok_or_else(|| {
+                IndexerError::FullNodeReading(format!(
+                    "checkpointContents shorter than transactions for checkpoint {checkpoint_seq}"
+                ))
+            })?;
+            let actual_tx_digest = tx.transaction.digest();
+            if tx_digest != *actual_tx_digest {
+                return Err(IndexerError::FullNodeReading(format!(
+                    "transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, mismatch at {tx_digest} v.s. {actual_tx_digest}",
+                )));
+            }
+            let tx_seq = tx_sequence_number as i64;
             let effects = &tx.effects;
 
             // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
@@ -671,19 +692,24 @@ impl PrimaryWorker {
                         input_obj.clone(),
                         df_kind,
                     );
-                    result.push(StoredBackwardHistoryObject::try_from(indexed).expect(
-                        "backward history conversion should not fail for active input objects",
-                    ));
+                    result.push(
+                        StoredBackwardHistoryObject::from_active(indexed, checkpoint_seq, tx_seq)
+                            .expect("backward history conversion should not fail for active input objects"),
+                    );
                 }
             }
 
-            // 2. Created objects did not exist before this transaction.
+            // 2. Created objects did not exist before this transaction. The NotYetCreated
+            //    row's `object_version` is anchored at `lamport - 1` so that under
+            //    delete-recreate with the same id the recreate's NotYetCreated sits
+            //    strictly above every prior Active version.
             for (r, _) in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
-                    -1,
+                    r.version.as_u64() as i64 - 1,
                     BackwardHistoryObjectStatus::NotYetCreated,
                     checkpoint_seq,
+                    tx_seq,
                 ));
             }
 
@@ -697,6 +723,7 @@ impl PrimaryWorker {
                     r.version.as_u64() as i64 - 1,
                     BackwardHistoryObjectStatus::WrappedOrDeleted,
                     checkpoint_seq,
+                    tx_seq,
                 ));
             }
         }

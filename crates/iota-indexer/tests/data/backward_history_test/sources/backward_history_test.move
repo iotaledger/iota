@@ -61,4 +61,41 @@ module backward_history_test::backward_history_test {
         let Item { id: item_id, value: _ } = item;
         object::delete(item_id);
     }
+
+    // ---------------------------------------------------------------
+    // Dynamic object field lifecycle: add, remove, re-add
+    // ---------------------------------------------------------------
+    //
+    // Used to exercise the case where a DOF Field-object id (derived from
+    // (parent, name, type)) is created, deleted, and re-created with the same
+    // id within the visible history window.
+
+    /// A parent object that can have dynamic object fields attached.
+    public struct Parent has key, store {
+        id: UID,
+    }
+
+    /// A child object that can be stored as a dynamic object field value.
+    public struct Child has key, store {
+        id: UID,
+        value: u64,
+    }
+
+    public entry fun create_parent(ctx: &mut TxContext) {
+        iota::transfer::public_transfer(
+            Parent { id: object::new(ctx) },
+            tx_context::sender(ctx),
+        );
+    }
+
+    public entry fun add_dof(parent: &mut Parent, name: u64, value: u64, ctx: &mut TxContext) {
+        let child = Child { id: object::new(ctx), value };
+        iota::dynamic_object_field::add(&mut parent.id, name, child);
+    }
+
+    public entry fun remove_dof(parent: &mut Parent, name: u64) {
+        let child: Child = iota::dynamic_object_field::remove(&mut parent.id, name);
+        let Child { id, value: _ } = child;
+        object::delete(id);
+    }
 }

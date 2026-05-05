@@ -797,7 +797,7 @@ task 34, line 448:
 //# create-checkpoint
 Checkpoint created: 8
 
-task 35, lines 450-508:
+task 35, lines 450-513:
 //# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 Response: {
   "data": {
@@ -809,9 +809,56 @@ Response: {
         "sequenceNumber": 8
       }
     },
-    "parent_version_4_outside_consistent_range": {
+    "parent_version_4_paginated_after_dof_returns_empty": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "parent_version_4_show_dof_and_dfs_via_backward_history": {
       "dynamicFields": {
         "edges": [
+          {
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          },
+          {
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlCAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df1"
+              }
+            }
+          },
           {
             "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
             "node": {
@@ -834,7 +881,6 @@ Response: {
         ]
       }
     },
-    "parent_version_4_paginated_outside_consistent_range": null,
     "parent_version_6_no_df_1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -907,28 +953,10 @@ Response: {
         "edges": []
       }
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 42,
-          "column": 5
-        }
-      ],
-      "path": [
-        "parent_version_4_paginated_outside_consistent_range",
-        "dynamicFields"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }
 
-task 36, lines 510-541:
+task 36, lines 515-546:
 //# run-graphql
 Response: {
   "data": {

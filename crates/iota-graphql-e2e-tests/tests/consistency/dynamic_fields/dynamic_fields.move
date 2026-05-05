@@ -485,12 +485,17 @@ fragment DynamicFieldsSelect on DynamicFieldConnection {
       sequenceNumber
     }
   }
-  parent_version_4_outside_consistent_range: object(address: "@{obj_2_1}", version: 4) {
+  # Backward-diff retention covers checkpoints far enough back that this
+  # parent_version is still in range — the query returns the four DFs that
+  # were on the parent at v=4 (DOF u64=420 plus df1/df2/df3).
+  parent_version_4_show_dof_and_dfs_via_backward_history: object(address: "@{obj_2_1}", version: 4) {
     dynamicFields {
       ...DynamicFieldsSelect
     }
   }
-  parent_version_4_paginated_outside_consistent_range: object(address: "@{obj_2_1}", version: 4) {
+  # Cursor anchors past the DOF (the smallest object_id in the v=4 result
+  # set under DESC ordering); paginating *after* it returns nothing.
+  parent_version_4_paginated_after_dof_returns_empty: object(address: "@{obj_2_1}", version: 4) {
     dynamicFields(after: "@{cursor_0}") {
       ...DynamicFieldsSelect
     }

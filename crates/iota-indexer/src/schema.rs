@@ -264,6 +264,7 @@ diesel::table! {
         object_status -> Int2,
         object_digest -> Nullable<Bytea>,
         superseded_at_checkpoint -> Int8,
+        superseded_at_tx_sequence_number -> Int8,
         owner_type -> Nullable<Int2>,
         owner_id -> Nullable<Bytea>,
         object_type -> Nullable<Text>,
