@@ -2281,7 +2281,10 @@ scheme
 raw_bytes
 	public fun
 	0x2::public_key
-validate_length
+validate_public_key
+	fun
+	0x2::public_key
+validate_multisig_public_key
 	fun
 	0x2::public_key
 PublicKeyFieldName
