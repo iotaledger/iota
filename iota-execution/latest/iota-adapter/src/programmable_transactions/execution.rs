@@ -331,8 +331,8 @@ mod checked {
             Command::MoveCall(cmd) => {
                 let arguments = context.splat_args(0, cmd.arguments)?;
 
-                let module = validate_identifier(context, cmd.module.as_str())?;
-                let function = validate_identifier(context, cmd.function.as_str())?;
+                let module = validate_identifier(context, cmd.module.to_string())?;
+                let function = validate_identifier(context, cmd.function.to_string())?;
 
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(cmd.type_arguments.len());
@@ -343,7 +343,7 @@ mod checked {
                     loaded_type_arguments.push(ty);
                 }
 
-                let original_address = context.set_link_context(package)?;
+                let original_address = context.set_link_context(cmd.package)?;
                 let storage_id = ModuleId::new(
                     AccountAddress::new(cmd.package.into_bytes()),
                     module.clone(),
