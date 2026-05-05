@@ -161,6 +161,7 @@ use crate::{
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
@@ -809,6 +810,7 @@ pub struct AuthorityState {
     pub metrics: Arc<AuthorityMetrics>,
     _pruner: AuthorityStorePruner,
     _authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
     /// Take db checkpoints of different dbs
     db_checkpoint_config: DBCheckpointConfig,
@@ -3035,6 +3037,7 @@ impl AuthorityState {
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3066,6 +3069,7 @@ impl AuthorityState {
             prometheus_registry,
             archive_readers,
             pruner_db,
+            checkpoint_progress_tracker.clone(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3088,6 +3092,7 @@ impl AuthorityState {
             metrics,
             _pruner,
             _authority_per_epoch_pruner,
+            checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
             config,
             overload_info: AuthorityOverloadInfo::default(),
@@ -3180,6 +3185,7 @@ impl AuthorityState {
             metrics,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
+            self.checkpoint_progress_tracker.as_ref(),
         )
         .await
     }

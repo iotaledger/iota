@@ -46,6 +46,7 @@ use iota_core::{
     },
     authority_client::NetworkAuthorityClient,
     authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
         SubmitCheckpointToConsensus,
@@ -233,6 +234,8 @@ pub struct IotaNode {
 
     backpressure_manager: Arc<BackpressureManager>,
 
+    checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
+
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
 
     #[cfg(msim)]
@@ -385,6 +388,7 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
+        let perpetual_tables_for_progress = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -570,12 +574,15 @@ impl IotaNode {
         let state_snapshot_handle =
             Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
 
+        let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
+
         // Start uploading db checkpoints to remote store
         info!("start db checkpoint");
         let (db_checkpoint_config, db_checkpoint_handle) = Self::start_db_checkpoint(
             &config,
             &prometheus_registry,
             state_snapshot_handle.is_some(),
+            Some(checkpoint_progress_tracker.clone()),
         )?;
 
         let mut genesis_objects = genesis.objects().to_vec();
@@ -613,6 +620,7 @@ impl IotaNode {
             validator_tx_finalizer,
             chain_identifier,
             pruner_db,
+            Some(checkpoint_progress_tracker.clone()),
         )
         .await;
 
@@ -789,6 +797,7 @@ impl IotaNode {
             connection_monitor_status,
             trusted_peer_change_tx,
             backpressure_manager,
+            checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
             _db_checkpoint_handle: db_checkpoint_handle,
 
@@ -813,6 +822,9 @@ impl IotaNode {
                 warn!("Reconfiguration finished with error {:?}", error);
             }
         });
+
+        node.checkpoint_progress_tracker
+            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
 
         Ok(node)
     }
@@ -920,6 +932,7 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         state_snapshot_enabled: bool,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<(
         DBCheckpointConfig,
         Option<tokio::sync::broadcast::Sender<()>>,
@@ -967,6 +980,7 @@ impl IotaNode {
                     config.authority_store_pruning_config.clone(),
                     prometheus_registry,
                     state_snapshot_enabled,
+                    checkpoint_progress_tracker,
                 )?;
                 Ok((
                     db_checkpoint_config,
@@ -1626,6 +1640,7 @@ impl IotaNode {
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
                 data_sender,
+                Some(self.checkpoint_progress_tracker.clone()),
             );
 
             let run_with_range = self.config.run_with_range;

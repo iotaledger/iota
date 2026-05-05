@@ -47,6 +47,7 @@ use crate::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
         backpressure::BackpressureManager,
     },
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     global_state_hasher::GlobalStateHasher,
@@ -65,8 +66,6 @@ use metrics::CheckpointExecutorMetrics;
 use utils::*;
 
 type CheckpointDataSender = Box<dyn Fn(&CheckpointData) + Send + Sync>;
-
-const CHECKPOINT_PROGRESS_LOG_COUNT_INTERVAL: u64 = 5000;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum StopReason {
@@ -132,6 +131,7 @@ pub struct CheckpointExecutor {
     config: CheckpointExecutorConfig,
     metrics: Arc<CheckpointExecutorMetrics>,
     tps_estimator: Mutex<TPSEstimator>,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     data_sender: Option<CheckpointDataSender>,
 }
 
@@ -145,6 +145,7 @@ impl CheckpointExecutor {
         config: CheckpointExecutorConfig,
         metrics: Arc<CheckpointExecutorMetrics>,
         data_sender: Option<CheckpointDataSender>,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
         Self {
             epoch_store,
@@ -158,6 +159,7 @@ impl CheckpointExecutor {
             config,
             metrics,
             tps_estimator: Mutex::new(TPSEstimator::default()),
+            checkpoint_progress_tracker,
             data_sender,
         }
     }
@@ -177,6 +179,7 @@ impl CheckpointExecutor {
             Default::default(),
             CheckpointExecutorMetrics::new_for_tests(),
             None, // No callback for data
+            None, // No progress tracker for tests
         )
     }
 
@@ -287,13 +290,13 @@ impl CheckpointExecutor {
 impl CheckpointExecutor {
     /// Load all data for a checkpoint, ensure all transactions are executed,
     /// and check for forks.
-    #[instrument(level = "info", skip_all, fields(seq = ?checkpoint.sequence_number()))]
+    #[instrument(level = "debug", skip_all, fields(seq = ?checkpoint.sequence_number()))]
     async fn execute_checkpoint(
         self: Arc<Self>,
         checkpoint: VerifiedCheckpoint,
         mut pipeline_handle: PipelineHandle,
     ) -> bool /* is final checkpoint */ {
-        info!("executing checkpoint");
+        debug!("executing checkpoint");
         let sequence_number = checkpoint.sequence_number;
 
         checkpoint.report_checkpoint_age(&self.metrics.checkpoint_contents_age);
@@ -317,6 +320,7 @@ impl CheckpointExecutor {
 
         // Note: only `execute_transactions_from_synced_checkpoint` has end-of-epoch
         // logic.
+        let exec_start = Instant::now();
         let ckpt_state = if self.state.is_fullnode(&self.epoch_store)
             || checkpoint.is_last_checkpoint_of_epoch()
         {
@@ -448,6 +452,10 @@ impl CheckpointExecutor {
         self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
 
         finish_stage!(pipeline_handle, BumpHighestExecutedCheckpoint);
+
+        if let Some(tracker) = &self.checkpoint_progress_tracker {
+            tracker.add_execution_time(exec_start.elapsed());
+        }
 
         // Important: code after the last pipeline stage is finished can run out of
         // checkpoint order.
@@ -908,10 +916,6 @@ impl CheckpointExecutor {
         } else {
             assert_eq!(seq, 0);
         }
-        if seq.is_multiple_of(CHECKPOINT_PROGRESS_LOG_COUNT_INTERVAL) {
-            info!("Finished syncing and executing checkpoint {}", seq);
-        }
-
         fail_point!("highest-executed-checkpoint");
 
         // We store a fixed number of additional FullCheckpointContents after execution
