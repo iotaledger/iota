@@ -610,12 +610,10 @@ fn view_signature(
     view_visibility(context, view_loc, name, visibility);
 
     let FunctionSignature {
-        type_parameters,
+        type_parameters: _,
         parameters,
         return_type,
     } = signature;
-
-    view_type_parameters(context, view_loc, name, type_parameters);
 
     for (mutability, param, param_ty) in parameters {
         view_param_ty(context, view_loc, name, mutability, param, param_ty);
@@ -647,34 +645,6 @@ fn view_visibility(
             (vloc, "View functions must be declared as 'public'"),
         ));
     }
-}
-
-fn view_type_parameters(
-    context: &mut Context,
-    view_loc: Loc,
-    name: FunctionName,
-    type_parameters: &[N::TParam],
-) {
-    for type_parameter in type_parameters {
-        if is_valid_view_type_parameter(type_parameter) {
-            continue;
-        }
-
-        let msg = format!("Invalid type parameter for view function '{}'", name);
-        context.add_diag(diag!(
-            VIEW_FUN_SIGNATURE_DIAG,
-            (view_loc, msg),
-            (
-                type_parameter.user_specified_name.loc,
-                "View function type parameters must have the 'copy' or 'drop' ability",
-            ),
-        ));
-    }
-}
-
-fn is_valid_view_type_parameter(type_parameter: &N::TParam) -> bool {
-    type_parameter.abilities.has_ability_(Ability_::Copy)
-        || type_parameter.abilities.has_ability_(Ability_::Drop)
 }
 
 fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, return_type: &Type) {
@@ -710,20 +680,10 @@ fn view_param_ty(
     context: &mut Context,
     view_loc: Loc,
     name: FunctionName,
-    mutability: &Mutability,
+    _mutability: &Mutability,
     param: &Var,
     param_ty: &Type,
 ) {
-    if matches!(mutability, Mutability::Mut(_)) {
-        let msg = format!("Invalid parameter type for view function '{}'", name);
-        let param_msg = format!("Invalid view parameter '{}'", param.value.name);
-        context.add_diag(diag!(
-            VIEW_FUN_SIGNATURE_DIAG,
-            (view_loc, msg),
-            (param_ty.loc, "View functions cannot accept mutable types",),
-            (param.loc, &param_msg)
-        ));
-    }
     match &param_ty.value {
         _ if contains_mutable_reference_ty(param_ty) => {
             let msg = format!("Invalid parameter type for view function '{}'", name);
@@ -770,8 +730,10 @@ fn contains_view_unsafe_by_value_ty(param_ty: &Type) -> bool {
     match &param_ty.value {
         // References are not by-value. Mutable references are rejected separately.
         Type_::Ref(_, _) => false,
-        // Function type parameters are checked independently so that diagnostics are not duplicated.
-        Type_::Param(_) => false,
+        Type_::Param(type_parameter) => {
+            !(type_parameter.abilities.has_ability_(Ability_::Copy)
+                || type_parameter.abilities.has_ability_(Ability_::Drop))
+        }
         Type_::Apply(Some(abilities), sp!(_, TypeName_::ModuleType(_, _)), targs) => {
             abilities.has_ability_(Ability_::Key)
                 || !(abilities.has_ability_(Ability_::Copy)
