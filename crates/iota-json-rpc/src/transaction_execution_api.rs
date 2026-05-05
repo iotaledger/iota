@@ -227,7 +227,13 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = if opts.show_balance_changes || opts.show_object_changes {
+        // Skip cache (and downstream balance/object_changes) when the validator
+        // returned no input/output objects — e.g. the already-executed early-return.
+        // Without this guard, cache misses fall through to a provider lookup that
+        // races with local state and returns "version higher than latest".
+        let object_cache = if (opts.show_balance_changes || opts.show_object_changes)
+            && (response.input_objects.is_some() || response.output_objects.is_some())
+        {
             let mut object_cache = ObjectProviderCache::new(self.state.clone());
             if let Some(input_objects) = response.input_objects {
                 object_cache.insert_objects_into_cache(input_objects);
