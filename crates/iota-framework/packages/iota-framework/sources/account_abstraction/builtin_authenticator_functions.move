@@ -50,6 +50,14 @@ const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 
 // === Constants ===
 
+const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: vector<u8> = b"builtin_authenticator_functions";
+
+const ED25519_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"ed25519_authenticator_function_ref_v1";
+const SECP256K1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256k1_authenticator_function_ref_v1";
+const SECP256R1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256r1_authenticator_function_ref_v1";
+const MULTISIG_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"multisig_authenticator_function_ref_v1";
+const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_function_ref_v1";
+
 // === Structs ===
 
 /// Dynamic field key, where the system will look for a potential public key.
@@ -62,9 +70,9 @@ public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
     Account,
 > {
     authenticator_function::create_auth_function_ref_v1_inner(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"ed25519_authenticator_function_ref_v1"),
+        @iota,
+        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
+        ascii::string(ED25519_AUTHENTICATOR_FUN_NAME_V1),
     )
 }
 
@@ -73,9 +81,9 @@ public fun secp256k1_authenticator_function_ref_v1<Account: key>(): Authenticato
     Account,
 > {
     authenticator_function::create_auth_function_ref_v1_inner(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"secp256k1_authenticator_function_ref_v1"),
+        @iota,
+        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
+        ascii::string(SECP256K1_AUTHENTICATOR_FUN_NAME_V1),
     )
 }
 
@@ -84,9 +92,9 @@ public fun secp256r1_authenticator_function_ref_v1<Account: key>(): Authenticato
     Account,
 > {
     authenticator_function::create_auth_function_ref_v1_inner(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"secp256r1_authenticator_function_ref_v1"),
+        @iota,
+        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
+        ascii::string(SECP256R1_AUTHENTICATOR_FUN_NAME_V1),
     )
 }
 
@@ -95,9 +103,9 @@ public fun multisig_authenticator_function_ref_v1<Account: key>(): Authenticator
     Account,
 > {
     authenticator_function::create_auth_function_ref_v1_inner(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"multisig_authenticator_function_ref_v1"),
+        @iota,
+        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
+        ascii::string(MULTISIG_AUTHENTICATOR_FUN_NAME_V1),
     )
 }
 
@@ -106,9 +114,9 @@ public fun passkey_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
     Account,
 > {
     authenticator_function::create_auth_function_ref_v1_inner(
-        @0x2,
-        ascii::string(b"builtin_authenticator_functions"),
-        ascii::string(b"passkey_authenticator_function_ref_v1"),
+        @iota,
+        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
+        ascii::string(PASSKEY_AUTHENTICATOR_FUN_NAME_V1),
     )
 }
 
