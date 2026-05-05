@@ -17,11 +17,11 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::crypto::{Intent, UserSignature};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{IotaSignature, PublicKey, Signature, SignatureScheme},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMemberSignature},
+    multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -718,7 +718,7 @@ impl Client {
             .sign_secure(&sender, &data, Intent::iota_transaction())
             .context("Signing transaction")?;
 
-        let member_sig = signature_to_multisig_member(&sponsor_sig)
+        let member_sig = signature_to_user_signature(&sponsor_sig)
             .context("Converting sponsor signature for multisig")?;
 
         let multi_sig: GenericSignature = MultiSig::combine(vec![member_sig], admin_key)
@@ -759,22 +759,33 @@ impl Client {
     }
 }
 
-fn signature_to_multisig_member(sig: &Signature) -> Result<MultisigMemberSignature> {
-    use iota_sdk_types::crypto::{Ed25519Signature, Secp256k1Signature, Secp256r1Signature};
-    let bytes = sig.signature_bytes();
-    Ok(match sig.scheme() {
-        SignatureScheme::ED25519 => MultisigMemberSignature::Ed25519(
-            Ed25519Signature::from_bytes(bytes)
+fn signature_to_user_signature(sig: &Signature) -> Result<UserSignature> {
+    use iota_sdk_types::crypto::{
+        Ed25519PublicKey, Ed25519Signature, PublicKeyExt, Secp256k1PublicKey, Secp256k1Signature,
+        Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
+    };
+    let sig_bytes = sig.signature_bytes();
+    let pk_bytes = sig.public_key_bytes();
+    let simple = match sig.scheme() {
+        SignatureScheme::ED25519 => SimpleSignature::Ed25519 {
+            signature: Ed25519Signature::from_bytes(sig_bytes)
                 .map_err(|e| anyhow!("invalid ed25519 sig bytes: {e}"))?,
-        ),
-        SignatureScheme::Secp256k1 => MultisigMemberSignature::Secp256k1(
-            Secp256k1Signature::from_bytes(bytes)
+            public_key: Ed25519PublicKey::from_bytes(pk_bytes)
+                .map_err(|e| anyhow!("invalid ed25519 pk bytes: {e}"))?,
+        },
+        SignatureScheme::Secp256k1 => SimpleSignature::Secp256k1 {
+            signature: Secp256k1Signature::from_bytes(sig_bytes)
                 .map_err(|e| anyhow!("invalid secp256k1 sig bytes: {e}"))?,
-        ),
-        SignatureScheme::Secp256r1 => MultisigMemberSignature::Secp256r1(
-            Secp256r1Signature::from_bytes(bytes)
+            public_key: Secp256k1PublicKey::from_bytes(pk_bytes)
+                .map_err(|e| anyhow!("invalid secp256k1 pk bytes: {e}"))?,
+        },
+        SignatureScheme::Secp256r1 => SimpleSignature::Secp256r1 {
+            signature: Secp256r1Signature::from_bytes(sig_bytes)
                 .map_err(|e| anyhow!("invalid secp256r1 sig bytes: {e}"))?,
-        ),
+            public_key: Secp256r1PublicKey::from_bytes(pk_bytes)
+                .map_err(|e| anyhow!("invalid secp256r1 pk bytes: {e}"))?,
+        },
         scheme => bail!("Unsupported signature scheme for multisig member: {scheme:?}"),
-    })
+    };
+    Ok(UserSignature::Simple(simple))
 }
