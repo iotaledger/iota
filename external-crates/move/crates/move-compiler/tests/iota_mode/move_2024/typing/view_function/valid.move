@@ -1,6 +1,6 @@
 module a::m {
     use std::ascii::{String, char};
-    
+
     public struct Account has key {
         id: iota::object::UID,
     }
@@ -156,6 +156,27 @@ module a::m {
     public fun receiving_immutable_ref(receiving: &Receiving<GenericObject<Wrapped>>): u64 {
         let _ = receiving;
         0
+    }
+
+    #[view]
+    public fun valid_copy_type_param<T: copy>(value: T): T {
+        value
+    }
+
+    #[view]
+    public fun valid_drop_type_param<T: drop>(value: T): u64 {
+        let _ = value;
+        0
+    }
+
+    #[view]
+    public fun valid_copy_store_type_param<T: copy + store>(value: T): T {
+        value
+    }
+
+    #[view]
+    public fun valid_primitive_tuple_return(a: u64, b: bool): (u64, bool) {
+        (a, b)
     }
 
     #[view]

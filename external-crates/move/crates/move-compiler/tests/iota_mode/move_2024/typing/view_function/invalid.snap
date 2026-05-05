@@ -168,152 +168,214 @@ error[Iota E02011]: invalid 'view' function signature
     ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:130:7
     │
 130 │     #[view]
+    │       ^^^^ Invalid parameter type for view function 'option_vector_object_by_value'
+131 │     public fun option_vector_object_by_value(
+132 │         _value: Option<vector<GenericObject<Wrapped>>>,
+    │         ------  -------------------------------------- View functions cannot accept objects or values that could contain objects by value
+    │         │        
+    │         Invalid view parameter '_value'
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:137:7
+    │
+137 │     #[view]
+    │       ^^^^ Invalid parameter type for view function 'vector_option_object_by_value'
+138 │     public fun vector_option_object_by_value(
+139 │         _value: vector<Option<GenericObject<Wrapped>>>,
+    │         ------  -------------------------------------- View functions cannot accept objects or values that could contain objects by value
+    │         │        
+    │         Invalid view parameter '_value'
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:144:7
+    │
+144 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'option_primitive_mutable_ref'
-131 │     public fun option_primitive_mutable_ref(_value: &mut Option<u64>): u64 {
+145 │     public fun option_primitive_mutable_ref(_value: &mut Option<u64>): u64 {
     │                                             ------  ---------------- View functions cannot accept mutable references
     │                                             │        
     │                                             Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:135:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:149:7
     │
-135 │     #[view]
+149 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'option_non_object_mutable_ref'
-136 │     public fun option_non_object_mutable_ref(_value: &mut Option<NonObject>): u64 {
+150 │     public fun option_non_object_mutable_ref(_value: &mut Option<NonObject>): u64 {
     │                                              ------  ---------------------- View functions cannot accept mutable references
     │                                              │        
     │                                              Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:140:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:154:7
     │
-140 │     #[view]
+154 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'option_object_mutable_ref'
-141 │     public fun option_object_mutable_ref(_value: &mut Option<GenericObject<Wrapped>>): u64 {
+155 │     public fun option_object_mutable_ref(_value: &mut Option<GenericObject<Wrapped>>): u64 {
     │                                          ------  ----------------------------------- View functions cannot accept mutable references
     │                                          │        
     │                                          Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:145:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:159:7
     │
-145 │     #[view]
+159 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'vector_object_by_value'
-146 │     public fun vector_object_by_value(_value: vector<GenericObject<Wrapped>>): u64 {
+160 │     public fun vector_object_by_value(_value: vector<GenericObject<Wrapped>>): u64 {
     │                                       ------  ------------------------------ View functions cannot accept objects or values that could contain objects by value
     │                                       │        
     │                                       Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:150:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:164:7
     │
-150 │     #[view]
+164 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'vector_template_object_by_value'
-151 │     public fun vector_template_object_by_value<T: key + store>(_value: vector<T>): u64 {
+165 │     public fun vector_template_object_by_value<T: key + store>(_value: vector<T>): u64 {
     │                                                                ------  --------- View functions cannot accept objects or values that could contain objects by value
     │                                                                │        
     │                                                                Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:155:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:169:7
     │
-155 │     #[view]
+169 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'vector_primitive_mutable_ref'
-156 │     public fun vector_primitive_mutable_ref(_value: &mut vector<u64>): u64 {
+170 │     public fun vector_primitive_mutable_ref(_value: &mut vector<u64>): u64 {
     │                                             ------  ---------------- View functions cannot accept mutable references
     │                                             │        
     │                                             Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:160:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:174:7
     │
-160 │     #[view]
+174 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'vector_non_object_mutable_ref'
-161 │     public fun vector_non_object_mutable_ref(_value: &mut vector<NonObject>): u64 {
+175 │     public fun vector_non_object_mutable_ref(_value: &mut vector<NonObject>): u64 {
     │                                              ------  ---------------------- View functions cannot accept mutable references
     │                                              │        
     │                                              Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:165:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:179:7
     │
-165 │     #[view]
+179 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'vector_object_mutable_ref'
-166 │     public fun vector_object_mutable_ref(_value: &mut vector<GenericObject<Wrapped>>): u64 {
+180 │     public fun vector_object_mutable_ref(_value: &mut vector<GenericObject<Wrapped>>): u64 {
     │                                          ------  ----------------------------------- View functions cannot accept mutable references
     │                                          │        
     │                                          Invalid view parameter '_value'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:170:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:184:7
     │
-170 │     #[view]
+184 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'receiving_by_value'
-171 │     public fun receiving_by_value(_receiving: Receiving<GenericObject<Wrapped>>): u64 {
+185 │     public fun receiving_by_value(_receiving: Receiving<GenericObject<Wrapped>>): u64 {
     │                                   ----------  --------------------------------- View functions cannot accept objects or values that could contain objects by value
     │                                   │            
     │                                   Invalid view parameter '_receiving'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:175:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:189:7
     │
-175 │     #[view]
+189 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'receiving_mutable_ref'
-176 │     public fun receiving_mutable_ref(_receiving: &mut Receiving<GenericObject<Wrapped>>): u64 {
+190 │     public fun receiving_mutable_ref(_receiving: &mut Receiving<GenericObject<Wrapped>>): u64 {
     │                                      ----------  -------------------------------------- View functions cannot accept mutable references
     │                                      │            
     │                                      Invalid view parameter '_receiving'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:180:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:194:7
     │
-180 │     #[view]
+194 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'tx_context_mutable_ref'
-181 │     public fun tx_context_mutable_ref(_ctx: &mut iota::tx_context::TxContext): u64 {
+195 │     public fun tx_context_mutable_ref(_ctx: &mut iota::tx_context::TxContext): u64 {
     │                                       ----  -------------------------------- View functions cannot accept mutable references
     │                                       │      
     │                                       Invalid view parameter '_ctx'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:185:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:199:7
     │
-185 │     #[view]
+199 │     #[view]
     │       ^^^^ Invalid return type for view function 'returns_object'
-186 │     public fun returns_object(): Object {
+200 │     public fun returns_object(): Object {
     │                                  ------ View functions cannot return objects or values that could contain objects
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:190:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:204:7
     │
-190 │     #[view]
+204 │     #[view]
     │       ^^^^ Invalid return type for view function 'returns_object_vector'
-191 │     public fun returns_object_vector(): vector<GenericObject<Wrapped>> {
+205 │     public fun returns_object_vector(): vector<GenericObject<Wrapped>> {
     │                                         ------------------------------ View functions cannot return objects or values that could contain objects
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:195:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:209:7
     │
-195 │     #[view]
+209 │     #[view]
     │       ^^^^ Invalid return type for view function 'returns_option_object'
-196 │     public fun returns_option_object(): Option<GenericObject<Wrapped>> {
+210 │     public fun returns_option_object(): Option<GenericObject<Wrapped>> {
     │                                         ------------------------------ View functions cannot return objects or values that could contain objects
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:200:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:214:7
     │
-200 │     #[view]
+214 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_store_only'
+215 │     public fun returns_store_only(): StoreOnly {
+    │                                      --------- View functions cannot return objects or values that could contain objects
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:219:7
+    │
+219 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_option_store_only'
+220 │     public fun returns_option_store_only(): Option<StoreOnly> {
+    │                                             ----------------- View functions cannot return objects or values that could contain objects
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:224:7
+    │
+224 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_key_store_type_param'
+225 │     public fun returns_key_store_type_param<T: key + store>(): T {
+    │                                                                - View functions cannot return objects or values that could contain objects
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:229:7
+    │
+229 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_store_only_type_param'
+230 │     public fun returns_store_only_type_param<T: store>(): T {
+    │                                                           - View functions cannot return objects or values that could contain objects
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:234:7
+    │
+234 │     #[view]
+    │       ^^^^ Invalid return type for view function 'returns_tuple_with_object'
+235 │     public fun returns_tuple_with_object(): (u64, GenericObject<Wrapped>) {
+    │                                             ----------------------------- View functions cannot return objects or values that could contain objects
+
+error[Iota E02011]: invalid 'view' function signature
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:239:7
+    │
+239 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'store_only_type_param'
-201 │     public native fun store_only_type_param<T: store>(x: T): u64;
+240 │     public native fun store_only_type_param<T: store>(x: T): u64;
     │                                                       -  - View functions cannot accept objects or values that could contain objects by value
     │                                                       │   
     │                                                       Invalid view parameter 'x'
 
 error[Iota E02011]: invalid 'view' function signature
-    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:203:7
+    ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:242:7
     │
-203 │     #[view]
+242 │     #[view]
     │       ^^^^ Invalid parameter type for view function 'native_mut_ref'
-204 │     public native fun native_mut_ref(x: &mut u64): u64;
+243 │     public native fun native_mut_ref(x: &mut u64): u64;
     │                                      -  -------- View functions cannot accept mutable references
     │                                      │   
     │                                      Invalid view parameter 'x'

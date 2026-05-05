@@ -128,6 +128,20 @@ module a::m {
     }
 
     #[view]
+    public fun option_vector_object_by_value(
+        _value: Option<vector<GenericObject<Wrapped>>>,
+    ): u64 {
+        abort 0
+    }
+
+    #[view]
+    public fun vector_option_object_by_value(
+        _value: vector<Option<GenericObject<Wrapped>>>,
+    ): u64 {
+        abort 0
+    }
+
+    #[view]
     public fun option_primitive_mutable_ref(_value: &mut Option<u64>): u64 {
         abort 0
     }
@@ -194,6 +208,31 @@ module a::m {
 
     #[view]
     public fun returns_option_object(): Option<GenericObject<Wrapped>> {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_store_only(): StoreOnly {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_option_store_only(): Option<StoreOnly> {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_key_store_type_param<T: key + store>(): T {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_store_only_type_param<T: store>(): T {
+        abort 0
+    }
+
+    #[view]
+    public fun returns_tuple_with_object(): (u64, GenericObject<Wrapped>) {
         abort 0
     }
 
