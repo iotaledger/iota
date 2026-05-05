@@ -152,8 +152,6 @@ iota-source-validation-service:
   - "crates/iota-source-validation-service/**"
 iota-storage:
   - "crates/iota-storage/**"
-iota-surfer:
-  - "crates/iota-surfer/**"
 iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:

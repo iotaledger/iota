@@ -7707,34 +7707,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-surfer"
-version = "1.24.0-alpha"
-dependencies = [
- "bcs",
- "clap",
- "futures",
- "indexmap 2.11.0",
- "iota-core",
- "iota-json-rpc-types",
- "iota-macros",
- "iota-metrics",
- "iota-move-build",
- "iota-protocol-config",
- "iota-simulator",
- "iota-swarm-config",
- "iota-types",
- "move-binary-format",
- "move-core-types",
- "move-package",
- "prometheus",
- "rand 0.8.6",
- "telemetry-subscribers",
- "test-cluster",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-swarm"
 version = "1.24.0-alpha"
 dependencies = [

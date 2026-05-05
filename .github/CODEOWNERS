@@ -74,7 +74,6 @@
 /crates/iota-source-validation-service/ @iotaledger/vm-language
 /crates/iota-stardust-types/ @iotaledger/dev-tools
 /crates/iota-storage/ @iotaledger/node
-/crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
 /crates/iota-synthetic-ingestion/ @iotaledger/infrastructure
