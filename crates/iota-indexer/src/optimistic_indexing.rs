@@ -142,7 +142,7 @@ impl OptimisticTransactionExecutor {
     /// Returns `Some` with the indexed transaction on success, or `None` if
     /// optimistic indexing was skipped — the checkpoint indexing path
     /// should be relied upon in that case.
-    pub(crate) async fn maybe_index_executed_transaction(
+    pub async fn maybe_index_executed_transaction(
         &self,
         transaction: Transaction,
         executed_transaction: ExecutedTransaction,
@@ -205,6 +205,41 @@ impl OptimisticTransactionExecutor {
         Ok(optimistic_tx)
     }
 
+    pub async fn execute_transaction(
+        &self,
+        signed_transaction: Transaction,
+    ) -> Result<ExecutedTransaction, IndexerError> {
+        let node_timer = self
+            .metrics
+            .optimistic_tx_node_response_wait_time
+            .start_timer();
+
+        let readmask = FieldMask::from_paths(EXECUTE_TRANSACTION_READ_MASK)
+            .display()
+            .to_string();
+
+        let response = self
+            .rpc_client
+            .execute_transaction(
+                signed_transaction.try_into()?,
+                Some(readmask.as_str()),
+                None,
+            )
+            .await;
+
+        match response {
+            Ok(response) => {
+                node_timer.stop_and_record();
+                Ok(response.into_inner())
+            }
+            Err(e) => {
+                node_timer.stop_and_discard();
+                self.metrics.optimistic_tx_failed_node_requests_count.inc();
+                return Err(IndexerError::from(e));
+            }
+        }
+    }
+
     pub async fn execute_and_index_transaction(
         &self,
         tx_bytes: Base64,
@@ -224,35 +259,7 @@ impl OptimisticTransactionExecutor {
 
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
 
-        let node_timer = self
-            .metrics
-            .optimistic_tx_node_response_wait_time
-            .start_timer();
-
-        let readmask = FieldMask::from_paths(EXECUTE_TRANSACTION_READ_MASK)
-            .display()
-            .to_string();
-
-        let response = self
-            .rpc_client
-            .execute_transaction(
-                transaction.clone().try_into()?,
-                Some(readmask.as_str()),
-                None,
-            )
-            .await;
-
-        let executed_transaction = match response {
-            Ok(response) => {
-                node_timer.stop_and_record();
-                response.into_inner()
-            }
-            Err(e) => {
-                node_timer.stop_and_discard();
-                self.metrics.optimistic_tx_failed_node_requests_count.inc();
-                return Err(IndexerError::from(e));
-            }
-        };
+        let executed_transaction = self.execute_transaction(transaction.clone()).await?;
 
         let tx_digest = *TransactionEffects::try_from(executed_transaction.effects()?.effects()?)?
             .transaction_digest();
