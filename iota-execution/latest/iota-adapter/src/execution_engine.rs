@@ -2054,10 +2054,20 @@ mod checked {
         authenticator: &MoveAuthenticator,
         builtin_authenticator_data: PreloadedBuiltinAuthenticatorData,
         tx_data_bytes: &[u8],
-        _gas_charger: &GasCharger,
+        gas_charger: &mut GasCharger,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        // TODO: gas charging for built-in authentication.
+        if !protocol_config.enable_builtin_move_authentications() {
+            return Err(ExecutionError::from_kind(
+                ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
+                    reason: "Built-in Move authenticators are not enabled on this network"
+                        .to_string(),
+                },
+            ));
+        }
+
+        let cost = protocol_config.builtin_move_authenticator_cost_base();
+        gas_charger.charge_fixed_cost(cost)?;
 
         builtin_authenticator_functions::verify_builtin_signature(
             protocol_config,

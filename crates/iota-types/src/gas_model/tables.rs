@@ -303,6 +303,11 @@ impl GasStatus {
         self.deduct_gas(InternalGas::new(amount))
     }
 
+    /// Charge a flat computation cost in gas units.
+    pub fn charge_fixed_cost(&mut self, cost: u64) -> PartialVMResult<()> {
+        self.deduct_units(cost)
+    }
+
     pub fn set_metering(&mut self, enabled: bool) {
         self.charge = enabled
     }
