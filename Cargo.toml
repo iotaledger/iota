@@ -305,7 +305,7 @@ integer-encoding = "3.0.1"
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
-lru = "0.18"
+lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
 more-asserts = "0.3.1"
