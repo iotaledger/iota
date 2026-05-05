@@ -3004,6 +3004,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
     }
 
+    pub fn set_enable_builtin_move_authentications_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authentications = val;
+    }
+
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
     }

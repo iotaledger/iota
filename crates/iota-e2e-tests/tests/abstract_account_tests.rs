@@ -2099,6 +2099,74 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     Ok(())
 }
 
+/// Test that the built-in Ed25519 authenticator is rejected when
+/// `enable_builtin_move_authentications` is disabled in the protocol config.
+#[sim_test]
+async fn test_builtin_ed25519_authenticator_disabled_in_protocol_config()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_builtin_move_authentications_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let owner = test_env.owner.unwrap();
+    let kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let pk = kp.public();
+
+    test_env
+        .setup_builtin_account(
+            pk.scheme(),
+            pk.as_ref().to_vec(),
+            AA_BUILTIN_ED25519_CREATE_FN,
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure when built-in authenticators are \
+             disabled, got: {err:?}"
+        );
+    };
+    assert!(
+        error.contains("BuiltinAuthenticatorVerificationError"),
+        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
+    );
+    assert!(
+        error.contains("Built-in Move authenticators are not enabled on this network"),
+        "Expected 'Built-in Move authenticators are not enabled on this network' in error, \
+         got: {error}"
+    );
+    Ok(())
+}
+
 // ---------------------------------------------------
 // --- Test Environment for Abstract Account tests ---
 // ---------------------------------------------------
