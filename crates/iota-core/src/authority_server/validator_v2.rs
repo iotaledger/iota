@@ -161,7 +161,7 @@ impl ValidatorService {
             consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            epoch_store.protocol_config().enable_white_flag_flow(),
+            true, // white_flag_flow_enabled
         ) {
             metrics
                 .num_rejected_tx_during_overload
