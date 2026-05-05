@@ -101,9 +101,8 @@ impl Debug for ConsensusTransactionKey {
             Self::OverloadNotificationV1(name, percentage) => {
                 write!(
                     f,
-                    "OverloadNotificationV1({:?}, {:?})",
-                    name.concise(),
-                    percentage
+                    "OverloadNotificationV1({:?}, {percentage:?})",
+                    name.concise()
                 )
             }
         }
