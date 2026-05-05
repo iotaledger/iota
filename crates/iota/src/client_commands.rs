@@ -3343,6 +3343,11 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
+    ensure!(
+        gas_sponsor.is_some()
+            || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
+        "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor."
+    );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
     } else {
@@ -3753,7 +3758,7 @@ pub(crate) async fn build_auth_args_for_signing(
     address: IotaAddress,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
-) -> Result<Option<(Vec<CallArg>, Vec<TypeInput>)>, anyhow::Error> {
+) -> Result<Option<(Vec<CallArg>, Vec<TypeTag>)>, anyhow::Error> {
     if auth_call_args.is_none() && auth_type_args.is_none() {
         return Ok(None);
     }
@@ -3769,10 +3774,7 @@ pub(crate) async fn build_auth_args_for_signing(
         json_args,
     )
     .await?;
-    Ok(Some((
-        call_args,
-        type_args.into_iter().map(TypeInput::from).collect(),
-    )))
+    Ok(Some((call_args, type_args)))
 }
 
 /// Resolves authentication call arguments, removing the signer arg added by
