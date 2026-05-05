@@ -125,6 +125,22 @@ pub enum ObjectType {
     Struct(MoveObjectType),
 }
 
+const PACKAGE: &str = "package";
+
+impl ObjectType {
+    pub fn is_gas_coin(&self) -> bool {
+        matches!(self, ObjectType::Struct(s) if s.is_gas_coin())
+    }
+
+    pub fn is_coin(&self) -> bool {
+        matches!(self, ObjectType::Struct(s) if s.is_coin())
+    }
+
+    pub fn is_package(&self) -> bool {
+        matches!(self, ObjectType::Package)
+    }
+}
+
 impl From<&Object> for ObjectType {
     fn from(o: &Object) -> Self {
         o.data
@@ -189,20 +205,6 @@ impl ObjectInfo {
             owner: object.owner,
             previous_transaction: object.previous_transaction,
         }
-    }
-}
-const PACKAGE: &str = "package";
-impl ObjectType {
-    pub fn is_gas_coin(&self) -> bool {
-        matches!(self, ObjectType::Struct(s) if s.is_gas_coin())
-    }
-
-    pub fn is_coin(&self) -> bool {
-        matches!(self, ObjectType::Struct(s) if s.is_coin())
-    }
-
-    pub fn is_package(&self) -> bool {
-        matches!(self, ObjectType::Package)
     }
 }
 
