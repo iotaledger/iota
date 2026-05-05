@@ -199,7 +199,7 @@ impl MoveObject {
     }
 
     pub fn is_clock(&self) -> bool {
-        self.type_ == StructTag::new_clock()
+        self.type_.is_clock()
     }
 
     pub fn version(&self) -> SequenceNumber {
