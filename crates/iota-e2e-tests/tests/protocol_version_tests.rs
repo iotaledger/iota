@@ -420,7 +420,7 @@ mod sim_only_tests {
             .created()
             .iter()
             .find_map(|(obj, owner)| {
-                if let Owner::Shared { .. } = owner {
+                if let Owner::Shared(_) = owner {
                     let is_framework_obj = [
                         ObjectID::SYSTEM_STATE,
                         ObjectID::CLOCK,

@@ -111,7 +111,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         self.changed_objects
             .iter()
             .filter_map(|(id, change)| match &change.input_state {
-                ObjectIn::Exist(((version, digest), Owner::Shared { .. })) => Some(
+                ObjectIn::Exist(((version, digest), Owner::Shared(_))) => Some(
                     InputSharedObject::Mutate(ObjectRef::new(*id, *version, *digest)),
                 ),
                 _ => None,

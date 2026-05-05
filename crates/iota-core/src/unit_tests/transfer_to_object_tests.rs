@@ -414,7 +414,7 @@ async fn test_tto_invalid_receiving_arguments() {
         let shared = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Shared { .. }))
+            .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
             .unwrap();
         let immutable = *effects
             .created()
@@ -1654,7 +1654,7 @@ async fn receive_and_dof_interleave() {
         let shared = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Shared { .. }))
+            .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
             .unwrap();
         let owned = *effects
             .created()

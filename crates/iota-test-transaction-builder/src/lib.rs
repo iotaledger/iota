@@ -593,7 +593,7 @@ pub async fn publish_basics_package_and_make_counter(
         .unwrap()
         .created()
         .iter()
-        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared { .. }))
+        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared(_)))
         .unwrap()
         .reference;
     (package_ref, counter_ref)

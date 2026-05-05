@@ -418,7 +418,7 @@ mod checked {
                             .into()
                         )
                     }
-                    Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObject.into()),
+                    Owner::Shared(_) => fp_bail!(UserInputError::NotSharedObject.into()),
                     Owner::Immutable => fp_bail!(
                         UserInputError::MutableParameterExpected {
                             object_id: object_ref.object_id
@@ -634,7 +634,7 @@ mod checked {
                             parent_id: owner,
                         });
                     }
-                    Owner::Shared { .. } => {
+                    Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
@@ -789,12 +789,12 @@ mod checked {
                             object_id: object.id(),
                         });
                     }
-                    Owner::Object { .. } => {
+                    Owner::Object(_) => {
                         return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
-                    Owner::Shared { .. } => {
+                    Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);

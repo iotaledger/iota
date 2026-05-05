@@ -154,7 +154,7 @@ macro_rules! fetch_child_object_unbounded {
                         ));
                     }
                 }
-                Owner::Address(_) | Owner::Immutable | Owner::Shared { .. } => {
+                Owner::Address(_) | Owner::Immutable | Owner::Shared(_) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Bad owner for {}. \

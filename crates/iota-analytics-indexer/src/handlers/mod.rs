@@ -61,7 +61,7 @@ fn get_owner_type(object: &Object) -> OwnerType {
     match object.owner {
         Owner::Address(_) => OwnerType::AddressOwner,
         Owner::Object(_) => OwnerType::ObjectOwner,
-        Owner::Shared { .. } => OwnerType::Shared,
+        Owner::Shared(_) => OwnerType::Shared,
         Owner::Immutable => OwnerType::Immutable,
         _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
     }
