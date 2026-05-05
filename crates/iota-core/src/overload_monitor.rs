@@ -823,12 +823,13 @@ mod tests {
     /// `WritebackCacheConfig` → `check_execution_overload` →
     /// `overload_info.load_shedding_percentage` and the new metric.
     ///
-    /// We can't easily inject a non-zero `approximate_pending_transaction_count`
-    /// into the test cache without an additional test hook, so this test
-    /// instead degenerates the threshold by setting `backpressure_threshold =
-    /// 0`, which makes `compute_graduated_load_shedding_percentage` return
-    /// 100% even with `pending_count = 0` (the `current >= hard_limit` branch
-    /// with `0 >= 0`). That exercises the full wiring while keeping the test
+    /// We can't easily inject a non-zero
+    /// `approximate_pending_transaction_count` into the test cache without
+    /// an additional test hook, so this test instead degenerates the
+    /// threshold by setting `backpressure_threshold = 0`, which makes
+    /// `compute_graduated_load_shedding_percentage` return 100% even with
+    /// `pending_count = 0` (the `current >= hard_limit` branch with `0 >=
+    /// 0`). That exercises the full wiring while keeping the test
     /// self-contained.
     #[tokio::test(flavor = "current_thread")]
     async fn test_check_execution_overload_cache_signal_drives_shedding() {
@@ -869,10 +870,7 @@ mod tests {
                 .load(Ordering::Relaxed),
             100,
         );
-        assert_eq!(
-            state.metrics.authority_load_shedding_percentage.get(),
-            100,
-        );
+        assert_eq!(state.metrics.authority_load_shedding_percentage.get(), 100,);
     }
 
     // Creates an AuthorityState and starts an overload monitor that monitors its
