@@ -143,6 +143,10 @@ impl Handle {
     }
 }
 
+/// Minimum interval between batched log messages for pruned checkpoint sync
+/// failures, to avoid flooding the log when many tasks fail simultaneously.
+const PRUNED_SYNC_LOG_INTERVAL: Duration = Duration::from_secs(30);
+
 struct PeerHeights {
     /// Table used to track the highest checkpoint for each of our peers.
     peers: HashMap<PeerId, PeerStateSyncInfo>,
@@ -378,6 +382,28 @@ enum StateSyncMessage {
     // it was able to successfully sync a checkpoint's contents. If multiple checkpoints were
     // synced at the same time, only the highest checkpoint is sent.
     SyncedCheckpoint(Box<VerifiedCheckpoint>),
+}
+
+/// Reason a checkpoint content sync failed.
+enum ContentSyncError {
+    /// The checkpoint is below all peers' pruning watermark.
+    /// No peer will ever serve this content; it must come from archive.
+    PrunedOnAllPeers {
+        checkpoint: VerifiedCheckpoint,
+        lowest_peer_watermark: CheckpointSequenceNumber,
+        connected_peers: usize,
+        known_peers: usize,
+    },
+    /// A transient failure: network error, timeout, or no peers currently
+    /// connected. Retrying may succeed.
+    Transient {
+        checkpoint: VerifiedCheckpoint,
+        /// Lowest pruning watermark across connected peers, if any are
+        /// connected.
+        lowest_peer_watermark: Option<CheckpointSequenceNumber>,
+        connected_peers: usize,
+        known_peers: usize,
+    },
 }
 
 struct StateSyncEventLoop<S> {
@@ -1298,6 +1324,13 @@ async fn sync_checkpoint_contents<S>(
 
     let mut tx_concurrency_remaining = checkpoint_content_download_tx_concurrency;
 
+    // Batched logging state for pruned checkpoint failures.
+    // (lowest_failed_seq, highest_failed_seq) range of checkpoint sequence
+    // numbers that failed due to pruning since the last log flush.
+    let mut pruned_failure_range: Option<(CheckpointSequenceNumber, CheckpointSequenceNumber)> =
+        None;
+    let mut last_pruned_log_time = tokio::time::Instant::now();
+
     loop {
         tokio::select! {
             result = target_sequence_channel.changed() => {
@@ -1325,25 +1358,84 @@ async fn sync_checkpoint_contents<S>(
                         highest_synced = checkpoint;
 
                     }
-                    Err(checkpoint) => {
-                        let _: &VerifiedCheckpoint = &checkpoint;  // type hint
-                        if let Some(lowest_peer_checkpoint) =
-                            peer_heights.read().ok().and_then(|x| x.peers.values().map(|state_sync_info| state_sync_info.lowest).min()) {
-                            if checkpoint.sequence_number() >= &lowest_peer_checkpoint {
-                                info!("unable to sync contents of checkpoint through state sync {} with lowest peer checkpoint: {}", checkpoint.sequence_number(), lowest_peer_checkpoint);
-                            }
-                        } else {
-                            info!("unable to sync contents of checkpoint through state sync {}", checkpoint.sequence_number());
+                    Err(error) => {
+                        match error {
+                            ContentSyncError::PrunedOnAllPeers {
+                                checkpoint,
+                                lowest_peer_watermark,
+                                connected_peers,
+                                known_peers,
+                            } => {
+                                // Accumulate for batched logging.
+                                let seq = *checkpoint.sequence_number();
+                                // Expand the (min_seq, max_seq) range of failed
+                                // checkpoint sequence numbers seen since the last
+                                // log flush, or initialize it with this sequence.
+                                pruned_failure_range = Some(match pruned_failure_range {
+                                    Some((lo, hi)) => (lo.min(seq), hi.max(seq)),
+                                    None => (seq, seq),
+                                });
 
+                                // Log at most once every 30 seconds.
+                                if last_pruned_log_time.elapsed() >= PRUNED_SYNC_LOG_INTERVAL {
+                                    if let Some((lo, hi)) = pruned_failure_range {
+                                        warn!(
+                                            "Unable to sync checkpoint contents ({lo}..={hi}) via peers: \
+                                             all connected peers ({connected_peers}/{known_peers}) \
+                                             have pruned below watermark {lowest_peer_watermark}. \
+                                             Waiting for archive sync to advance highest_synced.",
+                                        );
+                                    }
+                                    pruned_failure_range = None;
+                                    last_pruned_log_time = tokio::time::Instant::now();
+                                }
+
+                                // Push to back (not front) — don't block progress.
+                                // On the next cycle the early-exit check picks up
+                                // any archive progress.
+                                checkpoint_contents_tasks.push_back(
+                                    sync_one_checkpoint_contents(
+                                        network.clone(),
+                                        &store,
+                                        peer_heights.clone(),
+                                        timeout,
+                                        checkpoint,
+                                    ),
+                                );
+                            }
+                            ContentSyncError::Transient {
+                                checkpoint,
+                                lowest_peer_watermark,
+                                connected_peers,
+                                known_peers,
+                            } => {
+                                if let Some(watermark) = lowest_peer_watermark {
+                                    info!(
+                                        "unable to sync contents of checkpoint {} via peers \
+                                         (transient failure, {connected_peers}/{known_peers} peers connected, \
+                                         lowest peer watermark: {watermark})",
+                                        checkpoint.sequence_number(),
+                                    );
+                                } else {
+                                    info!(
+                                        "unable to sync contents of checkpoint {} via peers \
+                                         (transient failure, {connected_peers}/{known_peers} peers connected)",
+                                        checkpoint.sequence_number(),
+                                    );
+                                }
+                                // Retry at front — transient errors may succeed
+                                // on the next attempt.
+                                checkpoint_contents_tasks.push_front(
+                                    sync_one_checkpoint_contents(
+                                        network.clone(),
+                                        &store,
+                                        peer_heights.clone(),
+                                        timeout,
+                                        checkpoint,
+                                    ),
+                                );
+                            }
                         }
-                        // Retry contents sync on failure.
-                        checkpoint_contents_tasks.push_front(sync_one_checkpoint_contents(
-                            network.clone(),
-                            &store,
-                            peer_heights.clone(),
-                            timeout,
-                            checkpoint,
-                        ));
                     }
                 }
             },
@@ -1402,14 +1494,15 @@ async fn sync_one_checkpoint_contents<S>(
     peer_heights: Arc<RwLock<PeerHeights>>,
     timeout: Duration,
     checkpoint: VerifiedCheckpoint,
-) -> Result<VerifiedCheckpoint, VerifiedCheckpoint>
+) -> Result<VerifiedCheckpoint, ContentSyncError>
 where
     S: WriteStore + Clone,
 {
     debug!("syncing checkpoint contents");
 
-    // Check if we already have produced this checkpoint locally. If so, we don't
-    // need to get it from peers anymore.
+    // Check if we already have produced this checkpoint locally (e.g. via
+    // consensus output or archive sync). If so, we don't need to get it from
+    // peers anymore.
     if store
         .try_get_highest_synced_checkpoint()
         .expect("store operation should not fail")
@@ -1418,6 +1511,42 @@ where
     {
         debug!("checkpoint was already created via consensus output");
         return Ok(checkpoint);
+    }
+
+    // Gather peer state: count known/connected peers and check pruning watermark.
+    let (known_peers, connected_peers, lowest_peer_watermark, is_pruned) = {
+        let guard = peer_heights.read().unwrap();
+        let known = guard.peers_on_same_chain().count();
+        let connected_peers_lowest: Vec<CheckpointSequenceNumber> = guard
+            .peers_on_same_chain()
+            .filter(|(peer_id, _)| network.peer(**peer_id).is_some())
+            .map(|(_, info)| info.lowest)
+            .collect();
+        let connected = connected_peers_lowest.len();
+        let lowest = connected_peers_lowest.into_iter().min();
+        // If the checkpoint we need is below the lowest watermark of all
+        // connected peers, no peer can serve it — only archive can.
+        let pruned = lowest.is_some_and(|l| *checkpoint.sequence_number() < l);
+        (known, connected, lowest, pruned)
+    };
+
+    if is_pruned {
+        // Sleep to avoid hammer the network with retries, but don't log — the outer
+        // loop batches these.
+        let duration = peer_heights
+            .read()
+            .unwrap()
+            .wait_interval_when_no_peer_to_sync_content();
+        tokio::time::sleep(duration).await;
+
+        return Err(ContentSyncError::PrunedOnAllPeers {
+            checkpoint,
+            // Safe to unwrap: is_pruned is only true when lowest_peer_watermark
+            // is Some.
+            lowest_peer_watermark: lowest_peer_watermark.unwrap(),
+            connected_peers,
+            known_peers,
+        });
     }
 
     // Request checkpoint contents from peers.
@@ -1438,10 +1567,15 @@ where
             .wait_interval_when_no_peer_to_sync_content();
         if now.elapsed() < duration {
             let duration = duration - now.elapsed();
-            info!("retrying checkpoint sync after {:?}", duration);
+            debug!("retrying checkpoint sync after {:?}", duration);
             tokio::time::sleep(duration).await;
         }
-        return Err(checkpoint);
+        return Err(ContentSyncError::Transient {
+            checkpoint,
+            lowest_peer_watermark,
+            connected_peers,
+            known_peers,
+        });
     };
     debug!("completed checkpoint contents sync");
     Ok(checkpoint)
