@@ -161,7 +161,8 @@ impl ValidatorService {
             consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
-            true, // white_flag_flow_enabled
+            // `true` means white-flag flow is enabled - ensured by `fp_ensure!` in the caller
+            true,
         ) {
             metrics
                 .num_rejected_tx_during_overload
