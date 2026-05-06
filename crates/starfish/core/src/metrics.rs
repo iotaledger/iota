@@ -248,7 +248,7 @@ pub(crate) struct NodeMetrics {
     #[expect(dead_code)]
     pub(crate) faulty_blocks_provable_by_authority: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) faulty_blocks_unprovable_by_authority: IntCounterVec,
+    pub(crate) faulty_blocks_unprovable_by_peer: IntCounterVec,
     #[expect(dead_code)]
     pub(crate) uncached_equivocations_by_authority: IntCounterVec,
     #[expect(dead_code)]
@@ -1118,14 +1118,14 @@ impl NodeMetrics {
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
-                "Number of provably faulty blocks per peer authority",
-                &["authority", "source", "error"],
+                "Number of provably faulty blocks per authority",
+                &["authority"],
                 registry,
-             ).unwrap(),
-            faulty_blocks_unprovable_by_authority: register_int_counter_vec_with_registry!(
-                "faulty_blocks_unprovable_by_authority",
-                "Number of unprovably faulty blocks per peer authority",
-                &["authority", "source", "error"],
+            ).unwrap(),
+            faulty_blocks_unprovable_by_peer: register_int_counter_vec_with_registry!(
+                "faulty_blocks_unprovable_by_peer",
+                "Number of unprovably faulty blocks per peer",
+                &["peer"],
                 registry,
             ).unwrap(),
             uncached_equivocations_by_authority: register_int_counter_vec_with_registry!(
@@ -1136,7 +1136,7 @@ impl NodeMetrics {
             ).unwrap(),
             uncached_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
                 "uncached_missing_proposals_by_authority",
-                "Registers the number of blocks that should be already evicted from cache but authority failed to send.",
+                "Number of missing proposals per authority already evicted from cache",
                 &["authority"],
                 registry,
             ).unwrap(),
