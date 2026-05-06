@@ -3431,7 +3431,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8409d5d9c16679d3497178a6a2606021bcbbf5aa#8409d5d9c16679d3497178a6a2606021bcbbf5aa"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2eeba1d18037453dc5310176382f65805a9284ad#2eeba1d18037453dc5310176382f65805a9284ad"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3513,7 +3513,6 @@ dependencies = [
  "futures",
  "hex",
  "indexmap 2.14.0",
- "iota-enum-compat-util",
  "iota-macros",
  "iota-network-stack",
  "iota-proc-macros",
