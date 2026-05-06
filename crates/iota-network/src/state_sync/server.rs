@@ -21,7 +21,7 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 
-use super::{PeerHeights, StateSync, StateSyncMessage};
+use super::{PeerHeights, PeerStateSyncInfo, StateSync, StateSyncMessage};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum GetCheckpointSummaryRequest {
@@ -36,10 +36,25 @@ pub struct GetCheckpointAvailabilityResponse {
     pub(crate) lowest_available_checkpoint: CheckpointSequenceNumber,
 }
 
+/// Handshake message exchanged by both sides immediately on connect.
+/// Contains everything needed to register a peer: chain identity (verified
+/// genesis checkpoint), pruning watermark, and sync height.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StateSyncHandshake {
+    /// The verified genesis checkpoint for chain identity verification.
+    pub genesis_checkpoint: Checkpoint,
+    /// The highest synced checkpoint of the sending node.
+    pub highest_synced_checkpoint: Checkpoint,
+    /// The lowest available checkpoint (pruning watermark).
+    pub lowest_available_checkpoint: CheckpointSequenceNumber,
+}
+
 pub(super) struct Server<S> {
     pub(super) store: S,
     pub(super) peer_heights: Arc<RwLock<PeerHeights>>,
     pub(super) sender: mpsc::WeakSender<StateSyncMessage>,
+    /// Cached genesis checkpoint, shared with the event loop.
+    pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
 
 #[anemo::async_trait]
@@ -141,6 +156,54 @@ where
             .try_get_full_checkpoint_contents(request.inner())
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(contents))
+    }
+
+    /// Handles a handshake from a newly connected peer. Registers the peer
+    /// with correct chain identity, sync height, and pruning watermark in a
+    /// single step — no additional queries needed.
+    async fn push_state_sync_handshake(
+        &self,
+        request: Request<StateSyncHandshake>,
+    ) -> Result<Response<()>, Status> {
+        let peer_id = request
+            .peer_id()
+            .copied()
+            .ok_or_else(|| Status::internal("unable to query sender's PeerId"))?;
+
+        let handshake = request.into_inner();
+
+        let our_genesis_digest = *self.genesis_checkpoint.digest();
+
+        let on_same_chain = *handshake.genesis_checkpoint.digest() == our_genesis_digest;
+
+        {
+            let mut guard = self.peer_heights.write().unwrap();
+            guard.insert_peer_info(
+                peer_id,
+                PeerStateSyncInfo {
+                    genesis_checkpoint_digest: *handshake.genesis_checkpoint.digest(),
+                    on_same_chain_as_us: on_same_chain,
+                    height: *handshake.highest_synced_checkpoint.sequence_number(),
+                    lowest: handshake.lowest_available_checkpoint,
+                },
+            );
+            if on_same_chain {
+                guard.insert_checkpoint(handshake.highest_synced_checkpoint.clone());
+            }
+        }
+
+        if on_same_chain {
+            if let Some(sender) = self.sender.upgrade() {
+                // Notify the event loop that a new same-chain peer was
+                // registered so it can push our latest checkpoint to them
+                // and start syncing from them if they are ahead.
+                let _ = sender
+                    .send(StateSyncMessage::NewSameChainPeerRegistered(peer_id))
+                    .await;
+            }
+        }
+
+        Ok(Response::new(()))
     }
 }
 

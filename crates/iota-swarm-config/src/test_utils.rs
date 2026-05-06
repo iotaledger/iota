@@ -29,7 +29,7 @@ pub struct CommitteeFixture {
     genesis: Option<Arc<Genesis>>,
 }
 
-type MakeCheckpointResults = (
+pub type MakeCheckpointResults = (
     Vec<VerifiedCheckpoint>,
     Vec<VerifiedCheckpointContents>,
     HashMap<CheckpointSequenceNumber, CheckpointDigest>,
@@ -177,7 +177,7 @@ impl CommitteeFixture {
         self.make_checkpoints(number_of_checkpoints, previous_checkpoint, empty_contents)
     }
 
-    fn make_checkpoints<F: Fn() -> VerifiedCheckpointContents>(
+    pub fn make_checkpoints<F: Fn() -> VerifiedCheckpointContents>(
         &self,
         number_of_checkpoints: usize,
         previous_checkpoint: Option<VerifiedCheckpoint>,

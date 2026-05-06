@@ -223,6 +223,15 @@ fn build_anemo_services(out_dir: &Path) {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            anemo_build::manual::Method::builder()
+                .name("push_state_sync_handshake")
+                .route_name("PushStateSyncHandshake")
+                .request_type("crate::state_sync::StateSyncHandshake")
+                .response_type("()")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     let randomness = anemo_build::manual::Service::builder()

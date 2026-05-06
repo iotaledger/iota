@@ -104,7 +104,9 @@ pub use generated::{
 };
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_storage::verify_checkpoint;
-pub use server::{GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest};
+pub use server::{
+    GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest, StateSyncHandshake,
+};
 
 use self::{metrics::Metrics, server::CheckpointContentsDownloadLimitLayer};
 
@@ -232,6 +234,7 @@ impl PeerHeights {
                 let entry = entry.get_mut();
                 if entry.genesis_checkpoint_digest == info.genesis_checkpoint_digest {
                     entry.height = std::cmp::max(entry.height, info.height);
+                    entry.lowest = info.lowest;
                 } else {
                     *entry = info;
                 }
@@ -394,6 +397,10 @@ enum StateSyncMessage {
     // it was able to successfully sync a checkpoint's contents. If multiple checkpoints were
     // synced at the same time, only the highest checkpoint is sent.
     SyncedCheckpoint(Box<VerifiedCheckpoint>),
+    // A new same-chain peer was registered (e.g. via handshake). The event
+    // loop should push our latest checkpoint to this peer in case we are
+    // ahead, and start syncing from them if they are ahead of us.
+    NewSameChainPeerRegistered(PeerId),
 }
 
 /// Reason a checkpoint content sync failed.
@@ -439,6 +446,8 @@ struct StateSyncEventLoop<S> {
 
     archive_readers: ArchiveReaderBalancer,
     sync_checkpoint_from_archive_task: Option<AbortHandle>,
+    /// Cached genesis checkpoint, shared with the RPC server.
+    genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
 
 impl<S> StateSyncEventLoop<S>
@@ -459,6 +468,9 @@ where
         let mut peer_events = {
             let (subscriber, peers) = self.network.subscribe().unwrap();
             for peer_id in peers {
+                self.send_handshake_to_peer(peer_id);
+                // TODO: remove get_latest_from_peer once all nodes support
+                // handshake — it's kept as a fallback for old peers.
                 self.spawn_get_latest_from_peer(peer_id);
             }
             subscriber
@@ -582,6 +594,17 @@ where
             // After we've successfully synced a checkpoint we can notify our peers
             StateSyncMessage::SyncedCheckpoint(checkpoint) => {
                 self.spawn_notify_peers_of_checkpoint(*checkpoint)
+            }
+            // A new same-chain peer registered — push our latest checkpoint
+            // in case we are ahead of them (they may have missed an earlier
+            // push that arrived before they were registered).
+            StateSyncMessage::NewSameChainPeerRegistered(peer_id) => {
+                let checkpoint = self
+                    .store
+                    .try_get_highest_synced_checkpoint()
+                    .expect("store operation should not fail");
+                self.spawn_push_checkpoint_to_peer(peer_id, checkpoint);
+                self.maybe_start_checkpoint_summary_sync_task();
             }
         }
     }
@@ -708,6 +731,9 @@ where
 
         match peer_event {
             Ok(PeerEvent::NewPeer(peer_id)) => {
+                self.send_handshake_to_peer(peer_id);
+                // TODO: remove get_latest_from_peer once all nodes support
+                // handshake — it's kept as a fallback for old peers.
                 self.spawn_get_latest_from_peer(peer_id);
             }
             Ok(PeerEvent::LostPeer(peer_id, _)) => {
@@ -726,11 +752,7 @@ where
 
     fn spawn_get_latest_from_peer(&mut self, peer_id: PeerId) {
         if let Some(peer) = self.network.peer(peer_id) {
-            let genesis_checkpoint_digest = *self
-                .store
-                .get_checkpoint_by_sequence_number(0)
-                .expect("store should contain genesis checkpoint")
-                .digest();
+            let genesis_checkpoint_digest = *self.genesis_checkpoint.digest();
             let task = get_latest_from_peer(
                 genesis_checkpoint_digest,
                 peer,
@@ -738,6 +760,54 @@ where
                 self.config.timeout(),
             );
             self.tasks.spawn(task);
+        }
+    }
+
+    /// Sends our state sync handshake to a newly connected peer. This
+    /// registers us in the peer's `peer_heights` immediately — no round-trip
+    /// queries needed.
+    fn send_handshake_to_peer(&mut self, peer_id: PeerId) {
+        if let Some(peer) = self.network.peer(peer_id) {
+            let genesis_checkpoint = self.genesis_checkpoint.as_ref().clone().into_inner();
+            let highest_synced_checkpoint = self
+                .store
+                .try_get_highest_synced_checkpoint()
+                .expect("store operation should not fail")
+                .into_inner();
+            let lowest_available_checkpoint = self
+                .store
+                .try_get_lowest_available_checkpoint()
+                .expect("store operation should not fail");
+
+            let handshake = server::StateSyncHandshake {
+                genesis_checkpoint,
+                highest_synced_checkpoint,
+                lowest_available_checkpoint,
+            };
+            let timeout = self.config.timeout();
+            self.tasks.spawn(async move {
+                let mut client = StateSyncClient::new(peer);
+                // Retry with exponential backoff (100ms, 200ms, 400ms, 800ms,
+                // 1.6s) until the peer acknowledges. The peer may not be
+                // fully ready yet or may not support the handshake RPC.
+                const MAX_RETRIES: u32 = 5;
+                for attempt in 0..MAX_RETRIES {
+                    let request = Request::new(handshake.clone()).with_timeout(timeout);
+                    match client.push_state_sync_handshake(request).await {
+                        Ok(_) => return,
+                        Err(e) => {
+                            // NotFound means the peer doesn't support
+                            // handshake (old version) — no point retrying.
+                            if e.status() == anemo::types::response::StatusCode::NotFound {
+                                return;
+                            }
+                            debug!(attempt, "handshake push failed, retrying: {e:?}");
+                            tokio::time::sleep(Duration::from_millis(100 * 2u64.pow(attempt)))
+                                .await;
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -850,6 +920,20 @@ where
             self.config.timeout(),
         );
         self.tasks.spawn(task);
+    }
+
+    /// Pushes our latest checkpoint to a single peer. Used when a new
+    /// same-chain peer registers via handshake — they may have missed an
+    /// earlier push that arrived before they were registered.
+    fn spawn_push_checkpoint_to_peer(&mut self, peer_id: PeerId, checkpoint: VerifiedCheckpoint) {
+        if let Some(peer) = self.network.peer(peer_id) {
+            let timeout = self.config.timeout();
+            self.tasks.spawn(async move {
+                let mut client = StateSyncClient::new(peer);
+                let request = Request::new(checkpoint.into_inner()).with_timeout(timeout);
+                let _ = client.push_checkpoint_summary(request).await;
+            });
+        }
     }
 }
 
