@@ -3,6 +3,8 @@
 
 use std::sync::atomic::AtomicU64;
 
+use serde::{Deserialize, Serialize};
+
 /// Per-authority misbehavior counters.
 ///
 /// Three buckets track different lifecycle stages:
@@ -50,4 +52,13 @@ impl StarfishMisbehaviorCounts {
             equivocations: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
         }
     }
+}
+
+/// Serializable per-authority misbehavior counts for storage persistence.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct StorageScoringMetrics {
+    pub(crate) faulty_blocks_provable: u64,
+    pub(crate) faulty_blocks_unprovable: u64,
+    pub(crate) missing_proposals: u64,
+    pub(crate) equivocations: u64,
 }

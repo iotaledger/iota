@@ -2255,7 +2255,6 @@ impl DagState {
                 .inc();
         }
 
-
         // Clean up old headers
         self.evict_headers();
 
