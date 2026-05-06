@@ -3182,10 +3182,12 @@ impl AuthorityPerEpochStore {
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
             } else {
-                // For user transactions, deterministically drop based on the
-                // quorum load shedding percentage.
+                // Only user-originated transactions are eligible for load shedding;
+                // internal consensus messages (checkpoint signatures, capability
+                // notifications, randomness DKG, overload notifications, etc.) must
+                // never be dropped here.
                 if drop_percentage > 0 {
-                    if let Some(digest) = tx.0.transaction.executable_transaction_digest() {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
                         if should_reject_tx(drop_percentage, digest, drop_seed) {
                             continue;
                         }

@@ -634,6 +634,22 @@ impl SequencedConsensusTransactionKind {
         }
     }
 
+    /// Returns the digest only for user-originated transaction kinds
+    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
+    /// load shedding to guarantee that no internal consensus messages
+    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
+    /// are eligible to be dropped.
+    pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn is_end_of_publish(&self) -> bool {
         match self {
             SequencedConsensusTransactionKind::External(ext) => {
