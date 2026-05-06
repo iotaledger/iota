@@ -41,6 +41,7 @@ use crate::{
         fetch::{
             GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
         },
+        filters::fullnode::TransactionFilter,
     },
 };
 
@@ -196,6 +197,8 @@ struct CheckpointReaderActor {
     reader_options: ReaderOptions,
     /// Limit the amount of downloaded checkpoints held in memory to avoid OOM.
     data_limiter: DataLimiter,
+    /// Filter applied to transactions within a checkpoint.
+    fullnode_transaction_filter: Option<TransactionFilter>,
 }
 
 impl LocalRead for CheckpointReaderActor {
@@ -324,7 +327,7 @@ impl CheckpointReaderActor {
                 Some(self.current_checkpoint_number),
                 None,
                 Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
-                None,
+                self.fullnode_transaction_filter.clone(),
                 None,
             )
             .await
@@ -551,7 +554,16 @@ impl CheckpointReader {
     pub(crate) async fn new(
         starting_checkpoint_number: CheckpointSequenceNumber,
         config: CheckpointReaderConfig,
+        fullnode_transaction_filter: Option<TransactionFilter>,
     ) -> IngestionResult<Self> {
+        if fullnode_transaction_filter.is_some()
+            && !matches!(config.remote_store_url, Some(RemoteUrl::Fullnode(_)))
+        {
+            return Err(IngestionError::Unsupported(
+                "filter is only supported on `RemoteUrl::Fullnode` connections".into(),
+            ));
+        }
+
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
 
@@ -583,6 +595,7 @@ impl CheckpointReader {
             token: token.clone(),
             data_limiter: DataLimiter::new(config.reader_options.data_limit),
             reader_options: config.reader_options,
+            fullnode_transaction_filter,
         };
 
         let handle = spawn_monitored_task!(reader.run());

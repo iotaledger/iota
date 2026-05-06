@@ -17,6 +17,7 @@ use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    filters::fullnode::TransactionFilter,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -158,6 +159,7 @@ pub struct IndexerExecutor<P> {
     metrics: DataIngestionMetrics,
     token: CancellationToken,
     shutdown_callback: Option<ShutdownCallback>,
+    fullnode_transaction_filter: Option<TransactionFilter>,
 }
 
 impl<P: ProgressStore> IndexerExecutor<P> {
@@ -178,6 +180,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             metrics,
             token,
             shutdown_callback: None,
+            fullnode_transaction_filter: None,
         }
     }
 
@@ -239,6 +242,17 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         self.shutdown_when(move |checkpoint| limit.matches(checkpoint));
     }
 
+    /// Enables server-side filtering of transactions within each checkpoint.
+    ///
+    /// When set, the remote source will only return checkpoints containing
+    /// transactions that match the provided [`TransactionFilter`].
+    ///
+    /// ### Connection Requirements
+    /// This is only supported for [`RemoteUrl::Fullnode`] connections.
+    pub fn with_fullnode_transaction_filter(&mut self, filter: TransactionFilter) {
+        self.fullnode_transaction_filter = Some(filter);
+    }
+
     pub async fn update_watermark(
         &mut self,
         task_name: String,
@@ -246,6 +260,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ) -> IngestionResult<()> {
         self.progress_store.save(task_name, watermark).await
     }
+
     pub async fn read_watermark(
         &mut self,
         task_name: String,
@@ -264,7 +279,12 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         config: CheckpointReaderConfig,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
+        let checkpoint_reader = CheckpointReader::new(
+            reader_checkpoint_number,
+            config,
+            self.fullnode_transaction_filter.take(),
+        )
+        .await?;
 
         self.run_executor_loop(reader_checkpoint_number, checkpoint_reader)
             .await
