@@ -562,8 +562,8 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute several transfers to create mutations.
-        let recipient1 = IotaAddress::random_for_testing_only();
-        let recipient2 = IotaAddress::random_for_testing_only();
+        let recipient1 = IotaAddress::random();
+        let recipient2 = IotaAddress::random();
 
         let (tx1, _) = sim.transfer_txn(recipient1);
         let (_, err) = sim.execute_transaction(tx1).unwrap();
@@ -715,15 +715,17 @@ mod ingestion_tests {
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let recipient1 = IotaAddress::random_for_testing_only();
+        let recipient1 = IotaAddress::random();
         let (tx1, _) = sim.transfer_txn(recipient1);
-        let (gas_object_id, gas_version_before_tx1, _) = tx1.gas()[0];
+        let gas_ref_tx1 = tx1.gas()[0];
+        let gas_object_id = gas_ref_tx1.object_id;
+        let gas_version_before_tx1 = gas_ref_tx1.version;
         let (effects1, err) = sim.execute_transaction(tx1).unwrap();
         assert!(err.is_none());
         let created1: Vec<_> = effects1
             .created()
             .into_iter()
-            .map(|((id, _, _), _)| id)
+            .map(|(r, _)| r.object_id)
             .collect();
         assert_eq!(
             created1.len(),
@@ -734,9 +736,9 @@ mod ingestion_tests {
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let recipient2 = IotaAddress::random_for_testing_only();
+        let recipient2 = IotaAddress::random();
         let (tx2, _) = sim.transfer_txn(recipient2);
-        let (_, gas_version_before_tx2, _) = tx2.gas()[0];
+        let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
             gas_version_before_tx2 > gas_version_before_tx1,
             "gas should have been bumped after tx1"
@@ -746,7 +748,7 @@ mod ingestion_tests {
         let created2: Vec<_> = effects2
             .created()
             .into_iter()
-            .map(|((id, _, _), _)| id)
+            .map(|(r, _)| r.object_id)
             .collect();
         assert_eq!(created2.len(), 1);
         let created_coin_2 = created2[0];
@@ -755,15 +757,15 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let recipient3 = IotaAddress::random_for_testing_only();
+        let recipient3 = IotaAddress::random();
         let (tx3, _) = sim.transfer_txn(recipient3);
-        let (_, gas_version_before_tx3, _) = tx3.gas()[0];
+        let gas_version_before_tx3 = tx3.gas()[0].version;
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
         assert!(err.is_none());
         let created3: Vec<_> = effects3
             .created()
             .into_iter()
-            .map(|((id, _, _), _)| id)
+            .map(|(r, _)| r.object_id)
             .collect();
         assert_eq!(created3.len(), 1);
         let created_coin_3 = created3[0];
@@ -783,7 +785,7 @@ mod ingestion_tests {
         // === checkpoint 1 assertions (two transactions) ===
 
         // Both created coins should have NOT_YET_CREATED entries.
-        let entry = find_backward_entry(&pg_store, &created_coin_1.to_vec(), 1)?
+        let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
             .expect("created coin 1 must have a backward history entry at cp 1");
         assert_eq!(
             entry.object_status,
@@ -793,7 +795,7 @@ mod ingestion_tests {
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
-        let entry = find_backward_entry(&pg_store, &created_coin_2.to_vec(), 1)?
+        let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)?
             .expect("created coin 2 must have a backward history entry at cp 1");
         assert_eq!(
             entry.object_status,
@@ -803,7 +805,7 @@ mod ingestion_tests {
 
         // The gas object was mutated twice in checkpoint 1 — there should be
         // two ACTIVE entries with different previous versions.
-        let gas_entries = find_all_entries_at_checkpoint(&pg_store, &gas_object_id.to_vec(), 1)?;
+        let gas_entries = find_all_entries_at_checkpoint(&pg_store, gas_object_id.as_bytes(), 1)?;
         assert_eq!(
             gas_entries.len(),
             2,
@@ -815,7 +817,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             gas_entries[0].object_version,
-            gas_version_before_tx1.value() as i64
+            gas_version_before_tx1.as_u64() as i64
         );
         assert!(gas_entries[0].serialized_object.is_some());
         assert!(gas_entries[0].object_digest.is_some());
@@ -827,13 +829,13 @@ mod ingestion_tests {
         );
         assert_eq!(
             gas_entries[1].object_version,
-            gas_version_before_tx2.value() as i64
+            gas_version_before_tx2.as_u64() as i64
         );
         assert!(gas_entries[1].serialized_object.is_some());
 
         // === checkpoint 2 assertions (single transaction) ===
 
-        let entry = find_backward_entry(&pg_store, &created_coin_3.to_vec(), 2)?
+        let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)?
             .expect("created coin 3 must have a backward history entry at cp 2");
         assert_eq!(
             entry.object_status,
@@ -841,13 +843,13 @@ mod ingestion_tests {
         );
         assert_eq!(entry.object_version, -1);
 
-        let entry = find_backward_entry(&pg_store, &gas_object_id.to_vec(), 2)?
+        let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");
         assert_eq!(
             entry.object_status,
             BackwardHistoryObjectStatus::Active as i16
         );
-        assert_eq!(entry.object_version, gas_version_before_tx3.value() as i64);
+        assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
         assert!(entry.serialized_object.is_some());
 
         Ok(())

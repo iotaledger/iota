@@ -10,7 +10,7 @@ task 1, lines 23-47:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5783600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5783600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 49-52:
 //# programmable --sender A --inputs @A
@@ -19,7 +19,7 @@ task 2, lines 49-52:
 //> TransferObjects([Result(0), Result(1)], Input(0))
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3412400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3412400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 54:
 //# create-checkpoint
@@ -33,22 +33,22 @@ task 4, lines 56-59:
 created: object(4,0), object(4,1)
 mutated: object(0,0)
 wrapped: object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3959600,  storage_rebate: 3412400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3959600, storage_rebate: 3412400, non_refundable_storage_fee: 0
 
 task 5, line 61:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 6, line 63:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 7, line 65:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 8, line 67:
 //# create-checkpoint
@@ -62,7 +62,7 @@ task 9, lines 69-72:
 mutated: object(0,0)
 unwrapped: object(2,0), object(2,1)
 deleted: object(4,0), object(4,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3412400,  storage_rebate: 3959600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3412400, storage_rebate: 3959600, non_refundable_storage_fee: 0
 
 task 10, lines 74-76:
 //# create-checkpoint
@@ -75,22 +75,22 @@ task 11, lines 77-79:
 created: object(11,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2196400, non_refundable_storage_fee: 0
 
 task 12, line 81:
 //# transfer-object 11,0 --sender A --recipient A
 mutated: object(0,0), object(11,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 13, line 83:
 //# transfer-object 11,0 --sender A --recipient A
 mutated: object(0,0), object(11,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 14, line 85:
 //# transfer-object 11,0 --sender A --recipient A
 mutated: object(0,0), object(11,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2470000, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 15, line 87:
 //# create-checkpoint
@@ -103,7 +103,7 @@ task 16, lines 89-91:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(11,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2470000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400, storage_rebate: 2470000, non_refundable_storage_fee: 0
 
 task 17, line 93:
 //# create-checkpoint

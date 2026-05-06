@@ -54,11 +54,12 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
                 address,
             )
             .await;
-        let gas_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
-        let ((package_id, _, _), publish_resp) =
+        let (package_ref, publish_resp) =
             publish_test_move_package(client, address, &keypair, "backward_history_test").await?;
+        let package_id = package_ref.object_id;
         indexer_wait_for_transaction(publish_resp.digest, store, client).await;
 
         // Step 1: CREATE — item should be Active in checkpointed_objects
@@ -75,7 +76,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         .await;
         let item_id = first_created_id(&resp);
 
-        let entry = find_checkpointed_object(store, &item_id.to_vec())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("item should exist in checkpointed_objects after creation");
         assert_eq!(
             entry.object_status,
@@ -100,7 +101,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         .await;
         let box_id = first_created_id(&resp);
 
-        let entry = find_checkpointed_object(store, &item_id.to_vec())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("wrapped item should still exist in checkpointed_objects as tombstone");
         assert_eq!(
             entry.object_status,
@@ -112,7 +113,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         assert!(entry.serialized_object.is_none());
 
         // Box should be Active.
-        let entry = find_checkpointed_object(store, &box_id.to_vec())?
+        let entry = find_checkpointed_object(store, box_id.as_bytes())?
             .expect("box should exist in checkpointed_objects");
         assert_eq!(
             entry.object_status,
@@ -133,7 +134,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         )
         .await;
 
-        let entry = find_checkpointed_object(store, &item_id.to_vec())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("unwrapped item should exist in checkpointed_objects");
         assert_eq!(
             entry.object_status,
@@ -145,7 +146,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         assert!(entry.serialized_object.is_some());
 
         // Box should be WrappedOrDeleted (it was consumed by unwrap).
-        let entry = find_checkpointed_object(store, &box_id.to_vec())?
+        let entry = find_checkpointed_object(store, box_id.as_bytes())?
             .expect("deleted box should still exist as tombstone");
         assert_eq!(
             entry.object_status,
@@ -166,7 +167,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         )
         .await;
 
-        let entry = find_checkpointed_object(store, &item_id.to_vec())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("deleted item should still exist as tombstone");
         assert_eq!(
             entry.object_status,
