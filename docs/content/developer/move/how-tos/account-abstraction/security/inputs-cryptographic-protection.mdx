@@ -21,7 +21,9 @@ When implementing custom authenticator functions that accept additional input pa
 
 ## Attack Scenario
 
-Consider an authenticator that accepts a blacklist shared object and a raw value parameter for additional verification logic. If the signature only covers the transaction digest, an attacker can:
+Consider an authenticator that uses a shared `Blacklist` object to reject transactions from blocked accounts. The `Blacklist` stores account addresses that are not allowed to authenticate transactions, and the authenticator checks the current account against that object before allowing the transaction to proceed.
+
+If the `Blacklist` object is passed as an authenticator input, the authenticator must verify that it is the intended blacklist. Otherwise, if the signature only covers the transaction digest, an attacker can:
 
 1. Create a legitimate transaction from the account with specific input parameters
 2. Sign the transaction with the authenticator (signature covers transaction digest)
@@ -50,12 +52,10 @@ The signature verification cryptographically binds all these inputs together:
 
 Without proper input protection, an attacker could swap the blacklist:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L413-L447
 ```
 
 Or swap the raw value parameter:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L449-L479
 ```
 
 However, because the secure implementation cryptographically binds all inputs, these attacks will fail during signature verification.

@@ -37,7 +37,7 @@ public fun create(
 /// IMPORTANT: This authenticator misses cryptographic protection for the transaction being authenticated,
 /// that could allow an attacker to execute unauthorized actions or manipulate the transaction data.
 #[authenticator]
-public fun authenticate(account: &Account, _: &AuthContext, ctx: &TxContext) {
+public fun vulnerable_authenticate(account: &Account, _: &AuthContext, ctx: &TxContext) {
     assert!(ctx.epoch_timestamp_ms() >= account.unlock_time(), EAccountStillLocked);
 }
 
