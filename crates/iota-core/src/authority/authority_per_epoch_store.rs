@@ -2842,36 +2842,8 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    pub fn record_overload_notification_v1(
-        &self,
-        authority: &AuthorityName,
-        percentage: u8,
-    ) -> IotaResult {
-        info!(
-            "received overload notification v1 from {:?}: {}%",
-            authority.concise(),
-            percentage
-        );
-        self.tables()?
-            .authority_overload_notifications
-            .insert(authority, &percentage)?;
-        Ok(())
-    }
-
-    pub fn get_overload_notification_v1(
-        &self,
-        authority: &AuthorityName,
-    ) -> IotaResult<Option<u8>> {
-        Ok(self
-            .tables()?
-            .authority_overload_notifications
-            .get(authority)?)
-    }
-
     /// Loads the persisted overload notifications keyed by authority.
-    pub(crate) fn load_overload_notifications(
-        &self,
-    ) -> IotaResult<HashMap<AuthorityName, u8>> {
+    pub(crate) fn load_overload_notifications(&self) -> IotaResult<HashMap<AuthorityName, u8>> {
         Ok(self
             .tables()?
             .authority_overload_notifications
@@ -3321,12 +3293,13 @@ impl AuthorityPerEpochStore {
 
         // Post-consensus load shedding: compute the drop percentage once before
         // the loop so user transactions can be dropped inline during categorization.
-        // OverloadNotificationV1 transactions in this same commit batch are
-        // overlaid on top of the persisted notifications so user txs in the
-        // batch are dropped using the latest load shedding percentage rather
-        // than the previous round's value. The actual DB write still happens
-        // later inside `process_consensus_transactions` and is gated by
-        // `should_accept_consensus_certs`; this overlay mirrors that gate.
+        // `OverloadNotificationV1` transactions from this commit are layered on
+        // top of the persisted notifications now to ensure immediate response to new
+        // notifications which are not yet registered in persistent storage rather than
+        // the previous round's values. The recorder call inside
+        // `process_consensus_transactions` is gated by
+        // `should_accept_consensus_certs`; this overlay mirrors that gate so
+        // the overlaid set matches the set that will be flushed.
         let drop_percentage = if enable_white_flag {
             let mut notifications = self.load_overload_notifications()?;
             if self
@@ -3335,7 +3308,8 @@ impl AuthorityPerEpochStore {
             {
                 for tx in &verified_transactions {
                     if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                        kind:
+                            ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
                         ..
                     }) = &tx.0.transaction
                     {
@@ -4793,7 +4767,7 @@ impl AuthorityPerEpochStore {
                         authority.concise(),
                         percentage
                     );
-                    self.record_overload_notification_v1(authority, *percentage)?;
+                    output.record_overload_notification(*authority, *percentage);
                 } else {
                     debug!(
                         "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
