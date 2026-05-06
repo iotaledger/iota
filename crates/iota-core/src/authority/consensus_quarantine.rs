@@ -74,6 +74,12 @@ pub(crate) struct ConsensusCommitOutput {
 
     // White flag owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectRef, LockDetails>,
+
+    // Latest overload-shed percentage advertised by each authority via
+    // OverloadNotificationV1 during this commit. Flushed to
+    // `authority_overload_notifications` atomically with `last_consensus_stats`
+    // so a partial pre-flush state can never be observed on disk.
+    overload_notifications: BTreeMap<AuthorityName, u8>,
 }
 
 impl ConsensusCommitOutput {
@@ -199,6 +205,10 @@ impl ConsensusCommitOutput {
         self.owned_object_locks = locks;
     }
 
+    pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
+        self.overload_notifications.insert(authority, percentage);
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -315,6 +325,11 @@ impl ConsensusCommitOutput {
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
+
+        batch.insert_batch(
+            &tables.authority_overload_notifications,
+            self.overload_notifications,
+        )?;
 
         Ok(())
     }

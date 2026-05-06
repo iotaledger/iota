@@ -4,10 +4,31 @@
 
 use std::{collections::HashMap, time::Duration};
 
-use iota_types::base_types::TransactionDigest;
+use iota_types::base_types::{AuthorityName, TransactionDigest};
 use tokio::time::timeout;
+use typed_store::rocks::DBBatch;
 
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
+use crate::authority::{
+    authority_per_epoch_store::{AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput},
+    test_authority_builder::TestAuthorityBuilder,
+};
+
+/// Records an overload notification through the same path
+/// `process_consensus_transaction` uses: buffer it in `ConsensusCommitOutput`
+/// and flush via `write_to_batch`. This is the only sanctioned way to populate
+/// `authority_overload_notifications` outside the consensus loop.
+fn flush_overload_notification(
+    store: &AuthorityPerEpochStore,
+    authority: AuthorityName,
+    percentage: u8,
+) {
+    let mut output = ConsensusCommitOutput::new(0);
+    output.record_overload_notification(authority, percentage);
+    output.set_default_commit_stats_for_testing();
+    let mut batch: DBBatch = store.db_batch_for_test();
+    output.write_to_batch(store, &mut batch).unwrap();
+    batch.write().unwrap();
+}
 
 #[tokio::test]
 async fn test_notify_read_executed_transactions_to_checkpoint() {
@@ -64,8 +85,9 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
 }
 
 /// Persisted overload notifications must round-trip through
-/// `record_overload_notification_v1` -> `load_overload_notifications`.
-/// Re-recording overwrites the previous percentage.
+/// `ConsensusCommitOutput::record_overload_notification` (flushed via
+/// `write_to_batch`) -> `load_overload_notifications`. Re-recording in a
+/// subsequent commit overwrites the previous percentage.
 #[tokio::test]
 async fn test_load_overload_notifications_round_trip() {
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -77,7 +99,7 @@ async fn test_load_overload_notifications_round_trip() {
         "no notifications recorded yet",
     );
 
-    store.record_overload_notification_v1(&me, 25).unwrap();
+    flush_overload_notification(&store, me, 25);
     assert_eq!(
         store
             .load_overload_notifications()
@@ -87,8 +109,9 @@ async fn test_load_overload_notifications_round_trip() {
         Some(25),
     );
 
-    // A subsequent record from the same authority overwrites the prior value.
-    store.record_overload_notification_v1(&me, 75).unwrap();
+    // A subsequent commit's recorder call from the same authority overwrites
+    // the prior value once flushed.
+    flush_overload_notification(&store, me, 75);
     assert_eq!(
         store
             .load_overload_notifications()
@@ -122,7 +145,7 @@ async fn test_compute_quorum_load_shedding_percentage_uses_overlay() {
 
     // Persist a different value and confirm the overlay wins, mirroring the
     // last-writer-wins behavior of the pre-pass merge step.
-    store.record_overload_notification_v1(&me, 10).unwrap();
+    flush_overload_notification(&store, me, 10);
     let mut merged = store.load_overload_notifications().unwrap();
     merged.insert(me, 90);
     assert_eq!(store.compute_quorum_load_shedding_percentage(&merged), 90);
