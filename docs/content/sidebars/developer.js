@@ -489,7 +489,7 @@ const developer = [
                             },
                             {
                                 type: 'category',
-                                label: 'Security',
+                                label: 'Authentication Security Best Practices',
                                 link: {
                                     type: 'generated-index',
                                     slug: 'developer/move/how-tos/account-abstraction/security',
