@@ -2074,6 +2074,7 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(cmd) => {
+                    // Unsafe: `cmd.module` is an already validated `Identifier`
                     let module = unsafe {
                         move_core_types::identifier::Identifier::new_unchecked(cmd.module.as_str())
                     };
