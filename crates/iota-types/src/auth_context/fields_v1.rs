@@ -387,7 +387,7 @@ mod tests {
     /// Primitive TypeTag variants (Bool, U8, …) must be converted to their
     /// canonical string representation as TypeTag.
     #[test]
-    fn command_from_move_call_primitive_type_input() {
+    fn command_from_move_call_primitive_type_tag() {
         let cases = [
             (TypeTag::Bool, "bool"),
             (TypeTag::U8, "u8"),
@@ -398,12 +398,12 @@ mod tests {
             (TypeTag::U256, "u256"),
             (TypeTag::Address, "address"),
         ];
-        for (type_input, expected_name) in cases {
+        for (type_tag, expected_name) in cases {
             let cmd = Command::MoveCall(Box::new(ProgrammableMoveCall {
                 package: obj_id(),
                 module: "m".to_string(),
                 function: "f".to_string(),
-                type_arguments: vec![type_input],
+                type_arguments: vec![type_tag],
                 arguments: vec![],
             }));
             let MoveCommand::MoveCall(call) = MoveCommand::from(&cmd) else {
@@ -419,7 +419,7 @@ mod tests {
 
     /// Struct TypeTag must be converted to its canonical qualified name.
     #[test]
-    fn command_from_move_call_struct_type_input() {
+    fn command_from_move_call_struct_type_tag() {
         let expected = TypeTag::Struct(Box::new(StructTag::new(
             IotaAddress::FRAMEWORK,
             "coin",
@@ -441,7 +441,7 @@ mod tests {
     }
 
     #[test]
-    fn command_from_make_move_vec_type_input_becomes_type_name() {
+    fn command_from_make_move_vec_type_tag_becomes_type_name() {
         let expected = TypeTag::Bool;
         let cmd = Command::MakeMoveVec(Some(expected.clone()), vec![Argument::Input(0)]);
         let MoveCommand::MakeMoveVec(name, _) = MoveCommand::from(&cmd) else {

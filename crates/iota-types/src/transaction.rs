@@ -356,7 +356,7 @@ impl CallArgExt for CallArg {
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
+fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
@@ -448,7 +448,7 @@ impl ProgrammableMoveCall {
         } = self;
         let mut packages = BTreeSet::from([*package]);
         for type_argument in type_arguments {
-            add_type_input_packages(&mut packages, type_argument)
+            add_type_tag_packages(&mut packages, type_argument)
         }
         packages
             .into_iter()
@@ -535,7 +535,7 @@ impl Command {
             Command::MoveCall(c) => c.input_objects(),
             Command::MakeMoveVec(Some(t), _) => {
                 let mut packages = BTreeSet::new();
-                add_type_input_packages(&mut packages, t);
+                add_type_tag_packages(&mut packages, t);
                 packages
                     .into_iter()
                     .map(InputObjectKind::MovePackage)
