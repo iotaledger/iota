@@ -14120,7 +14120,6 @@ dependencies = [
  "serde",
  "serial_test",
  "starfish-config",
- "strum 0.27.2",
  "strum_macros 0.27.2",
  "tap",
  "telemetry-subscribers",
