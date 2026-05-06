@@ -5453,7 +5453,7 @@ impl AuthorityState {
             // the executor can verify the signature without running Move VM.
             let (builtin_authenticator_data, public_key_loaded_object) =
                 if let Some(expected_scheme) =
-                    builtin_authenticator_functions::builtin_signature_scheme(
+                    builtin_authenticator_functions::resolve_builtin_signature_scheme(
                         &authenticator_function_ref_field.value,
                     )
                 {

@@ -166,7 +166,7 @@ where
 /// If the given authenticator function reference corresponds to a built-in
 /// authenticator, returns the corresponding signature scheme. Otherwise,
 /// returns `None`.
-pub fn builtin_signature_scheme(
+pub fn resolve_builtin_signature_scheme(
     authenticator_function_ref: &AuthenticatorFunctionRefV1,
 ) -> Option<SignatureScheme> {
     // Reject non-framework packages and modules cheaply before matching on name.

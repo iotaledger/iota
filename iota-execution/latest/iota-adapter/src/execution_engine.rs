@@ -648,7 +648,7 @@ mod checked {
             builtin_authenticator_data
         {
             debug_assert_eq!(
-                builtin_authenticator_functions::builtin_signature_scheme(
+                builtin_authenticator_functions::resolve_builtin_signature_scheme(
                     &authenticator_function_ref
                 ),
                 Some(builtin_authenticator_data.expected_scheme),

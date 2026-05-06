@@ -17,9 +17,9 @@ use crate::{
             BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME, ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
             MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME, PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME,
             PreloadedBuiltinAuthenticatorData, SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME,
-            SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME, builtin_signature_scheme,
-            ed25519_authenticator_function_ref_v1, load_builtin_public_key,
-            multisig_authenticator_function_ref_v1, passkey_authenticator_function_ref_v1,
+            SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME, ed25519_authenticator_function_ref_v1,
+            load_builtin_public_key, multisig_authenticator_function_ref_v1,
+            passkey_authenticator_function_ref_v1, resolve_builtin_signature_scheme,
             secp256k1_authenticator_function_ref_v1, secp256r1_authenticator_function_ref_v1,
             verify_builtin_signature,
         },
@@ -36,13 +36,13 @@ use crate::{
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 
-// === builtin_signature_scheme() ===
+// === resolve_builtin_signature_scheme() ===
 
 #[test]
 fn builtin_scheme_ed25519() {
     let reference = ed25519_authenticator_function_ref_v1();
     assert_eq!(
-        builtin_signature_scheme(&reference),
+        resolve_builtin_signature_scheme(&reference),
         Some(SignatureScheme::ED25519)
     );
 }
@@ -51,7 +51,7 @@ fn builtin_scheme_ed25519() {
 fn builtin_scheme_secp256k1() {
     let reference = secp256k1_authenticator_function_ref_v1();
     assert_eq!(
-        builtin_signature_scheme(&reference),
+        resolve_builtin_signature_scheme(&reference),
         Some(SignatureScheme::Secp256k1)
     );
 }
@@ -60,7 +60,7 @@ fn builtin_scheme_secp256k1() {
 fn builtin_scheme_secp256r1() {
     let reference = secp256r1_authenticator_function_ref_v1();
     assert_eq!(
-        builtin_signature_scheme(&reference),
+        resolve_builtin_signature_scheme(&reference),
         Some(SignatureScheme::Secp256r1)
     );
 }
@@ -69,7 +69,7 @@ fn builtin_scheme_secp256r1() {
 fn builtin_scheme_multisig() {
     let reference = multisig_authenticator_function_ref_v1();
     assert_eq!(
-        builtin_signature_scheme(&reference),
+        resolve_builtin_signature_scheme(&reference),
         Some(SignatureScheme::MultiSig)
     );
 }
@@ -78,7 +78,7 @@ fn builtin_scheme_multisig() {
 fn builtin_scheme_passkey() {
     let reference = passkey_authenticator_function_ref_v1();
     assert_eq!(
-        builtin_signature_scheme(&reference),
+        resolve_builtin_signature_scheme(&reference),
         Some(SignatureScheme::PasskeyAuthenticator)
     );
 }
@@ -90,7 +90,7 @@ fn builtin_scheme_none_for_wrong_package() {
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
         ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
     );
-    assert_eq!(builtin_signature_scheme(&reference), None);
+    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn builtin_scheme_none_for_wrong_module() {
         "other_module",
         ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
     );
-    assert_eq!(builtin_signature_scheme(&reference), None);
+    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn builtin_scheme_none_for_unknown_function() {
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
         "unknown_authenticator_function_ref_v1",
     );
-    assert_eq!(builtin_signature_scheme(&reference), None);
+    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
 }
 
 // === authenticator function ref constructors ===

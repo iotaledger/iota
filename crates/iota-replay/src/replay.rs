@@ -2156,7 +2156,7 @@ fn load_authenticator_function_ref(
         })?;
 
     let (builtin_authenticator_data, public_key_loaded_obj) = if let Some(expected_scheme) =
-        builtin_authenticator_functions::builtin_signature_scheme(
+        builtin_authenticator_functions::resolve_builtin_signature_scheme(
             &authenticator_function_ref_field.value,
         ) {
         let (public_key_field_id, loaded_data) =
