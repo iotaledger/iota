@@ -11,7 +11,8 @@ publish = false
 async-trait.workspace = true
 aws-config.workspace = true
 aws-runtime = "1.5"
-aws-sdk-ec2 = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-ec2 = { version = "1", default-features = false, features = ["rt-tokio"] }
+aws-smithy-http-client.workspace = true
 aws-smithy-runtime-api = "1.11"
 chrono.workspace = true
 clap.workspace = true
@@ -24,7 +25,7 @@ prettytable-rs = "0.10"
 prometheus-parse = "0.2"
 rand.workspace = true
 reqwest.workspace = true
-russh = { version = "0.59", default-features = false, features = ["ring", "rsa", "flate2"] }
+russh = { version = "0.59", default-features = false, features = ["ring", "flate2"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

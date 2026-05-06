@@ -887,7 +887,15 @@ impl KeyToolCommand {
                 info!("Digest to sign: {:?}", Base64::encode(digest));
 
                 // Set up the KMS client in default region.
-                let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+                let http_client = aws_smithy_http_client::Builder::new()
+                    .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                        aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+                    ))
+                    .build_https();
+                let config = aws_config::defaults(BehaviorVersion::latest())
+                    .http_client(http_client)
+                    .load()
+                    .await;
                 let kms = KmsClient::new(&config);
 
                 // Sign the message, normalize the signature and then compacts it

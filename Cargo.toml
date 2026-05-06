@@ -240,8 +240,9 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = { version = "1.8", default-features = false, features = ["credentials-process", "rt-tokio", "sso"] }
-aws-sdk-dynamodb = { version = "1.103", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-config = { version = "1.8.16", default-features = false, features = ["credentials-process", "rt-tokio", "sso"] }
+aws-sdk-dynamodb = { version = "1.103", default-features = false, features = ["rt-tokio"] }
+aws-smithy-http-client = { version = "1.1", default-features = false, features = ["rustls-ring"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 axum-server = { version = "0.8", default-features = false, features = ["tls-rustls-no-provider"] }
