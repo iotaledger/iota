@@ -419,53 +419,38 @@ fn get_registry() -> Result<Registry> {
         inputs: vec![CallArg::Pure(vec![0u8])],
         commands: vec![Command::MakeMoveVec(None, vec![])],
     };
-    tracer
-        .trace_value(
-            &mut samples,
-            &TransactionKind::ProgrammableTransaction(sample_pt),
-        )
-        .unwrap();
     let sample_genesis_obj = GenesisObject::RawObject {
         data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
     };
-    tracer
-        .trace_value(
-            &mut samples,
-            &TransactionKind::Genesis(GenesisTransaction {
-                objects: vec![sample_genesis_obj.clone()],
-                events: vec![event.clone()],
-            }),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
-                epoch: 0,
-                round: 0,
-                sub_dag_index: Some(0),
-                commit_timestamp_ms: 0,
-                consensus_commit_digest: ConsensusCommitDigest::default(),
-                consensus_determined_version_assignments:
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                        cancelled_transactions: vec![],
-                    },
-            }),
-        )
-        .unwrap();
-    // EndOfEpochTransaction variant is already covered by sender_data below
-    tracer
-        .trace_value(
-            &mut samples,
-            &TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-                epoch: 0,
-                randomness_round: 0u64.into(),
-                random_bytes: vec![0u8],
-                randomness_obj_initial_shared_version: 0u64.into(),
-            }),
-        )
-        .unwrap();
+    for tk in [
+        TransactionKind::ProgrammableTransaction(sample_pt),
+        TransactionKind::Genesis(GenesisTransaction {
+            objects: vec![sample_genesis_obj.clone()],
+            events: vec![event.clone()],
+        }),
+        TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+            epoch: 0,
+            round: 0,
+            sub_dag_index: Some(0),
+            commit_timestamp_ms: 0,
+            consensus_commit_digest: ConsensusCommitDigest::default(),
+            consensus_determined_version_assignments:
+                ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                    cancelled_transactions: vec![],
+                },
+        }),
+        TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
+            epoch: 0,
+            randomness_round: 0u64.into(),
+            random_bytes: vec![0u8],
+            randomness_obj_initial_shared_version: 0u64.into(),
+        }),
+        #[expect(deprecated)]
+        TransactionKind::AuthenticatorStateUpdateV1Deprecated,
+    ] {
+        tracer.trace_value(&mut samples, &tk).unwrap();
+    }
 
     // Trace GenesisObject (single-variant enum)
     tracer
