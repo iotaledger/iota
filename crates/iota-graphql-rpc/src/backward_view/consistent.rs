@@ -5,8 +5,10 @@
 //! by combining unchanged objects from `checkpointed_objects` with previous
 //! versions from `objects_backward_history`.
 
-use super::{NOT_YET_CREATED, OBJECT_COLUMNS, merge_and_deduplicate};
 use crate::{
+    backward_view::{
+        CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED, merge_and_deduplicate,
+    },
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -24,10 +26,10 @@ pub(crate) fn query(
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let checkpoint_viewed_at = checkpoint_viewed_at as i64;
-    merge_and_deduplicate(
+    merge_and_deduplicate(vec![
         consistent_checkpointed_objects(checkpoint_viewed_at, page, &filter_fn),
         consistent_historical_objects(checkpoint_viewed_at, page, &filter_fn),
-    )
+    ])
 }
 
 /// Returns objects from `checkpointed_objects` (including tombstones) that
@@ -41,8 +43,7 @@ fn consistent_checkpointed_objects(
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let checkpointed_filtered = filter_fn(query!(format!(
-        "SELECT {} FROM checkpointed_objects",
-        OBJECT_COLUMNS
+        "SELECT {CHECKPOINTED_COLUMNS} FROM checkpointed_objects"
     )));
 
     let changed_subquery = query!(format!(
@@ -72,7 +73,7 @@ fn consistent_historical_objects(
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let history_filtered = filter_fn(query!(format!(
-        "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
+        "SELECT {HISTORY_COLUMNS} FROM objects_backward_history"
     )));
 
     let history_window = filter!(
