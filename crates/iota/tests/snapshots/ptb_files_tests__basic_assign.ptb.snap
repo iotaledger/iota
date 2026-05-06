@@ -19,5 +19,5 @@ expression: "results.join(\"\\n\")"
  === BUILT PTB === 
 Input 0: Pure([10, 0, 0, 0, 0, 0, 0, 0])
 Input 1: Pure([11, 0, 0, 0, 0, 0, 0, 0])
-Command 0: SplitCoins(GasInput(0),Input(1))
-Command 1: MergeCoins(Gas,NestedResult(0, 0),NestedResult(0, 1))
+Command 0: SplitCoins(Gas,[Input(0),Input(1)])
+Command 1: MergeCoins(Gas,[NestedResult(0, 0),NestedResult(0, 1)])

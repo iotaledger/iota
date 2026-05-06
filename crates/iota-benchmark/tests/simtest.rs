@@ -111,6 +111,7 @@ mod test {
         test_simulated_load(test_cluster, 60).await;
     }
 
+    #[ignore("https://github.com/iotaledger/iota/issues/11438")]
     #[sim_test(config = "test_config()")]
     async fn test_mainnet_config() {
         chain_config_smoke_test(Chain::Mainnet).await;

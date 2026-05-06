@@ -38,7 +38,7 @@ use iota_types::{
         Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
         ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        TransactionDataAPI, TransactionKind, TransferObjects,
     },
 };
 use move_binary_format::CompiledModule;
@@ -2073,23 +2073,16 @@ impl IotaProgrammableTransactionBlock {
         let mut result_types = vec![None; inputs.len()];
         for command in commands.iter() {
             match command {
-                Command::MoveCall(c) => {
-                    let Ok(module) = Identifier::new(c.module.clone()) else {
+                Command::MoveCall(cmd) => {
+                    // Unsafe: `cmd.module` is an already validated `Identifier`
+                    let module = unsafe {
+                        move_core_types::identifier::Identifier::new_unchecked(cmd.module.as_str())
+                    };
+                    let id = ModuleId::new(AccountAddress::new(cmd.package.into_bytes()), module);
+                    let Some(types) = get_signature_types(id, &cmd.function, module_cache) else {
                         return result_types;
                     };
-
-                    let Ok(function) = Identifier::new(c.function.clone()) else {
-                        return result_types;
-                    };
-
-                    let id = ModuleId::new(
-                        AccountAddress::new(c.package.into_bytes()),
-                        move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
-                    );
-                    let Some(types) = get_signature_types(id, &function, module_cache) else {
-                        return result_types;
-                    };
-                    for (arg, type_) in c.arguments.iter().zip(types) {
+                    for (arg, type_) in cmd.arguments.iter().zip(types) {
                         if let (&Argument::Input(i), Some(type_)) = (arg, type_) {
                             if let Some(x) = result_types.get_mut(i as usize) {
                                 x.replace(type_);
@@ -2097,8 +2090,8 @@ impl IotaProgrammableTransactionBlock {
                         }
                     }
                 }
-                Command::SplitCoins(_, amounts) => {
-                    for arg in amounts {
+                Command::SplitCoins(cmd) => {
+                    for arg in &cmd.amounts {
                         if let &Argument::Input(i) = arg {
                             if let Some(x) = result_types.get_mut(i as usize) {
                                 x.replace(MoveTypeLayout::U64);
@@ -2106,7 +2099,10 @@ impl IotaProgrammableTransactionBlock {
                         }
                     }
                 }
-                Command::TransferObjects(_, Argument::Input(i)) => {
+                Command::TransferObjects(TransferObjects {
+                    address: Argument::Input(i),
+                    ..
+                }) => {
                     if let Some(x) = result_types.get_mut((*i) as usize) {
                         x.replace(MoveTypeLayout::Address);
                     }
@@ -2226,27 +2222,33 @@ impl Display for IotaCommand {
 impl From<Command> for IotaCommand {
     fn from(value: Command) -> Self {
         match value {
-            Command::MoveCall(m) => IotaCommand::MoveCall(Box::new((*m).into())),
-            Command::TransferObjects(args, arg) => IotaCommand::TransferObjects(
-                args.into_iter().map(IotaArgument::from).collect(),
-                arg.into(),
+            Command::MoveCall(cmd) => IotaCommand::MoveCall(Box::new((cmd).into())),
+            Command::TransferObjects(cmd) => IotaCommand::TransferObjects(
+                cmd.objects.into_iter().map(IotaArgument::from).collect(),
+                cmd.address.into(),
             ),
-            Command::SplitCoins(arg, args) => IotaCommand::SplitCoins(
-                arg.into(),
-                args.into_iter().map(IotaArgument::from).collect(),
+            Command::SplitCoins(cmd) => IotaCommand::SplitCoins(
+                cmd.coin.into(),
+                cmd.amounts.into_iter().map(IotaArgument::from).collect(),
             ),
-            Command::MergeCoins(arg, args) => IotaCommand::MergeCoins(
-                arg.into(),
-                args.into_iter().map(IotaArgument::from).collect(),
+            Command::MergeCoins(cmd) => IotaCommand::MergeCoins(
+                cmd.coin.into(),
+                cmd.coins_to_merge
+                    .into_iter()
+                    .map(IotaArgument::from)
+                    .collect(),
             ),
-            Command::Publish(_modules, dep_ids) => IotaCommand::Publish(dep_ids),
-            Command::MakeMoveVec(tag_opt, args) => IotaCommand::MakeMoveVec(
-                tag_opt.map(|tag| tag.to_string()),
-                args.into_iter().map(IotaArgument::from).collect(),
+            Command::Publish(cmd) => IotaCommand::Publish(cmd.dependencies),
+            Command::MakeMoveVector(cmd) => IotaCommand::MakeMoveVec(
+                cmd.type_.map(|tag| tag.to_string()),
+                cmd.elements.into_iter().map(IotaArgument::from).collect(),
             ),
-            Command::Upgrade(_modules, dep_ids, current_package_id, ticket) => {
-                IotaCommand::Upgrade(dep_ids, current_package_id, IotaArgument::from(ticket))
-            }
+            Command::Upgrade(cmd) => IotaCommand::Upgrade(
+                cmd.dependencies,
+                cmd.package,
+                IotaArgument::from(cmd.ticket),
+            ),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
@@ -2366,8 +2368,8 @@ impl From<ProgrammableMoveCall> for IotaProgrammableMoveCall {
         } = value;
         Self {
             package,
-            module,
-            function,
+            module: module.to_string(),
+            function: function.to_string(),
             type_arguments: type_arguments.into_iter().map(|t| t.to_string()).collect(),
             arguments: arguments.into_iter().map(IotaArgument::from).collect(),
         }

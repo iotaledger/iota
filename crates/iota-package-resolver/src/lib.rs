@@ -17,8 +17,7 @@ use iota_types::{
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
-    type_input::{StructInput, TypeInput},
+    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -537,41 +536,39 @@ impl<S: PackageStore> Resolver<S> {
         // (1). Infer type tags for pure inputs from their uses.
         for cmd in &tx.commands {
             match cmd {
-                Command::MoveCall(call) => {
+                Command::MoveCall(cmd) => {
                     let Ok(signature) = self
                         .function_signature(
-                            call.package.into(),
-                            call.module.as_str(),
-                            call.function.as_str(),
+                            cmd.package.into(),
+                            cmd.module.as_str(),
+                            cmd.function.as_str(),
                         )
                         .await
                     else {
                         continue;
                     };
 
-                    for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
-                        let sig = open_sig.instantiate(&call.type_arguments)?;
+                    for (open_sig, arg) in signature.parameters.iter().zip(cmd.arguments.iter()) {
+                        let sig = open_sig.instantiate(&cmd.type_arguments)?;
                         register_type(arg, &sig.body)?;
                     }
                 }
-
-                Command::TransferObjects(_, arg) => register_type(arg, &TypeTag::Address)?,
-
-                Command::SplitCoins(_, amounts) => {
-                    for amount in amounts {
+                Command::TransferObjects(cmd) => register_type(&cmd.address, &TypeTag::Address)?,
+                Command::SplitCoins(cmd) => {
+                    for amount in &cmd.amounts {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
-
-                Command::MakeMoveVec(Some(tag), elems) => {
-                    let tag = as_type_tag(tag)?;
-                    if is_primitive_type_tag(&tag) {
-                        for elem in elems {
-                            register_type(elem, &tag)?;
+                Command::MakeMoveVector(MakeMoveVector {
+                    type_: Some(tag),
+                    elements,
+                }) => {
+                    if is_primitive_type_tag(tag) {
+                        for elem in elements {
+                            register_type(elem, tag)?;
                         }
                     }
                 }
-
                 _ => { /* nop */ }
             }
         }
@@ -1117,7 +1114,7 @@ impl OpenSignature {
     /// the struct or function this signature is part of), but will
     /// produce an error if the signature references a type parameter that is
     /// out of bounds.
-    pub fn instantiate(&self, type_params: &[TypeInput]) -> Result<Signature> {
+    pub fn instantiate(&self, type_params: &[TypeTag]) -> Result<Signature> {
         Ok(Signature {
             ref_: self.ref_,
             body: self.body.instantiate(type_params)?,
@@ -1160,7 +1157,7 @@ impl OpenSignatureBody {
         })
     }
 
-    fn instantiate(&self, type_params: &[TypeInput]) -> Result<TypeTag> {
+    fn instantiate(&self, type_params: &[TypeTag]) -> Result<TypeTag> {
         use OpenSignatureBody as O;
         use TypeTag as T;
 
@@ -1185,11 +1182,10 @@ impl OpenSignatureBody {
                     .collect::<Result<_>>()?,
             ))),
 
-            O::TypeParameter(ix) => as_type_tag(
-                type_params
-                    .get(*ix as usize)
-                    .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?,
-            )?,
+            O::TypeParameter(ix) => type_params
+                .get(*ix as usize)
+                .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?
+                .clone(),
         })
     }
 }
@@ -1829,39 +1825,6 @@ impl<'s> From<&'s StructTag> for DatatypeRef<'s, 's> {
 /// module's error type.
 fn ident(s: &str) -> Result<Identifier> {
     Identifier::new(s).map_err(|_| Error::NotAnIdentifier(s.to_string()))
-}
-
-pub fn as_type_tag(type_input: &TypeInput) -> Result<TypeTag> {
-    // Keep this in sync with implementation in: crates/iota-types/src/type_input.rs
-    use TypeInput as I;
-    use TypeTag as T;
-    Ok(match type_input {
-        I::Bool => T::Bool,
-        I::U8 => T::U8,
-        I::U16 => T::U16,
-        I::U32 => T::U32,
-        I::U64 => T::U64,
-        I::U128 => T::U128,
-        I::U256 => T::U256,
-        I::Address => T::Address,
-        I::Signer => T::Signer,
-        I::Vector(t) => T::Vector(Box::new(as_type_tag(t)?)),
-        I::Struct(s) => {
-            let StructInput {
-                address,
-                module,
-                name,
-                type_params,
-            } = s.as_ref();
-            let type_params = type_params.iter().map(as_type_tag).collect::<Result<_>>()?;
-            T::Struct(Box::new(StructTag::new(
-                *address,
-                ident(module)?,
-                ident(name)?,
-                type_params,
-            )))
-        }
-    })
 }
 
 /// Read and deserialize a signature index (from function parameter or return
@@ -2541,7 +2504,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),
@@ -2560,7 +2523,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation_error() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),
@@ -2868,7 +2831,7 @@ mod tests {
                     I::Pure(bcs::to_bytes("hello").unwrap()),
                     I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
-                commands: vec![Command::move_call(
+                commands: vec![Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2947,14 +2910,14 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2981,7 +2944,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_conflicting() {
         use CallArg as I;
-        use TypeInput as TI;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -3003,7 +2965,7 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -3012,7 +2974,7 @@ mod tests {
                 ),
                 // This command is using the input that was previously used as a U64, but now as a
                 // U32, which will cause an error.
-                Command::MakeMoveVec(Some(TI::U32), vec![Argument::Input(3)]),
+                Command::new_make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
             ],
         };
 

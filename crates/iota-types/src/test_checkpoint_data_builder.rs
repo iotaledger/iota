@@ -712,7 +712,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, ProgrammableMoveCall, TransactionDataAPI},
+        transaction::{Command, TransactionDataAPI},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -1064,15 +1064,15 @@ mod tests {
                 .kind()
                 .iter_commands()
                 .any(|cmd| {
-                    cmd == &Command::MoveCall(Box::new(ProgrammableMoveCall {
-                        package: ObjectID::ZERO,
-                        module: "test".to_string(),
-                        function: "test".to_string(),
-                        type_arguments: vec![],
-                        arguments: vec![],
-                    }))
+                    cmd == &Command::new_move_call(
+                        ObjectID::ZERO,
+                        Identifier::new_unchecked("test"),
+                        Identifier::new_unchecked("test"),
+                        vec![],
+                        vec![],
+                    )
                 })
-        );
+        )
     }
 
     #[test]

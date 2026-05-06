@@ -536,7 +536,7 @@ async fn test_dev_inspect_dynamic_field() {
             CallArg::Pure(test_object1_bytes.clone()),
             CallArg::Pure(test_object1_bytes.clone()),
         ],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
@@ -1047,7 +1047,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     // no child to delete since we are using the old version of the parent
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::ImmutableOrOwned(parent)],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("remove_field"),
@@ -1102,7 +1102,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("create"),
@@ -4212,7 +4212,7 @@ pub async fn call_move_(
         args.push(arg.to_call_arg(&mut builder, authority).await);
     }
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -4346,7 +4346,7 @@ async fn call_move_with_gas_coins(
         args.push(arg.to_call_arg(&mut builder, authority).await);
     }
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -4484,7 +4484,7 @@ pub async fn call_dev_inspect(
         arguments.push(a.to_call_arg(&mut builder, authority).await)
     }
 
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -5626,7 +5626,7 @@ async fn test_for_inc_201_dev_inspect() {
         .get_package_bytes(false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.command(Command::Publish(
+    builder.command(Command::new_publish(
         modules,
         BuiltInFramework::all_package_ids(),
     ));
