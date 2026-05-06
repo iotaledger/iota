@@ -1647,7 +1647,7 @@ impl IotaNode {
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
-                        cur_epoch_store.get_chain_identifier().chain(),
+                        cur_epoch_store.get_chain(),
                         self.config
                             .supported_protocol_versions
                             .expect("Supported versions should be populated")
@@ -2047,7 +2047,7 @@ impl IotaNode {
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
             self.state.name,
-            epoch_store.get_chain_identifier().chain(),
+            epoch_store.get_chain(),
             self.config
                 .supported_protocol_versions
                 .expect("Supported versions should be populated")
