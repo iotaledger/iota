@@ -66,6 +66,18 @@ public fun create_with_multisig(public_key: PublicKey, ctx: &mut TxContext) {
     abstract_account::builder(authenticator, ctx).attach_builtin_public_key(public_key).build();
 }
 
+/// Creates an `AbstractAccount` with the Ed25519 built-in authenticator but a Secp256k1
+/// public key — deliberately mismatched to exercise the "public key scheme mismatch" error
+/// path in `verify_builtin_signature`. Never use this outside of tests.
+public fun create_with_ed25519_auth_and_secp256k1_key(public_key: PublicKey, ctx: &mut TxContext) {
+    assert!(public_key.scheme() == signature_scheme::secp256k1(), EUnexpectedPublicKeyScheme);
+
+    let authenticator = builtin_authenticator_functions::ed25519_authenticator_function_ref_v1<
+        AbstractAccount,
+    >();
+    abstract_account::builder(authenticator, ctx).attach_builtin_public_key(public_key).build();
+}
+
 /// Creates a new `AbstractAccount` authenticated by the built-in Passkey authenticator.
 public fun create_with_passkey(public_key: PublicKey, ctx: &mut TxContext) {
     assert!(public_key.scheme() == signature_scheme::passkey(), EUnexpectedPublicKeyScheme);

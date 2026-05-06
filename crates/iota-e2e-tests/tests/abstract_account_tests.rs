@@ -98,6 +98,8 @@ const AA_BUILTIN_SECP256K1_CREATE_FN: &str = "create_with_secp256k1";
 const AA_BUILTIN_SECP256R1_CREATE_FN: &str = "create_with_secp256r1";
 const AA_BUILTIN_MULTISIG_CREATE_FN: &str = "create_with_multisig";
 const AA_BUILTIN_PASSKEY_CREATE_FN: &str = "create_with_passkey";
+const AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN: &str =
+    "create_with_ed25519_auth_and_secp256k1_key";
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2095,6 +2097,208 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     assert!(
         error.contains("Invalid author"),
         "Expected 'Invalid author' in error, got: {error}"
+    );
+    Ok(())
+}
+
+/// Test that the built-in Ed25519 authenticator rejects a transaction signed
+/// with a Secp256k1 key: the submitted signature's scheme does not match the
+/// Ed25519 authenticator function ref.
+#[sim_test]
+async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let owner = test_env.owner.unwrap();
+    let ed25519_kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let pk = ed25519_kp.public();
+
+    test_env
+        .setup_builtin_account(
+            pk.scheme(),
+            pk.as_ref().to_vec(),
+            AA_BUILTIN_ED25519_CREATE_FN,
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with a Secp256k1 key — wrong scheme for an Ed25519 authenticator.
+    let secp256k1_kp = IotaKeyPair::Secp256k1(Secp256k1KeyPair::generate(&mut StdRng::from_seed(
+        [50u8; 32],
+    )));
+    let sig = builtin_sig_for_keypair(&secp256k1_kp, &tx_data, aa_ref)?;
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure for Secp256k1 sig on Ed25519 account, \
+             got: {err:?}"
+        );
+    };
+    assert!(
+        error.contains("BuiltinAuthenticatorVerificationError"),
+        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
+    );
+    assert!(
+        error.contains("Signature scheme mismatch"),
+        "Expected 'Signature scheme mismatch' in error, got: {error}"
+    );
+    Ok(())
+}
+
+/// Test that the built-in Ed25519 authenticator rejects a transaction when
+/// the on-chain public key was registered with a Secp256k1 scheme.
+///
+/// The account is deliberately misconfigured:
+/// `ed25519_authenticator_function_ref_v1` is used but a Secp256k1 public key
+/// is attached. The signature is Ed25519 (so the signature scheme check
+/// passes), but `verify_builtin_signature` catches the mismatch between the
+/// authenticator's expected scheme (Ed25519) and the stored key's scheme
+/// (Secp256k1).
+#[sim_test]
+async fn test_builtin_ed25519_authenticator_public_key_scheme_mismatch() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env.init_abstract_account_state("").await;
+
+    let secp256k1_kp = IotaKeyPair::Secp256k1(Secp256k1KeyPair::generate(&mut StdRng::from_seed(
+        [60u8; 32],
+    )));
+    let secp256k1_pk = secp256k1_kp.public();
+
+    test_env
+        .setup_builtin_account(
+            secp256k1_pk.scheme(),
+            secp256k1_pk.as_ref().to_vec(),
+            AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN,
+        )
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sign with an Ed25519 key so the signature scheme check passes. The failure
+    // comes next: the on-chain public key's scheme (Secp256k1) does not match the
+    // Ed25519 authenticator function ref.
+    let ed25519_kp =
+        IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([61u8; 32])));
+    let sig = builtin_sig_for_keypair(&ed25519_kp, &tx_data, aa_ref)?;
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure for public key scheme mismatch, \
+             got: {err:?}"
+        );
+    };
+    assert!(
+        error.contains("BuiltinAuthenticatorVerificationError"),
+        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
+    );
+    assert!(
+        error.contains("Public key scheme mismatch"),
+        "Expected 'Public key scheme mismatch' in error, got: {error}"
+    );
+    Ok(())
+}
+
+/// Test that supplying a built-in-format signature to an account backed by a
+/// custom Ed25519 authenticator is rejected.
+///
+/// The custom `authenticate_ed25519` expects its `signature` arg to be a
+/// hex-encoded 64-byte value (it calls `iota::hex::decode` on it).
+/// `builtin_sig_for_keypair` instead produces flag-prefixed wire bytes
+/// (`0x00 | 64_sig_bytes | 32_pk_bytes`) which are not valid hex, so the
+/// Move authenticator aborts.
+#[sim_test]
+async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Use the owner keypair (the one registered in the account) but wrap it in
+    // the builtin wire format — incompatible with the custom authenticator.
+    let owner = test_env.owner.unwrap();
+    let kp = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)?
+        .as_keypair()?
+        .clone();
+    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
+
+    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
+    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
+        panic!(
+            "Expected MoveAuthenticatorExecutionFailure when a builtin-format signature is used \
+             with a custom authenticator, got: {err:?}"
+        );
+    };
+    // The custom authenticator calls `iota::hex::decode` on the raw wire bytes.
+    // The wire format is 97 bytes (odd), so `hex::decode` aborts immediately with
+    // `EInvalidHexLength` (code 0) before any signature verification is attempted.
+    assert!(
+        error.contains("MoveAbort"),
+        "Expected a MoveAbort (not a builtin verification error), got: {error}"
+    );
+    assert!(
+        error.contains("hex"),
+        "Expected abort to originate in the `hex` module, got: {error}"
     );
     Ok(())
 }
