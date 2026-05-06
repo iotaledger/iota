@@ -892,74 +892,106 @@ async fn get_latest_from_peer(
     let peer_id = peer.peer_id();
     let mut client = StateSyncClient::new(peer);
 
-    let info = {
-        let maybe_info = peer_heights.read().unwrap().peers.get(&peer_id).copied();
+    // If we already know this peer, just refresh its latest info.
+    let existing_info = peer_heights.read().unwrap().peers.get(&peer_id).copied();
+    if let Some(existing_info) = existing_info {
+        if !existing_info.on_same_chain_as_us {
+            // We already know this peer is not on the same chain as us, no need to query
+            // further.
+            return;
+        }
 
-        if let Some(info) = maybe_info {
-            info
-        } else {
-            // TODO do we want to create a new API just for querying a node's chainid?
-            //
-            // We need to query this node's genesis checkpoint to see if they're on the same
-            // chain as us
-            let request = Request::new(GetCheckpointSummaryRequest::BySequenceNumber(0))
-                .with_timeout(timeout);
-            let response = client
-                .get_checkpoint_summary(request)
-                .await
-                .map(Response::into_inner);
+        // Refresh height and lowest watermark.
+        if let Some((highest_checkpoint, low_watermark)) =
+            query_peer_for_latest_info(&mut client, timeout).await
+        {
+            peer_heights.write().unwrap().update_peer_info(
+                peer_id,
+                highest_checkpoint,
+                Some(low_watermark),
+            );
+        };
 
-            let info = match response {
-                Ok(Some(checkpoint)) => {
-                    let digest = *checkpoint.digest();
-                    PeerStateSyncInfo {
-                        genesis_checkpoint_digest: digest,
-                        on_same_chain_as_us: our_genesis_checkpoint_digest == digest,
-                        height: *checkpoint.sequence_number(),
-                        lowest: CheckpointSequenceNumber::default(),
-                    }
-                }
-                Ok(None) => PeerStateSyncInfo {
+        return;
+    }
+
+    // New peer — query genesis checkpoint to determine chain identity.
+    let response = client
+        .get_checkpoint_summary(
+            Request::new(GetCheckpointSummaryRequest::BySequenceNumber(0)).with_timeout(timeout),
+        )
+        .await
+        .map(Response::into_inner);
+
+    let peer_genesis_checkpoint_digest = match response {
+        Ok(Some(checkpoint)) => *checkpoint.digest(),
+        Ok(None) => {
+            // Peer doesn't have checkpoint 0 (likely pruned). We can't
+            // determine chain identity — insert as not-on-same-chain so
+            // we don't re-query genesis on every connection event.
+            peer_heights.write().unwrap().insert_peer_info(
+                peer_id,
+                PeerStateSyncInfo {
                     genesis_checkpoint_digest: CheckpointDigest::default(),
                     on_same_chain_as_us: false,
                     height: CheckpointSequenceNumber::default(),
                     lowest: CheckpointSequenceNumber::default(),
                 },
-                Err(status) => {
-                    trace!("get_latest_checkpoint_summary request failed: {status:?}");
-                    return;
-                }
-            };
-            peer_heights
-                .write()
-                .unwrap()
-                .insert_peer_info(peer_id, info);
-            info
+            );
+            trace!("peer {peer_id} returned None for genesis checkpoint, marking as unknown chain");
+            return;
+        }
+        Err(status) => {
+            trace!(
+                "peer {peer_id} get_latest_checkpoint_summary request for genesis checkpoint failed: {status:?}"
+            );
+            return;
         }
     };
 
-    // Bail early if this node isn't on the same chain as us
-    if !info.on_same_chain_as_us {
-        trace!(?info, "Peer {peer_id} not on same chain as us");
+    if our_genesis_checkpoint_digest != peer_genesis_checkpoint_digest {
+        // Not on our chain — insert as not-on-same-chain so we don't re-query genesis
+        // on every connection event.
+        peer_heights.write().unwrap().insert_peer_info(
+            peer_id,
+            PeerStateSyncInfo {
+                genesis_checkpoint_digest: peer_genesis_checkpoint_digest,
+                on_same_chain_as_us: false,
+                height: CheckpointSequenceNumber::default(),
+                lowest: CheckpointSequenceNumber::default(),
+            },
+        );
         return;
     }
-    let Some((highest_checkpoint, low_watermark)) =
+
+    // Peer is on our chain. Query availability to get the correct lowest
+    // watermark, then insert with complete info in a single step.
+    // Note: there is an inherent race here — a push_checkpoint_summary from
+    // this peer may arrive before we finish this query and register the peer.
+    // The 5-second event loop tick recovers from any missed pushes. A proper
+    // fix would be a handshake protocol where both sides exchange chain_id,
+    // lowest, and highest on connect.
+    if let Some((highest_checkpoint, low_watermark)) =
         query_peer_for_latest_info(&mut client, timeout).await
-    else {
-        return;
-    };
-    peer_heights
-        .write()
-        .unwrap()
-        .update_peer_info(peer_id, highest_checkpoint, low_watermark);
+    {
+        peer_heights.write().unwrap().insert_peer_info(
+            peer_id,
+            PeerStateSyncInfo {
+                genesis_checkpoint_digest: peer_genesis_checkpoint_digest,
+                on_same_chain_as_us: true,
+                height: *highest_checkpoint.sequence_number(),
+                lowest: low_watermark,
+            },
+        );
+    }
 }
 
-/// Queries a peer for their highest_synced_checkpoint and low checkpoint
-/// watermark
+/// Queries a peer for their highest_synced_checkpoint and lowest available
+/// checkpoint watermark.
 async fn query_peer_for_latest_info(
     client: &mut StateSyncClient<anemo::Peer>,
     timeout: Duration,
-) -> Option<(Checkpoint, Option<CheckpointSequenceNumber>)> {
+) -> Option<(Checkpoint, CheckpointSequenceNumber)> {
     let request = Request::new(()).with_timeout(timeout);
     let response = client
         .get_checkpoint_availability(request)
@@ -969,30 +1001,9 @@ async fn query_peer_for_latest_info(
         Ok(GetCheckpointAvailabilityResponse {
             highest_synced_checkpoint,
             lowest_available_checkpoint,
-        }) => {
-            return Some((highest_synced_checkpoint, Some(lowest_available_checkpoint)));
-        }
+        }) => Some((highest_synced_checkpoint, lowest_available_checkpoint)),
         Err(status) => {
-            // If peer hasn't upgraded they would return 404 NotFound error
-            if status.status() != anemo::types::response::StatusCode::NotFound {
-                trace!("get_checkpoint_availability request failed: {status:?}");
-                return None;
-            }
-        }
-    };
-
-    // Then we try the old query
-    // TODO: Remove this once the new feature stabilizes
-    let request = Request::new(GetCheckpointSummaryRequest::Latest).with_timeout(timeout);
-    let response = client
-        .get_checkpoint_summary(request)
-        .await
-        .map(Response::into_inner);
-    match response {
-        Ok(Some(checkpoint)) => Some((checkpoint, None)),
-        Ok(None) => None,
-        Err(status) => {
-            trace!("get_checkpoint_summary (latest) request failed: {status:?}");
+            trace!("get_checkpoint_availability request failed: {status:?}");
             None
         }
     }
@@ -1026,7 +1037,7 @@ async fn query_peers_for_their_latest_checkpoint(
                     Some((highest_checkpoint, low_watermark)) => peer_heights
                         .write()
                         .unwrap()
-                        .update_peer_info(peer_id, highest_checkpoint.clone(), low_watermark)
+                        .update_peer_info(peer_id, highest_checkpoint.clone(), Some(low_watermark))
                         .then_some(highest_checkpoint),
                     None => None,
                 }

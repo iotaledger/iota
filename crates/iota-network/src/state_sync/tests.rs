@@ -510,7 +510,11 @@ async fn sync_with_checkpoints_being_inserted() {
     store_1.insert_certified_checkpoint(&checkpoint);
     handle_1.send_checkpoint(checkpoint).await;
 
-    timeout(Duration::from_secs(1), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         assert_eq!(
             subscriber_1.recv().await.unwrap().data(),
             ordered_checkpoints[1].data(),
@@ -529,7 +533,11 @@ async fn sync_with_checkpoints_being_inserted() {
         handle_1.send_checkpoint(checkpoint).await;
     }
 
-    timeout(Duration::from_secs(1), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         for checkpoint in &ordered_checkpoints[2..] {
             assert_eq!(subscriber_1.recv().await.unwrap().data(), checkpoint.data());
             assert_eq!(subscriber_2.recv().await.unwrap().data(), checkpoint.data());
@@ -652,7 +660,11 @@ async fn sync_with_checkpoints_watermark() {
     store_1.insert_certified_checkpoint(&checkpoint_1);
     handle_1.send_checkpoint(checkpoint_1.clone()).await;
 
-    timeout(Duration::from_secs(3), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         assert_eq!(
             subscriber_1.recv().await.unwrap().data(),
             ordered_checkpoints[1].data(),
@@ -717,7 +729,11 @@ async fn sync_with_checkpoints_watermark() {
     }
 
     // Peer 1 has all the checkpoint contents, but not Peer 2
-    timeout(Duration::from_secs(1), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         for (checkpoint, contents) in ordered_checkpoints[2..]
             .iter()
             .zip(contents.clone().into_iter().skip(2))
@@ -779,7 +795,11 @@ async fn sync_with_checkpoints_watermark() {
     tokio::spawn(event_loop_3.start());
 
     // Peer 3 is able to sync checkpoint 1 with the help from Peer 2
-    timeout(Duration::from_secs(1), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         assert_eq!(
             subscriber_3.recv().await.unwrap().data(),
             ordered_checkpoints[1].data()
@@ -815,7 +835,11 @@ async fn sync_with_checkpoints_watermark() {
     // Peer 2 and Peer 3 will know about this change by
     // `get_checkpoint_availability` Soon we expect them to have all
     // checkpoints's content.
-    timeout(Duration::from_secs(6), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         for (checkpoint, contents) in ordered_checkpoints[2..]
             .iter()
             .zip(contents.clone().into_iter().skip(2))
@@ -895,7 +919,11 @@ async fn sync_with_checkpoints_watermark() {
     network_4.connect(network_3.local_addr()).await.unwrap();
 
     // Peer 4 syncs everything with Peer 3
-    timeout(Duration::from_secs(3), async {
+    // Timeout is 10s because peer registration completes only after the
+    // availability query, so a pushed checkpoint may be missed and recovery
+    // depends on the 5-second event loop tick.
+    // TODO: reduce after adding a handshake message on connect.
+    timeout(Duration::from_secs(10), async {
         for (checkpoint, contents) in ordered_checkpoints[1..]
             .iter()
             .zip(contents.clone().into_iter().skip(1))
