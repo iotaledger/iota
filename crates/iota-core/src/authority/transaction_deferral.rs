@@ -122,10 +122,10 @@ mod object_cost_tests {
         }
 
         // get a tempdir
-        let tempdir = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
 
         let db = TestDB::open_tables_read_write(
-            tempdir.path().to_owned(),
+            tmp_dir.path().to_owned(),
             MetricConf::new("test_db"),
             None,
             None,
@@ -163,10 +163,10 @@ mod object_cost_tests {
         }
 
         // get a tempdir
-        let tempdir = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
 
         let db = TestDB::open_tables_read_write(
-            tempdir.path().to_owned(),
+            tmp_dir.path().to_owned(),
             MetricConf::new("test_db"),
             None,
             None,

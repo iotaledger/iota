@@ -90,9 +90,7 @@ pub(crate) fn build_dependency_graph(
         let nested_graph = build_dependency_graph(&message.nested_type, package, &full_name);
 
         // Merge nested graph dependencies
-        graph
-            .dependencies
-            .extend(nested_graph.dependencies.into_iter());
+        graph.dependencies.extend(nested_graph.dependencies);
 
         //// Merge nested graph full names
         graph.full_names.extend(nested_graph.full_names);

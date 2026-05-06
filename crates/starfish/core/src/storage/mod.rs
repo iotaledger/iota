@@ -129,7 +129,7 @@ pub(crate) trait Store: Send + Sync {
         let refs = self.scan_block_references_by_author(author, start_round)?;
         let results = self.read_verified_block_headers(refs.as_slice())?;
         let mut block_headers = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             block_headers.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );

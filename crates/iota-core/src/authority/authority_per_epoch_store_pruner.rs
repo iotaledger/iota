@@ -100,18 +100,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_epoch_pruner() {
-        let parent_directory = tempfile::tempdir().unwrap().keep();
+        let tmp_dir = iota_common::tempdir();
         let directories: Vec<_> = vec!["epoch_0", "epoch_1", "epoch_3", "epoch_4"]
             .into_iter()
-            .map(|name| parent_directory.join(name))
+            .map(|name| tmp_dir.path().join(name))
             .collect();
         for directory in &directories {
             fs::create_dir(directory).expect("failed to create directory");
         }
 
-        let pruned = AuthorityPerEpochStorePruner::prune_old_directories(&parent_directory, 2)
-            .await
-            .unwrap();
+        let pruned =
+            AuthorityPerEpochStorePruner::prune_old_directories(&tmp_dir.path().to_path_buf(), 2)
+                .await
+                .unwrap();
         assert_eq!(pruned, 2);
         assert_eq!(
             directories

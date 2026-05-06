@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.21.1"
+    "version": "1.22.1"
   },
   "methods": [
     {
@@ -1294,11 +1294,10 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "24",
+              "maxSupportedProtocolVersion": "25",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
-                "accept_zklogin_in_multisig": false,
                 "additional_borrow_checks": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
@@ -1321,7 +1320,6 @@
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
-                "enable_jwk_consensus_updates": false,
                 "enable_move_authentication": false,
                 "enable_move_authentication_for_sponsor": false,
                 "enable_poseidon": true,
@@ -1346,8 +1344,7 @@
                 "track_non_committee_eligible_validators": false,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": false,
-                "variant_nodes": false,
-                "zklogin_auth": false
+                "variant_nodes": false
               },
               "attributes": {
                 "address_from_bytes_cost_base": {
@@ -6170,14 +6167,6 @@
       "BigInt_for_uint64": {
         "type": "string"
       },
-      "Bn254FqElement": {
-        "description": "A struct that stores a Bn254 Fq field element as 32 bytes.",
-        "type": "string"
-      },
-      "Bn254FrElement": {
-        "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
-        "type": "string"
-      },
       "CallArg": {
         "oneOf": [
           {
@@ -6353,24 +6342,6 @@
           }
         ]
       },
-      "Claim": {
-        "description": "A claim consists of value and index_mod_4.",
-        "type": "object",
-        "required": [
-          "indexMod4",
-          "value"
-        ],
-        "properties": {
-          "indexMod4": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
       "Coin": {
         "type": "object",
         "required": [
@@ -6398,7 +6369,7 @@
             "$ref": "#/components/schemas/TransactionDigest"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberBigInt"
           }
         }
       },
@@ -6471,16 +6442,11 @@
             "additionalProperties": false
           },
           {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
+            "deprecated": true,
+            "type": "string",
+            "enum": [
+              "ZkLoginDeprecated"
+            ]
           },
           {
             "type": "object",
@@ -6928,7 +6894,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumber"
           }
         }
       },
@@ -7727,13 +7693,14 @@
             "additionalProperties": false
           },
           {
+            "deprecated": true,
             "type": "object",
             "required": [
-              "ZkLoginAuthenticator"
+              "ZkLoginAuthenticatorDeprecated"
             ],
             "properties": {
-              "ZkLoginAuthenticator": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticator"
+              "ZkLoginAuthenticatorDeprecated": {
+                "$ref": "#/components/schemas/ZkLoginAuthenticatorDeprecated"
               }
             },
             "additionalProperties": false
@@ -7783,7 +7750,7 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             ]
           }
@@ -7836,7 +7803,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   },
                   "mutable": {
                     "default": true,
@@ -7848,25 +7815,6 @@
             "additionalProperties": false
           }
         ]
-      },
-      "IotaActiveJwk": {
-        "type": "object",
-        "required": [
-          "epoch",
-          "jwk",
-          "jwk_id"
-        ],
-        "properties": {
-          "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "jwk": {
-            "$ref": "#/components/schemas/IotaJWK"
-          },
-          "jwk_id": {
-            "$ref": "#/components/schemas/IotaJwkId"
-          }
-        }
       },
       "IotaAddress": {
         "$ref": "#/components/schemas/Hex"
@@ -7940,17 +7888,6 @@
           }
         ]
       },
-      "IotaAuthenticatorStateExpire": {
-        "type": "object",
-        "required": [
-          "min_epoch"
-        ],
-        "properties": {
-          "min_epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
-      },
       "IotaCallArg": {
         "oneOf": [
           {
@@ -7978,7 +7915,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   }
                 }
               },
@@ -7992,7 +7929,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -8030,7 +7967,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumberBigInt"
                   }
                 }
               }
@@ -8228,12 +8165,6 @@
       "IotaEndOfEpochTransactionKind": {
         "oneOf": [
           {
-            "type": "string",
-            "enum": [
-              "AuthenticatorStateCreate"
-            ]
-          },
-          {
             "type": "object",
             "required": [
               "ChangeEpoch"
@@ -8253,18 +8184,6 @@
             "properties": {
               "ChangeEpochV2": {
                 "$ref": "#/components/schemas/IotaChangeEpochV2"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "AuthenticatorStateExpire"
-            ],
-            "properties": {
-              "AuthenticatorStateExpire": {
-                "$ref": "#/components/schemas/IotaAuthenticatorStateExpire"
               }
             },
             "additionalProperties": false
@@ -8323,45 +8242,7 @@
           }
         }
       },
-      "IotaJWK": {
-        "type": "object",
-        "required": [
-          "alg",
-          "e",
-          "kty",
-          "n"
-        ],
-        "properties": {
-          "alg": {
-            "type": "string"
-          },
-          "e": {
-            "type": "string"
-          },
-          "kty": {
-            "type": "string"
-          },
-          "n": {
-            "type": "string"
-          }
-        }
-      },
       "IotaJsonValue": {},
-      "IotaJwkId": {
-        "type": "object",
-        "required": [
-          "iss",
-          "kid"
-        ],
-        "properties": {
-          "iss": {
-            "type": "string"
-          },
-          "kid": {
-            "type": "string"
-          }
-        }
-      },
       "IotaMoveAbility": {
         "type": "string",
         "enum": [
@@ -9890,7 +9771,6 @@
               "ProgrammableTransaction",
               "Genesis",
               "ConsensusCommitPrologueV1",
-              "AuthenticatorStateUpdateV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction"
             ]
@@ -10721,7 +10601,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10760,7 +10640,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10791,7 +10671,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10803,7 +10683,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10834,7 +10714,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10865,7 +10745,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10904,7 +10784,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           },
@@ -10943,7 +10823,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             }
           }
@@ -11045,7 +10925,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberBigInt"
               }
             ]
           }
@@ -11324,7 +11204,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber2"
+                    "$ref": "#/components/schemas/SequenceNumber"
                   }
                 ]
               }
@@ -11908,16 +11788,11 @@
             "additionalProperties": false
           },
           {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginPublicIdentifier"
-              }
-            },
-            "additionalProperties": false
+            "deprecated": true,
+            "type": "string",
+            "enum": [
+              "ZkLoginDeprecated"
+            ]
           },
           {
             "type": "object",
@@ -11985,7 +11860,7 @@
                 "type": "string"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
@@ -12028,7 +11903,7 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           }
@@ -12045,7 +11920,7 @@
         "format": "uint64",
         "minimum": 0.0
       },
-      "SequenceNumber2": {
+      "SequenceNumberBigInt": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
       },
       "Signature": {
@@ -12480,7 +12355,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumber2"
+            "$ref": "#/components/schemas/SequenceNumberBigInt"
           }
         }
       },
@@ -12589,36 +12464,6 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaTransaction"
                 }
-              }
-            }
-          },
-          {
-            "description": "A transaction which updates global authenticator state",
-            "type": "object",
-            "required": [
-              "epoch",
-              "kind",
-              "new_active_jwks",
-              "round"
-            ],
-            "properties": {
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "AuthenticatorStateUpdateV1"
-                ]
-              },
-              "new_active_jwks": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/IotaActiveJwk"
-                }
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             }
           },
@@ -13298,7 +13143,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             ]
           }
@@ -13338,94 +13183,9 @@
           }
         }
       },
-      "ZkLoginAuthenticator": {
-        "description": "An zk login authenticator with all the necessary fields.",
-        "type": "object",
-        "required": [
-          "inputs",
-          "maxEpoch",
-          "userSignature"
-        ],
-        "properties": {
-          "inputs": {
-            "$ref": "#/components/schemas/ZkLoginInputs"
-          },
-          "maxEpoch": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "userSignature": {
-            "$ref": "#/components/schemas/Signature"
-          }
-        }
-      },
-      "ZkLoginAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "ZkLoginInputs": {
-        "description": "All inputs required for the zk login proof verification and other public inputs.",
-        "type": "object",
-        "required": [
-          "addressSeed",
-          "headerBase64",
-          "issBase64Details",
-          "proofPoints"
-        ],
-        "properties": {
-          "addressSeed": {
-            "$ref": "#/components/schemas/Bn254FrElement"
-          },
-          "headerBase64": {
-            "type": "string"
-          },
-          "issBase64Details": {
-            "$ref": "#/components/schemas/Claim"
-          },
-          "proofPoints": {
-            "$ref": "#/components/schemas/ZkLoginProof"
-          }
-        }
-      },
-      "ZkLoginProof": {
-        "description": "The struct for zk login proof.",
-        "type": "object",
-        "required": [
-          "a",
-          "b",
-          "c"
-        ],
-        "properties": {
-          "a": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          },
-          "b": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/Bn254FqElement"
-              }
-            }
-          },
-          "c": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          }
-        }
-      },
-      "ZkLoginPublicIdentifier": {
-        "description": "A wrapper struct to retrofit in [enum PublicKey] for zkLogin. Useful to construct [struct MultiSigPublicKey].",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
+      "ZkLoginAuthenticatorDeprecated": {
+        "description": "Deprecated zkLogin authenticator — empty stub retained only so the [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles. Instances are never constructed; deserialization rejects the flag byte.",
+        "type": "null"
       }
     }
   }

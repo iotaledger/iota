@@ -135,7 +135,14 @@ pub async fn start_grpc_server(
     let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
 
     // Create broadcasters
-    let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
+    let inflight_subscribers = metrics
+        .as_ref()
+        .map(|m| m.inflight_checkpoint_stream_subscribers());
+    let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(
+        checkpoint_data_tx,
+        config.max_concurrent_stream_subscribers.max(1) as usize,
+        inflight_subscribers,
+    );
 
     // Create the gRPC services - get the cancellation token directly from
     // server level

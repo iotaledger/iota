@@ -26,10 +26,8 @@ enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-tbls.workspace = true
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
-im.workspace = true
 indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
@@ -64,6 +62,7 @@ consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
+iota-proc-macros.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 move-binary-format.workspace = true
@@ -89,7 +88,7 @@ tokio.workspace = true
 url.workspace = true
 
 [[bench]]
-name = "accumulator_bench"
+name = "global_state_hash_bench"
 harness = false
 
 [features]

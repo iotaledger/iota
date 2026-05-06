@@ -438,7 +438,6 @@ impl ServerBuilder {
         let mut builder = ServerBuilder::new(state);
 
         let iota_names_config = config.service.iota_names.clone();
-        let zklogin_config = config.service.zklogin.clone();
         let reader = PgManager::reader_with_config(
             config.connection.db_url.clone(),
             config.connection.db_pool_size,
@@ -500,7 +499,6 @@ impl ServerBuilder {
             .context_data(write_api)
             .context_data(read_api)
             .context_data(iota_names_config)
-            .context_data(zklogin_config)
             .context_data(metrics.clone())
             .context_data(config.clone())
             .context_data(graphql_streams)

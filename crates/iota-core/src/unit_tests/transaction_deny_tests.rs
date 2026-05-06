@@ -21,12 +21,12 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_grpc::HandleTransactionResponse,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
-        TransactionData, VerifiedCertificate, VerifiedTransaction,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
+        VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
-        get_zklogin_user_address, make_move_authenticator_tx, make_zklogin_tx,
-        to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+        make_move_authenticator_tx, to_sender_signed_transaction,
+        to_sender_signed_transaction_with_multi_signers,
     },
 };
 use move_core_types::ident_str;
@@ -100,17 +100,6 @@ fn get_accounts_and_coins(
         .collect();
     assert_eq!(accounts.len(), ACCOUNT_NUM);
     accounts
-}
-
-async fn process_zklogin_tx(
-    tx: Transaction,
-    state: &Arc<AuthorityState>,
-) -> IotaResult<HandleTransactionResponse> {
-    let verified_tx = VerifiedTransaction::new_from_verified(tx);
-
-    state
-        .handle_transaction(&state.epoch_store_for_testing(), verified_tx)
-        .await
 }
 
 async fn transfer_with_account(
@@ -188,28 +177,6 @@ async fn test_user_transaction_disabled() {
     .await;
     let accounts = get_accounts_and_coins(&network_config, &state);
     assert_denied(&transfer_with_account(&accounts[0], &accounts[0], &state).await);
-}
-
-#[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_zklogin_transaction_disabled() {
-    let (_, state) = setup_test(
-        TransactionDenyConfigBuilder::new()
-            .disable_zklogin_sig()
-            .build(),
-    )
-    .await;
-    let (_, tx, _) = make_zklogin_tx(get_zklogin_user_address(), false);
-    assert_denied(&process_zklogin_tx(tx, &state).await);
-
-    let (_, state1) = setup_test(
-        TransactionDenyConfigBuilder::new()
-            .add_zklogin_disabled_provider("Twitch".to_string())
-            .build(),
-    )
-    .await;
-    let (_, tx1, _) = make_zklogin_tx(get_zklogin_user_address(), false);
-    assert_denied(&process_zklogin_tx(tx1, &state1).await);
 }
 
 #[tokio::test]

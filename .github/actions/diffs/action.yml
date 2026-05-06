@@ -28,9 +28,6 @@ outputs:
   isReleaseNotesEligible:
     description: True when changes happened in Release Notes eligible paths
     value: "${{ steps.diff.outputs.isReleaseNotesEligible }}"
-  isTypeScriptCodegenSync:
-    description: True when changes happened that affect TypeScript codegen synchronization
-    value: "${{ steps.diff.outputs.isTypeScriptCodegenSync }}"
   isStarfishSynchronization:
     description: True when changes happened to synchronization components (commit syncer, header synchronizer, transaction synchronizer)
     value: "${{ steps.diff.outputs.isStarfishSynchronization }}"
@@ -121,28 +118,6 @@ runs:
             - "external-crates/**"
             - "kiosk/**"
             - "iota-execution/**"
-          isTypeScriptCodegenSync:
-            # Generated schema files from Rust (inputs to TypeScript codegen)
-            - "crates/iota-graphql-rpc/schema.graphql"
-            - "crates/iota-open-rpc/spec/openrpc.json"
-            # Generated TypeScript output files
-            - "sdk/typescript/src/graphql/generated/**"
-            - "sdk/typescript/src/graphql/schemas/**"
-            - "sdk/typescript/src/client/types/generated.ts"
-            - "sdk/typescript/src/client/types/params.ts"
-            - "sdk/graphql-transport/src/generated/**"
-            # Configuration files that affect codegen
-            - "package.json"
-            - "pnpm-workspace.yaml"
-            - "turbo.json"
-            - "sdk/typescript/package.json"
-            - "sdk/graphql-transport/package.json"
-            - "sdk/typescript/scripts/**"
-            - "sdk/graphql-transport/codegen.ts"
-            - "sdk/graphql-transport/src/queries/**"
-            - "sdk/typescript/genversion.mjs"
-            # Turbo hierarchy workflow and related scripts
-            - ".github/workflows/turbo_hierarchy.yml"
           isStarfishSynchronization:
             - "crates/starfish/core/src/header_synchronizer.rs"
             - "crates/starfish/core/src/commit_syncer/**"

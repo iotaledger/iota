@@ -13,13 +13,16 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
+    IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
+};
 use iota_protocol_config::Chain;
 use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
@@ -264,21 +267,37 @@ impl TransactionExecutionApi {
         } else {
             vec![]
         };
+        let resolver = Resolver::new(self.clone());
+
+        let effects = if opts.show_effects {
+            Some(
+                IotaTransactionBlockEffects::from_native_with_clever_error(
+                    response.effects.effects,
+                    &resolver,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+
+        let errors = match effects.as_ref().map(|e| e.status()) {
+            Some(IotaExecutionStatus::Failure { error }) => vec![error.clone()],
+            _ => vec![],
+        };
 
         Ok(IotaTransactionBlockResponse {
             digest,
             transaction,
             raw_transaction,
-            effects: opts
-                .show_effects
-                .then_some(response.effects.effects.try_into()?),
+            effects,
             events,
             object_changes,
             balance_changes,
             timestamp_ms: None,
             confirmed_local_execution: Some(is_executed_locally),
             checkpoint: None,
-            errors: vec![],
+            errors,
             raw_effects,
         })
     }
@@ -336,8 +355,15 @@ impl TransactionExecutionApi {
         )
         .await?;
 
+        let resolver = Resolver::new(self.clone());
+        let effects = IotaTransactionBlockEffects::from_native_with_clever_error(
+            transaction_effects,
+            &resolver,
+        )
+        .await;
+
         Ok(DryRunTransactionBlockResponse {
-            effects: resp.effects,
+            effects,
             events: resp.events,
             object_changes,
             balance_changes,

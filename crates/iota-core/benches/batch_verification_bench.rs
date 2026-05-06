@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::*;
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use futures::future::join_all;
 use iota_core::{
     signature_verifier::*,
@@ -14,7 +13,6 @@ use iota_core::{
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    signature_verification::VerifiedDigestCache,
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
@@ -81,11 +79,8 @@ fn async_verifier_bench(c: &mut Criterion) {
                         BTreeSet::new(),
                         batch_size,
                         metrics.clone(),
-                        ZkLoginEnv::Test,
-                        true, // accept_zklogin_in_multisig
                         true, // accept_passkey_in_multisig
-                        Some(30),
-                        true,
+                        true, // additional_multisig_checks
                     ));
 
                     b.iter(|| {
@@ -138,11 +133,7 @@ fn batch_verification_bench(c: &mut Criterion) {
                     assert_eq!(certs.len() as u64, *batch_size);
                     b.iter(|| {
                         certs.shuffle(&mut thread_rng());
-                        batch_verify_certificates(
-                            &committee,
-                            &certs.iter().collect_vec(),
-                            Arc::new(VerifiedDigestCache::new_empty()),
-                        );
+                        batch_verify_certificates(&committee, &certs.iter().collect_vec());
                     })
                 },
             );

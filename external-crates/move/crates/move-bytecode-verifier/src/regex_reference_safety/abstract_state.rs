@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module defines the abstract state for the type and memory safety analysis.
+//! This module defines the abstract state for the type and memory safety
+//! analysis.
+use std::{
+    cmp::max,
+    collections::{BTreeMap, BTreeSet},
+};
+
 use move_abstract_interpreter::absint::{AbstractDomain, FunctionContext, JoinResult};
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
@@ -15,16 +21,12 @@ use move_binary_format::{
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_regex_borrow_graph::references::Ref;
-use std::{
-    cmp::max,
-    collections::{BTreeMap, BTreeSet},
-};
 
 type Graph = move_regex_borrow_graph::collections::Graph<(), Label>;
 type Paths = move_regex_borrow_graph::collections::Paths<(), Label>;
 
-/// AbstractValue represents a reference or a non reference value, both on the stack and stored
-/// in a local
+/// AbstractValue represents a reference or a non reference value, both on the
+/// stack and stored in a local
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AbstractValue {
     Reference(Ref),
@@ -121,7 +123,8 @@ pub(crate) const PER_GRAPH_ITEM: u128 = 4;
 
 pub(crate) const JOIN_ITEM_COST: u128 = 4;
 
-/// AbstractState is the analysis state over which abstract interpretation is performed.
+/// AbstractState is the analysis state over which abstract interpretation is
+/// performed.
 #[derive(Clone, Debug)]
 pub(crate) struct AbstractState {
     current_function: Option<FunctionDefinitionIndex>,
@@ -644,8 +647,8 @@ impl AbstractState {
             }
             // local root should only be gone if the graph is empty from an abort
             debug_assert!(self.graph.abstract_size() == 0 || refs.contains(&self.local_root));
-            // the local root is not borrowed by epsilon or dotstar, i.e. all extensions of the
-            // local root begin with a label
+            // the local root is not borrowed by epsilon or dotstar, i.e. all extensions of
+            // the local root begin with a label
             if refs.contains(&self.local_root) {
                 for (borrower, paths) in self.graph.borrowed_by(self.local_root).unwrap() {
                     debug_assert_ne!(borrower, self.local_root);

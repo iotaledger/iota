@@ -10,7 +10,6 @@ $PYTHON_CMD cargo_sort.py --consolidate-deps \
   --strict-ignore "*:docs/examples/rust" \
   --strict-ignore "*:examples/tic-tac-toe/cli" \
   --strict-ignore "*:examples/custom-indexer/rust" \
-  --strict-ignore "*:sdk/move-bytecode-template" \
   --strict-ignore "tonic:crates/telemetry-subscribers" \
   --strict-ignore "prost:crates/telemetry-subscribers" \
   --strict-ignore "syn:crates/iota-proc-macros" \

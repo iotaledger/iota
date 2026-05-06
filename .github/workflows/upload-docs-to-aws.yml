@@ -32,9 +32,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build SDK and BCS
-        run: pnpm sdk build && pnpm bcs build
-
       - name: Generate GraphQl docs
         run: pnpm --filter iota-docs generate-graphql-docs
 

@@ -264,6 +264,7 @@ where
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
+#[schemars(rename = "SequenceNumberBigInt")]
 pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);
 
 impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {

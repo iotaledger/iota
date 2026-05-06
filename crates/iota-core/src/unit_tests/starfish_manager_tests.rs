@@ -30,15 +30,15 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, starfish_manager::StarfishManager,
     },
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
+    global_state_hasher::GlobalStateHasher,
     starfish_adapter::LazyStarfishClient,
-    state_accumulator::StateAccumulator,
 };
 
 pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<CheckpointService> {
     let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
     let epoch_store = state.epoch_store_for_testing();
-    let accumulator = Arc::new(StateAccumulator::new_for_tests(
-        state.get_accumulator_store().clone(),
+    let accumulator = Arc::new(GlobalStateHasher::new_for_tests(
+        state.get_global_state_hash_store().clone(),
     ));
     let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 

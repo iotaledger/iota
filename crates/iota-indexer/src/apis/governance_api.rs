@@ -183,8 +183,8 @@ impl GovernanceReadApi {
             .exchange_rates(&system_state_summary)
             .await?
             .into_iter()
-            .chain(candidate_rates.into_iter())
-            .chain(pending_rates.into_iter())
+            .chain(candidate_rates)
+            .chain(pending_rates)
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -396,10 +396,7 @@ impl GovernanceReadApi {
             self.inactive_validators_exchange_rate(system_state_summary)
         )?;
 
-        Ok(active_rates
-            .into_iter()
-            .chain(inactive_rates.into_iter())
-            .collect())
+        Ok(active_rates.into_iter().chain(inactive_rates).collect())
     }
 
     /// Check for validators in the `Active` state and get its exchange rate

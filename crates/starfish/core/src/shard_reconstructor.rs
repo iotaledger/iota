@@ -495,9 +495,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                         .read()
                         .contains_verified_block_headers_for_transaction_refs(&tx_refs)
                 };
-                for (exists, (tx_ref, transactions)) in block_headers_exist
-                    .into_iter()
-                    .zip(transactions_map.into_iter())
+                for (exists, (tx_ref, transactions)) in
+                    block_headers_exist.into_iter().zip(transactions_map)
                 {
                     if exists {
                         ready_to_be_sent_transactions.push(transactions);

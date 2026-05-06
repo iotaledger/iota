@@ -22,15 +22,15 @@ use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
     authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
-    state_accumulator::StateAccumulator,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{ObjectID, ObjectRef},
+    global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -422,9 +422,9 @@ impl StateSnapshotWriterV1 {
         let mut object_writers: HashMap<u32, LiveObjectSetWriterV1> = HashMap::new();
         let local_staging_dir_path =
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
-        let mut acc = Accumulator::default();
+        let mut acc = GlobalStateHash::default();
         for object in perpetual_db.iter_live_object_set() {
-            StateAccumulator::accumulate_live_object(&mut acc, &object);
+            GlobalStateHasher::accumulate_live_object(&mut acc, &object);
             let bucket_num = bucket_func(&object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
             if let Vacant(entry) = object_writers.entry(bucket_num) {

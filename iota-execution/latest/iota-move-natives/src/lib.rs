@@ -83,7 +83,7 @@ use crate::{
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
-        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+        zklogin,
     },
     tx_context::TxContextDigestCostParams,
 };
@@ -212,10 +212,6 @@ pub struct NativesCostTable {
 
     // vdf
     pub vdf_cost_params: VDFCostParams,
-
-    // zklogin
-    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
-    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
 
     // Receive object
     pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
@@ -688,16 +684,6 @@ impl NativesCostTable {
                     .transfer_receive_object_cost_base_as_option()
                     .unwrap_or(0)
                     .into(),
-            },
-            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: protocol_config
-                    .check_zklogin_id_cost_base_as_option()
-                    .map(Into::into),
-            },
-            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: protocol_config
-                    .check_zklogin_issuer_cost_base_as_option()
-                    .map(Into::into),
             },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config
@@ -1284,11 +1270,14 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "generate_rand_seed_for_testing",
             make_native!(random::generate_rand_seed_for_testing),
         ),
+        // Deprecated stubs for old bytecode snapshot compatibility.
+        #[allow(deprecated)]
         (
             "zklogin_verified_id",
             "check_zklogin_id_internal",
             make_native!(zklogin::check_zklogin_id_internal),
         ),
+        #[allow(deprecated)]
         (
             "zklogin_verified_issuer",
             "check_zklogin_issuer_internal",
