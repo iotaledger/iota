@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::transaction::{
-    Command, MakeMoveVector, MergeCoins, SplitCoins, TransactionKind, TransferObjects,
+    Command, MakeMoveVector, MergeCoins, ProgrammableMoveCall, SplitCoins, TransactionKind,
+    TransferObjects,
 };
 use rand::seq::SliceRandom;
 use tracing::info;
@@ -24,10 +25,12 @@ impl ShuffleCommandInputs {
                 ..
             })
             | Command::SplitCoins(SplitCoins { amounts: args, .. })
-            | Command::TransferObjects(TransferObjects { objects: args, .. }) => {
+            | Command::TransferObjects(TransferObjects { objects: args, .. })
+            | Command::MoveCall(ProgrammableMoveCall {
+                arguments: args, ..
+            }) => {
                 args.shuffle(&mut self.rng);
             }
-            Command::MoveCall(ref mut cmd) => cmd.arguments.shuffle(&mut self.rng),
             Command::Publish(_) | Command::Upgrade(_) => (),
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
