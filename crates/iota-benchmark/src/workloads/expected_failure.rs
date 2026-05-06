@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use iota_core::test_utils::make_transfer_object_transaction;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
-    crypto::{AccountKeyPair, Ed25519IotaSignature, get_key_pair},
+    crypto::{AccountKeyPair, ToFromBytes, get_key_pair},
     signature::GenericSignature,
     transaction::Transaction,
 };
@@ -50,13 +50,17 @@ impl ExpectedFailurePayload {
     fn create_failing_transaction(&self, mut tx: Transaction) -> Transaction {
         match self.failure_type {
             ExpectedFailureType::InvalidSignature => {
-                let signatures = tx.tx_signatures_mut_for_testing();
-                signatures.pop();
-                signatures.push(GenericSignature::Signature(
-                    iota_types::crypto::Signature::Ed25519IotaSignature(
-                        Ed25519IotaSignature::default(),
-                    ),
-                ));
+                // Bumping byte in position 1 (skipping position 0 because it is the flag)
+                // by 1 (mod 256) with a guaranteed-different value, makes it so that
+                // `from_bytes` still parses but verification fails at verify_authenticator
+                // (Ed25519 scalar multiply runs and rejects the corrupted scalar).
+                // The public key bytes are left intact so address derivation still matches
+                // the real sender, ensuring we reach Step 4 of signature verification.
+                for signature in tx.tx_signatures_mut_for_testing().iter_mut() {
+                    let mut bytes = signature.as_ref().to_vec();
+                    bytes[1] = bytes[1].wrapping_add(1);
+                    *signature = GenericSignature::from_bytes(&bytes).unwrap();
+                }
                 tx
             }
             ExpectedFailureType::Random => unreachable!(),
@@ -82,7 +86,10 @@ impl Payload for ExpectedFailurePayload {
             *gas_obj,
             self.transfer_from,
             keypair,
-            self.transfer_to,
+            // Use a fresh random address each call so every transaction has a unique
+            // digest. The tx is rejected at signature verification and never executes,
+            // so the recipient address has no effect on correctness.
+            IotaAddress::random_for_testing_only(),
             self.system_state_observer
                 .state
                 .borrow()
