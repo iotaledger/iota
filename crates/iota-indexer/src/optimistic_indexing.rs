@@ -10,7 +10,6 @@ use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
     v1::transaction::ExecutedTransaction,
 };
-use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffectsAPI, TransactionEvents},
@@ -57,6 +56,30 @@ type TransactionDataToCommit = (
     BTreeMap<String, StoredDisplay>,
     TransactionObjectChangesToCommit,
 );
+
+/// Represents the ingestion path taken after execution.
+///
+/// The executor tries to ingest the transaction effects after the fullnode
+/// sends back the execution response. This is referred to as the optimistic
+/// path.
+///
+/// Under certain conditions, however, the transaction might be indexed by the
+/// parallel ingestion pipeline that processes transactions included in
+/// checkpoints. This is referred to as the checkpoint path.
+#[derive(Clone, Debug)]
+pub enum IngestionPath {
+    Optimistic(OptimisticTransaction),
+    Checkpoint(StoredTransaction),
+}
+
+impl From<IngestionPath> for StoredTransaction {
+    fn from(path: IngestionPath) -> Self {
+        match path {
+            IngestionPath::Optimistic(optimistic_tx) => optimistic_tx.into(),
+            IngestionPath::Checkpoint(stored_tx) => stored_tx,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct OptimisticTransactionExecutor {
@@ -139,7 +162,7 @@ impl OptimisticTransactionExecutor {
     /// Returns `Some` with the indexed transaction on success, or `None` if
     /// optimistic indexing was skipped — the checkpoint indexing path
     /// should be relied upon in that case.
-    pub async fn maybe_index_executed_transaction(
+    async fn maybe_index_executed_transaction(
         &self,
         transaction: Transaction,
         executed_transaction: ExecutedTransaction,
@@ -202,6 +225,7 @@ impl OptimisticTransactionExecutor {
         Ok(optimistic_tx)
     }
 
+    /// Execute the signed transaction on the fullnode through gRPC.
     pub async fn execute_transaction(
         &self,
         signed_transaction: Transaction,
@@ -232,7 +256,7 @@ impl OptimisticTransactionExecutor {
             Err(e) => {
                 node_timer.stop_and_discard();
                 self.metrics.optimistic_tx_failed_node_requests_count.inc();
-                return Err(IndexerError::from(e));
+                Err(IndexerError::from(e))
             }
         }
     }
@@ -241,8 +265,7 @@ impl OptimisticTransactionExecutor {
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
-        options: Option<IotaTransactionBlockResponseOptions>,
-    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+    ) -> Result<IngestionPath, IndexerError> {
         let _total_execution_time = self
             .metrics
             .optimistic_tx_total_execution_and_indexing_time
@@ -263,17 +286,12 @@ impl OptimisticTransactionExecutor {
             .maybe_index_executed_transaction(transaction, executed_transaction)
             .await?;
 
-        let indexed_transaction = match optimistic_tx {
-            Some(optimistic_tx) => optimistic_tx.into(),
-            None => self.resolve_checkpointed_transaction(tx_digest).await?,
-        };
-        let package_resolver = self.read.package_resolver.clone();
-        indexed_transaction
-            .try_into_iota_transaction_block_response(
-                options.unwrap_or_default(),
-                &package_resolver,
-            )
-            .await
+        Ok(match optimistic_tx {
+            Some(optimistic_tx) => IngestionPath::Optimistic(optimistic_tx),
+            None => {
+                IngestionPath::Checkpoint(self.resolve_checkpointed_transaction(tx_digest).await?)
+            }
+        })
     }
 
     async fn resolve_checkpointed_transaction(
@@ -336,27 +354,6 @@ impl OptimisticTransactionExecutor {
                 "timeout waiting for transaction to be fully indexed".to_string(),
             )
         })
-    }
-
-    /// Converts an [`OptimisticTransaction`] (already persisted atomically)
-    /// directly into an [`IotaTransactionBlockResponse`] without unnecessary DB
-    /// round-trips.
-    async fn optimistic_transaction_to_block_response(
-        &self,
-        optimistic_tx: OptimisticTransaction,
-        options: IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<IotaTransactionBlockResponse> {
-        self.read
-            .stored_transaction_to_transaction_block(
-                vec![StoredTransaction::from(optimistic_tx)],
-                options,
-            )
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| {
-                IndexerError::Generic("expected a transaction block response".to_string())
-            })
     }
 
     async fn index_transaction_in_blocking_task(

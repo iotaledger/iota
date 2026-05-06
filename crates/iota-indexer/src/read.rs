@@ -116,7 +116,7 @@ pub enum InputObjectsStatus {
 #[derive(Clone)]
 pub struct IndexerReader {
     pool: ConnectionPool,
-    pub(crate) package_resolver: PackageResolver,
+    package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
     fallback: Option<HistoricalFallbackReader>,
     watermark_cache: WatermarkCache,
