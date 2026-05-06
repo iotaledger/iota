@@ -2,12 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Test objectKeys lookup for wrapped object tombstone versions.
-// cp 1: Foo created (version 2)
-// cp 2: Foo wrapped (tombstone version 3), Wrapper transferred 3 times to
+// cp 1: Foo and Foo2 created (version 2)
+// cp 2: Both wrapped (tombstone version 3), Wrapper transferred 3 times to
 //       pump lamport version
-// cp 3: Foo unwrapped (version 7), backward_history stores lamport-1 = 6
-// Query via objectKeys with version 3 (real tombstone): empty
-// Query via objectKeys with version 6 (lamport-1): returns WRAPPED_OR_DELETED
+// cp 3: Both unwrapped, backward_history stores lamport-1 = 6
+// cp 4: Foo wrapped again (second tombstone v8), Wrapper transferred 3 times
+// cp 5: Foo unwrapped again, backward_history stores lamport-1 = 11
+// Tests:
+//   - old_active_version (v2): returns INDEXED, not a false tombstone
+//   - first_real_tombstone (v3): returns WRAPPED_OR_DELETED via objects_version
+//   - first_lamport_minus_one (v6): version corrected from 6 to 3
+//   - batch_lamport_correction (v6 for Foo + v6 for Foo2): both corrected to v3
+//   - both_real_tombstones (v3 + v8 for same object): returns only the latest
+//     version (v8) since DISTINCT ON keeps one result per object
+//   - both_lamport_approximations (v6 + v11 for same object): returns only the
+//     latest corrected version (v8)
 
 //# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator --objects-snapshot-min-checkpoint-lag 1
 
@@ -39,23 +48,45 @@ module P0::m {
 
 //# programmable --sender A --inputs @A
 //> 0: P0::m::create_foo();
-//> TransferObjects([Result(0)], Input(0))
+//> 1: P0::m::create_foo();
+//> TransferObjects([Result(0), Result(1)], Input(0))
 
 //# create-checkpoint
 
+//# programmable --sender A --inputs @A object(2,0) object(2,1)
+//> 0: P0::m::wrap_foo(Input(1));
+//> 1: P0::m::wrap_foo(Input(2));
+//> TransferObjects([Result(0), Result(1)], Input(0))
+
+//# transfer-object 4,0 --sender A --recipient A
+
+//# transfer-object 4,0 --sender A --recipient A
+
+//# transfer-object 4,0 --sender A --recipient A
+
+//# create-checkpoint
+
+//# programmable --sender A --inputs @A object(4,0) object(4,1)
+//> 0: P0::m::unwrap_foo(Input(1));
+//> 1: P0::m::unwrap_foo(Input(2));
+//> TransferObjects([Result(0), Result(1)], Input(0))
+
+//# create-checkpoint
+
+// Re-wrap Foo to create a second tombstone version for the same object.
 //# programmable --sender A --inputs @A object(2,0)
 //> 0: P0::m::wrap_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
 
-//# transfer-object 4,0 --sender A --recipient A
+//# transfer-object 11,0 --sender A --recipient A
 
-//# transfer-object 4,0 --sender A --recipient A
+//# transfer-object 11,0 --sender A --recipient A
 
-//# transfer-object 4,0 --sender A --recipient A
+//# transfer-object 11,0 --sender A --recipient A
 
 //# create-checkpoint
 
-//# programmable --sender A --inputs @A object(4,0)
+//# programmable --sender A --inputs @A object(11,0)
 //> 0: P0::m::unwrap_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
 
@@ -63,14 +94,51 @@ module P0::m {
 
 //# run-graphql
 {
-  real_tombstone: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 3}]}) {
+  old_active_version: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 2}]}) {
     nodes {
       address
       status
       version
     }
   }
-  lamport_minus_one: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 6}]}) {
+  first_real_tombstone: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 3}]}) {
+    nodes {
+      address
+      status
+      version
+    }
+  }
+  first_lamport_minus_one: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 6}]}) {
+    nodes {
+      address
+      status
+      version
+    }
+  }
+  batch_lamport_correction: objects(filter: {objectKeys: [
+    {objectId: "@{obj_2_0}", version: 6},
+    {objectId: "@{obj_2_1}", version: 6}
+  ]}) {
+    nodes {
+      address
+      status
+      version
+    }
+  }
+  both_real_tombstones: objects(filter: {objectKeys: [
+    {objectId: "@{obj_2_0}", version: 3},
+    {objectId: "@{obj_2_0}", version: 8}
+  ]}) {
+    nodes {
+      address
+      status
+      version
+    }
+  }
+  both_lamport_approximations: objects(filter: {objectKeys: [
+    {objectId: "@{obj_2_0}", version: 6},
+    {objectId: "@{obj_2_0}", version: 11}
+  ]}) {
     nodes {
       address
       status
