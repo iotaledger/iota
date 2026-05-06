@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// A validated, typed cryptographic public key.
+/// A typed cryptographic public key.
 ///
 /// A `PublicKey` stores the signature scheme and the raw key material.
 ///
@@ -15,8 +15,13 @@
 /// | MultiSig   | 0x03 | variable (BCS)        |
 /// | Passkey    | 0x06 | 33 bytes (compressed) |
 ///
-/// `PublicKey` values are constructed exclusively through `create`, which validates the scheme
-/// and the raw-byte length. Once created, the inner fields are immutable.
+/// `PublicKey` values are constructed exclusively through `create`.
+///
+/// **Validation scope**: `create` checks that the scheme is recognized, that the byte length
+/// matches the scheme, and — for MultiSig — that the BCS structure is well-formed (signer
+/// count, weights, threshold). It does **not** verify that the raw bytes form a valid curve
+/// point; bytes of the correct length but off the curve are accepted at construction time.
+/// Once created, the inner fields are immutable.
 module iota::public_key;
 
 use iota::bcs;
@@ -81,6 +86,10 @@ public struct PublicKey has copy, drop, store {
 /// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
 /// and a valid BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 signers, threshold > 0,
 /// total weight ≥ threshold).
+///
+/// **Validation scope**: only the byte length and — for MultiSig — the BCS structure are
+/// checked. Whether the bytes represent a valid curve point is **not** verified; bytes of the
+/// correct length but off the curve are accepted.
 ///
 /// Aborts if `raw_bytes` is empty, if `scheme` is not a recognized scheme, if the
 /// byte length does not match the scheme, or if a MultiSig payload fails structural validation.

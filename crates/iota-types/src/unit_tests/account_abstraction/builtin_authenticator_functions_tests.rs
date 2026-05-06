@@ -470,6 +470,31 @@ fn verify_builtin_signature_error_public_key_scheme_mismatch() {
     ));
 }
 
+#[test]
+fn verify_builtin_signature_error_invalid_public_key_bytes() {
+    let config = protocol_config();
+    let mut rng = seeded_rng();
+    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
+    let (authenticator, _, tx_data_bytes) = signed_authenticator(&key_pair);
+
+    // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
+    // bypassing new() via BCS deserialization.
+    let mut bcs_bytes = vec![SignatureScheme::ED25519.flag()];
+    bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 1]).unwrap());
+    let invalid_key: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
+
+    let data = PreloadedBuiltinAuthenticatorData {
+        expected_scheme: SignatureScheme::ED25519,
+        public_key: invalid_key,
+    };
+
+    assert!(matches!(
+        verify_builtin_signature(&config, &authenticator, &data, &tx_data_bytes).unwrap_err(),
+        IotaError::InvalidSignature { error }
+            if error.contains("Invalid public key bytes in built-in authenticator")
+    ));
+}
+
 // === Helpers ===
 
 fn make_ref(package: ObjectID, module: &str, function: &str) -> AuthenticatorFunctionRefV1 {

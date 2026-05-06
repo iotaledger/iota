@@ -128,7 +128,7 @@ fn address_ed25519_matches_iota_address() {
     let mut rng = seeded_rng();
     let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
     let expected = IotaAddress::from(&key_pair.public());
-    assert_eq!(MovePublicKey::from(&key_pair).address(), expected);
+    assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn address_secp256k1_matches_iota_address() {
     let mut rng = seeded_rng();
     let key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
     let expected = IotaAddress::from(&key_pair.public());
-    assert_eq!(MovePublicKey::from(&key_pair).address(), expected);
+    assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn address_secp256r1_matches_iota_address() {
     let mut rng = seeded_rng();
     let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
     let expected = IotaAddress::from(&key_pair.public());
-    assert_eq!(MovePublicKey::from(&key_pair).address(), expected);
+    assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
@@ -162,7 +162,8 @@ fn address_multisig_matches_iota_address() {
             bcs::to_bytes(&multisig_public_key).unwrap()
         )
         .unwrap()
-        .address(),
+        .address()
+        .unwrap(),
         expected
     );
 }
@@ -181,11 +182,42 @@ fn address_passkey_matches_iota_address() {
     assert_eq!(
         MovePublicKey::new(SignatureScheme::PasskeyAuthenticator, raw)
             .unwrap()
-            .address(),
+            .address()
+            .unwrap(),
         expected
     );
     // Sanity-check: passkey address is distinct from the Secp256r1 address.
     assert_ne!(expected, IotaAddress::from(&key_pair.public()));
+}
+
+#[test]
+fn address_error_on_secp256k1_zero_bytes() {
+    // 33 zero bytes have the correct length for Secp256k1 but are not a valid
+    // compressed curve point (prefix 0x00 is neither 0x02 nor 0x03).
+    let mut bcs_bytes = vec![SignatureScheme::Secp256k1.flag()];
+    bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 33]).unwrap());
+    let invalid: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
+
+    let err = invalid.address().unwrap_err().to_string();
+    assert!(
+        err.contains("Invalid public key bytes"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn address_error_on_wrong_length_bytes() {
+    // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
+    // bypassing new() via BCS deserialization.
+    let mut bcs_bytes = vec![SignatureScheme::ED25519.flag()];
+    bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 1]).unwrap());
+    let invalid: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
+
+    let err = invalid.address().unwrap_err().to_string();
+    assert!(
+        err.contains("Invalid public key bytes"),
+        "unexpected error: {err}"
+    );
 }
 
 // === Helpers ===

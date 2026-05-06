@@ -19,6 +19,15 @@ pub const PUBLIC_KEY_STRUCT_NAME: &IdentStr = ident_str!("PublicKey");
 /// Rust mirror of the Move `public_key::PublicKey` struct, stored as a dynamic
 /// field value on built-in authenticator accounts. BCS layout matches the Move
 /// struct.
+///
+/// **Validation gap**: the Move `public_key::create` function only checks byte
+/// length and MultiSig BCS structure — it does not verify curve-point validity.
+/// This means a `MovePublicKey` read from chain via BCS deserialization may
+/// hold raw bytes that are length-correct but do not represent a valid curve
+/// point.  `new()` performs full validation (including curve-point checks), but
+/// deserialization does not.  All code that consumes a chain-read
+/// `MovePublicKey` must tolerate this by handling errors rather than assuming
+/// the bytes are cryptographically valid.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct MovePublicKey {
     /// The signature scheme for this key.
@@ -70,16 +79,16 @@ impl MovePublicKey {
     }
 
     /// Derives the `IotaAddress` for this public key.
-    pub fn address(&self) -> IotaAddress {
+    pub fn address(&self) -> Result<IotaAddress, eyre::Report> {
         let scheme = self.scheme();
         if scheme == SignatureScheme::MultiSig {
-            let multisig_public_key: MultiSigPublicKey =
-                bcs::from_bytes(&self.raw_bytes).expect("invariant: MultiSigPublicKey bytes valid");
-            IotaAddress::from(&multisig_public_key)
+            let multisig_public_key = bcs::from_bytes::<MultiSigPublicKey>(&self.raw_bytes)
+                .map_err(|e| eyre!("Invalid MultiSigPublicKey bytes: {e}"))?;
+            Ok(IotaAddress::from(&multisig_public_key))
         } else {
             let public_key = PublicKey::try_from_bytes(scheme, &self.raw_bytes)
-                .expect("invariant: public key bytes valid");
-            IotaAddress::from(&public_key)
+                .map_err(|e| eyre!("Invalid public key bytes: {e}"))?;
+            Ok(IotaAddress::from(&public_key))
         }
     }
 }

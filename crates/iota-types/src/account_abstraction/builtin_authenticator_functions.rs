@@ -251,7 +251,13 @@ pub fn verify_builtin_signature(
         additional_multisig_checks: protocol_config.additional_multisig_checks(),
     };
 
-    signature.verify_claims(&intent_msg, public_key.address(), &verify_params)
+    let address = public_key
+        .address()
+        .map_err(|e| IotaError::InvalidSignature {
+            error: format!("Invalid public key bytes in built-in authenticator: {e}"),
+        })?;
+
+    signature.verify_claims(&intent_msg, address, &verify_params)
 }
 
 /// Extracts the `GenericSignature` wire bytes from `call_args[0]`.
