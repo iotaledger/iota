@@ -248,15 +248,15 @@ pub(crate) struct NodeMetrics {
     #[expect(dead_code)]
     pub(crate) faulty_blocks_provable_by_authority: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) faulty_blocks_unprovable_by_authority: IntCounterVec,
+    pub(crate) faulty_blocks_unprovable_by_peer: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) uncached_equivocations_by_authority: IntCounterVec,
+    pub(crate) persisted_equivocations_by_authority: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
+    pub(crate) persisted_missing_proposals_by_authority: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
+    pub(crate) in_memory_equivocations_by_authority: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
+    pub(crate) in_memory_missing_proposals_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) score_by_authority: IntGaugeVec,
     #[expect(dead_code)]
@@ -1118,37 +1118,37 @@ impl NodeMetrics {
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
-                "Number of provably faulty blocks per peer authority",
-                &["authority", "source", "error"],
-                registry,
-             ).unwrap(),
-            faulty_blocks_unprovable_by_authority: register_int_counter_vec_with_registry!(
-                "faulty_blocks_unprovable_by_authority",
-                "Number of unprovably faulty blocks per peer authority",
-                &["authority", "source", "error"],
-                registry,
-            ).unwrap(),
-            uncached_equivocations_by_authority: register_int_counter_vec_with_registry!(
-                "uncached_equivocations_by_authority",
-                "Registers the number of equivocations per authority that were already evicted from cache.",
+                "Number of provably faulty blocks per authority",
                 &["authority"],
                 registry,
             ).unwrap(),
-            uncached_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
-                "uncached_missing_proposals_by_authority",
-                "Registers the number of blocks that should be already evicted from cache but authority failed to send.",
+            faulty_blocks_unprovable_by_peer: register_int_counter_vec_with_registry!(
+                "faulty_blocks_unprovable_by_peer",
+                "Number of unprovably faulty blocks per peer",
+                &["peer"],
+                registry,
+            ).unwrap(),
+            persisted_equivocations_by_authority: register_int_counter_vec_with_registry!(
+                "persisted_equivocations_by_authority",
+                "Equivocations per authority from evicted blocks (persisted to storage)",
                 &["authority"],
                 registry,
             ).unwrap(),
-            equivocations_in_cache_by_authority: register_int_gauge_vec_with_registry!(
-                "equivocations_in_cache_by_authority",
-                "Registers the number of equivocations per authority stored on cache.",
+            persisted_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+                "persisted_missing_proposals_by_authority",
+                "Missing proposals per authority from evicted blocks (persisted to storage)",
                 &["authority"],
                 registry,
             ).unwrap(),
-            missing_proposals_in_cache_by_authority: register_int_gauge_vec_with_registry!(
-                "missing_proposals_in_cache_by_authority",
-                "Registers the number of blocks on the cache that an authority failed to send.",
+            in_memory_equivocations_by_authority: register_int_gauge_vec_with_registry!(
+                "in_memory_equivocations_by_authority",
+                "Equivocations per authority from blocks currently in the DAG cache",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            in_memory_missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
+                "in_memory_missing_proposals_by_authority",
+                "Missing proposals per authority from blocks currently in the DAG cache",
                 &["authority"],
                 registry,
             ).unwrap(),

@@ -56,7 +56,6 @@ iota-sdk-types.workspace = true
 iota-tls.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
-strum.workspace = true
 
 [dev-dependencies]
 # external dependencies
