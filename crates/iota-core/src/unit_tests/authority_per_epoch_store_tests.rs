@@ -12,7 +12,9 @@ use tokio::time::timeout;
 use typed_store::rocks::DBBatch;
 
 use crate::authority::{
-    authority_per_epoch_store::{AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput},
+    authority_per_epoch_store::{
+        AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput,
+    },
     test_authority_builder::TestAuthorityBuilder,
 };
 
