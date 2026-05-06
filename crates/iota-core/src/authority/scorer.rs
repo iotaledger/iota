@@ -386,9 +386,9 @@ mod tests {
     /// same way `VersionedScorer::update_scores` does, so `ScorerV1`'s typed
     /// API can be exercised directly. Returns owned arcs so the borrowed
     /// view lives as long as needed.
-    fn reporters_v1<'a>(
-        arcs: &'a [(std::sync::Arc<MisbehaviorObservations>, VotingPower)],
-    ) -> Vec<(&'a MisbehaviorObservationsV1, VotingPower)> {
+    fn reporters_v1(
+        arcs: &[(std::sync::Arc<MisbehaviorObservations>, VotingPower)],
+    ) -> Vec<(&MisbehaviorObservationsV1, VotingPower)> {
         arcs.iter()
             .map(|(arc, vp)| match arc.as_ref() {
                 MisbehaviorObservations::V1(o) => (o, *vp),
