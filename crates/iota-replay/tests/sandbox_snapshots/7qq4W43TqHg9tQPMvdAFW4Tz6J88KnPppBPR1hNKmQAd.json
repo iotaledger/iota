@@ -38,7 +38,7 @@
                                             "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                                             "module": "package",
                                             "function": "authorize_upgrade",
-                                            "typeArguments": [],
+                                            "type_arguments": [],
                                             "arguments": [
                                                 {
                                                     "Input": 0
@@ -71,7 +71,7 @@
                                             "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                                             "module": "package",
                                             "function": "commit_upgrade",
-                                            "typeArguments": [],
+                                            "type_arguments": [],
                                             "arguments": [
                                                 {
                                                     "Input": 0
@@ -159,7 +159,7 @@
                         "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "module": "package",
                         "function": "authorize_upgrade",
-                        "typeArguments": [],
+                        "type_arguments": [],
                         "arguments": [
                             {
                                 "Input": 0
@@ -192,7 +192,7 @@
                         "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                         "module": "package",
                         "function": "commit_upgrade",
-                        "typeArguments": [],
+                        "type_arguments": [],
                         "arguments": [
                             {
                                 "Input": 0
