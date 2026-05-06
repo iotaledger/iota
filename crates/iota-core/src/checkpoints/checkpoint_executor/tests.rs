@@ -492,3 +492,30 @@ fn sync_checkpoint(
         .update_highest_synced_checkpoint(checkpoint)
         .unwrap();
 }
+
+/// Focused structural test for [`CheckpointStore::get_epoch_first_checkpoint`],
+/// the helper that `write_epoch_info_entry` uses to populate
+/// `EpochInfoEntry::first_checkpoint`. Covers both the genesis branch (`epoch
+/// == 0` returns `0` without consulting the store) and the inductive branch
+/// (`epoch > 0` returns prev-last + 1).
+#[tokio::test]
+async fn get_epoch_first_checkpoint_genesis_and_inductive() {
+    let tmp_dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+
+    // Genesis: returns 0 even when the store has no prior epoch.
+    assert_eq!(checkpoint_store.get_epoch_first_checkpoint(0).unwrap(), 0);
+
+    // Inductive: epoch 1's first checkpoint is epoch 0's last + 1.
+    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 7, None, &committee);
+    let last_of_epoch_zero = checkpoints.last().unwrap();
+    checkpoint_store
+        .insert_epoch_last_checkpoint(0, last_of_epoch_zero)
+        .unwrap();
+
+    assert_eq!(
+        checkpoint_store.get_epoch_first_checkpoint(1).unwrap(),
+        last_of_epoch_zero.sequence_number() + 1
+    );
+}

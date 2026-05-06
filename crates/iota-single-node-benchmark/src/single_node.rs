@@ -291,9 +291,9 @@ impl SingleValidator {
             .get_validator()
             .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
-            .map(|o| match o {
-                LiveObject::Normal(object) => (object.id(), object),
-                LiveObject::Wrapped(_) => unreachable!(),
+            .map(|o| {
+                let LiveObject::Normal(object) = o;
+                (object.id(), object)
             })
             .collect();
         InMemoryObjectStore::new(objects)

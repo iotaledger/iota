@@ -47,7 +47,10 @@ use crate::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
         },
         authority_store_tables::TotalIotaSupplyCheck,
-        authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+        authority_store_types::{
+            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, StoreObject, StoreObjectWrapper,
+            get_store_object,
+        },
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     global_state_hasher::GlobalStateHashStore,
@@ -704,8 +707,10 @@ impl AuthorityStore {
     fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
 
-        // Insert object
-        let store_object = get_store_object(object.clone());
+        // Genesis objects are produced by the genesis checkpoint (sequence 0),
+        // so 0 is the real `previous_transaction_checkpoint` value here, not a
+        // sentinel.
+        let store_object = get_store_object(object.clone(), 0);
         write_batch.insert_batch(
             &self.perpetual_tables.objects,
             std::iter::once((ObjectKey::from(object_ref), store_object)),
@@ -734,11 +739,12 @@ impl AuthorityStore {
             .map(|o| (o.compute_object_reference(), o))
             .collect();
 
+        // Genesis objects are produced by the genesis checkpoint (sequence 0).
         batch.insert_batch(
             &self.perpetual_tables.objects,
             ref_and_objects
                 .iter()
-                .map(|(oref, o)| (ObjectKey::from(oref), get_store_object((*o).clone()))),
+                .map(|(oref, o)| (ObjectKey::from(oref), get_store_object((*o).clone(), 0))),
         )?;
 
         let non_child_object_refs: Vec<_> = ref_and_objects
@@ -763,33 +769,27 @@ impl AuthorityStore {
         let mut batch = perpetual_db.objects.batch();
         for object in live_objects {
             hasher.update(object.object_reference().digest.inner());
-            match object {
-                LiveObject::Normal(object) => {
-                    let store_object_wrapper = get_store_object(object.clone());
-                    batch.insert_batch(
-                        &perpetual_db.objects,
-                        std::iter::once((
-                            ObjectKey::from(object.compute_object_reference()),
-                            store_object_wrapper,
-                        )),
-                    )?;
-                    if !object.is_child_object() {
-                        Self::initialize_live_object_markers(
-                            &perpetual_db.live_owned_object_markers,
-                            &mut batch,
-                            &[object.compute_object_reference()],
-                        )?;
-                    }
-                }
-                LiveObject::Wrapped(object_key) => {
-                    batch.insert_batch(
-                        &perpetual_db.objects,
-                        std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
-                            object_key,
-                            StoreObject::Wrapped.into(),
-                        )),
-                    )?;
-                }
+            let LiveObject::Normal(object) = object;
+            // V2 ref records carry an 8-byte `previous_transaction_checkpoint`
+            // trailer, but `ObjectRefIter` reads past it without surfacing the
+            // value, so stamp the sentinel here.
+            // TODO(snapshot-v2-backfill): rewrite these rows once the iterator
+            // surfaces the trailer or a backfill is run.
+            let store_object_wrapper =
+                get_store_object(object.clone(), SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT);
+            batch.insert_batch(
+                &perpetual_db.objects,
+                std::iter::once((
+                    ObjectKey::from(object.compute_object_reference()),
+                    store_object_wrapper,
+                )),
+            )?;
+            if !object.is_child_object() {
+                Self::initialize_live_object_markers(
+                    &perpetual_db.live_owned_object_markers,
+                    &mut batch,
+                    &[object.compute_object_reference()],
+                )?;
             }
         }
         let sha3_digest = hasher.finalize().digest;
@@ -822,10 +822,18 @@ impl AuthorityStore {
     /// Internally it checks that all locks for active inputs are at the correct
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
+    ///
+    /// `checkpoint_seq` is stamped onto each newly written object's
+    /// `previous_transaction_checkpoint` field. Callers that buffer execution
+    /// outputs until checkpoint commit time (e.g. `WritebackCache`) pass the
+    /// containing checkpoint's sequence number; callers that flush at
+    /// execution time before the containing checkpoint is known (e.g.
+    /// `PassthroughCache`) pass `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`.
     #[instrument(level = "debug", skip_all)]
     pub fn build_db_batch(
         &self,
         epoch_id: EpochId,
+        checkpoint_seq: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
@@ -835,7 +843,12 @@ impl AuthorityStore {
 
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for outputs in tx_outputs {
-            self.write_one_transaction_outputs(&mut write_batch, epoch_id, outputs)?;
+            self.write_one_transaction_outputs(
+                &mut write_batch,
+                epoch_id,
+                checkpoint_seq,
+                outputs,
+            )?;
         }
         // test crashing before writing the batch
         fail_point!("crash");
@@ -858,6 +871,7 @@ impl AuthorityStore {
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
+        checkpoint_seq: CheckpointSequenceNumber,
         tx_outputs: &TransactionOutputs,
     ) -> IotaResult {
         let TransactionOutputs {
@@ -903,7 +917,7 @@ impl AuthorityStore {
         let new_objects = written.iter().map(|(id, new_object)| {
             let version = new_object.version();
             trace!(?id, ?version, "writing object");
-            let store_object = get_store_object(new_object.clone());
+            let store_object = get_store_object(new_object.clone(), checkpoint_seq);
             (ObjectKey(*id, version), store_object)
         });
 
@@ -1461,38 +1475,31 @@ impl AuthorityStore {
         let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                match o {
-                    LiveObject::Normal(object) => {
-                        size += object.object_size_for_gas_metering();
-                        count += 1;
-                        pending_objects.push(object);
-                        if count % 1_000_000 == 0 {
-                            let mut task_objects = vec![];
-                            mem::swap(&mut pending_objects, &mut task_objects);
-                            pending_tasks.push(s.spawn(move || {
-                                let mut layout_resolver =
-                                    executor.type_layout_resolver(Box::new(type_layout_store));
-                                let mut total_storage_rebate = 0;
-                                let mut total_iota = 0;
-                                for object in task_objects {
-                                    total_storage_rebate += object.storage_rebate;
-                                    // get_total_iota includes storage rebate, however all storage
-                                    // rebate is also stored in
-                                    // the storage fund, so we need to subtract it here.
-                                    total_iota +=
-                                        object.get_total_iota(layout_resolver.as_mut()).unwrap()
-                                            - object.storage_rebate;
-                                }
-                                if count % 50_000_000 == 0 {
-                                    info!("Processed {} objects", count);
-                                }
-                                (total_iota, total_storage_rebate)
-                            }));
+                let LiveObject::Normal(object) = o;
+                size += object.object_size_for_gas_metering();
+                count += 1;
+                pending_objects.push(object);
+                if count % 1_000_000 == 0 {
+                    let mut task_objects = vec![];
+                    mem::swap(&mut pending_objects, &mut task_objects);
+                    pending_tasks.push(s.spawn(move || {
+                        let mut layout_resolver =
+                            executor.type_layout_resolver(Box::new(type_layout_store));
+                        let mut total_storage_rebate = 0;
+                        let mut total_iota = 0;
+                        for object in task_objects {
+                            total_storage_rebate += object.storage_rebate;
+                            // get_total_iota includes storage rebate, however all storage
+                            // rebate is also stored in
+                            // the storage fund, so we need to subtract it here.
+                            total_iota += object.get_total_iota(layout_resolver.as_mut()).unwrap()
+                                - object.storage_rebate;
                         }
-                    }
-                    LiveObject::Wrapped(_) => {
-                        unreachable!("Explicitly asked to not include wrapped tombstones")
-                    }
+                        if count % 50_000_000 == 0 {
+                            info!("Processed {} objects", count);
+                        }
+                        (total_iota, total_storage_rebate)
+                    }));
                 }
             }
             pending_tasks.into_iter().fold((0, 0), |init, result| {

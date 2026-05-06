@@ -28,7 +28,8 @@ use super::*;
 use crate::authority::{
     authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
-        StoreObject, StoreObjectValue, StoreObjectWrapper, get_store_object, try_construct_object,
+        SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, StoreObject, StoreObjectValueV2,
+        StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
 };
@@ -261,7 +262,7 @@ impl AuthorityPerpetualTables {
     fn construct_object(
         &self,
         object_key: &ObjectKey,
-        store_object: StoreObjectValue,
+        store_object: StoreObjectValueV2,
     ) -> Result<Object, IotaError> {
         try_construct_object(object_key, store_object)
     }
@@ -447,11 +448,7 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
-        LiveSetIter {
-            iter: Box::new(self.objects.safe_iter()),
-            tables: self,
-            prev: None,
-        }
+        LiveSetIter(self.iter_live_object_set_v2())
     }
 
     pub fn range_iter_live_object_set(
@@ -462,8 +459,19 @@ impl AuthorityPerpetualTables {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
 
-        LiveSetIter {
+        LiveSetIter(LiveSetIterV2 {
             iter: Box::new(self.objects.safe_iter_with_bounds(lower_bound, upper_bound)),
+            tables: self,
+            prev: None,
+        })
+    }
+
+    /// Like `iter_live_object_set` but additionally surfaces each live
+    /// object's `previous_transaction_checkpoint`. Used by the snapshot V2
+    /// writer to populate the per-object trailer of the reference file.
+    pub fn iter_live_object_set_v2(&self) -> LiveSetIterV2<'_> {
+        LiveSetIterV2 {
+            iter: Box::new(self.objects.safe_iter()),
             tables: self,
             prev: None,
         }
@@ -494,7 +502,7 @@ impl AuthorityPerpetualTables {
 
     pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
         let object_reference = object.compute_object_reference();
-        let wrapper = get_store_object(object);
+        let wrapper = get_store_object(object, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT);
         let mut wb = self.objects.batch();
         wb.insert_batch(
             &self.objects,
@@ -541,69 +549,104 @@ impl ObjectStore for AuthorityPerpetualTables {
     }
 }
 
-pub struct LiveSetIter<'a> {
-    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
-    tables: &'a AuthorityPerpetualTables,
-    prev: Option<(ObjectKey, StoreObjectWrapper)>,
-}
+/// Yields the same live-object set as `LiveSetIterV2` but strips the
+/// per-object `previous_transaction_checkpoint` trailer, for callers that do
+/// not need it.
+pub struct LiveSetIter<'a>(LiveSetIterV2<'a>);
 
+/// A row that the live-set iterator surfaces. The previous `Wrapped` variant
+/// was removed: `LiveSetIter` filters `StoreObject::Wrapped` and
+/// `StoreObject::Deleted` from its output, so wrapped objects never reach
+/// downstream consumers (snapshot writer, state-hash accumulator, restore
+/// path).
+///
+/// Kept as a single-variant enum to bound the blast radius of this PR —
+/// every consumer site uses `let LiveObject::Normal(o) = ...;` today, and
+/// collapsing to `pub struct LiveObject(pub Object);` (or
+/// `pub type LiveObject = Object;`) would touch every such site. The
+/// `Serialize`/`Deserialize`/`Hash`/`Eq`/`PartialEq` derives have no
+/// current consumer (no call site BCS-encodes, hashes, or equality-
+/// compares a `LiveObject`); a follow-up can collapse the type and prune
+/// both the derives and the trivial wrapper methods.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum LiveObject {
     Normal(Object),
-    Wrapped(ObjectKey),
 }
 
 impl LiveObject {
     pub fn object_id(&self) -> ObjectID {
         match self {
             LiveObject::Normal(obj) => obj.id(),
-            LiveObject::Wrapped(key) => key.0,
         }
     }
 
     pub fn version(&self) -> SequenceNumber {
         match self {
             LiveObject::Normal(obj) => obj.version(),
-            LiveObject::Wrapped(key) => key.1,
         }
     }
 
     pub fn object_reference(&self) -> ObjectRef {
         match self {
             LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
     pub fn to_normal(self) -> Option<Object> {
         match self {
             LiveObject::Normal(object) => Some(object),
-            LiveObject::Wrapped(_) => None,
-        }
-    }
-}
-
-impl LiveSetIter<'_> {
-    fn store_object_wrapper_to_live_object(
-        &self,
-        object_key: ObjectKey,
-        store_object: StoreObjectWrapper,
-    ) -> Option<LiveObject> {
-        match store_object.migrate().into_inner() {
-            StoreObject::Value(object) => {
-                let object = self
-                    .tables
-                    .construct_object(&object_key, *object)
-                    .expect("Constructing object from store cannot fail");
-                Some(LiveObject::Normal(object))
-            }
-            StoreObject::Wrapped | StoreObject::Deleted => None,
         }
     }
 }
 
 impl Iterator for LiveSetIter<'_> {
     type Item = LiveObject;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|v| v.live)
+    }
+}
+
+/// A live object together with the checkpoint sequence number that contained
+/// the transaction whose effects produced this object version. Yielded by
+/// `LiveSetIterV2`.
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct LiveObjectV2 {
+    pub live: LiveObject,
+    pub previous_transaction_checkpoint: CheckpointSequenceNumber,
+}
+
+pub struct LiveSetIterV2<'a> {
+    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
+    tables: &'a AuthorityPerpetualTables,
+    prev: Option<(ObjectKey, StoreObjectWrapper)>,
+}
+
+impl LiveSetIterV2<'_> {
+    fn store_object_wrapper_to_live_object(
+        &self,
+        object_key: ObjectKey,
+        store_object: StoreObjectWrapper,
+    ) -> Option<LiveObjectV2> {
+        match store_object.migrate().into_inner() {
+            StoreObject::Value(value) => {
+                let previous_transaction_checkpoint = value.previous_transaction_checkpoint;
+                let object = self
+                    .tables
+                    .construct_object(&object_key, *value)
+                    .expect("Constructing object from store cannot fail");
+                Some(LiveObjectV2 {
+                    live: LiveObject::Normal(object),
+                    previous_transaction_checkpoint,
+                })
+            }
+            StoreObject::Wrapped | StoreObject::Deleted => None,
+        }
+    }
+}
+
+impl Iterator for LiveSetIterV2<'_> {
+    type Item = LiveObjectV2;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -687,4 +730,106 @@ fn events_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_EVENTS_BLOCK_CACHE_SIZE).unwrap_or(1024))
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::base_types::ObjectID;
+
+    use super::*;
+    use crate::authority::authority_store_types::StoreObjectV2;
+
+    /// Combined into one `#[tokio::test]` to sidestep the
+    /// `typed_store::DBMetrics` global Prometheus registry race (concurrent
+    /// `AuthorityPerpetualTables::open` calls hit `AlreadyReg`). The two cases
+    /// are independent; do not split until the metrics registry is made
+    /// re-entrant.
+    #[tokio::test]
+    async fn live_set_iter_invariants() {
+        live_set_iter_filters_wrapped_and_deleted_store_rows();
+        live_set_iter_v2_propagates_previous_transaction_checkpoint();
+    }
+
+    /// `LiveSetIter` must filter `StoreObject::Wrapped` and
+    /// `StoreObject::Deleted` rows at the source so downstream consumers
+    /// (snapshot writer, state-hash accumulator, restore path) only ever
+    /// observe live `Normal` objects. This invariant is what lets
+    /// `LiveObject` carry only the `Normal` variant.
+    fn live_set_iter_filters_wrapped_and_deleted_store_rows() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        // A live `Normal` row alongside `Wrapped` and `Deleted` tombstones for
+        // distinct object IDs.
+        let live_id = ObjectID::random();
+        let wrapped_id = ObjectID::random();
+        let deleted_id = ObjectID::random();
+
+        let live_object = Object::immutable_with_id_for_testing(live_id);
+        perpetual_db.insert_object_test_only(live_object).unwrap();
+
+        let mut wb = perpetual_db.objects.batch();
+        let wrapped_key = ObjectKey(wrapped_id, SequenceNumber::from_u64(1));
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
+                wrapped_key,
+                StoreObjectV2::Wrapped.into(),
+            )),
+        )
+        .unwrap();
+        let deleted_key = ObjectKey(deleted_id, SequenceNumber::from_u64(1));
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
+                deleted_key,
+                StoreObjectV2::Deleted.into(),
+            )),
+        )
+        .unwrap();
+        wb.write().unwrap();
+
+        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        assert_eq!(yielded.len(), 1, "wrapped/deleted rows must be filtered");
+        let LiveObject::Normal(only) = yielded.into_iter().next().unwrap();
+        assert_eq!(only.id(), live_id);
+    }
+
+    /// `LiveSetIterV2` must surface the exact `previous_transaction_checkpoint`
+    /// stored on `StoreObjectValueV2` — it is the load-bearing input to the
+    /// snapshot V2 writer's per-record trailer. A bug that, e.g., always
+    /// stamped `0` here would silently corrupt every snapshot's per-record
+    /// trailer; this is the focused canary for that contract.
+    fn live_set_iter_v2_propagates_previous_transaction_checkpoint() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        // Insert a live object via the standard test path. This stamps the
+        // sentinel checkpoint by default; we then overwrite the row with a
+        // hand-built value carrying a distinct, recognizable checkpoint.
+        let object = Object::immutable_with_id_for_testing(ObjectID::random());
+        let object_ref = object.compute_object_reference();
+        let object_key = ObjectKey::from(object_ref);
+        let distinct_checkpoint: u64 = 0xCAFE_F00D_BEEF_1234;
+
+        let store_object_value = match get_store_object(object, distinct_checkpoint).into_inner() {
+            StoreObject::Value(value) => value,
+            other => panic!("expected StoreObject::Value, got {other:?}"),
+        };
+        let wrapper: StoreObjectWrapper = StoreObjectV2::Value(store_object_value).into();
+        let mut wb = perpetual_db.objects.batch();
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once((object_key, wrapper)),
+        )
+        .unwrap();
+        wb.write().unwrap();
+
+        let yielded: Vec<_> = perpetual_db.iter_live_object_set_v2().collect();
+        assert_eq!(yielded.len(), 1);
+        assert_eq!(
+            yielded[0].previous_transaction_checkpoint, distinct_checkpoint,
+            "LiveSetIterV2 must surface the on-row checkpoint, not a default"
+        );
+    }
 }

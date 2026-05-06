@@ -48,13 +48,19 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
-    OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_DIGEST_BYTES,
+    OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, OBJECT_REF_BYTES_V2,
+    REFERENCE_FILE_MAGIC, REFERENCE_FILE_MAGIC_V2, SEQUENCE_NUM_BYTES, SHA3_BYTES,
     restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
+/// Orchestrates restoring a state snapshot from a remote object store. The
+/// `V1` suffix refers to the orchestration-layer revision of this struct
+/// (its public API surface), not the snapshot wire format. After the V2
+/// snapshot rollout this reader consumes only V2 manifests and refuses V1
+/// snapshots up-front.
 #[derive(Clone)]
 pub struct StateSnapshotReaderV1 {
     epoch: u64,
@@ -113,10 +119,14 @@ impl StateSnapshotReaderV1 {
             local_staging_dir_root.clone(),
             &manifest_file_path,
         )?)?;
-        // Verifies MANIFEST
+        // Verifies MANIFEST. Only V2 snapshots are readable; operators
+        // regenerate any older V1 snapshots after PR 1 deploy.
         let snapshot_version = manifest.snapshot_version();
-        if snapshot_version != 1u8 {
-            bail!("Unexpected snapshot version: {}", snapshot_version);
+        if snapshot_version != 2u8 {
+            bail!(
+                "Unsupported snapshot version: {snapshot_version}. \
+                 Only snapshot V2 is supported; regenerate the snapshot."
+            );
         }
         if manifest.address_length() as usize > ObjectID::LENGTH {
             bail!("Max possible address length is: {}", ObjectID::LENGTH);
@@ -128,27 +138,38 @@ impl StateSnapshotReaderV1 {
         // directory
         let mut object_files = BTreeMap::new();
         let mut ref_files = BTreeMap::new();
+        let mut epoch_info_seen = false;
         for file_metadata in manifest.file_metadata() {
             match file_metadata.file_type {
                 FileType::Object => {
-                    // Gets the object FileMetadata bucket with the bucket number, or inserts a new
-                    // one if it doesn't exist.
                     let entry = object_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
-                    // Inserts the object FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
                 FileType::Reference => {
-                    // Gets the reference FileMetadata bucket with the bucket number, or inserts a
-                    // new one if it doesn't exist.
                     let entry = ref_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
-                    // Inserts the reference FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
+                FileType::EpochInfo => {
+                    if epoch_info_seen {
+                        bail!("Manifest contains more than one EPOCH_INFO entry");
+                    }
+                    epoch_info_seen = true;
+                }
             }
+        }
+        // V2 manifests must list the per-snapshot EPOCH_INFO file. The
+        // manifest entry is required so a missing entry fails fast, but
+        // the EPOCH_INFO file itself is not downloaded or sha3-verified
+        // here: it is consumed out-of-band from the bucket rather than
+        // through the restore path. Out-of-band consumers (e.g. the
+        // indexer) are responsible for verifying the file against
+        // `FileMetadata::sha3_digest` recorded in the MANIFEST.
+        if !epoch_info_seen {
+            bail!("V2 manifest missing required EPOCH_INFO entry");
         }
         let epoch_dir_path = Path::from(epoch_dir);
         // Collects the path of all reference files
@@ -628,7 +649,13 @@ impl StateSnapshotReaderV1 {
     }
 }
 
-/// An iterator over all object refs in a .ref file.
+/// An iterator over all object refs in a V2 .ref file.
+///
+/// V2 records carry an 8-byte big-endian `previous_transaction_checkpoint`
+/// trailer after the V1 layout. The trailer is read past to keep the stream
+/// aligned but is not surfaced via the `Iterator` impl: the restore path
+/// only needs `ObjectRef` for digest checksumming and live-object insertion,
+/// so yielding the V1 shape keeps that code path unchanged.
 pub struct ObjectRefIter {
     reader: Box<dyn Read>,
 }
@@ -638,21 +665,30 @@ impl ObjectRefIter {
         let file_path = file_metadata.local_file_path(&root_path, &dir_path)?;
         let mut reader = file_metadata.file_compression.decompress(&file_path)?;
         let magic = reader.read_u32::<BigEndian>()?;
-        if magic != REFERENCE_FILE_MAGIC {
-            bail!("Unexpected magic string in REFERENCE file: {:?}", magic)
+        if magic != REFERENCE_FILE_MAGIC_V2 {
+            bail!(
+                "Unexpected magic string in V2 REFERENCE file: {:#x}, expected {:#x}",
+                magic,
+                REFERENCE_FILE_MAGIC_V2
+            )
         } else {
             Ok(ObjectRefIter { reader })
         }
     }
 
     fn next_ref(&mut self) -> Result<ObjectRef> {
-        let mut buf = [0u8; OBJECT_REF_BYTES];
+        let mut buf = [0u8; OBJECT_REF_BYTES_V2];
         self.reader.read_exact(&mut buf)?;
         let object_id = &buf[0..OBJECT_ID_BYTES];
         let sequence_number = &buf[OBJECT_ID_BYTES..OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES]
             .reader()
             .read_u64::<BigEndian>()?;
-        let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
+        let digest_end = OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES;
+        let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..digest_end];
+        // The trailing 8 bytes carry `previous_transaction_checkpoint`. We
+        // read past them to keep the stream aligned but do not surface them
+        // here; the per-record value is not needed for state-hash
+        // verification or live-object restoration.
         let object_ref = ObjectRef::new(
             ObjectID::from_bytes(object_id)?,
             SequenceNumber::from_u64(*sequence_number),

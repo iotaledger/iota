@@ -978,7 +978,12 @@ impl WritebackCache {
         Ok(())
     }
 
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_seq: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch {
         let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
         let mut all_outputs = Vec::with_capacity(digests.len());
         for tx in digests {
@@ -1003,7 +1008,7 @@ impl WritebackCache {
 
         let batch = self
             .store
-            .build_db_batch(epoch, &all_outputs)
+            .build_db_batch(epoch, checkpoint_seq, &all_outputs)
             .expect("db error");
         (all_outputs, batch)
     }
@@ -1332,8 +1337,13 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
-        self.build_db_batch(epoch, digests)
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_seq: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch {
+        self.build_db_batch(epoch, checkpoint_seq, digests)
     }
 
     fn try_commit_transaction_outputs(

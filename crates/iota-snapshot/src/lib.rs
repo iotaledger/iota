@@ -31,13 +31,14 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    global_state_hasher::WrappedObject,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
     base_types::ObjectID,
+    epoch_info::EpochInfoEntry,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -50,23 +51,27 @@ use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-/// The following describes the format of an object file (*.obj) used for
-/// persisting live iota objects. The maximum size per .obj file is 128MB. State
-/// snapshot will be taken at the end of every epoch. Live object set is split
-/// into and stored across multiple hash buckets. The hashing function used
-/// for bucketing objects is the same as the one used to build the accumulator
-/// tree for computing state root hash. Buckets are further subdivided into
-/// partitions. A partition is a smallest storage unit which holds a subset of
-/// objects in one bucket. Each partition is a single *.obj file where
-/// objects are appended to in an append-only fashion. A new partition is
-/// created when the current one reaches its maximum size. i.e. 128MB.
-/// Partitions allow a single hash bucket to be consumed in parallel. Partition
-/// files are optionally compressed with the zstd compression format. Partition
-/// filenames follows the format <bucket_number>_<partition_number>.obj. Object
-/// references for hash. There is one single ref file per hash bucket. Object
-/// references are written in an append-only manner as well. Finally, the
-/// MANIFEST file contains per file metadata of every file in the snapshot
-/// directory. State Snapshot Directory Layout
+/// The following describes the on-disk format of a snapshot, as written by
+/// `StateSnapshotWriterV1` and consumed by `StateSnapshotReaderV1`. The
+/// snapshot is taken at the end of every epoch and stores the live object
+/// set bucketed by the same hash function used for the global state hash
+/// accumulator, allowing a single bucket to be consumed in parallel. Each
+/// bucket is split across one or more partitions; a partition is a single
+/// `.obj` file with a maximum size of 128 MB and a matching `.ref` file
+/// listing the object references in that partition. Partition files are
+/// optionally zstd-compressed.
+///
+/// V2 additions over V1:
+/// - REFERENCE file magic is `0xCAFEBEEF` (V1 was `0xDEADBEEF`); a V2 reader
+///   fails fast on a V1 magic and vice versa.
+/// - REFERENCE records carry an extra 8-byte big-endian
+///   `previous_transaction_checkpoint` trailer per record (80-byte records
+///   instead of V1's 72).
+/// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
+///   carrying one entry per epoch in `[0, snapshot_epoch]` from
+///   `CheckpointStore::epoch_info`.
+///
+/// State Snapshot Directory Layout
 ///  - snapshot/
 ///     - epoch_0/
 ///        - 1_1.obj
@@ -74,11 +79,11 @@ use tokio::time::Instant;
 ///        - 1_3.obj
 ///        - 2_1.obj
 ///        - ...
-///        - 1000_1.obj
-///        - REFERENCE-1
-///        - REFERENCE-2
+///        - 1_1.ref
+///        - 1_2.ref
+///        - 2_1.ref
 ///        - ...
-///        - REFERENCE-1000
+///        - EPOCH_INFO
 ///        - MANIFEST
 ///     - epoch_1/
 ///       - 1_1.obj
@@ -101,22 +106,33 @@ use tokio::time::Instant;
 /// │ len <uvarint> │ encoding <1 byte> │ data <bytes> │
 /// └───────────────┴───────────────────┴──────────────┘
 ///
-/// REFERENCE File Disk Format
+/// REFERENCE File Disk Format (V2)
 /// ┌──────────────────────────────┐
-/// │  magic(0x5EFE5E11) <4 byte>  │
+/// │  magic(0xCAFEBEEF) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
-/// │ │         ObjectRef 1      │ │
+/// │ │       ObjectRefV2 1      │ │
 /// │ ├──────────────────────────┤ │
 /// │ │          ...             │ │
 /// │ ├──────────────────────────┤ │
-/// │ │         ObjectRef N      │ │
+/// │ │       ObjectRefV2 N      │ │
 /// │ └──────────────────────────┘ │
 /// └──────────────────────────────┘
-/// ObjectRef (ObjectID, SequenceNumber, ObjectDigest)
-/// ┌───────────────┬───────────────────┬──────────────┐
-/// │         data (<(address_len + 8 + 32) bytes>)    │
-/// └───────────────┴───────────────────┴──────────────┘
+/// ObjectRefV2: 80 bytes total, fields concatenated in declaration order:
+///   - ObjectID                          : 32 bytes
+///   - SequenceNumber                    :  8 bytes
+///   - ObjectDigest                      : 32 bytes
+///   - previous_transaction_checkpoint   :  8 bytes (big-endian u64)
+///
+/// EPOCH_INFO File Disk Format
+/// ┌──────────────────────────────┐
+/// │  magic(0x9000C001) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │   bcs(EpochInfo)             │
+/// └──────────────────────────────┘
+/// Integrity is anchored by `FileMetadata::sha3_digest` recorded in the
+/// MANIFEST (matching how `.obj`/`.ref` files are validated); no in-file
+/// sha3 trailer is written.
 ///
 /// MANIFEST File Disk Format
 /// ┌──────────────────────────────┐
@@ -127,7 +143,12 @@ use tokio::time::Instant;
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
-const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
+/// Magic for V2 reference files. Distinct from the V1 magic (`0xDEADBEEF`) so
+/// a V1 reader fails fast on the magic check rather than silently
+/// mis-decoding a V2 ref record's extra `previous_transaction_checkpoint`
+/// trailer.
+const REFERENCE_FILE_MAGIC_V2: u32 = 0xCAFEBEEF;
+const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
 const MAGIC_BYTES: usize = 4;
 const SNAPSHOT_VERSION_BYTES: usize = 1;
@@ -139,7 +160,12 @@ const FILE_MAX_BYTES: usize = 128 * 1024 * 1024;
 const OBJECT_ID_BYTES: usize = ObjectID::LENGTH;
 const SEQUENCE_NUM_BYTES: usize = 8;
 const OBJECT_DIGEST_BYTES: usize = 32;
-const OBJECT_REF_BYTES: usize = OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES;
+/// Size of a V2 reference record: 72-byte V1 ObjectRef (ObjectID +
+/// SequenceNumber + ObjectDigest) plus an 8-byte big-endian
+/// `previous_transaction_checkpoint` trailer.
+const PREV_TX_CHECKPOINT_BYTES: usize = 8;
+const OBJECT_REF_BYTES_V2: usize =
+    OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES + PREV_TX_CHECKPOINT_BYTES;
 const FILE_TYPE_BYTES: usize = 1;
 const BUCKET_BYTES: usize = 4;
 const BUCKET_PARTITION_BYTES: usize = 4;
@@ -153,7 +179,10 @@ const FILE_METADATA_BYTES: usize =
 #[repr(u8)]
 pub enum FileType {
     Object = 0,
-    Reference,
+    Reference = 1,
+    /// V2 only: per-epoch metadata file, populated from `CheckpointStore`'s
+    /// `epoch_info` table.
+    EpochInfo = 2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -175,6 +204,9 @@ impl FileMetadata {
             FileType::Reference => {
                 dir_path.child(&*format!("{}_{}.ref", self.bucket_num, self.part_num))
             }
+            // EPOCH_INFO is a singleton per snapshot, so bucket/part numbers
+            // do not contribute to the filename.
+            FileType::EpochInfo => dir_path.child("EPOCH_INFO"),
         }
     }
     pub fn local_file_path(&self, root_path: &std::path::Path, dir_path: &Path) -> Result<PathBuf> {
@@ -182,38 +214,69 @@ impl FileMetadata {
     }
 }
 
+/// Body of a manifest at any version. V1 and V2 are structurally identical —
+/// the on-disk wire format is the same and the BCS variant tag on `Manifest`
+/// distinguishes them. V2 differs only in semantic associations: the
+/// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
+/// `.ref` files carry 80-byte records (with a `previous_transaction_checkpoint`
+/// trailer). `address_length` is preserved as a sanity check across versions.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ManifestV1 {
+pub struct ManifestBody {
     pub snapshot_version: u8,
     pub address_length: u64,
     pub file_metadata: Vec<FileMetadata>,
     pub epoch: u64,
 }
 
+// `Manifest::V1` and `Manifest::V2` use the same `ManifestBody` payload —
+// the BCS variant tag distinguishes them. The variants must stay (removing
+// `V1` would shift `V2`'s tag) even though the body type is shared.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Manifest {
-    V1(ManifestV1),
+    V1(ManifestBody),
+    V2(ManifestBody),
 }
 
 impl Manifest {
-    pub fn snapshot_version(&self) -> u8 {
+    fn body(&self) -> &ManifestBody {
         match self {
-            Self::V1(manifest) => manifest.snapshot_version,
+            Self::V1(manifest) | Self::V2(manifest) => manifest,
         }
+    }
+    pub fn snapshot_version(&self) -> u8 {
+        self.body().snapshot_version
     }
     pub fn address_length(&self) -> u64 {
-        match self {
-            Self::V1(manifest) => manifest.address_length,
-        }
+        self.body().address_length
     }
     pub fn file_metadata(&self) -> &Vec<FileMetadata> {
-        match self {
-            Self::V1(manifest) => &manifest.file_metadata,
-        }
+        &self.body().file_metadata
     }
     pub fn epoch(&self) -> u64 {
+        self.body().epoch
+    }
+}
+
+/// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned to allow
+/// future schema evolution. `entries[i]` is the entry for epoch `i`; `None`
+/// indicates the source `epoch_info` table had no row for that epoch.
+/// Length is `snapshot_epoch + 1`.
+// Note: no `Eq`/`PartialEq` derive here. `EpochInfoEntry` transitively
+// contains `BLS12381AggregateSignature`, which does not implement `PartialEq`.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EpochInfo {
+    V1(EpochInfoV1),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1 {
+    pub entries: Vec<Option<EpochInfoEntry>>,
+}
+
+impl EpochInfo {
+    pub fn entries(&self) -> &[Option<EpochInfoEntry>] {
         match self {
-            Self::V1(manifest) => manifest.epoch,
+            Self::V1(info) => &info.entries,
         }
     }
 }
@@ -329,17 +392,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        match live_object {
-            LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().digest);
-            }
-            LiveObject::Wrapped(key) => {
-                acc.insert(
-                    bcs::to_bytes(&WrappedObject::new(key.0, key.1))
-                        .expect("Failed to serialize WrappedObject"),
-                );
-            }
-        }
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     accum_progress_bar.finish_with_message("DB live object accumulation completed");

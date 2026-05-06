@@ -61,6 +61,7 @@ pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
         authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder, transaction_deferral::DeferralKey,
     },
@@ -3272,7 +3273,7 @@ fn build_and_commit(
     epoch: EpochId,
     txs: &[TransactionDigest],
 ) {
-    let batch = cache_commit.build_db_batch(epoch, txs);
+    let batch = cache_commit.build_db_batch(epoch, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, txs);
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
 }
 

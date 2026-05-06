@@ -31,7 +31,11 @@ use tokio::sync::RwLock;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
+    authority::{
+        AuthorityState, AuthorityStore,
+        authority_store_types::SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+        test_authority_builder::TestAuthorityBuilder,
+    },
     execution_cache::ExecutionCacheAPI,
 };
 
@@ -373,7 +377,9 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        let batch = self.cache().build_db_batch(1, &[tx]);
+        let batch = self
+            .cache()
+            .build_db_batch(1, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, &[tx]);
         self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
@@ -401,9 +407,7 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
-            let LiveObject::Normal(o) = o else {
-                panic!("expected normal object")
-            };
+            let LiveObject::Normal(o) = o;
             let id = o.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
@@ -570,7 +574,9 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        let batch = s.cache().build_db_batch(1, &[tx]);
+        let batch = s
+            .cache()
+            .build_db_batch(1, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, &[tx]);
         s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);

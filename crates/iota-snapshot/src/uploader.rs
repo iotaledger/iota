@@ -153,7 +153,12 @@ impl StateSnapshotUploader {
                     .expect("Expected at least one commitment")
                     .clone();
                 state_snapshot_writer
-                    .write(*epoch, db, state_hash_commitment)
+                    .write(
+                        *epoch,
+                        db,
+                        self.checkpoint_store.clone(),
+                        state_hash_commitment,
+                    )
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
                 // Records the on-chain start timestamp of this epoch (= timestamp of the
