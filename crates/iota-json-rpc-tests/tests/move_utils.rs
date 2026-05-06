@@ -65,6 +65,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "package",
             "pay",
             "poseidon",
+            "protocol_config",
             "priority_queue",
             "package_metadata",
             "ptb",
