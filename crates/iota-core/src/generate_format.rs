@@ -360,59 +360,28 @@ fn get_registry() -> Result<Registry> {
     // `data.variant::<u32>()`, which is incompatible with serde-reflection's
     // tracing deserializer (it provides string variant ids). trace_type would
     // crash for any type that transitively contains TypeTag.
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: ObjectID::ZERO,
-                module: "module".to_string(),
-                function: "function".to_string(),
-                type_arguments: vec![TypeTag::Bool],
-                arguments: vec![Argument::Gas],
-            })),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::TransferObjects(vec![Argument::Gas], Argument::Gas),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::SplitCoins(Argument::Gas, vec![Argument::Gas]),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::MergeCoins(Argument::Gas, vec![Argument::Gas]),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::Publish(vec![vec![0u8]], vec![ObjectID::ZERO]),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::MakeMoveVec(Some(TypeTag::Bool), vec![Argument::Gas]),
-        )
-        .unwrap();
-    tracer
-        .trace_value(
-            &mut samples,
-            &Command::Upgrade(
-                vec![vec![0u8]],
-                vec![ObjectID::ZERO],
-                ObjectID::ZERO,
-                Argument::Gas,
-            ),
-        )
-        .unwrap();
+    for cmd in [
+        Command::MoveCall(Box::new(ProgrammableMoveCall {
+            package: ObjectID::ZERO,
+            module: "module".to_string(),
+            function: "function".to_string(),
+            type_arguments: vec![TypeTag::Bool],
+            arguments: vec![Argument::Gas],
+        })),
+        Command::TransferObjects(vec![Argument::Gas], Argument::Gas),
+        Command::SplitCoins(Argument::Gas, vec![Argument::Gas]),
+        Command::MergeCoins(Argument::Gas, vec![Argument::Gas]),
+        Command::Publish(vec![vec![0u8]], vec![ObjectID::ZERO]),
+        Command::MakeMoveVec(Some(TypeTag::Bool), vec![Argument::Gas]),
+        Command::Upgrade(
+            vec![vec![0u8]],
+            vec![ObjectID::ZERO],
+            ObjectID::ZERO,
+            Argument::Gas,
+        ),
+    ] {
+        tracer.trace_value(&mut samples, &cmd).unwrap();
+    }
 
     // Trace all TransactionKind variants via trace_value
     let sample_pt = ProgrammableTransaction {
