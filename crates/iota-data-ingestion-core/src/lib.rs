@@ -24,6 +24,7 @@
 //! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and
 //!    and finalizes system termination.
 
+mod config;
 mod errors;
 mod executor;
 pub mod history;
@@ -54,6 +55,8 @@ pub use reader::{ReaderOptions, filters};
 pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
+
+pub use crate::config::IngestionConfig;
 
 /// Processes individual checkpoints and produces messages for optional batch
 /// processing.

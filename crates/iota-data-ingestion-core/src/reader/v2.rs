@@ -33,7 +33,8 @@ use tracing::{debug, error, info};
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
 use crate::{
-    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
+    IngestionConfig, IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
+    create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
         ReaderOptions,
@@ -553,10 +554,9 @@ pub(crate) struct CheckpointReader {
 impl CheckpointReader {
     pub(crate) async fn new(
         starting_checkpoint_number: CheckpointSequenceNumber,
-        config: CheckpointReaderConfig,
-        fullnode_transaction_filter: Option<TransactionFilter>,
+        config: IngestionConfig,
     ) -> IngestionResult<Self> {
-        if fullnode_transaction_filter.is_some()
+        if config.fullnode_transaction_filter.is_some()
             && !matches!(config.remote_store_url, Some(RemoteUrl::Fullnode(_)))
         {
             return Err(IngestionError::Unsupported(
@@ -595,7 +595,7 @@ impl CheckpointReader {
             token: token.clone(),
             data_limiter: DataLimiter::new(config.reader_options.data_limit),
             reader_options: config.reader_options,
-            fullnode_transaction_filter,
+            fullnode_transaction_filter: config.fullnode_transaction_filter,
         };
 
         let handle = spawn_monitored_task!(reader.run());
