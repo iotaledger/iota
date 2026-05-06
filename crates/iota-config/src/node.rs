@@ -517,10 +517,12 @@ pub struct WritebackCacheConfig {
     pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
 
     /// Percentage of `backpressure_threshold` at which graduated load shedding
-    /// based on writeback-cache pending transaction count begins. Sheds
-    /// linearly from 0% to 100% between
-    /// `backpressure_threshold * backpressure_soft_limit_pct / 100` and
-    /// `backpressure_threshold`. Defaults to 50.
+    /// based on writeback-cache pending transaction count begins. The
+    /// locally-calculated shedding percentage increases linearly from 0% at
+    /// `backpressure_threshold * backpressure_soft_limit_pct / 100` up to
+    /// 100% at the `backpressure_threshold` if the cache size continues to
+    /// increase. The calculated shedding percentage is broadcast to other
+    /// validators for a coordinated response. Defaults to 50.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backpressure_soft_limit_pct: Option<u32>,
 }
@@ -1283,19 +1285,18 @@ pub struct AuthorityOverloadConfig {
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
 
-    /// Inflight execution queue length at which graduated load shedding begins
-    /// in the certificate-less (white-flag) mode. Defaults to
-    /// `max_transaction_manager_queue_length / 2`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_transaction_manager_queue_length_soft_limit_pct: Option<u32>,
+    /// Percentage of `max_transaction_manager_queue_length` at which graduated
+    /// load shedding begins in the certificate-less (white-flag) mode. Read
+    /// via the same-named accessor, which clamps the value to <=100.
+    #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
+    pub max_transaction_manager_queue_length_soft_limit_pct: u32,
 }
 
 impl AuthorityOverloadConfig {
-    /// Returns the percentage of the max queue length at which graduated load
-    /// shedding should start.
+    /// Returns the soft-limit percentage, clamped to <=100 to guard against
+    /// out-of-range operator-supplied values.
     pub fn max_transaction_manager_queue_length_soft_limit_pct(&self) -> u32 {
         self.max_transaction_manager_queue_length_soft_limit_pct
-            .unwrap_or(50)
             .min(100)
     }
 }
@@ -1336,6 +1337,10 @@ fn default_max_transaction_manager_queue_length() -> usize {
     100_000
 }
 
+fn default_max_transaction_manager_queue_length_soft_limit_pct() -> u32 {
+    50
+}
+
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
     20
 }
@@ -1354,7 +1359,8 @@ impl Default for AuthorityOverloadConfig {
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
-            max_transaction_manager_queue_length_soft_limit_pct: None,
+            max_transaction_manager_queue_length_soft_limit_pct:
+                default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
         }
