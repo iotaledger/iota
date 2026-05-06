@@ -144,12 +144,13 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        let gas_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // --- Publish the test package ---
-        let ((package_id, _, _), publish_resp) =
+        let (package_ref, publish_resp) =
             publish_test_move_package(client, address, &keypair, "backward_history_test").await?;
+        let package_id = package_ref.object_id;
         indexer_wait_for_transaction(publish_resp.digest, store, client).await;
 
         // ================================================================
@@ -169,7 +170,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         let item_id = first_created_id(&resp);
         let create_cp = resp.checkpoint.unwrap() as i64;
 
-        let entry = find_backward_entry(store, &item_id.to_vec(), create_cp)?
+        let entry = find_backward_entry(store, item_id.as_bytes(), create_cp)?
             .expect("item should have backward history at create checkpoint");
         assert_eq!(
             entry.object_status,
@@ -195,7 +196,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         .await;
         let mutate_cp = resp.checkpoint.unwrap() as i64;
 
-        let entry = find_backward_entry(store, &item_id.to_vec(), mutate_cp)?
+        let entry = find_backward_entry(store, item_id.as_bytes(), mutate_cp)?
             .expect("item should have backward history at mutate checkpoint");
         assert_eq!(
             entry.object_status,
@@ -227,7 +228,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         let box_id = first_created_id(&resp);
 
         // Item was wrapped → ACTIVE backward entry with previous data.
-        let entry = find_backward_entry(store, &item_id.to_vec(), wrap_cp)?
+        let entry = find_backward_entry(store, item_id.as_bytes(), wrap_cp)?
             .expect("item should have backward history at wrap checkpoint");
         assert_eq!(
             entry.object_status,
@@ -236,7 +237,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         assert!(entry.serialized_object.is_some());
 
         // Box was created → NOT_YET_CREATED.
-        let entry = find_backward_entry(store, &box_id.to_vec(), wrap_cp)?
+        let entry = find_backward_entry(store, box_id.as_bytes(), wrap_cp)?
             .expect("box should have backward history at wrap checkpoint");
         assert_eq!(
             entry.object_status,
@@ -263,7 +264,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
 
         // Item was unwrapped → WRAPPED_OR_DELETED (no data available).
         // Version should be lamport - 1 (the output version minus one).
-        let entry = find_backward_entry(store, &item_id.to_vec(), unwrap_cp)?
+        let entry = find_backward_entry(store, item_id.as_bytes(), unwrap_cp)?
             .expect("item should have backward history at unwrap checkpoint");
         assert_eq!(
             entry.object_status,
@@ -271,14 +272,14 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         );
         assert_eq!(
             entry.object_version,
-            item_unwrap_version.value() as i64 - 1,
+            item_unwrap_version.as_u64() as i64 - 1,
             "unwrapped entry should have lamport version - 1"
         );
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
         // Box was deleted → ACTIVE backward entry with data.
-        let entry = find_backward_entry(store, &box_id.to_vec(), unwrap_cp)?
+        let entry = find_backward_entry(store, box_id.as_bytes(), unwrap_cp)?
             .expect("box should have backward history at unwrap checkpoint");
         assert_eq!(
             entry.object_status,
@@ -303,7 +304,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         let delete_cp = resp.checkpoint.unwrap() as i64;
 
         // Item was deleted → ACTIVE backward entry with previous data.
-        let entry = find_backward_entry(store, &item_id.to_vec(), delete_cp)?
+        let entry = find_backward_entry(store, item_id.as_bytes(), delete_cp)?
             .expect("item should have backward history at delete checkpoint");
         assert_eq!(
             entry.object_status,
@@ -358,7 +359,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         let unwrap_delete_cp = resp.checkpoint.unwrap() as i64;
 
         // Box was deleted → ACTIVE backward entry.
-        let entry = find_backward_entry(store, &box2_id.to_vec(), unwrap_delete_cp)?
+        let entry = find_backward_entry(store, box2_id.as_bytes(), unwrap_delete_cp)?
             .expect("box2 should have backward history at unwrap_and_delete checkpoint");
         assert_eq!(
             entry.object_status,
@@ -368,7 +369,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
 
         // Item inside was unwrapped-then-deleted → WRAPPED_OR_DELETED.
         let item2_utd_version = unwrapped_then_deleted_version(&resp, item2_id);
-        let entry = find_backward_entry(store, &item2_id.to_vec(), unwrap_delete_cp)?
+        let entry = find_backward_entry(store, item2_id.as_bytes(), unwrap_delete_cp)?
             .expect("item2 should have backward history at unwrap_and_delete checkpoint");
         assert_eq!(
             entry.object_status,
@@ -376,7 +377,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         );
         assert_eq!(
             entry.object_version,
-            item2_utd_version.value() as i64 - 1,
+            item2_utd_version.as_u64() as i64 - 1,
             "unwrapped-then-deleted entry should have lamport version - 1"
         );
         assert!(entry.serialized_object.is_none());
@@ -385,7 +386,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         // ================================================================
         // Verify full history chain for the first item.
         // ================================================================
-        let all_entries = find_all_entries_for_object(store, &item_id.to_vec())?;
+        let all_entries = find_all_entries_for_object(store, item_id.as_bytes())?;
         assert_eq!(
             all_entries.len(),
             5,

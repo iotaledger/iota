@@ -1553,6 +1553,48 @@ impl PgIndexerStore {
         )
     }
 
+    fn prune_backward_history_by_checkpoint_with_limit(
+        &self,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use diesel::prelude::*;
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                let sql = r#"
+                    WITH to_delete AS (
+                        SELECT superseded_at_checkpoint, object_id, object_version
+                        FROM objects_backward_history
+                        WHERE superseded_at_checkpoint BETWEEN $1 AND $2
+                        ORDER BY superseded_at_checkpoint, object_id, object_version
+                        FOR UPDATE
+                        LIMIT $3
+                    )
+                    DELETE FROM objects_backward_history bh
+                    USING to_delete
+                    WHERE (bh.superseded_at_checkpoint, bh.object_id, bh.object_version) =
+                          (to_delete.superseded_at_checkpoint, to_delete.object_id, to_delete.object_version)
+                "#;
+                diesel::sql_query(sql)
+                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!(
+                            "failed to prune objects_backward_history by checkpoint range [{start}..={end}] with limit {limit}"
+                        )
+                        .as_str(),
+                    )
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
     fn prune_cp_tx_table_by_range(&self, min_cp: u64, max_cp: u64) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
@@ -2599,6 +2641,28 @@ impl IndexerStore for PgIndexerStore {
 
         self.execute_in_blocking_worker(move |this| {
             this.prune_optimistic_tx_by_global_seq(start, end, limit)
+        })
+        .await
+    }
+
+    async fn prune_table_by_checkpoint_with_limit(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        if !matches!(table, PrunableTable::ObjectsBackwardHistory) {
+            return Err(IndexerError::InvalidArgument(format!(
+                "table {} does not support pruning by checkpoint with limit",
+                table.as_ref()
+            )));
+        }
+
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_backward_history_by_checkpoint_with_limit(start, end, limit)
         })
         .await
     }
