@@ -35,6 +35,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    scoring_metrics_store::StorageScoringMetrics,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
@@ -2376,8 +2377,8 @@ impl DagState {
     }
 
     /// Buffers validator score updates to be written to storage.
-    fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, Vec<u64>)> {
-        vec![] // Placeholder for future implementation of scoring updates
+    fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, StorageScoringMetrics)> {
+        vec![]
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.

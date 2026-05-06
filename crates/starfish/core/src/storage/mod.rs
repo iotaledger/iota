@@ -20,6 +20,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
+    scoring_metrics_store::StorageScoringMetrics,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -140,7 +141,7 @@ pub(crate) trait Store: Send + Sync {
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
     #[allow(dead_code)]
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>>;
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
 
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
@@ -191,7 +192,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
 }
 
 impl WriteBatch {
@@ -202,7 +203,7 @@ impl WriteBatch {
         commit_info: Vec<(CommitRef, CommitInfo)>,
         voting_block_headers: Vec<VerifiedBlockHeader>,
         fast_commit_sync_flag: Option<bool>,
-        scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
+        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
     ) -> Self {
         WriteBatch {
             transactions,
@@ -254,7 +255,7 @@ impl WriteBatch {
     #[expect(dead_code)]
     pub(crate) fn scoring_metrics(
         mut self,
-        scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
+        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
     ) -> Self {
         self.scoring_metrics = scoring_metrics;
         self

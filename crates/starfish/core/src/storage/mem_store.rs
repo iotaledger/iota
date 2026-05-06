@@ -13,6 +13,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use super::{Store, WriteBatch};
+use crate::scoring_metrics_store::StorageScoringMetrics;
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, TransactionsCommitment,
@@ -49,7 +50,7 @@ struct Inner {
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     /// Flag indicating fast commit sync is ongoing.
     fast_sync_ongoing: bool,
-    scoring_metrics: BTreeMap<AuthorityIndex, Vec<u64>>,
+    scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl MemStore {
@@ -328,7 +329,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>> {
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
         let inner = self.inner.read();
         let metrics_by_author = inner
             .scoring_metrics

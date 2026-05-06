@@ -25,6 +25,7 @@ use crate::{
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    scoring_metrics_store::StorageScoringMetrics,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -59,7 +60,7 @@ pub(crate) struct RocksDBStore {
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
     /// Stores scoring metrics for each authority.
-    scoring_metrics: DBMap<AuthorityIndex, Vec<u64>>,
+    scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -154,7 +155,7 @@ impl RocksDBStore {
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>,
-            Self::SCORING_METRICS_CF;<AuthorityIndex, Vec<u64>>
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>
         );
 
         Self {
@@ -682,7 +683,7 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>> {
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
         let mut metrics_by_author = vec![];
         for kv in self.scoring_metrics.safe_iter() {
             metrics_by_author.push(kv?);
