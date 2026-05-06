@@ -70,7 +70,7 @@ pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
         return None;
     }
 
-    let type_ = move_object.struct_tag().clone();
+    let type_ = move_object.struct_tag();
     let [name, _] = type_.type_params() else {
         return None;
     };
