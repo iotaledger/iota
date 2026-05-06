@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
-    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
+    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     SimpleSignature,
@@ -103,9 +103,12 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
 
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: IotaAddress, kp: &IotaKeyPair) -> Transaction {
+pub fn make_transaction(sender: IotaAddress, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    Transaction::from_data_and_signer(data, vec![kp])
+    // TODO converting from SimpleKeypair to IotaKeyPair to avoid changing the
+    // signature of `from_data_and_signer` (for now)
+    let kp = IotaKeyPair::from_bytes(&kp.to_bytes()).unwrap();
+    Transaction::from_data_and_signer(data, vec![&kp])
 }
 
 // This is used to sign transaction with signer using default Intent.
@@ -170,7 +173,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
     )
     .unwrap();
     let addr = multisig_pk.derive_address();
-    let tx = make_transaction(addr, &IotaKeyPair::from_bytes(&kp1.to_bytes()).unwrap());
+    let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
         .signing_message();
