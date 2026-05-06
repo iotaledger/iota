@@ -118,12 +118,14 @@ impl AuthenticatorTrait for MultiSig {
                         })?;
                     authenticator
                         .verify_claims(value, IotaAddress::from(member.public_key()), verify_params)
-                        .unwrap();
-                    Ok(())
-                    // .map_err(|e|
-                    // FastCryptoError::GeneralError(e.to_string()))
+                        .map_err(|e| {
+                            fastcrypto::error::FastCryptoError::GeneralError(e.to_string())
+                        })
                 }
-                _ => verifier.verify_member_signature(&digest, member.public_key(), signature),
+                _ => verifier
+                    .verify_member_signature(&digest, member.public_key(), signature)
+                    // TODO not sure about these map_err
+                    .map_err(|e| fastcrypto::error::FastCryptoError::GeneralError(e.to_string())),
             };
 
             if let Err(e) = res {
