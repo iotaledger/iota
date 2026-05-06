@@ -1048,7 +1048,7 @@ impl IotaNode {
                 .layer(
                     TraceLayer::new_for_client_and_server_errors()
                         .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
+                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
                 )
                 .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
                     Arc::new(outbound_network_metrics),

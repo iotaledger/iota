@@ -108,6 +108,8 @@ pub use server::{GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest}
 
 use self::{metrics::Metrics, server::CheckpointContentsDownloadLimitLayer};
 
+const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
+
 /// A handle to the StateSync subsystem.
 ///
 /// This handle can be cloned and shared. Once all copies of a StateSync
@@ -297,6 +299,7 @@ impl PeerHeights {
 // randomness.
 #[derive(Clone)]
 struct PeerBalancer {
+    network: anemo::Network,
     peers: VecDeque<(anemo::Peer, PeerStateSyncInfo)>,
     requested_checkpoint: Option<CheckpointSequenceNumber>,
     request_type: PeerCheckpointRequestType,
@@ -327,6 +330,7 @@ impl PeerBalancer {
             .collect();
         peers.sort_by(|(rtt_a, _, _), (rtt_b, _, _)| rtt_a.cmp(rtt_b));
         Self {
+            network: network.clone(),
             peers: peers
                 .into_iter()
                 .map(|(_, peer, info)| (peer, info))
@@ -347,11 +351,19 @@ impl Iterator for PeerBalancer {
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.peers.is_empty() {
-            const SELECTION_WINDOW: usize = 2;
-            let idx =
-                rand::thread_rng().gen_range(0..std::cmp::min(SELECTION_WINDOW, self.peers.len()));
+            let idx = rand::thread_rng()
+                .gen_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
+
+            // Remove the selected peer
             let (peer, info) = self.peers.remove(idx).unwrap();
             let requested_checkpoint = self.requested_checkpoint.unwrap_or(0);
+
+            // Skip peers that have disconnected since the balancer was
+            // constructed.
+            if self.network.peer(peer.peer_id()).is_none() {
+                continue;
+            }
+
             match &self.request_type {
                 // Summary will never be pruned
                 PeerCheckpointRequestType::Summary if info.height >= requested_checkpoint => {
@@ -784,7 +796,7 @@ where
             .map(|result| match result {
                 Ok(()) => {}
                 Err(e) => {
-                    debug!("error syncing checkpoint {e}");
+                    info!("error syncing checkpoint summary: {e}");
                 }
             });
             let task_handle = self.tasks.spawn(task);
@@ -1165,8 +1177,18 @@ where
 
         // Verify the checkpoint
         let checkpoint = 'cp: {
-            let checkpoint = maybe_checkpoint
-                .ok_or_else(|| anyhow!("no peers were able to help sync checkpoint {next}"))?;
+            let checkpoint = maybe_checkpoint.ok_or_else(|| {
+                let guard = peer_heights.read().unwrap();
+                let known = guard.peers_on_same_chain().count();
+                let connected = guard
+                    .peers_on_same_chain()
+                    .filter(|(peer_id, _)| network.peer(**peer_id).is_some())
+                    .count();
+                anyhow!(
+                    "no peers were able to help sync checkpoint summary {next} \
+                     ({connected}/{known} peers connected)"
+                )
+            })?;
             // Skip verification for manually pinned checkpoints.
             if pinned_checkpoints
                 .binary_search_by_key(checkpoint.sequence_number(), |(seq_num, _digest)| *seq_num)
