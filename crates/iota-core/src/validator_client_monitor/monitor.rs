@@ -49,12 +49,14 @@ impl ValidatorClientMonitor {
 
     pub fn spawn_health_checks<A: AuthorityAPI + Send + Sync + 'static>(
         self: &Arc<Self>,
-        authority_aggregator: Weak<ArcSwap<AuthorityAggregator<A>>>,
+        authority_aggregator: &Arc<ArcSwap<AuthorityAggregator<A>>>,
     ) -> JoinHandle<()> {
         let period = self.config.health_check_interval;
-        let monitor_weak = Arc::downgrade(self);
+        let monitor = Arc::downgrade(self);
+        let authority_aggregator = Arc::downgrade(authority_aggregator);
+        // weak pointers allow health check task break early once shared arc objects are dropped
         tokio::spawn(async move {
-            Self::run_health_checks(monitor_weak, authority_aggregator, period).await;
+            Self::run_health_checks(monitor, authority_aggregator, period).await;
         })
     }
 

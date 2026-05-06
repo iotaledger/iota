@@ -110,7 +110,7 @@ where
             .and_then(|nc| nc.validator_client_monitor_config.clone())
             .unwrap_or_default();
         let client_monitor = Arc::new(ValidatorClientMonitor::new(monitor_config, client_metrics));
-        client_monitor.spawn_health_checks(Arc::downgrade(&shared_swap));
+        client_monitor.spawn_health_checks(&shared_swap);
 
         let driver = Arc::new(Self {
             authority_aggregator: shared_swap,
@@ -277,6 +277,8 @@ where
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
+        let auth_agg = auth_agg.as_ref();
+        let client_monitor = self.client_monitor.as_ref();
         let amplification_factor =
             amplification_factor.min(auth_agg.committee.num_members() as u64);
         let start_time = Instant::now();
@@ -285,8 +287,8 @@ where
         let (name, submit_txn_result) = self
             .submitter
             .submit_transaction(
-                &auth_agg,
-                &self.client_monitor,
+                auth_agg,
+                client_monitor,
                 amplification_factor,
                 transaction,
                 options,
@@ -314,8 +316,8 @@ where
         let result = self
             .certifier
             .get_certified_finalized_effects(
-                &auth_agg,
-                &self.client_monitor,
+                auth_agg,
+                client_monitor,
                 tx_digest,
                 name,
                 submit_txn_result,
@@ -330,10 +332,10 @@ where
         );
         if result.is_ok() {
             let latency = start_time.elapsed();
-            self.client_monitor
+            client_monitor
                 .record_interaction_result(feedback_builder.ok_now(latency));
         } else {
-            self.client_monitor
+            client_monitor
                 .record_interaction_result(feedback_builder.err_now());
         }
         result

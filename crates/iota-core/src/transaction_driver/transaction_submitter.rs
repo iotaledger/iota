@@ -48,8 +48,8 @@ impl TransactionSubmitter {
     #[instrument(level = "debug", skip_all, err(level = "debug"))]
     pub(crate) async fn submit_transaction<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         amplification_factor: u64,
         transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
@@ -186,7 +186,7 @@ impl TransactionSubmitter {
         client: Arc<SafeClient<A>>,
         transaction: &Option<Transaction>,
         options: &SubmitTransactionOptions,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        client_monitor: &ValidatorClientMonitor,
         validator: AuthorityName,
         display_name: String,
     ) -> Result<TxStatusUpdate, TransactionRequestError>

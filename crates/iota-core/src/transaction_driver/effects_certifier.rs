@@ -70,8 +70,8 @@ impl EffectsCertifier {
     #[instrument(level = "error", skip_all, err(level = "debug"))]
     pub(crate) async fn get_certified_finalized_effects<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
@@ -293,7 +293,7 @@ impl EffectsCertifier {
     ))]
     async fn get_full_effects_with_fallback<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
         initial_client: Arc<SafeClient<A>>,
         initial_target: AuthorityName,
         tx_digest: Option<TransactionDigest>,
@@ -363,8 +363,8 @@ impl EffectsCertifier {
     #[instrument(level = "debug", skip_all, err(level = "debug"), ret)]
     async fn wait_for_acknowledgments<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         options: &SubmitTransactionOptions,
         _submitted_tx_to_validator: AuthorityName,
@@ -650,7 +650,7 @@ impl EffectsCertifier {
         name: AuthorityName,
         display_name: String,
         client: &Arc<SafeClient<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        client_monitor: &ValidatorClientMonitor,
         request: GetTxStatusRequest,
         options: &SubmitTransactionOptions,
     ) -> IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>

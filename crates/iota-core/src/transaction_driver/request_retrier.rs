@@ -44,8 +44,8 @@ pub(crate) struct RequestRetrier<A> {
 
 impl<A> RequestRetrier<A> {
     pub(crate) fn new(
-        auth_agg: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor>,
+        auth_agg: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         allowed_validators: &[String],
         blocked_validators: &[String],
     ) -> Self {
@@ -174,8 +174,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_target() {
-        let auth_agg = Arc::new(get_authority_aggregator(4));
-        let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let auth_agg = get_authority_aggregator(4);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
         let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
         for name in auth_agg.committee.names() {
@@ -198,8 +198,8 @@ mod tests {
     async fn test_allowed_validators() {
         use iota_types::crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair};
 
-        let auth_agg = Arc::new(get_authority_aggregator(4));
-        let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let auth_agg = get_authority_aggregator(4);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
 
         // Create validators that don't exist in the auth_agg
         let (_, key_pair1): (_, AuthorityKeyPair) = get_key_pair();
@@ -241,8 +241,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_blocked_validators() {
-        let auth_agg = Arc::new(get_authority_aggregator(4));
-        let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let auth_agg = get_authority_aggregator(4);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
 
         // Create a list of validators that should be blocked and never picked up by the
         // retrier.
@@ -271,12 +271,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_error() {
-        let auth_agg = Arc::new(get_authority_aggregator(4));
+        let auth_agg = get_authority_aggregator(4);
         let authorities: Vec<_> = auth_agg.committee.names().copied().collect();
 
         // Add retriable errors.
         {
-            let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+            let client_monitor = ValidatorClientMonitor::new_for_test();
             let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
             // 25% stake.
@@ -312,7 +312,7 @@ mod tests {
 
         // Add mix of retriable and non-retriable errors.
         {
-            let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+            let client_monitor = ValidatorClientMonitor::new_for_test();
             let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
             // 25% stake retriable error.
