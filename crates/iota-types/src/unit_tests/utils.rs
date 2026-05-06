@@ -151,9 +151,10 @@ pub fn keys() -> Vec<IotaKeyPair> {
 }
 
 pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
-    let kp1 = Ed25519PrivateKey::generate(rand::thread_rng());
-    let kp2 = Secp256k1PrivateKey::generate(rand::thread_rng());
-    let kp3 = Secp256r1PrivateKey::generate(rand::thread_rng());
+    let keys = keys();
+    let kp1 = Ed25519PrivateKey::new(keys[0].to_bytes_no_flag().try_into().unwrap());
+    let kp2 = Secp256k1PrivateKey::new(keys[1].to_bytes_no_flag().try_into().unwrap()).unwrap();
+    let kp3 = Secp256r1PrivateKey::new(keys[2].to_bytes_no_flag().try_into().unwrap());
     (kp1, kp2, kp3)
 }
 
