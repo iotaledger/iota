@@ -450,9 +450,17 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let store = create_pg_store(&db_url, false);
 
-    tokio::spawn(
-        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
-    );
+    tokio::spawn(async move {
+        Indexer::start_reader(
+            &config,
+            store,
+            &registry,
+            pool,
+            metrics,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+    });
     port
 }
 
