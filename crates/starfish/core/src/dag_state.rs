@@ -2197,12 +2197,15 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
+        let score_updates = self.score_updates_to_write();
+
         let has_data_to_write = !transactions.is_empty()
             || !block_headers.is_empty()
             || !commits.is_empty()
             || !commit_info.is_empty()
             || !voting_block_headers.is_empty()
-            || fast_commit_sync_flag.is_some();
+            || fast_commit_sync_flag.is_some()
+            || !score_updates.is_empty();
 
         if has_data_to_write {
             debug!(
@@ -2228,10 +2231,6 @@ impl DagState {
                     .map(|f| f.to_string())
                     .unwrap_or_else(|| "unchanged".to_string())
             );
-
-            // Updates scoring metrics according to eviction round and returns updates that
-            // should be written in storage.
-            let score_updates = self.score_updates_to_write();
 
             // Write all buffered data to storage
             self.store
@@ -2377,7 +2376,7 @@ impl DagState {
     }
 
     /// Buffers validator score updates to be written to storage.
-    fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, StorageScoringMetrics)> {
+    fn score_updates_to_write(&self) -> Vec<(AuthorityIndex, StorageScoringMetrics)> {
         vec![]
     }
 

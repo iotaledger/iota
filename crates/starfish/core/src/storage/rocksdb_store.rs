@@ -856,14 +856,10 @@ impl RocksDBStore {
         use prometheus::Registry;
         use starfish_config::Parameters;
 
-        use crate::{
-            Clock, context::Context, metrics::initialise_metrics,
-            scoring_metrics_store::ScoringMetricsStore,
-        };
+        use crate::{Clock, context::Context, metrics::initialise_metrics};
 
         let metrics = initialise_metrics(Registry::new());
         let clock = Arc::new(Clock::default());
-        let scoring_metrics_store = Arc::new(ScoringMetricsStore::new(committee.size()));
         let context = Arc::new(Context::new(
             0,
             authority_index,
@@ -874,7 +870,6 @@ impl RocksDBStore {
             },
             protocol_config,
             metrics,
-            scoring_metrics_store,
             clock,
         ));
 
