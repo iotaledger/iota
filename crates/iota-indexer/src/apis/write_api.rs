@@ -361,6 +361,10 @@ impl OptimisticWriteApi {
             .try_into_iota_transaction_block_response(options, &package_resolver)
             .await
     }
+
+    pub fn executor(&self) -> &OptimisticTransactionExecutor {
+        &self.optimistic_tx_executor
+    }
 }
 
 #[async_trait]
