@@ -199,10 +199,8 @@ fn test_multisig_address() {
     .unwrap();
     let address: IotaAddress = (&multisig_pk).into();
     assert_eq!(
-        IotaAddress::from_str(
-            "0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3"
-        )
-        .unwrap(),
+        IotaAddress::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
+            .unwrap(),
         address
     );
 }

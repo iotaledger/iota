@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use enum_dispatch::enum_dispatch;
-use fastcrypto::hash::HashFunction;
+use fastcrypto::{hash::HashFunction, traits::ToFromBytes};
 use iota_sdk_crypto::multisig::MultisigVerifier;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
@@ -16,6 +16,7 @@ use crate::{
     base_types::IotaAddress,
     crypto::DefaultHash,
     error::IotaError,
+    passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, VerifyParams},
 };
 
@@ -109,24 +110,18 @@ impl AuthenticatorTrait for MultiSig {
             }
 
             let res = match signature {
-                MultisigMemberSignature::Passkey(_bytes) => {
-                    //     let authenticator =
-                    //         PasskeyAuthenticator::from_bytes(&bytes.0).
-                    // map_err(|_| {
-                    // IotaError::InvalidSignature {
-                    //                 error: "Invalid passkey authenticator
-                    // bytes".to_string(),             }
-                    //         })?;
-                    //     authenticator
-                    //         .verify_claims(
-                    //             value,
-                    //             IotaAddress::from(subsig_pubkey),
-                    //             verify_params,
-                    //             zklogin_inputs_cache.clone(),
-                    //         )
-                    //         .map_err(|e|
+                MultisigMemberSignature::Passkey(auth) => {
+                    // TODO conversion
+                    let authenticator = PasskeyAuthenticator::from_bytes(&auth.to_bytes())
+                        .map_err(|_| IotaError::InvalidSignature {
+                            error: "Invalid passkey authenticator bytes".to_string(),
+                        })?;
+                    authenticator
+                        .verify_claims(value, IotaAddress::from(member.public_key()), verify_params)
+                        .unwrap();
+                    Ok(())
+                    // .map_err(|e|
                     // FastCryptoError::GeneralError(e.to_string()))
-                    panic!()
                 }
                 _ => verifier.verify_member_signature(&digest, member.public_key(), signature),
             };
