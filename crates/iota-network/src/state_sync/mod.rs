@@ -112,6 +112,10 @@ use self::{metrics::Metrics, server::CheckpointContentsDownloadLimitLayer};
 
 const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 
+// Periodically prune `peer_heights` so the temp maps don't accumulate the
+// entire sync range.
+const PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL: u64 = 10_000;
+
 /// A handle to the StateSync subsystem.
 ///
 /// This handle can be cloned and shared. Once all copies of a StateSync
@@ -1261,6 +1265,7 @@ where
         .pipe(futures::stream::iter)
         .buffered(checkpoint_header_download_concurrency);
 
+    let mut last_cleaned = *current.sequence_number();
     while let Some((maybe_checkpoint, next, maybe_peer_id)) = request_stream.next().await {
         assert_eq!(
             current
@@ -1327,6 +1332,12 @@ where
         store
             .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");
+
+        let seq = *checkpoint.sequence_number();
+        if seq.saturating_sub(last_cleaned) >= PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL {
+            peer_heights.write().unwrap().cleanup_old_checkpoints(seq);
+            last_cleaned = seq;
+        }
     }
 
     peer_heights
