@@ -202,8 +202,8 @@ impl ObjectHandler {
             previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
             bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
-            coin_type: object.coin_type_maybe().map(|t| t.to_string()),
-            coin_balance: if object.coin_type_maybe().is_some() {
+            coin_type: object.coin_type_opt().map(|t| t.to_string()),
+            coin_balance: if object.coin_type_opt().is_some() {
                 Some(object.get_coin_value_unsafe())
             } else {
                 None

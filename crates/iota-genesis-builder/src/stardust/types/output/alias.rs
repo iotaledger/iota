@@ -91,7 +91,7 @@ impl AliasExt for Alias {
         // Construct the Alias object.
         let move_alias_object = {
             MoveObject::new_from_execution(
-                Alias::tag().into(),
+                Alias::tag(),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -155,7 +155,7 @@ impl AliasOutputExt for AliasOutput {
         // Construct the Alias Output object.
         let move_alias_output_object = {
             MoveObject::new_from_execution(
-                AliasOutput::tag(coin_type.to_type_tag()).into(),
+                AliasOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,

@@ -121,7 +121,7 @@ fn load_dynamic_field(
         return Ok(());
     }
 
-    let struct_tag: StructTag = move_object.clone().into_type().into();
+    let struct_tag: StructTag = move_object.clone().into_type();
     let layout = match reader
         .get_type_layout(&TypeTag::from(struct_tag))
         .map_err(RpcError::from)?

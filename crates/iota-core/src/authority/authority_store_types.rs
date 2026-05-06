@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{MoveObjectType, TransactionDigest},
+    base_types::{StructTag, TransactionDigest},
     coin::Coin,
     error::IotaError,
     move_package::MovePackage,
@@ -85,7 +85,7 @@ impl From<StoreObject> for StoreObjectWrapper {
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreObjectV1 {
-    Value(StoreObjectValue),
+    Value(Box<StoreObjectValue>),
     Deleted,
     Wrapped,
 }
@@ -135,7 +135,7 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
         previous_transaction: object.previous_transaction,
         storage_rebate: object.storage_rebate,
     };
-    StoreObject::Value(store_object).into()
+    StoreObject::Value(Box::new(store_object)).into()
 }
 
 pub(crate) fn try_construct_object(
@@ -146,7 +146,7 @@ pub(crate) fn try_construct_object(
         StoreData::Move(object) => Data::Move(object),
         StoreData::Package(package) => Data::Package(package),
         StoreData::Coin(balance) => Data::Move(MoveObject::new_from_execution_with_limit(
-            MoveObjectType::gas_coin(),
+            StructTag::new_gas_coin(),
             object_key.1,
             bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),
             u64::MAX,

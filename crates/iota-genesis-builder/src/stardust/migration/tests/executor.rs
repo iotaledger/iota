@@ -75,7 +75,7 @@ fn create_bag_with_pt() {
         .values()
         .find(|object| object.is_coin() && !object.is_gas_coin())
         .expect("there should be only a single coin: the total supply of native tokens");
-    let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
+    let coin_type_tag = initial_supply_coin_object.coin_type_opt().cloned().unwrap();
     let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();
 
     // Mock the native token

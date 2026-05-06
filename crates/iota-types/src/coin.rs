@@ -51,7 +51,7 @@ impl Coin {
         let Data::Move(obj) = &object.data else {
             return Ok(None);
         };
-        let Some(_) = obj.type_().coin_type_maybe() else {
+        let Some(_) = obj.type_().coin_type_opt() else {
             return Ok(None);
         };
 

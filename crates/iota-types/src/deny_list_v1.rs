@@ -125,7 +125,7 @@ pub fn check_coin_deny_list_v1_during_execution(
         if obj.is_gas_coin() {
             continue;
         }
-        let Some(coin_type) = obj.coin_type_maybe() else {
+        let Some(coin_type) = obj.coin_type_opt() else {
             continue;
         };
         let Some(owner) = obj.owner.as_address_opt() else {
@@ -289,7 +289,7 @@ fn input_object_coin_types_for_denylist_check(
             if obj.is_gas_coin() {
                 None
             } else {
-                obj.coin_type_maybe()
+                obj.coin_type_opt()
                     .map(|type_tag| type_tag.to_canonical_string(false))
             }
         })

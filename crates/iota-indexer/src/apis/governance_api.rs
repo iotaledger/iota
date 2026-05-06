@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, ObjectID, StructTag},
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
@@ -121,7 +121,7 @@ impl GovernanceReadApi {
             .get_owned_objects_in_blocking_task(
                 owner,
                 Some(IotaObjectDataFilter::StructType(
-                    MoveObjectType::staked_iota().into(),
+                    StructTag::new_staked_iota(),
                 )),
                 None,
                 MAX_QUERY_STAKED_OBJECTS,
@@ -146,7 +146,7 @@ impl GovernanceReadApi {
             .get_owned_objects_in_blocking_task(
                 owner,
                 Some(IotaObjectDataFilter::StructType(
-                    MoveObjectType::timelocked_staked_iota().into(),
+                    StructTag::new_timelocked_staked_iota(),
                 )),
                 None,
                 MAX_QUERY_STAKED_OBJECTS,

@@ -19,9 +19,8 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            Identifier, IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID,
-            RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext,
-            TxContextKind, TypeTag,
+            Identifier, IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -614,7 +613,7 @@ mod checked {
             // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                StructTag::new_upgrade_cap().into(),
+                StructTag::new_upgrade_cap(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -990,7 +989,7 @@ mod checked {
             );
             // Turn the content into an object
             let package_metadata = context.make_object_value(
-                metadata.type_().into(),
+                metadata.type_(),
                 // used_in_non_entry_move_call
                 false,
                 &metadata.to_bcs_bytes(),
@@ -1236,7 +1235,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object { type_: MoveObjectType },
+        Object { type_: StructTag },
         Raw(Type, AbilitySet),
     }
 
@@ -1436,9 +1435,7 @@ mod checked {
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        ValueKind::Object {
-                            type_: MoveObjectType::from(*struct_tag),
-                        }
+                        ValueKind::Object { type_: *struct_tag }
                     }
                     Type::Datatype(_)
                     | Type::DatatypeInstantiation(_)
@@ -1605,8 +1602,7 @@ mod checked {
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        let type_ = (*struct_tag).into();
-                        ValueKind::Object { type_ }
+                        ValueKind::Object { type_: *struct_tag }
                     } else {
                         let abilities = context
                             .vm
