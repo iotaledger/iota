@@ -110,7 +110,7 @@ where
             .and_then(|nc| nc.validator_client_monitor_config.clone())
             .unwrap_or_default();
         let client_monitor = Arc::new(ValidatorClientMonitor::new(monitor_config, client_metrics));
-        ValidatorClientMonitor::spawn_health_checks(&client_monitor, Arc::downgrade(&shared_swap));
+        client_monitor.spawn_health_checks(Arc::downgrade(&shared_swap));
 
         let driver = Arc::new(Self {
             authority_aggregator: shared_swap,
