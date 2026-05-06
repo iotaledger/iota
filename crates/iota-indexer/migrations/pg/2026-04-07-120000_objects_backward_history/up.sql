@@ -48,3 +48,26 @@ CREATE INDEX objects_backward_history_coin_owner
 CREATE STATISTICS objects_backward_history_type_stats (dependencies, mcv)
     ON object_type, object_type_package, object_type_module, object_type_name
     FROM objects_backward_history;
+
+-- Initialize a watermark entry for backward history. The table starts empty,
+-- so copy the upper bound from an existing committer table (all committer
+-- tables share the same upper bound) and set the lower bound to indicate
+-- that no backward history data is available yet.
+INSERT INTO watermarks (
+    entity, current_epoch, max_committed_cp, max_committed_tx,
+    min_available_epoch, min_bounds_updated_at_timestamp_ms, lowest_unpruned_key,
+    min_available_tx, min_available_cp
+)
+SELECT
+    'objects_backward_history',
+    current_epoch,
+    max_committed_cp,
+    max_committed_tx,
+    current_epoch,                                    -- min_available_epoch
+    (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint, -- min_bounds_updated_at_timestamp_ms
+    max_committed_cp + 1,                             -- lowest_unpruned_key (next cp is first unpruned)
+    max_committed_tx + 1,                             -- min_available_tx
+    max_committed_cp + 1                              -- min_available_cp
+FROM watermarks
+WHERE entity = 'transactions'
+ON CONFLICT (entity) DO NOTHING;
