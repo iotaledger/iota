@@ -7,7 +7,7 @@
                     "intent": {
                         "scope": 0,
                         "version": 0,
-                        "appId": 0
+                        "app_id": 0
                     },
                     "value": {
                         "V1": {
@@ -45,7 +45,7 @@
                                 ]
                             },
                             "sender": "0x3529ec0ab25aa843942715194dd4eee1fc1d5c83dfef28e839838fa0f0b36aa0",
-                            "gasPayment": {
+                            "gas_payment": {
                                 "objects": [
                                     [
                                         "0xfd11d7c566940494d376f21cc0a502869026765acffd95cd37292b330bc2dfe8",
@@ -11453,7 +11453,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "fixed_point32",
                             "datatype_name": "FixedPoint32",
@@ -11490,7 +11490,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000001"
                         }
                     ],
-                    "linkageTable": {}
+                    "linkage_table": {}
                 }
             },
             "owner": "Immutable",
@@ -81606,7 +81606,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "groth16",
                             "datatype_name": "Curve",
@@ -82123,7 +82123,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000002"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -124568,7 +124568,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "validator_cap",
                             "datatype_name": "UnverifiedValidatorOperationCap",
@@ -124695,7 +124695,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000003"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -144457,7 +144457,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "treasury",
                             "datatype_name": "BridgeTreasury",
@@ -144634,7 +144634,7 @@
                             "package": "0x000000000000000000000000000000000000000000000000000000000000000b"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -153408,7 +153408,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "stardust_upgrade_label",
                             "datatype_name": "STARDUST_UPGRADE_LABEL",
@@ -153465,7 +153465,7 @@
                             "package": "0x000000000000000000000000000000000000000000000000000000000000107a"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -164669,7 +164669,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "fixed_point32",
                             "datatype_name": "FixedPoint32",
@@ -164706,7 +164706,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000001"
                         }
                     ],
-                    "linkageTable": {}
+                    "linkage_table": {}
                 }
             },
             "owner": "Immutable",
@@ -234822,7 +234822,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "groth16",
                             "datatype_name": "Curve",
@@ -235339,7 +235339,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000002"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -277784,7 +277784,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "validator_cap",
                             "datatype_name": "UnverifiedValidatorOperationCap",
@@ -277911,7 +277911,7 @@
                             "package": "0x0000000000000000000000000000000000000000000000000000000000000003"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -297673,7 +297673,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "treasury",
                             "datatype_name": "BridgeTreasury",
@@ -297850,7 +297850,7 @@
                             "package": "0x000000000000000000000000000000000000000000000000000000000000000b"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
@@ -306624,7 +306624,7 @@
                             0
                         ]
                     },
-                    "typeOriginTable": [
+                    "type_origin_table": [
                         {
                             "module_name": "stardust_upgrade_label",
                             "datatype_name": "STARDUST_UPGRADE_LABEL",
@@ -306681,7 +306681,7 @@
                             "package": "0x000000000000000000000000000000000000000000000000000000000000107a"
                         }
                     ],
-                    "linkageTable": {
+                    "linkage_table": {
                         "0x0000000000000000000000000000000000000000000000000000000000000001": {
                             "upgraded_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
                             "upgraded_version": 1
