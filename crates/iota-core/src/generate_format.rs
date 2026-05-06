@@ -434,78 +434,60 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &Command::MoveCall(ProgrammableMoveCall {
-                package: ObjectID::ZERO,
-                module: Identifier::from_static("foo"),
-                function: Identifier::from_static("bar"),
-                type_arguments: vec![TypeTag::U64],
-                arguments: vec![Argument::Gas],
-            }),
+            &Command::new_move_call(
+                ObjectID::ZERO,
+                Identifier::from_static("foo"),
+                Identifier::from_static("bar"),
+                vec![TypeTag::U64],
+                vec![Argument::Gas],
+            ),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::TransferObjects(TransferObjects {
-                objects: vec![Argument::Input(0)],
-                address: Argument::Gas,
-            }),
+            &Command::new_transfer_objects(vec![Argument::Input(0)], Argument::Gas),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::SplitCoins(SplitCoins {
-                coin: Argument::Gas,
-                amounts: vec![Argument::Input(0)],
-            }),
+            &Command::new_split_coins(Argument::Gas, vec![Argument::Input(0)]),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::MergeCoins(MergeCoins {
-                coin: Argument::Gas,
-                coins_to_merge: vec![Argument::Input(0)],
-            }),
+            &Command::new_merge_coins(Argument::Gas, vec![Argument::Input(0)]),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::Publish(Publish {
-                modules: vec![vec![0u8]],
-                dependencies: vec![ObjectID::ZERO],
-            }),
+            &Command::new_publish(vec![vec![0u8]], vec![ObjectID::ZERO]),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::MakeMoveVector(MakeMoveVector {
-                type_: None,
-                elements: vec![Argument::Gas],
-            }),
+            &Command::new_make_move_vector(None, vec![Argument::Gas]),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::MakeMoveVector(MakeMoveVector {
-                type_: Some(TypeTag::U64),
-                elements: vec![Argument::Input(0)],
-            }),
+            &Command::new_make_move_vector(Some(TypeTag::U64), vec![Argument::Input(0)]),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
-            &Command::Upgrade(Upgrade {
-                modules: vec![vec![0u8]],
-                dependencies: vec![ObjectID::ZERO],
-                package: ObjectID::ZERO,
-                ticket: Argument::Input(0),
-            }),
+            &Command::new_upgrade(
+                vec![vec![0u8]],
+                vec![ObjectID::ZERO],
+                ObjectID::ZERO,
+                Argument::Input(0),
+            ),
         )
         .unwrap();
     tracer.trace_type::<TransactionKind>(&samples).unwrap();
