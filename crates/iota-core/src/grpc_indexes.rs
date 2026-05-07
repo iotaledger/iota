@@ -1168,7 +1168,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 fn should_index_dynamic_field(object: &Object) -> bool {
     object
         .data
-        .try_as_move()
+        .as_struct_opt()
         .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
@@ -1218,7 +1218,7 @@ fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, Obje
 fn try_create_package_version_info(
     object: &Object,
 ) -> Option<(PackageVersionKey, PackageVersionInfo)> {
-    let package = object.data.try_as_package()?;
+    let package = object.data.as_package_opt()?;
     Some((
         PackageVersionKey {
             original_package_id: package.original_package_id(),

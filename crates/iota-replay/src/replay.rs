@@ -2151,7 +2151,7 @@ fn load_authenticator_function_ref(
 
     let field_move_object = field_obj
         .data
-        .try_as_move()
+        .as_struct_opt()
         .expect("dynamic field should never be a package object");
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
@@ -2319,7 +2319,7 @@ impl ResourceResolver for LocalExec {
             };
 
             match &object.data {
-                Data::Move(m) => {
+                Data::Struct(m) => {
                     assert!(
                         m.is_struct_tag(type_),
                         "Invariant violation: ill-typed object in storage \

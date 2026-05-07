@@ -1168,7 +1168,7 @@ impl ResourceResolver for TemporaryStore<'_> {
         };
 
         match &object.data {
-            Data::Move(m) => {
+            Data::Struct(m) => {
                 assert!(
                     m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \

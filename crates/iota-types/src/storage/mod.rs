@@ -250,7 +250,7 @@ impl PackageObject {
     }
 
     pub fn move_package(&self) -> &MovePackage {
-        self.package_object.data.try_as_package().unwrap()
+        self.package_object.data.as_package_opt().unwrap()
     }
 }
 

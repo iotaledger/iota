@@ -111,7 +111,6 @@ mod test {
         test_simulated_load(test_cluster, 60).await;
     }
 
-    #[ignore("https://github.com/iotaledger/iota/issues/11438")]
     #[sim_test(config = "test_config()")]
     async fn test_mainnet_config() {
         chain_config_smoke_test(Chain::Mainnet).await;
@@ -124,7 +123,8 @@ mod test {
 
     async fn chain_config_smoke_test(chain: Chain) {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = init_test_cluster_builder(2, 3000)
+        // 2 validators, 10 seconds per epoch.
+        let test_cluster = init_test_cluster_builder(2, 10_000)
             .with_authority_overload_config(AuthorityOverloadConfig {
                 // Disable system overload checks for the test - during tests with crashes,
                 // it is possible for overload protection to trigger due to validators
@@ -148,7 +148,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_accumulator_v2_partial_upgrade() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = init_test_cluster_builder(4, 1000)
+        let test_cluster = init_test_cluster_builder(4, 10_000)
             .with_authority_overload_config(AuthorityOverloadConfig {
                 // Disable system overload checks for the test - during tests with crashes,
                 // it is possible for overload protection to trigger due to validators
@@ -356,7 +356,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_with_prune_and_compact() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(4, 1000, 0).await;
+        let test_cluster = build_test_cluster(4, 10_000, 0).await;
 
         let node_state = test_cluster.fullnode_handle.iota_node.clone().state();
         register_fail_point_async("prune-and-compact", move || {
@@ -376,7 +376,7 @@ mod test {
         register_fail_point_if("select-random-cache", || true);
 
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 1000)
+            init_test_cluster_builder(4, 10_000)
                 .with_num_unpruned_validators(4)
                 .build()
                 .await,
@@ -657,7 +657,7 @@ mod test {
     async fn test_data_ingestion_pipeline() {
         let path = nondeterministic!(TempDir::new().unwrap()).keep();
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 5000)
+            init_test_cluster_builder(4, 10_000)
                 .with_data_ingestion_dir(path.clone())
                 .build()
                 .await,

@@ -40,7 +40,7 @@ mod test_effects_builder;
 // Approximate size of `ObjectRef` type in bytes
 pub const APPROX_SIZE_OF_OBJECT_REF: usize = 80;
 // Approximate size of `ExecutionStatus` type in bytes
-pub const APPROX_SIZE_OF_EXECUTION_STATUS: usize = 120;
+pub const APPROX_SIZE_OF_EXECUTION_STATUS: usize = 144;
 // Approximate size of `EpochId` type in bytes
 pub const APPROX_SIZE_OF_EPOCH_ID: usize = 10;
 // Approximate size of `GasCostSummary` type in bytes

@@ -574,7 +574,7 @@ mod checked {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
                 fp_ensure!(
-                    object.data.try_as_package().is_some(),
+                    object.data.as_package_opt().is_some(),
                     UserInputError::MoveObjectAsPackage {
                         object_id: package_id
                     }

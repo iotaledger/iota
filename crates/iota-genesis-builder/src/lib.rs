@@ -68,7 +68,8 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+        CallArg, CheckedInputObjects, Command, GenesisObject, InputObjectKind, ObjectReadResult,
+        Transaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1222,7 +1223,7 @@ fn update_system_packages_from_objects(
     let system_package_overrides: BTreeMap<ObjectID, Vec<Vec<u8>>> = objects
         .iter()
         .filter_map(|obj| {
-            let pkg = obj.data.try_as_package()?;
+            let pkg = obj.data.as_package_opt()?;
             pkg.id().is_system_package().then(|| {
                 (
                     pkg.id(),
@@ -1306,7 +1307,7 @@ fn create_genesis_transaction(
         let genesis_objects = objects
             .into_iter()
             .map(|mut object| {
-                if let Some(o) = object.data.try_as_move_mut() {
+                if let Some(o) = object.data.as_struct_mut_opt() {
                     o.decrement_version_to(SequenceNumber::MIN_VALID_INCL);
                 }
 
@@ -1315,10 +1316,7 @@ fn create_genesis_transaction(
                 }
 
                 let object = object.into_inner();
-                iota_types::transaction::GenesisObject::RawObject {
-                    data: object.data,
-                    owner: object.owner,
-                }
+                GenesisObject::new(object.data, object.owner)
             })
             .collect();
 
@@ -1597,7 +1595,7 @@ pub fn generate_genesis_system_object(
         let object = written.get_mut(&ObjectID::CLOCK).unwrap();
         object
             .data
-            .try_as_move_mut()
+            .as_struct_mut_opt()
             .unwrap()
             .set_clock_timestamp_ms_unchecked(genesis_chain_parameters.chain_start_timestamp_ms);
     }

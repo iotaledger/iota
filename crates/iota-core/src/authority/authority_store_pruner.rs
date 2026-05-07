@@ -40,6 +40,7 @@ use typed_store::{
 use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables};
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::IndexStore,
@@ -340,6 +341,7 @@ impl AuthorityStorePruner {
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         epoch_duration_ms: u64,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
         let (mut max_eligible_checkpoint_number, epoch_id) = checkpoint_store
@@ -370,6 +372,7 @@ impl AuthorityStorePruner {
             max_eligible_checkpoint_number,
             config,
             metrics.clone(),
+            progress_tracker,
         )
         .await
     }
@@ -391,6 +394,7 @@ impl AuthorityStorePruner {
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         epoch_duration_ms: u64,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneCheckpointsForEligibleEpochs");
         let pruned_checkpoint_number = checkpoint_store
@@ -439,6 +443,7 @@ impl AuthorityStorePruner {
             max_eligible_checkpoint,
             config,
             metrics.clone(),
+            progress_tracker,
         )
         .await
     }
@@ -456,6 +461,7 @@ impl AuthorityStorePruner {
         max_eligible_checkpoint: CheckpointSequenceNumber,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneForEligibleEpochs");
 
@@ -468,6 +474,8 @@ impl AuthorityStorePruner {
         let mut checkpoints_to_prune = vec![];
         let mut checkpoint_content_to_prune = vec![];
         let mut effects_to_prune = vec![];
+
+        let mut pruning_start = Instant::now();
 
         loop {
             let Some(ckpt) = checkpoint_store
@@ -502,7 +510,7 @@ impl AuthorityStorePruner {
                 .effects
                 .multi_get(content.iter().map(|tx| tx.effects))?;
 
-            info!("scheduling pruning for checkpoint {:?}", checkpoint_number);
+            debug!("scheduling pruning for checkpoint {:?}", checkpoint_number);
             checkpoints_to_prune.push(*checkpoint.digest());
             checkpoint_content_to_prune.push(content);
             effects_to_prune.extend(effects.into_iter().flatten());
@@ -532,6 +540,19 @@ impl AuthorityStorePruner {
                         metrics.clone(),
                     )?,
                 };
+
+                // Report pruning time for this batch so the progress logger
+                // shows time alongside the checkpoint deltas it reads from the
+                // DB (which are already updated at this point).
+                if let Some(tracker) = progress_tracker {
+                    let elapsed = pruning_start.elapsed();
+                    match mode {
+                        PruningMode::Objects => tracker.add_object_pruning_time(elapsed),
+                        PruningMode::Checkpoints => tracker.add_checkpoint_pruning_time(elapsed),
+                    }
+                    pruning_start = Instant::now();
+                }
+
                 checkpoints_to_prune = vec![];
                 checkpoint_content_to_prune = vec![];
                 effects_to_prune = vec![];
@@ -563,7 +584,19 @@ impl AuthorityStorePruner {
                     metrics.clone(),
                 )?,
             };
+
+            // Report pruning time for this batch so the progress logger
+            // shows time alongside the checkpoint deltas it reads from the
+            // DB (which are already updated at this point).
+            if let Some(tracker) = progress_tracker {
+                let elapsed = pruning_start.elapsed();
+                match mode {
+                    PruningMode::Objects => tracker.add_object_pruning_time(elapsed),
+                    PruningMode::Checkpoints => tracker.add_checkpoint_pruning_time(elapsed),
+                }
+            }
         }
+
         Ok(())
     }
 
@@ -694,6 +727,7 @@ impl AuthorityStorePruner {
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
+        progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
@@ -753,12 +787,12 @@ impl AuthorityStorePruner {
             loop {
                 tokio::select! {
                     _ = objects_prune_interval.tick(), if config.num_epochs_to_retain != u64::MAX => {
-                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms, progress_tracker.as_ref()).await {
                             error!("Failed to prune objects: {:?}", err);
                         }
                     },
                     _ = checkpoints_prune_interval.tick(), if !matches!(config.num_epochs_to_retain_for_checkpoints(), None | Some(u64::MAX) | Some(0)) => {
-                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms, progress_tracker.as_ref()).await {
                             error!("Failed to prune checkpoints: {:?}", err);
                         }
                     },
@@ -787,6 +821,7 @@ impl AuthorityStorePruner {
         registry: &Registry,
         archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
+        progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
         {
@@ -812,6 +847,7 @@ impl AuthorityStorePruner {
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
                 archive_readers,
+                progress_tracker,
             ),
         }
     }
