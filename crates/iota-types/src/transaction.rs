@@ -601,7 +601,7 @@ pub trait ProgrammableTransactionExt {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
     fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result;
@@ -698,15 +698,12 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
-        self.inputs
-            .iter()
-            .filter_map(|arg| match arg {
-                CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-                CallArg::Shared(shared) => Some(vec![*shared]),
-                _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
-            })
-            .flatten()
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> {
+        self.inputs.iter().filter_map(|arg| match arg {
+            CallArg::Shared(shared) => Some(*shared),
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+        })
     }
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
