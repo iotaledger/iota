@@ -1390,10 +1390,7 @@ impl Core {
         let blocks = dag_state.get_last_cached_block_header_per_authority(voting_round + 1);
         let mut strong_votes = StakeAggregator::<QuorumThreshold>::new();
         for (block, _equivocating) in &blocks {
-            if block.round() == voting_round
-                && block.is_strong_vote()
-                && block.strong_vote_leader() == Some(expected_leader)
-            {
+            if block.round() == voting_round && block.is_strong_vote_for(expected_leader) {
                 strong_votes.add(block.author(), &self.context.committee);
             }
         }

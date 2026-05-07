@@ -115,6 +115,16 @@ pub trait BlockHeaderAPI {
     fn strong_vote_leader(&self) -> Option<AuthorityIndex>;
     fn is_strong_vote(&self) -> bool;
     fn is_strong_blame(&self) -> bool;
+
+    /// True if this block is a strong vote pinned to `leader`.
+    fn is_strong_vote_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_vote() && self.strong_vote_leader() == Some(leader)
+    }
+
+    /// True if this block is a strong blame pinned to `leader`.
+    fn is_strong_blame_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_blame() && self.strong_vote_leader() == Some(leader)
+    }
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]

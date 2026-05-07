@@ -441,9 +441,7 @@ impl BaseCommitter {
             if self.is_vote(voter, leader_block) {
                 let r = voter.reference();
                 vote_refs.insert(r);
-                if voter.is_strong_vote()
-                    && voter.strong_vote_leader() == Some(leader_block.author())
-                {
+                if voter.is_strong_vote_for(leader_block.author()) {
                     strong_vote_refs.insert(r);
                 }
             }
@@ -468,9 +466,7 @@ impl BaseCommitter {
         let strong_vote_refs: HashSet<BlockRef> = voters
             .into_iter()
             .filter(|b| {
-                b.is_strong_vote()
-                    && b.strong_vote_leader() == Some(leader_block.author())
-                    && self.is_vote(b, leader_block)
+                b.is_strong_vote_for(leader_block.author()) && self.is_vote(b, leader_block)
             })
             .map(|b| b.reference())
             .collect();
@@ -551,10 +547,7 @@ impl BaseCommitter {
 
         let mut strong_blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
-            if !voting_block.is_strong_blame() {
-                continue;
-            }
-            if voting_block.strong_vote_leader() != Some(leader_block.author()) {
+            if !voting_block.is_strong_blame_for(leader_block.author()) {
                 continue;
             }
             if !self.is_vote(voting_block, leader_block) {
