@@ -24,7 +24,6 @@
 //! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and
 //!    and finalizes system termination.
 
-mod config;
 mod errors;
 mod executor;
 pub mod history;
@@ -51,12 +50,10 @@ pub use executor::{
 use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
-pub use reader::{ReaderOptions, filters};
+pub use reader::{IngestionConfig, ReaderOptions, filters};
 pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
-
-pub use crate::config::IngestionConfig;
 
 /// Processes individual checkpoints and produces messages for optional batch
 /// processing.

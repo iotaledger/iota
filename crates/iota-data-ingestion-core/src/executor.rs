@@ -264,17 +264,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         mut self,
         config: impl Into<IngestionConfig>,
     ) -> IngestionResult<ExecutorProgress> {
-        let config = config.into();
-
-        if let Some(limit) = config
-            .ingestion_limit
-            .filter(|_| self.shutdown_callback.is_none())
-        {
-            self.with_ingestion_limit(limit);
-        }
-
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
+        let checkpoint_reader =
+            CheckpointReader::new(reader_checkpoint_number, config.into()).await?;
 
         self.run_executor_loop(reader_checkpoint_number, checkpoint_reader)
             .await

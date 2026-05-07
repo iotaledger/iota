@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use crate::{
-    IngestionLimit, ReaderOptions,
+    ReaderOptions,
     filters::fullnode::TransactionFilter,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
@@ -21,8 +21,6 @@ pub struct IngestionConfig {
     pub(crate) ingestion_path: Option<PathBuf>,
     /// Remote source for checkpoint data stream.
     pub(crate) remote_store_url: Option<RemoteUrl>,
-    /// Determines when the ingestion process should stop.
-    pub(crate) ingestion_limit: Option<IngestionLimit>,
     /// Filter applied to transactions within a checkpoint.
     pub(crate) fullnode_transaction_filter: Option<TransactionFilter>,
 }
@@ -58,13 +56,6 @@ impl IngestionConfig {
     /// Sets the remote store URL for checkpoint to be downloaded from.
     pub fn with_remote_store_url(mut self, url: RemoteUrl) -> Self {
         self.remote_store_url = Some(url);
-        self
-    }
-
-    /// Adds an upper‑limit policy that determines when the ingestion
-    /// process should stop.
-    pub fn with_ingestion_limit(mut self, limit: IngestionLimit) -> Self {
-        self.ingestion_limit = Some(limit);
         self
     }
 
