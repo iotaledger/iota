@@ -135,11 +135,6 @@ where
         &self.authority_aggregator
     }
 
-    /// Returns the validator client monitor for use in tests.
-    pub fn client_monitor_for_test(&self) -> &Arc<ValidatorClientMonitor> {
-        &self.client_monitor
-    }
-
     /// Drives transaction to finalization.
     ///
     /// Internally, retries the attempt to finalize a transaction until:

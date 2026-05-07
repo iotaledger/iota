@@ -253,22 +253,6 @@ mod data_management {
         assert!(!stats.has_validator(&v[3]));
     }
 
-    /// remove_validators removes specific validators.
-    #[test]
-    fn remove_validators_removes_specific() {
-        let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
-        let v = gen_validators(3);
-        let t0 = Instant::now();
-        for vi in &v {
-            feed_all(&mut stats, *vi, Ok(100), 5, t0, Duration::from_millis(100));
-        }
-        stats.remove_validators(v[1..2].iter());
-        assert_eq!(stats.num_validators(), 2);
-        assert!(stats.has_validator(&v[0]));
-        assert!(!stats.has_validator(&v[1]));
-        assert!(stats.has_validator(&v[2]));
-    }
-
     /// Each distinct validator with any recorded interaction appears exactly
     /// once.
     #[test]

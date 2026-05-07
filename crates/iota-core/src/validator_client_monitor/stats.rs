@@ -438,23 +438,6 @@ impl ClientObservedStats {
         }
     }
 
-    /// Remove the specified validators, retaining any others.
-    #[cfg(test)]
-    pub(super) fn remove_validators<'a>(
-        &mut self,
-        validators: impl Iterator<Item = &'a AuthorityName>,
-    ) {
-        let mut removed_count = 0;
-        for validator in validators {
-            if self.validator_stats.remove(validator).is_some() {
-                removed_count += 1;
-            }
-        }
-        if removed_count > 0 {
-            debug!("Removed {} stale validator data", removed_count);
-        }
-    }
-
     #[cfg(test)]
     pub(super) fn has_validator(&self, validator: &AuthorityName) -> bool {
         self.validator_stats.contains_key(validator)

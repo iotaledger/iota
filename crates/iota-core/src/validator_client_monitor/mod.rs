@@ -19,10 +19,10 @@ use strum::EnumIter;
 /// Operation types for validator performance tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter)]
 pub enum OperationType {
-    Submit = 0,
-    Effects = 1,
-    HealthCheck = 2,
-    Consensus = 3,
+    Submit,
+    Effects,
+    HealthCheck,
+    Consensus,
 }
 
 impl OperationType {

@@ -20,9 +20,6 @@ pub struct ValidatorClientMetrics {
     /// Failure count per validator and operation type
     pub(super) operation_failure: IntCounterVec,
 
-    /// Flag indicating validator exclusion based on the current metrics.
-    pub(super) exclusion: GaugeVec,
-
     /// Current performance score per validator. It is based
     /// on the average latency, risk, staleness over operation types.
     pub(super) performance: GaugeVec,
@@ -59,14 +56,6 @@ impl ValidatorClientMetrics {
                 "validator_client_operation_failure_total",
                 "Total failed operations observed by client per validator",
                 &["validator", "operation_type"],
-                registry,
-            )
-            .unwrap(),
-
-            exclusion: register_gauge_vec_with_registry!(
-                "validator_client_observed_exclusion",
-                "Current client-observed exclusion per validator.",
-                &["validator"],
                 registry,
             )
             .unwrap(),
@@ -127,9 +116,6 @@ impl ValidatorClientMetrics {
             performance,
             exploration
         );
-        self.exclusion
-            .with_label_values(&[feedback.display_name.as_str()])
-            .set(0.0);
         self.performance
             .with_label_values(&[feedback.display_name.as_str()])
             .set(performance);
