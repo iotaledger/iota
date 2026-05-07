@@ -27,6 +27,14 @@ Index pruning advances a watermark in the JSON-RPC secondary index store so olde
 
 ## Pruning Parameters
 
+Object pruning, transaction pruning, and index pruning are independent background tasks. Each task is gated by its own parameter, so you can enable or disable them individually:
+
+| Pruning task          | Controlling parameter                  | Enabled when                      |
+| --------------------- | -------------------------------------- | --------------------------------- |
+| Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`           |
+| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set to a value `>= 2`             |
+| Index pruning         | `num-epochs-to-retain-for-indexes`     | set                               |
+
 All pruning parameters are configured under the `authority-store-pruning-config` block in `fullnode.yaml`:
 
 ```yaml
@@ -45,8 +53,6 @@ authority-store-pruning-config:
   Optional. Number of epochs for which to retain entries in the JSON-RPC secondary index tables. **Index pruning only runs when this parameter is set**; when unset, the index tables are not pruned. The minimum effective value is `7` — values below `7` are silently coerced to `7`.
 - **`num-latest-epoch-dbs-to-retain`** 
   - Number of recent per-epoch RocksDB databases to retain. Default: `3`. Not relevant for object pruning.
-- **`epoch-db-pruning-period-secs`** 
-  - Time interval, in seconds, used by the pruner to determine whether there are any per-epoch DBs to remove. Default: `3600`. Not relevant for object pruning.
 - **`periodic-compaction-threshold-days`** 
   - Enables periodic background compaction for old SST files whose last modified time is older than the specified number of days. This ensures that individual database files periodically go through the compaction process, which reclaims disk space and avoids fragmentation. Default: `1`.
 - **`max-checkpoints-in-batch`** 
@@ -67,16 +73,6 @@ If your full node is configured to upload committed information to an archive, y
 ## Configuration Examples
 
 The following examples cover common operator use cases. You can copy each example into `fullnode.yaml` and adjust the values to match your environment.
-
-Object pruning, transaction pruning, and index pruning are independent background tasks. Each task is gated by its own parameter, so you can enable or disable them individually:
-
-| Pruning task          | Controlling parameter                  | Enabled when                      |
-| --------------------- | -------------------------------------- | --------------------------------- |
-| Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`           |
-| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set to a value `>= 2`             |
-| Index pruning         | `num-epochs-to-retain-for-indexes`     | set                               |
-
-
 
 ### Validator or Minimal Full Node
 
