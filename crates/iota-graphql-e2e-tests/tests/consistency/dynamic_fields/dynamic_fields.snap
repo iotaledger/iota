@@ -804,7 +804,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 4
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 8
