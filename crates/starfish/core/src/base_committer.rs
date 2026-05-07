@@ -421,9 +421,11 @@ impl BaseCommitter {
     }
 
     /// `(vote_refs, strong_vote_refs)` at r+1 for `leader_block`, built in a
-    /// single pass. Strong votes are a subset of votes; `is_strong_vote()`
-    /// alone is insufficient (a voter may flag itself strong while supporting
-    /// an equivocating leader).
+    /// single pass. Strong votes are a subset of votes; the strong-vote filter
+    /// also requires the voter's pinned leader (`strong_vote_leader`) to
+    /// match `leader_block.author()` — strong votes computed against a
+    /// different leader (e.g. before a schedule rotation) don't count toward
+    /// this leader's quorum.
     fn vote_and_strong_vote_refs_for_leader(
         &self,
         leader_block: &VerifiedBlockHeader,
@@ -439,7 +441,7 @@ impl BaseCommitter {
             if self.is_vote(voter, leader_block) {
                 let r = voter.reference();
                 vote_refs.insert(r);
-                if voter.is_strong_vote() {
+                if voter.is_strong_vote_for(leader_block.author()) {
                     strong_vote_refs.insert(r);
                 }
             }
@@ -463,7 +465,9 @@ impl BaseCommitter {
 
         let strong_vote_refs: HashSet<BlockRef> = voters
             .into_iter()
-            .filter(|b| b.is_strong_vote() && self.is_vote(b, leader_block))
+            .filter(|b| {
+                b.is_strong_vote_for(leader_block.author()) && self.is_vote(b, leader_block)
+            })
             .map(|b| b.reference())
             .collect();
 
@@ -530,8 +534,10 @@ impl BaseCommitter {
         (is_cert, is_strong)
     }
 
-    /// Check whether 2f+1 blocks at `r+1` both vote for `leader_block` and
-    /// carry `is_strong_blame() == true`.
+    /// Check whether 2f+1 blocks at `r+1` vote for `leader_block`, pin their
+    /// strong-blame to `leader_block.author()`, and carry
+    /// `is_strong_blame() == true`. Strong blames whose pinned leader doesn't
+    /// match are ignored — same misattribution rule as for strong votes.
     fn has_strong_blame_quorum(&self, leader_block: &VerifiedBlockHeader) -> bool {
         let voting_round = leader_block.round() + 1;
         let voting_blocks = self
@@ -541,7 +547,7 @@ impl BaseCommitter {
 
         let mut strong_blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
-            if !voting_block.is_strong_blame() {
+            if !voting_block.is_strong_blame_for(leader_block.author()) {
                 continue;
             }
             if !self.is_vote(voting_block, leader_block) {
