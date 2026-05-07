@@ -548,20 +548,9 @@ ExecutionError:
           - value_size: U64
           - max_scaled_size: U64
     43:
-      AuthenticatorFunctionNotFound:
+      BuiltinAuthenticatorVerificationError:
         STRUCT:
-          - object_id:
-              TYPENAME: ObjectId
-    44:
-      AccountNotSharedObject:
-        STRUCT:
-          - object_id:
-              TYPENAME: ObjectId
-    45:
-      TransactionDependencyFailed:
-        STRUCT:
-          - dependency:
-              TYPENAME: TransactionDigest
+          - reason: STR
 ExecutionStatus:
   ENUM:
     0:
