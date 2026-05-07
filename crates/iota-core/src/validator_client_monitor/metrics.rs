@@ -105,7 +105,7 @@ impl ValidatorClientMetrics {
     pub(super) fn record_interaction_result(
         &self,
         feedback: &super::OperationFeedback,
-        score: Option<(f64, f64)>,
+        score: (f64, f64),
     ) {
         let operation_str = feedback.operation.as_str();
         let labels = &[feedback.display_name.as_str(), operation_str];
@@ -120,27 +120,21 @@ impl ValidatorClientMetrics {
                 self.operation_failure.with_label_values(labels).inc();
             }
         }
-        if let Some((performance, exploration)) = score {
-            tracing::debug!(
-                "Validator {}: performance {} exploration {}",
-                feedback.display_name,
-                performance,
-                exploration
-            );
-            self.exclusion
-                .with_label_values(&[feedback.display_name.as_str()])
-                .set(0.0);
-            self.performance
-                .with_label_values(&[feedback.display_name.as_str()])
-                .set(performance);
-            self.exploration
-                .with_label_values(&[feedback.display_name.as_str()])
-                .set(exploration);
-        } else {
-            tracing::debug!("Validator {}: excluded", feedback.display_name);
-            self.exclusion
-                .with_label_values(&[feedback.display_name.as_str()])
-                .set(1.0);
-        }
+        let (performance, exploration) = score;
+        tracing::debug!(
+            "Validator {}: performance {} exploration {}",
+            feedback.display_name,
+            performance,
+            exploration
+        );
+        self.exclusion
+            .with_label_values(&[feedback.display_name.as_str()])
+            .set(0.0);
+        self.performance
+            .with_label_values(&[feedback.display_name.as_str()])
+            .set(performance);
+        self.exploration
+            .with_label_values(&[feedback.display_name.as_str()])
+            .set(exploration);
     }
 }

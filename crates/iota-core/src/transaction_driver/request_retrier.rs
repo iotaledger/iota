@@ -61,7 +61,7 @@ impl<A> RequestRetrier<A> {
             })
             .map(|(name, _display_name)| name);
 
-        let ranked_clients = client_monitor
+        let mut ranked_clients = client_monitor
             .select_shuffled_preferred_validators(committee)
             .into_iter()
             .filter_map(|name| {
@@ -73,6 +73,8 @@ impl<A> RequestRetrier<A> {
                     .map(|client| (*name, client.clone()))
             })
             .collect::<Vec<_>>();
+        // Ranked clients are consumed in reverse order.
+        ranked_clients.reverse();
         let non_retriable_errors_aggregator = StatusAggregator::new(auth_agg.committee.clone());
         let retriable_errors_aggregator = StatusAggregator::new(auth_agg.committee.clone());
         Self {

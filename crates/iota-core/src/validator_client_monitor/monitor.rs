@@ -54,7 +54,8 @@ impl ValidatorClientMonitor {
         let period = self.config.health_check_interval;
         let monitor = Arc::downgrade(self);
         let authority_aggregator = Arc::downgrade(authority_aggregator);
-        // weak pointers allow health check task break early once shared arc objects are dropped
+        // weak pointers allow health check task break early once shared arc objects are
+        // dropped
         tokio::spawn(async move {
             Self::run_health_checks(monitor, authority_aggregator, period).await;
         })

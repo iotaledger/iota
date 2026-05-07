@@ -27,6 +27,16 @@ pub struct ValidatorClientMonitorConfig {
     /// Timeout for health check requests.
     #[serde(default = "default_health_check_timeout")]
     pub health_check_timeout: Duration,
+
+    /// The share (percentage) of committee validators with good performance to
+    /// select.
+    #[serde(default = "default_exploitation_group_share")]
+    pub exploitation_group_share: usize,
+
+    /// The share (percentage) of unknown committee validators or validators
+    /// with outdated/stale stats to select.
+    #[serde(default = "default_exploration_group_share")]
+    pub exploration_group_share: usize,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -34,6 +44,8 @@ impl Default for ValidatorClientMonitorConfig {
         Self {
             health_check_interval: default_health_check_interval(),
             health_check_timeout: default_health_check_timeout(),
+            exploitation_group_share: default_exploitation_group_share(),
+            exploration_group_share: default_exploration_group_share(),
         }
     }
 }
@@ -44,4 +56,12 @@ fn default_health_check_interval() -> Duration {
 
 fn default_health_check_timeout() -> Duration {
     Duration::from_secs(2)
+}
+
+fn default_exploitation_group_share() -> usize {
+    10
+}
+
+fn default_exploration_group_share() -> usize {
+    10
 }

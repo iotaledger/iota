@@ -163,9 +163,7 @@ where
 
         let timer = Instant::now();
 
-        self.metrics
-            .total_transactions_submitted
-            .inc();
+        self.metrics.total_transactions_submitted.inc();
 
         let mut backoff = ExponentialBackoff::new(
             Duration::from_millis(100),
@@ -332,11 +330,9 @@ where
         );
         if result.is_ok() {
             let latency = start_time.elapsed();
-            client_monitor
-                .record_interaction_result(feedback_builder.ok_now(latency));
+            client_monitor.record_interaction_result(feedback_builder.ok_now(latency));
         } else {
-            client_monitor
-                .record_interaction_result(feedback_builder.err_now());
+            client_monitor.record_interaction_result(feedback_builder.err_now());
         }
         result
     }

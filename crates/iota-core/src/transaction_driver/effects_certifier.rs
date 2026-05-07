@@ -373,9 +373,7 @@ impl EffectsCertifier {
     where
         A: AuthorityAPI + Send + Sync + 'static,
     {
-        self.metrics
-            .certified_effects_ack_attempts
-            .inc();
+        self.metrics.certified_effects_ack_attempts.inc();
         let timer = tokio::time::Instant::now();
         let clients = authority_aggregator
             .authority_clients
@@ -480,9 +478,7 @@ impl EffectsCertifier {
                             }
                         }
                         // Record success and latency
-                        self.metrics
-                            .certified_effects_ack_successes
-                            .inc();
+                        self.metrics.certified_effects_ack_successes.inc();
                         self.metrics
                             .certified_effects_ack_latency
                             .observe(timer.elapsed().as_secs_f64());
@@ -498,17 +494,13 @@ impl EffectsCertifier {
                     } else {
                         non_retriable_errors_aggregator.insert(name, error);
                     }
-                    self.metrics
-                        .rejection_acks
-                        .inc();
+                    self.metrics.rejection_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Expired { epoch }))) => {
                     let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
-                    self.metrics
-                        .expiration_acks
-                        .inc();
+                    self.metrics.expiration_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Submitted))) => {
                     // Still pending — treat as retriable.

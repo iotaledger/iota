@@ -138,9 +138,7 @@ impl TransactionSubmitter {
                         .submit_transaction_retries
                         .observe(retries as f64);
                     let elapsed = start_time.elapsed().as_secs_f64();
-                    self.metrics
-                        .submit_transaction_latency
-                        .observe(elapsed);
+                    self.metrics.submit_transaction_latency.observe(elapsed);
 
                     return Ok((name, result));
                 }
@@ -148,10 +146,7 @@ impl TransactionSubmitter {
                     let error_type = e.categorize().into();
                     self.metrics
                         .validator_submit_transaction_errors
-                        .with_label_values(&[
-                            display_name.as_str(),
-                            error_type,
-                        ])
+                        .with_label_values(&[display_name.as_str(), error_type])
                         .inc();
 
                     retries += 1;
