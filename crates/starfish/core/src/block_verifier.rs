@@ -228,15 +228,37 @@ impl BlockVerifier for SignedBlockVerifier {
         }
 
         // Validate strong_vote field.
-        if let Some(authority_set) = block.strong_vote() {
+        if let Some(strong_vote) = block.strong_vote() {
             if !self.context.protocol_config.consensus_starfish_speed() {
                 return Err(ConsensusError::UnexpectedStrongVote);
             }
-            for authority_index in authority_set.iter() {
+            if !committee.is_valid_index(strong_vote.leader_authority) {
+                return Err(ConsensusError::InvalidStrongVoteAuthority {
+                    index: strong_vote.leader_authority,
+                    max: committee.size(),
+                });
+            }
+            for authority_index in strong_vote.missing.iter() {
                 if !committee.is_valid_index(authority_index) {
                     return Err(ConsensusError::InvalidStrongVoteAuthority {
                         index: authority_index,
                         max: committee.size(),
+                    });
+                }
+            }
+            // Self-consistency: the pinned leader must appear in the block's
+            // ancestors at round-1.
+            let leader_round = block.round().saturating_sub(1);
+            if leader_round != GENESIS_ROUND {
+                let leader_seen = block
+                    .ancestors()
+                    .iter()
+                    .any(|r| r.round == leader_round && r.author == strong_vote.leader_authority);
+                if !leader_seen {
+                    return Err(ConsensusError::StrongVoteLeaderNotInAncestors {
+                        block_round: block.round(),
+                        leader_round,
+                        leader_authority: strong_vote.leader_authority,
                     });
                 }
             }
