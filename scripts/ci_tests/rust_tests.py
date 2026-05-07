@@ -409,6 +409,12 @@ class RustTestOrchestrator:
         exclude_set = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME)
         
         tests_added = False
+        # When the workspace filter resolves to "" (run all tests, e.g. because
+        # workspace-level config like Cargo.toml changed and `test_only_changed_crates`
+        # is False), the PG/Move includes below would silently restrict the run to
+        # those subsets — `append_filter_item_or` drops the empty string. Track the
+        # case so we can skip the narrower includes.
+        run_all_workspace_tests = False
 
         if tests_crates_workspace:
             changed_crates_rust_filter = self.build_filterset_changed_crates(
@@ -416,25 +422,30 @@ class RustTestOrchestrator:
             )
             # If changed_crates_rust_filter is None, it means no workspace crates changed,
             # so we shouldn't add any workspace tests
-            if changed_crates_rust_filter is not None:
-                filter_set = self.append_filter_item_or(filter_set, changed_crates_rust_filter)
+            if changed_crates_rust_filter is None:
+                self.logger.info("Skipping workspace tests - no workspace crates changed")
+            elif changed_crates_rust_filter == "":
+                run_all_workspace_tests = True
                 tests_added = True
             else:
-                self.logger.info("Skipping workspace tests - no workspace crates changed")
-        
+                filter_set = self.append_filter_item_or(filter_set, changed_crates_rust_filter)
+                tests_added = True
+
         if tests_pg_integration:
-            postgres_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
-            filter_set = self.append_filter_item_or(filter_set, postgres_tests_filter)
+            if not run_all_workspace_tests:
+                postgres_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
+                filter_set = self.append_filter_item_or(filter_set, postgres_tests_filter)
             tests_added = True
         else:
             postgres_tests_exclude_filter = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
             exclude_set = self.append_filter_item_and(exclude_set, postgres_tests_exclude_filter)
-        
+
         if tests_move_example_used_by_others:
-            move_examples_rdeps_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS)
-            filter_set = self.append_filter_item_or(filter_set, move_examples_rdeps_tests_filter)
+            if not run_all_workspace_tests:
+                move_examples_rdeps_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS)
+                filter_set = self.append_filter_item_or(filter_set, move_examples_rdeps_tests_filter)
             tests_added = True
-        
+
         return self.build_filterset_combined(filter_set, exclude_set), tests_added
     
     # finalize_filter_set appends "-E" to the beginning of the string if it is not empty
