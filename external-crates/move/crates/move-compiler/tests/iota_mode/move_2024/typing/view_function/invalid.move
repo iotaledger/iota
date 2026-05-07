@@ -148,16 +148,12 @@ module a::m {
     }
 
     #[view]
-    public fun option_vector_object_by_value(
-        _value: Option<vector<GenericObject<Wrapped>>>,
-    ): u64 {
+    public fun option_vector_object_by_value(_value: Option<vector<GenericObject<Wrapped>>>): u64 {
         abort 0
     }
 
     #[view]
-    public fun vector_option_object_by_value(
-        _value: vector<Option<GenericObject<Wrapped>>>,
-    ): u64 {
+    public fun vector_option_object_by_value(_value: vector<Option<GenericObject<Wrapped>>>): u64 {
         abort 0
     }
 
@@ -254,6 +250,23 @@ module a::m {
     #[view]
     public fun returns_tuple_with_object(): (u64, GenericObject<Wrapped>) {
         abort 0
+    }
+
+    #[view]
+    public fun returns_generic_obj_reference(
+        input: &GenericObject<Wrapped>,
+    ): &GenericObject<Wrapped> {
+        input
+    }
+
+    #[view]
+    public fun returns_u64_reference(input: &u64): &u64 {
+        input
+    }
+
+    #[view]
+    public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
+        (input, 0)
     }
 
     #[view]

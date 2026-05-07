@@ -648,27 +648,38 @@ fn view_visibility(
 }
 
 fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, return_type: &Type) {
-    if matches!(return_type.value, Type_::Unit) {
-        let msg = format!("Invalid return type for view function '{}'", name);
-        context.add_diag(diag!(
-            VIEW_FUN_SIGNATURE_DIAG,
-            (view_loc, msg),
-            (
-                return_type.loc,
-                "View functions must return at least one value"
-            ),
-        ));
-        // TODO change to restricting to return only primitives and vectors of primitives
-    } else if contains_view_unsafe_by_value_ty(return_type) {
-        let msg = format!("Invalid return type for view function '{}'", name);
-        context.add_diag(diag!(
-            VIEW_FUN_SIGNATURE_DIAG,
-            (view_loc, msg),
-            (
-                return_type.loc,
-                "View functions cannot return objects or values that could contain objects",
-            ),
-        ));
+    match &return_type.value {
+        Type_::Unit => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    return_type.loc,
+                    "View functions must return at least one value"
+                ),
+            ));
+        }
+        _ if contains_reference_ty(return_type) => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (return_type.loc, "View functions cannot return references"),
+            ));
+        }
+        _ if contains_view_unsafe_by_value_ty(return_type) => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    return_type.loc,
+                    "View functions cannot return objects or values that could contain objects",
+                ),
+            ));
+        }
+        _ => (),
     }
 }
 
@@ -731,10 +742,22 @@ fn view_param_ty(
     }
 }
 
-fn contains_mutable_reference_ty(param_ty: &Type) -> bool {
-    match &param_ty.value {
-        Type_::Ref(is_mut, inner) => *is_mut || contains_mutable_reference_ty(inner),
-        Type_::Apply(_, _, targs) => targs.iter().any(contains_mutable_reference_ty),
+fn contains_reference_ty(ty: &Type) -> bool {
+    contains_reference_ty_where(ty, |_| true)
+}
+
+fn contains_mutable_reference_ty(ty: &Type) -> bool {
+    contains_reference_ty_where(ty, |is_mut| is_mut)
+}
+
+fn contains_reference_ty_where(ty: &Type, matches_ref: fn(bool) -> bool) -> bool {
+    match &ty.value {
+        Type_::Ref(is_mut, inner) => {
+            matches_ref(*is_mut) || contains_reference_ty_where(inner, matches_ref)
+        }
+        Type_::Apply(_, _, targs) => targs
+            .iter()
+            .any(|targ| contains_reference_ty_where(targ, matches_ref)),
         Type_::Param(_) => false,
         Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
         Type_::Fun(_, _) => false,
@@ -749,14 +772,10 @@ fn contains_view_unsafe_by_value_ty(param_ty: &Type) -> bool {
             !(type_parameter.abilities.has_ability_(Ability_::Copy)
                 || type_parameter.abilities.has_ability_(Ability_::Drop))
         }
-        Type_::Apply(Some(abilities), sp!(_, TypeName_::ModuleType(_, _)), targs) => {
+        Type_::Apply(Some(abilities), _, targs) => {
             abilities.has_ability_(Ability_::Key)
                 || !(abilities.has_ability_(Ability_::Copy)
                     || abilities.has_ability_(Ability_::Drop))
-                || targs.iter().any(contains_view_unsafe_by_value_ty)
-        }
-        Type_::Apply(Some(abilities), _, targs) => {
-            abilities.has_ability_(Ability_::Key)
                 || targs.iter().any(contains_view_unsafe_by_value_ty)
         }
         Type_::Apply(None, _, targs) => targs.iter().any(contains_view_unsafe_by_value_ty),
@@ -793,7 +812,7 @@ fn entry_signature(
     entry_return(context, entry_loc, name, return_type);
 }
 
-pub(crate) fn tx_context_kind(sp!(_, last_param_ty_): &Type) -> TxContextKind {
+fn tx_context_kind(sp!(_, last_param_ty_): &Type) -> TxContextKind {
     // Already an error, so assume a valid, mutable TxContext
     if matches!(last_param_ty_, Type_::UnresolvedError | Type_::Var(_)) {
         return TxContextKind::Mutable;
