@@ -250,15 +250,15 @@ pub(crate) struct NodeMetrics {
     #[expect(dead_code)]
     pub(crate) faulty_blocks_unprovable_by_peer: IntCounterVec,
     #[expect(dead_code)]
-    pub(crate) persisted_equivocations_by_authority: IntCounterVec,
+    pub(crate) persisted_equivocations_by_authority: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) persisted_missing_proposals_by_authority: IntCounterVec,
+    pub(crate) persisted_missing_proposals_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) in_memory_equivocations_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) in_memory_missing_proposals_by_authority: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) score_by_authority: IntGaugeVec,
+    pub(crate) misbehavior_score_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
 }
@@ -1128,15 +1128,15 @@ impl NodeMetrics {
                 &["peer"],
                 registry,
             ).unwrap(),
-            persisted_equivocations_by_authority: register_int_counter_vec_with_registry!(
+            persisted_equivocations_by_authority: register_int_gauge_vec_with_registry!(
                 "persisted_equivocations_by_authority",
-                "Equivocations per authority from evicted blocks (persisted to storage)",
+                "Accumulated equivocations per authority from evicted blocks (persisted to storage)",
                 &["authority"],
                 registry,
             ).unwrap(),
-            persisted_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+            persisted_missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
                 "persisted_missing_proposals_by_authority",
-                "Missing proposals per authority from evicted blocks (persisted to storage)",
+                "Accumulated missing proposals per authority from evicted blocks (persisted to storage)",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -1152,9 +1152,9 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            score_by_authority: register_int_gauge_vec_with_registry!(
-                "score_by_authority",
-                "Registers the authority score.",
+            misbehavior_score_by_authority: register_int_gauge_vec_with_registry!(
+                "misbehavior_score_by_authority",
+                "Misbehavior-based validator score per authority (lower means more misbehavior detected)",
                 &["authority"],
                 registry,
             ).unwrap(),
