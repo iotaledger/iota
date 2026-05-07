@@ -196,26 +196,6 @@ pub(crate) struct WriteBatch {
 }
 
 impl WriteBatch {
-    pub(crate) fn new(
-        transactions: Vec<VerifiedTransactions>,
-        block_headers: Vec<VerifiedBlockHeader>,
-        commits: Vec<TrustedCommit>,
-        commit_info: Vec<(CommitRef, CommitInfo)>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: Option<bool>,
-        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
-    ) -> Self {
-        WriteBatch {
-            transactions,
-            block_headers,
-            commits,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-            scoring_metrics,
-        }
-    }
-
     // Test setters.
 
     #[cfg(test)]

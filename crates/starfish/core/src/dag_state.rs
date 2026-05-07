@@ -2235,15 +2235,15 @@ impl DagState {
             // Write all buffered data to storage
             self.store
                 .write(
-                    WriteBatch::new(
+                    WriteBatch {
                         transactions,
                         block_headers,
                         commits,
                         commit_info,
                         voting_block_headers,
                         fast_commit_sync_flag,
-                        score_updates,
-                    ),
+                        scoring_metrics: score_updates,
+                    },
                     self.context.clone(),
                 )
                 .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
