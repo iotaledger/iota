@@ -196,8 +196,10 @@ impl_grpc_client_config!(
 
 #[cfg(test)]
 mod tests {
-    // E2E tests always use `http://`, so the HTTPS-without-TLS branch is only
-    // reachable from a unit test compiled with `tls-ring` disabled.
+    // `iota-grpc-client` e2e tests connect via `test_cluster.grpc_url()`,
+    // which always returns an `http://` URL, so the HTTPS-without-TLS branch
+    // in `Client::connect` is only reachable from a unit test compiled with
+    // `tls-ring` disabled.
     #[cfg(not(feature = "tls-ring"))]
     #[tokio::test]
     async fn https_without_tls_ring_returns_failed_precondition() {

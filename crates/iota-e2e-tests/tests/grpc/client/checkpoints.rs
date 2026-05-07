@@ -78,15 +78,24 @@ async fn get_checkpoint_scenarios() {
 
 #[sim_test]
 async fn stream_checkpoints_live() {
-    // Live-streaming sanity check: open the stream before checkpoint 2 exists
-    // and verify the broadcaster delivers it within the 120s window. This is
-    // the one test that exercises the live (non-historical) streaming path —
-    // every other checkpoint test either replays historical checkpoints or
-    // pre-waits for the range to be produced.
+    // Live-streaming sanity check: target a checkpoint the cluster has not
+    // yet produced (latest + 5) so the stream is forced through the live
+    // (broadcaster) branch in `create_generic_checkpoint_stream` — that
+    // branch is taken when `start > latest_checkpoint_seq` at the moment
+    // the stream is opened. Asking for a fixed sequence like `2` would race
+    // with checkpoint production and could be served from the DB instead.
     let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
+    let latest = client
+        .get_checkpoint_latest(Some(""), None, None)
+        .await
+        .expect("get latest checkpoint")
+        .body()
+        .sequence_number();
+    let target = latest + 5;
+
     let mut stream = client
-        .stream_checkpoints(Some(2), Some(2), None, None, None)
+        .stream_checkpoints(Some(target), Some(target), None, None, None)
         .await
         .expect("Failed to open checkpoint stream");
 
@@ -95,5 +104,8 @@ async fn stream_checkpoints_live() {
         .expect("waiting for live checkpoint timed out")
         .expect("stream ended without a checkpoint")
         .expect("stream error");
-    assert_eq!(first.sequence_number, 2, "expected checkpoint 2");
+    assert_eq!(
+        first.sequence_number, target,
+        "expected checkpoint {target}"
+    );
 }
