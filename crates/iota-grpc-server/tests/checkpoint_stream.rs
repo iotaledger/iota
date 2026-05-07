@@ -931,8 +931,7 @@ fn build_checkpoint_transactions_with_events(
                         Identifier::from_static("TestEvent"),
                         vec![],
                     ),
-                    // TODO to be reviewed by node team
-                    contents: vec![0u8; 128], // 128 bytes of dummy content
+                    contents: vec![0u8; 64], // 64 bytes of dummy content
                 });
             }
             Some(TransactionEvents { data })
