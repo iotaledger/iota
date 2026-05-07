@@ -1460,8 +1460,15 @@ impl Core {
         if !self.context.protocol_config.consensus_starfish_speed() {
             error!("compute_strong_vote called while consensus_starfish_speed is disabled");
         }
+        Self::compute_strong_vote_for(&self.dag_state.read(), leader_header)
+    }
 
-        let dag_state = self.dag_state.read();
+    /// Static form of [`Self::compute_strong_vote`]: derives the missing-data
+    /// mask from a borrowed `DagState`, no `Core` instance required.
+    pub(crate) fn compute_strong_vote_for(
+        dag_state: &DagState,
+        leader_header: &VerifiedBlockHeader,
+    ) -> AuthoritySet {
         let mut missing = AuthoritySet::new();
 
         let leader_ref = leader_header.reference();
