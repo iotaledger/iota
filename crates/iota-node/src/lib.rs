@@ -45,7 +45,9 @@ use iota_core::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
     },
     authority_client::NetworkAuthorityClient,
-    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    authority_server::{
+        ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks,
+    },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
@@ -157,9 +159,13 @@ pub mod metrics;
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
+    /// Handle for the soft-lock expiry sweep task. The task self-terminates
+    /// via a `Weak` reference; this handle exists purely for ownership clarity.
+    soft_lock_sweep_handle: JoinHandle<()>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -1183,14 +1189,34 @@ impl IotaNode {
             &validator_registry,
         );
 
+        let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
+        let validator_service_metrics = Arc::new(ValidatorServiceMetrics::new(&validator_registry));
+
+        // Spawn the soft-lock sweep once for the lifetime of this validator
+        // instance. The task holds only a `Weak<PreConsensusSoftLocks>` so it
+        // stops itself automatically: each iteration it tries to upgrade the
+        // weak reference, and when all strong `Arc` owners have been dropped
+        // (i.e. `ValidatorComponents` is destructured and the old epoch store
+        // is released after an epoch transition that removes us from the
+        // committee) the upgrade returns `None` and the loop exits. No explicit
+        // `abort()` is needed. The same `Arc<PreConsensusSoftLocks>` is reused
+        // across epoch transitions (see `start_epoch_specific_validator_components`),
+        // so the task keeps running uninterrupted while the node remains a validator.
+        let soft_lock_sweep_handle = PreConsensusSoftLocks::spawn_sweep(
+            Arc::downgrade(&soft_locks),
+            validator_service_metrics.clone(),
+        );
 
         let validator_server_handle = Self::start_grpc_validator_service(
             &config,
             state.clone(),
             consensus_adapter.clone(),
             &validator_registry,
+            soft_locks.clone(),
+            validator_service_metrics.clone(),
         )
         .await?;
 
@@ -1224,8 +1250,10 @@ impl IotaNode {
             consensus_store_pruner,
             global_state_hasher,
             backpressure_manager,
+            soft_locks,
             validator_server_handle,
             validator_overload_monitor_handle,
+            soft_lock_sweep_handle,
             checkpoint_metrics,
             iota_tx_validator_metrics,
             validator_registry_id,
@@ -1247,8 +1275,10 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
+        soft_lock_sweep_handle: JoinHandle<()>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
@@ -1271,6 +1301,13 @@ impl IotaNode {
         let low_scoring_authorities = Arc::new(ArcSwap::new(Arc::new(HashMap::new())));
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
+
+        // Wire pre-consensus soft locks to the epoch store so that
+        // post-consensus processing can release locks once permanent locks are
+        // quarantined. Clear stale locks from the previous epoch and spawn a
+        // background sweep task.
+        soft_locks.clear();
+        epoch_store.set_soft_locks(soft_locks.clone());
 
         let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
@@ -1315,9 +1352,11 @@ impl IotaNode {
         Ok(ValidatorComponents {
             validator_server_handle,
             validator_overload_monitor_handle,
+            soft_lock_sweep_handle,
             consensus_manager,
             consensus_store_pruner,
             consensus_adapter,
+            soft_locks,
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1410,12 +1449,15 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
+        soft_locks: Arc<PreConsensusSoftLocks>,
+        validator_service_metrics: Arc<ValidatorServiceMetrics>,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
             consensus_adapter,
-            Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
+            validator_service_metrics,
             config.policy_config.clone().map(|p| p.client_id_source),
+            soft_locks,
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();
@@ -1801,9 +1843,11 @@ impl IotaNode {
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
                 validator_overload_monitor_handle,
+                soft_lock_sweep_handle,
                 consensus_manager,
                 consensus_store_pruner,
                 consensus_adapter,
+                soft_locks,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
@@ -1860,8 +1904,10 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_hasher,
                             self.backpressure_manager.clone(),
+                            soft_locks,
                             validator_server_handle,
                             validator_overload_monitor_handle,
+                            soft_lock_sweep_handle,
                             checkpoint_metrics,
                             iota_tx_validator_metrics,
                             validator_registry_id,
