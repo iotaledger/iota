@@ -111,9 +111,20 @@ pub trait BlockHeaderAPI {
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
     fn transactions_commitment(&self) -> TransactionsCommitment;
-    fn strong_vote(&self) -> Option<AuthoritySet>;
+    fn strong_vote(&self) -> Option<StrongVote>;
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex>;
     fn is_strong_vote(&self) -> bool;
     fn is_strong_blame(&self) -> bool;
+
+    /// True if this block is a strong vote pinned to `leader`.
+    fn is_strong_vote_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_vote() && self.strong_vote_leader() == Some(leader)
+    }
+
+    /// True if this block is a strong blame pinned to `leader`.
+    fn is_strong_blame_for(&self, leader: AuthorityIndex) -> bool {
+        self.is_strong_blame() && self.strong_vote_leader() == Some(leader)
+    }
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
@@ -213,7 +224,11 @@ impl BlockHeaderAPI for BlockHeaderV1 {
     }
 
     // V1 blocks do not carry a strong vote; always returns None.
-    fn strong_vote(&self) -> Option<AuthoritySet> {
+    fn strong_vote(&self) -> Option<StrongVote> {
+        None
+    }
+
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
         None
     }
 
@@ -223,6 +238,26 @@ impl BlockHeaderAPI for BlockHeaderV1 {
 
     fn is_strong_blame(&self) -> bool {
         false
+    }
+}
+
+/// Strong-vote payload pinned to a specific leader authority. The producer
+/// records which leader the vote/blame is *for*, so consumers can reject votes
+/// whose pinned leader doesn't match the canonical leader they're evaluating.
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq, Debug)]
+pub struct StrongVote {
+    /// Authority of the leader at round - 1, per the producer's swap table at
+    /// block-creation time.
+    pub leader_authority: AuthorityIndex,
+    /// Bitmask of authorities whose data the producer was missing relative to
+    /// the pinned leader's data set. Empty = strong vote; non-empty = strong
+    /// blame.
+    pub missing: AuthoritySet,
+}
+
+impl StrongVote {
+    pub fn is_strong_vote(&self) -> bool {
+        self.missing.is_empty()
     }
 }
 
@@ -237,11 +272,10 @@ pub struct BlockHeaderV2 {
     overlap_end_index: u8,
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
-    // Bitmask of authorities whose transaction data (announced by the leader)
-    // is not available. None means no vote. Some(empty) means all data is
-    // available (strong vote). Some(nonempty) means some data is missing
-    // (strong blame).
-    strong_vote: Option<AuthoritySet>,
+    // Strong-vote payload pinned to a specific leader. None = no vote;
+    // Some(StrongVote { missing: empty, .. }) = strong vote;
+    // Some(StrongVote { missing: nonempty, .. }) = strong blame.
+    strong_vote: Option<StrongVote>,
 }
 
 impl BlockHeaderV2 {
@@ -254,7 +288,7 @@ impl BlockHeaderV2 {
         acknowledgments: Vec<BlockRef>,
         commit_votes: Vec<CommitVote>,
         transactions_commitment: TransactionsCommitment,
-        strong_vote: Option<AuthoritySet>,
+        strong_vote: Option<StrongVote>,
     ) -> BlockHeaderV2 {
         let (references, overlap_start_index, overlap_end_index) =
             BlockHeader::compress_references(ancestors, acknowledgments);
@@ -328,16 +362,20 @@ impl BlockHeaderAPI for BlockHeaderV2 {
         self.transactions_commitment
     }
 
-    fn strong_vote(&self) -> Option<AuthoritySet> {
+    fn strong_vote(&self) -> Option<StrongVote> {
         self.strong_vote
     }
 
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
+        self.strong_vote.map(|sv| sv.leader_authority)
+    }
+
     fn is_strong_vote(&self) -> bool {
-        self.strong_vote.is_some_and(|s| s.is_empty())
+        self.strong_vote.is_some_and(|sv| sv.is_strong_vote())
     }
 
     fn is_strong_blame(&self) -> bool {
-        self.strong_vote.is_some_and(|s| !s.is_empty())
+        self.strong_vote.is_some_and(|sv| !sv.is_strong_vote())
     }
 }
 
@@ -405,10 +443,17 @@ impl BlockHeaderAPI for BlockHeader {
         }
     }
 
-    fn strong_vote(&self) -> Option<AuthoritySet> {
+    fn strong_vote(&self) -> Option<StrongVote> {
         match self {
             BlockHeader::V1(header) => header.strong_vote(),
             BlockHeader::V2(header) => header.strong_vote(),
+        }
+    }
+
+    fn strong_vote_leader(&self) -> Option<AuthorityIndex> {
+        match self {
+            BlockHeader::V1(header) => header.strong_vote_leader(),
+            BlockHeader::V2(header) => header.strong_vote_leader(),
         }
     }
 
