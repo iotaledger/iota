@@ -419,26 +419,19 @@ impl BlockSuspender {
         let fetch_entries_evicted =
             std::mem::replace(&mut self.headers_to_fetch, kept_to_fetch).len();
 
-        let kept_missing = self.missing_ancestors.split_off(&pivot);
-        let evicted_missing = std::mem::replace(&mut self.missing_ancestors, kept_missing);
-        let ancestors_evicted = evicted_missing.len();
+        // Collect evicted keys via an O(log n + k) range scan; leave them in
+        // `self.missing_ancestors` so `recursively_unsuspend_dependents` can
+        // remove and cascade through them as usual.
+        let evicted_ancestor_refs: Vec<BlockRef> = self
+            .missing_ancestors
+            .range(..pivot)
+            .map(|(k, _)| *k)
+            .collect();
+        let ancestors_evicted = evicted_ancestor_refs.len();
 
-        // Evicted ancestors are gone from `self.missing_ancestors`, so the
-        // cascade helper can't be entered through them directly. Seed it with
-        // their immediate dependents; deeper levels (round > floor) are still
-        // in `self.missing_ancestors` and the helper handles them.
         let mut unsuspended = vec![];
-        for (evicted_ref, dependents) in evicted_missing {
-            for suspended_block_ref in dependents {
-                if let Some(unsuspended_block) =
-                    self.unsuspend_if_ready(&suspended_block_ref, &evicted_ref)
-                {
-                    self.report_unsuspended_block(&unsuspended_block);
-                    let new_ref = unsuspended_block.block_header.reference();
-                    unsuspended.push(unsuspended_block.block_header);
-                    unsuspended.extend(self.recursively_unsuspend_dependents(new_ref));
-                }
-            }
+        for evicted_ref in evicted_ancestor_refs {
+            unsuspended.extend(self.recursively_unsuspend_dependents(evicted_ref));
         }
 
         self.update_stats(0);
