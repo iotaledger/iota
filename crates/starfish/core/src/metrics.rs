@@ -246,19 +246,13 @@ pub(crate) struct NodeMetrics {
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
     #[expect(dead_code)]
-    pub(crate) faulty_blocks_provable_by_authority: IntCounterVec,
+    pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) faulty_blocks_unprovable_by_peer: IntCounterVec,
+    pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) persisted_equivocations_by_authority: IntGaugeVec,
+    pub(crate) equivocations_by_authority: IntGaugeVec,
     #[expect(dead_code)]
-    pub(crate) persisted_missing_proposals_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
-    pub(crate) in_memory_equivocations_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
-    pub(crate) in_memory_missing_proposals_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
-    pub(crate) misbehavior_score_by_authority: IntGaugeVec,
+    pub(crate) missing_proposals_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
 }
@@ -1116,46 +1110,28 @@ impl NodeMetrics {
                 "Number of concurrent transaction fetch requests",
                 registry,
             ).unwrap(),
-            faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
+            faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
-                "Number of provably faulty blocks per authority",
-                &["authority"],
+                "Provably faulty blocks per authority (source: persisted or in_memory)",
+                &["authority", "source"],
                 registry,
             ).unwrap(),
-            faulty_blocks_unprovable_by_peer: register_int_counter_vec_with_registry!(
+            faulty_blocks_unprovable_by_peer: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_unprovable_by_peer",
-                "Number of unprovably faulty blocks per peer",
-                &["peer"],
+                "Unprovably faulty blocks per peer (source: persisted or in_memory)",
+                &["peer", "source"],
                 registry,
             ).unwrap(),
-            persisted_equivocations_by_authority: register_int_gauge_vec_with_registry!(
-                "persisted_equivocations_by_authority",
-                "Accumulated equivocations per authority from evicted blocks (persisted to storage)",
-                &["authority"],
+            equivocations_by_authority: register_int_gauge_vec_with_registry!(
+                "equivocations_by_authority",
+                "Equivocations per authority (source: persisted or in_memory)",
+                &["authority", "source"],
                 registry,
             ).unwrap(),
-            persisted_missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
-                "persisted_missing_proposals_by_authority",
-                "Accumulated missing proposals per authority from evicted blocks (persisted to storage)",
-                &["authority"],
-                registry,
-            ).unwrap(),
-            in_memory_equivocations_by_authority: register_int_gauge_vec_with_registry!(
-                "in_memory_equivocations_by_authority",
-                "Equivocations per authority from blocks currently in the DAG cache",
-                &["authority"],
-                registry,
-            ).unwrap(),
-            in_memory_missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
-                "in_memory_missing_proposals_by_authority",
-                "Missing proposals per authority from blocks currently in the DAG cache",
-                &["authority"],
-                registry,
-            ).unwrap(),
-            misbehavior_score_by_authority: register_int_gauge_vec_with_registry!(
-                "misbehavior_score_by_authority",
-                "Misbehavior-based validator score per authority (lower means more misbehavior detected)",
-                &["authority"],
+            missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
+                "missing_proposals_by_authority",
+                "Missing proposals per authority (source: persisted or in_memory)",
+                &["authority", "source"],
                 registry,
             ).unwrap(),
             invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(

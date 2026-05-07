@@ -14,14 +14,14 @@ use serde::{Deserialize, Serialize};
 ///   on restart).
 /// - `persisted`: from blocks evicted from cache and written to storage
 ///   (restored on restart).
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub(crate) struct ScoringMetricsStore {
     pending: StarfishMisbehaviorCounts,
     in_memory: StarfishMisbehaviorCounts,
     persisted: StarfishMisbehaviorCounts,
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 impl ScoringMetricsStore {
     pub(crate) fn new(committee_size: usize) -> Self {
         Self {
@@ -34,7 +34,7 @@ impl ScoringMetricsStore {
 
 /// Per-authority atomic counters for each misbehavior category.
 /// Each `Vec<AtomicU64>` is indexed by authority index within the committee.
-#[allow(dead_code)]
+#[expect(dead_code)]
 struct StarfishMisbehaviorCounts {
     faulty_blocks_provable: Vec<AtomicU64>,
     faulty_blocks_unprovable: Vec<AtomicU64>,
@@ -42,7 +42,6 @@ struct StarfishMisbehaviorCounts {
     equivocations: Vec<AtomicU64>,
 }
 
-#[allow(dead_code)]
 impl StarfishMisbehaviorCounts {
     fn new(committee_size: usize) -> Self {
         Self {

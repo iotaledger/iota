@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Bound::Included, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Bound::Included, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
@@ -683,10 +683,13 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
-        let mut metrics_by_author = vec![];
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
+        let mut metrics_by_author = BTreeMap::new();
         for kv in self.scoring_metrics.safe_iter() {
-            metrics_by_author.push(kv?);
+            let (authority, metrics) = kv?;
+            metrics_by_author.insert(authority, metrics);
         }
         Ok(metrics_by_author)
     }

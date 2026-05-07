@@ -155,9 +155,7 @@ impl Store for MemStore {
             inner.fast_sync_ongoing = flag;
         }
 
-        for (authority, metrics) in write_batch.scoring_metrics {
-            inner.scoring_metrics.insert(authority, metrics);
-        }
+        inner.scoring_metrics.extend(write_batch.scoring_metrics);
 
         Ok(())
     }
@@ -329,14 +327,11 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
         let inner = self.inner.read();
-        let metrics_by_author = inner
-            .scoring_metrics
-            .iter()
-            .map(|(&authority_index, metrics)| (authority_index, metrics.clone()))
-            .collect::<Vec<_>>();
-        Ok(metrics_by_author)
+        Ok(inner.scoring_metrics.clone())
     }
 
     fn read_verified_block_headers(

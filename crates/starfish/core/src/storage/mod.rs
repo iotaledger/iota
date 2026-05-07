@@ -9,6 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -141,7 +142,9 @@ pub(crate) trait Store: Send + Sync {
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
     #[allow(dead_code)]
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>>;
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>>;
 
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
@@ -192,7 +195,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    pub(crate) scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl WriteBatch {
@@ -234,7 +237,7 @@ impl WriteBatch {
     #[cfg(test)]
     pub(crate) fn scoring_metrics(
         mut self,
-        scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
     ) -> Self {
         self.scoring_metrics = scoring_metrics;
         self

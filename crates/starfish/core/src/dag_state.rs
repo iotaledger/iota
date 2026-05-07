@@ -2189,7 +2189,6 @@ impl DagState {
             .with_label_values(&["DagState::flush"])
             .start_timer();
 
-        // Take ownership of buffered data efficiently using mem::take
         let transactions = std::mem::take(&mut self.transactions_to_write);
         let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
@@ -2197,7 +2196,7 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
-        let score_updates = self.score_updates_to_write();
+        let scoring_metrics = self.score_updates_to_write();
 
         let has_data_to_write = !transactions.is_empty()
             || !block_headers.is_empty()
@@ -2205,11 +2204,11 @@ impl DagState {
             || !commit_info.is_empty()
             || !voting_block_headers.is_empty()
             || fast_commit_sync_flag.is_some()
-            || !score_updates.is_empty();
+            || !scoring_metrics.is_empty();
 
         if has_data_to_write {
             debug!(
-                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
+                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) and {} score updates ({}) to storage.",
                 block_headers.len(),
                 block_headers
                     .iter()
@@ -2229,7 +2228,12 @@ impl DagState {
                     .join(","),
                 fast_commit_sync_flag
                     .map(|f| f.to_string())
-                    .unwrap_or_else(|| "unchanged".to_string())
+                    .unwrap_or_else(|| "unchanged".to_string()),
+                scoring_metrics.len(),
+                scoring_metrics
+                    .iter()
+                    .map(|(idx, _)| idx.to_string())
+                    .join(","),
             );
 
             // Write all buffered data to storage
@@ -2242,7 +2246,7 @@ impl DagState {
                         commit_info,
                         voting_block_headers,
                         fast_commit_sync_flag,
-                        scoring_metrics: score_updates,
+                        scoring_metrics,
                     },
                     self.context.clone(),
                 )
@@ -2375,9 +2379,9 @@ impl DagState {
         commit_round.saturating_sub(cached_rounds)
     }
 
-    /// Buffers validator score updates to be written to storage.
-    fn score_updates_to_write(&self) -> Vec<(AuthorityIndex, StorageScoringMetrics)> {
-        vec![]
+    /// Returns pending validator score updates to include in the write batch.
+    fn score_updates_to_write(&self) -> BTreeMap<AuthorityIndex, StorageScoringMetrics> {
+        BTreeMap::new()
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
