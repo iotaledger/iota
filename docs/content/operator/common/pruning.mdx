@@ -23,7 +23,7 @@ Transaction pruning removes previous transactions and their effects from the dat
 
 ### Index Pruning
 
-Index pruning advances a watermark in the JSON-RPC secondary index store so older entries are no longer served by index-backed RPC queries (for example `iotax_getBalance()`, dynamic-field lookups, and event queries). Without it, the index tables grow with every transaction. Index pruning is only relevant for nodes that have indexing enabled (`enable-index-processing: true`).
+Index pruning advances a watermark in the secondary index stores (JSON-RPC and gRPC) so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, and event queries). Without it, the index tables grow with every transaction. Index pruning is only relevant for nodes that have indexing enabled (`enable-index-processing: true`).
 
 ## Pruning Parameters
 
@@ -35,36 +35,66 @@ Object pruning, transaction pruning, and index pruning are independent backgroun
 | Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set to a value `>= 2`             |
 | Index pruning         | `num-epochs-to-retain-for-indexes`     | set                               |
 
-All pruning parameters are configured under the `authority-store-pruning-config` block in `fullnode.yaml`:
+All pruning parameters are configured in `fullnode.yaml`. The following annotated block shows every parameter with its default value — copy it into your config and adjust as needed:
 
 ```yaml
-authority-store-pruning-config:
-  # parameters described below
-```
+# Enable indexing of additional data (ownership, balances, events).
+# Required for JSON-RPC and gRPC index queries. Default: true.
+# Set to false for validators or nodes that do not serve RPC requests.
+enable-index-processing: true
 
-- **`num-epochs-to-retain`** 
-  - Number of epochs for which to keep historic versions of objects. This parameter governs **object pruning**, which is enabled for any value other than `u64::MAX`.
-    - **`0`** (default) — *aggressive pruning*. IOTA prunes old object versions as soon as possible. This is the most effective garbage collection method with the lowest disk usage. Recommended for IOTA validator nodes (older object versions are not necessary to execute transactions) and for full nodes that do not serve RPC requests requiring historic object versions.
-    - **`N`** (where `N >= 1`) — IOTA only prunes object versions from checkpoints up to the `current - N` epoch, so multiple versions of an object can be present in the database. Recommended for full nodes that need to serve RPC requests that look up objects by ID and version (rather than just the latest version).
-    - **`u64::MAX`** (`18446744073709551615`) — **disables object pruning**; the node retains the full history of object versions.
-- **`num-epochs-to-retain-for-checkpoints`** 
-  - Number of epochs for which to keep historic transactions, effects, events, and checkpoint data. This parameter governs **transaction pruning**, which is **disabled by default** — transaction pruning only runs when this parameter is set to a value `>= 2`. When set to `N` (where `N >= 2`), IOTA prunes transactions and effects from checkpoints up to the `current - N` epoch. IOTA never prunes transactions and effects from the current and immediately prior epoch, so the minimum effective value is `2`. `N = 2` is recommended for IOTA validator nodes and full nodes that do not serve RPC requests for historic transactions. Leaving the parameter unset, or setting it to `0` or `u64::MAX`, disables transaction pruning.
-- **`num-epochs-to-retain-for-indexes`** 
-  Optional. Number of epochs for which to retain entries in the JSON-RPC secondary index tables. **Index pruning only runs when this parameter is set**; when unset, the index tables are not pruned. The minimum effective value is `7` — values below `7` are silently coerced to `7`.
-- **`num-latest-epoch-dbs-to-retain`** 
-  - Number of recent per-epoch RocksDB databases to retain. Default: `3`. Not relevant for object pruning.
-- **`periodic-compaction-threshold-days`** 
-  - Enables periodic background compaction for old SST files whose last modified time is older than the specified number of days. This ensures that individual database files periodically go through the compaction process, which reclaims disk space and avoids fragmentation. Default: `1`.
-- **`max-checkpoints-in-batch`** 
-  - Advanced setting. Maximum number of checkpoints processed in a single pruning batch. Default: `10`. The default is appropriate for most use cases.
-- **`max-transactions-in-batch`** 
-  - Advanced setting. Maximum number of transactions processed in a single pruning batch. Default: `1000`. The default is appropriate for most use cases.
-- **`smooth`** 
-  - When `true`, the pruner spreads its work evenly across the epoch instead of doing it all at once, which avoids spikes in I/O load. Default: `true`. Recommended for production nodes.
-- **`enable-compaction-filter`** 
-  - Enables the RocksDB compaction filter for pruning the objects table. When disabled, a range-deletion approach is used instead. Switching from the compaction filter back to range deletion may leave some old versions that will never be pruned, so this toggle should not be flipped frequently.
-- **`pruning-run-delay-seconds`** 
-  - Optional. Delay, in seconds, between consecutive pruner runs in aggressive mode (`num-epochs-to-retain: 0`).
+authority-store-pruning-config:
+  # Number of epochs to keep historic object versions. Controls object pruning.
+  #   0        — aggressive pruning (default). Prunes old versions as soon as
+  #              possible. Lowest disk usage. Recommended for validators and full
+  #              nodes that do not serve historic object queries.
+  #   N (>= 1) — retains object versions from the last N epochs. Use this when
+  #              the node must serve lookups by object ID + version.
+  #   u64::MAX — disables object pruning entirely (18446744073709551615).
+  num-epochs-to-retain: 0
+
+  # Number of epochs to keep historic transactions, effects, events, and
+  # checkpoint data. Controls transaction pruning.
+  #   unset / 0 / u64::MAX — transaction pruning disabled (default).
+  #   N (>= 2)             — prunes data older than current − N epochs. The
+  #                          minimum effective value is 2; IOTA always keeps
+  #                          the current and immediately prior epoch.
+  # num-epochs-to-retain-for-checkpoints: 2
+
+  # Number of epochs to retain entries in the secondary index tables (JSON-RPC
+  # and gRPC). Controls index pruning. Only relevant when indexing is enabled
+  # (enable-index-processing: true).
+  #   unset    — index pruning disabled (default).
+  #   N (>= 7) — prunes index entries older than N epochs. Values below 7 are
+  #             silently coerced to 7.
+  # num-epochs-to-retain-for-indexes: 7
+
+  # Number of recent per-epoch RocksDB databases to keep. Default: 3.
+  num-latest-epoch-dbs-to-retain: 3
+
+  # Trigger periodic compaction for SST files older than this many days.
+  # Reclaims disk space and avoids fragmentation. Default: 1 (when read from
+  # config). Set to "null" to disable periodic compaction entirely.
+  periodic-compaction-threshold-days: 1
+
+  # Maximum checkpoints processed in a single pruning batch (advanced). Default: 10.
+  max-checkpoints-in-batch: 10
+
+  # Maximum transactions processed in a single pruning batch (advanced). Default: 1000.
+  max-transactions-in-batch: 1000
+
+  # Spread pruning work evenly across the epoch to avoid I/O spikes. Default: true.
+  smooth: true
+
+  # Use the RocksDB compaction filter for object-table pruning. When disabled,
+  # a range-deletion approach is used. Do not toggle frequently — switching
+  # back to range deletion may leave some old versions unpruned. Default: false.
+  # enable-compaction-filter: false
+
+  # Delay (seconds) between consecutive pruner runs in aggressive mode
+  # (num-epochs-to-retain: 0). Optional. Default: unset.
+  # pruning-run-delay-seconds: null
+```
 
 ## Set an Archiving Watermark
 
@@ -72,7 +102,7 @@ If your full node is configured to upload committed information to an archive, y
 
 ## Configuration Examples
 
-The following examples cover common operator use cases. You can copy each example into `fullnode.yaml` and adjust the values to match your environment.
+The following examples cover common operator use cases. Each example shows the key parameters for the scenario — parameters not listed use their defaults from the [reference block above](#pruning-parameters).
 
 ### Validator or Minimal Full Node
 
@@ -87,7 +117,6 @@ authority-store-pruning-config:
   num-epochs-to-retain: 0
   # Prune historic transactions of past epochs
   num-epochs-to-retain-for-checkpoints: 2
-  periodic-compaction-threshold-days: 1
 ```
 
 ### Full Node with Indexing but no History
@@ -105,7 +134,6 @@ authority-store-pruning-config:
   num-epochs-to-retain: 0
   # Prune historic transactions of past epochs
   num-epochs-to-retain-for-checkpoints: 2
-  periodic-compaction-threshold-days: 1
 ```
 
 ### Full Node with Full Object History but Pruned Transaction History
@@ -122,7 +150,6 @@ authority-store-pruning-config:
   num-epochs-to-retain: 18446744073709551615
   # Prune historic transactions of the past epochs
   num-epochs-to-retain-for-checkpoints: 2
-  periodic-compaction-threshold-days: 1
 ```
 
 <Quiz questions={questions} />
