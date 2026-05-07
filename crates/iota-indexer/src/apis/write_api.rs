@@ -238,7 +238,7 @@ impl WriteApi {
             kind,
             sender: sender_address,
             gas_data: GasData {
-                payment,
+                objects: payment,
                 owner,
                 price,
                 budget,
