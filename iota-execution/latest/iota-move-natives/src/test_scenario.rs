@@ -113,7 +113,7 @@ pub fn end_transaction(
         .test_inventories
         .taken
         .iter()
-        .filter(|(_id, owner)| matches!(owner, Owner::Shared { .. } | Owner::Immutable))
+        .filter(|(_id, owner)| matches!(owner, Owner::Shared(_) | Owner::Immutable))
         .map(|(id, owner)| (*id, *owner))
         .collect();
     // set to true if a shared or imm object was:
@@ -232,7 +232,7 @@ pub fn end_transaction(
                     .insert(id);
             }
             Owner::Object(_) => (),
-            Owner::Shared { .. } => {
+            Owner::Shared(_) => {
                 inventories
                     .shared_inventory
                     .entry(ty)
@@ -634,7 +634,7 @@ pub fn was_taken_shared(
     let was_taken = inventories
         .taken
         .get(&id)
-        .map(|owner| matches!(owner, Owner::Shared { .. }))
+        .map(|owner| matches!(owner, Owner::Shared(_)))
         .unwrap_or(false);
     Ok(NativeResult::ok(
         legacy_test_cost(),
@@ -856,7 +856,7 @@ fn transaction_effects(
                 pack_id(AccountAddress::new(id.into_bytes())),
                 pack_id(AccountAddress::new(o.into_bytes())),
             )),
-            Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
+            Owner::Shared(_) => shared.push(AccountAddress::new(id.into_bytes())),
             Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }

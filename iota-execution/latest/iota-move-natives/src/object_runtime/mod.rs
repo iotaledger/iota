@@ -277,7 +277,7 @@ impl<'a> ObjectRuntime<'a> {
         } else if let Some(prev_owner) = self.state.input_objects.get(&id) {
             match (&owner, prev_owner) {
                 // don't use == for dummy values in Shared owner
-                (Owner::Shared { .. }, Owner::Shared { .. }) => TransferResult::SameOwner,
+                (Owner::Shared(_), Owner::Shared(_)) => TransferResult::SameOwner,
                 (new, old) if new == old => TransferResult::SameOwner,
                 _ => TransferResult::OwnerChanged,
             }
@@ -789,7 +789,7 @@ fn check_circular_ownership(
     for (id, recipient) in transfers {
         object_owner_map.remove(&id);
         match recipient {
-            Owner::Address(_) | Owner::Shared { .. } | Owner::Immutable => (),
+            Owner::Address(_) | Owner::Shared(_) | Owner::Immutable => (),
             Owner::Object(new_owner) => {
                 let new_owner: ObjectID = new_owner;
                 let mut cur = new_owner;

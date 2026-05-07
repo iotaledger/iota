@@ -29,6 +29,25 @@ use iota_types::{
 };
 
 // ---------------------------------------------------------------------------
+// Stream invariant helpers
+// ---------------------------------------------------------------------------
+
+/// Assert that every message in `messages` has an encoded size within `limit`
+/// bytes.  Used by the chunking tests to enforce the per-message size invariant
+/// that `create_batching_stream!` and the checkpoint streaming pipeline must
+/// uphold.
+pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u32) {
+    let limit_usize = usize::try_from(limit).unwrap();
+    for (i, msg) in messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= limit_usize,
+            "Message {i} has encoded_len {size} which exceeds limit {limit}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Mock helpers
 // ---------------------------------------------------------------------------
 

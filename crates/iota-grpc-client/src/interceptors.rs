@@ -88,3 +88,71 @@ impl tonic::service::Interceptor for HeadersInterceptor {
         (&*self).call(request)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use base64::{Engine as _, prelude::BASE64_STANDARD};
+    use tonic::service::Interceptor as _;
+
+    use super::*;
+
+    fn intercepted_authorization(mut interceptor: HeadersInterceptor) -> String {
+        let request = interceptor
+            .call(tonic::Request::new(()))
+            .expect("interceptor should not fail");
+        request
+            .metadata()
+            .get(http::header::AUTHORIZATION.as_str())
+            .expect("authorization header should be set")
+            .to_str()
+            .expect("authorization header should be valid ASCII")
+            .to_string()
+    }
+
+    #[test]
+    fn basic_auth_sets_authorization_header() {
+        let mut interceptor = HeadersInterceptor::new();
+        interceptor.basic_auth("alice", Some("hunter2"));
+
+        let header = intercepted_authorization(interceptor);
+        let encoded = header
+            .strip_prefix("Basic ")
+            .expect("basic auth header should start with 'Basic '");
+        let decoded = BASE64_STANDARD
+            .decode(encoded)
+            .expect("payload should be valid base64");
+        assert_eq!(decoded, b"alice:hunter2");
+    }
+
+    #[test]
+    fn basic_auth_without_password_emits_trailing_colon() {
+        let mut interceptor = HeadersInterceptor::new();
+        interceptor.basic_auth("alice", None::<&str>);
+
+        let header = intercepted_authorization(interceptor);
+        let encoded = header.strip_prefix("Basic ").unwrap();
+        let decoded = BASE64_STANDARD.decode(encoded).unwrap();
+        assert_eq!(decoded, b"alice:");
+    }
+
+    #[test]
+    fn bearer_auth_sets_authorization_header() {
+        let mut interceptor = HeadersInterceptor::new();
+        interceptor.bearer_auth("my-token");
+
+        let header = intercepted_authorization(interceptor);
+        assert_eq!(header, "Bearer my-token");
+    }
+
+    #[test]
+    fn empty_interceptor_does_not_set_authorization_header() {
+        let mut interceptor = HeadersInterceptor::new();
+        let request = interceptor.call(tonic::Request::new(())).unwrap();
+        assert!(
+            request
+                .metadata()
+                .get(http::header::AUTHORIZATION.as_str())
+                .is_none()
+        );
+    }
+}

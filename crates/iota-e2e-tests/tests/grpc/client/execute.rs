@@ -7,10 +7,7 @@ use iota_sdk_types::UserSignature;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::base_types::IotaAddress;
 
-use super::{
-    super::utils::setup_grpc_test,
-    common::{create_signed_transaction, is_success},
-};
+use super::super::utils::{create_signed_transaction, is_success, setup_grpc_test};
 
 #[sim_test]
 async fn execute_transaction_transfer() {

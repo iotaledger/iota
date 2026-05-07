@@ -227,13 +227,7 @@ async fn test_get_objects_batching_within_limit() {
     assert_eq!(split_total, NUM_OBJECTS, "All objects must be returned");
 
     // Every response should fit within the message size limit
-    for (i, resp) in split_responses.iter().enumerate() {
-        let size = resp.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Response {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&split_responses, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }
@@ -392,13 +386,7 @@ async fn test_get_transactions_batching_within_limit() {
     assert_eq!(split_total, NUM_TXS, "All transactions must be returned");
 
     // Every response should fit within the message size limit
-    for (i, resp) in split_responses.iter().enumerate() {
-        let size = resp.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Response {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&split_responses, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }

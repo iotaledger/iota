@@ -1,15 +1,20 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
 use iota_sdk_types::Transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::IotaAddress;
+use iota_types::{
+    base_types::IotaAddress,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, Command, TransactionData},
+};
 use tonic::Code;
 
 use super::{
-    super::utils::setup_grpc_test,
-    common::{assert_grpc_error, create_transaction_for_simulation, is_success},
+    super::utils::{create_transaction_for_simulation, is_success, setup_grpc_test},
+    common::assert_grpc_error,
 };
 
 #[sim_test]
@@ -117,5 +122,62 @@ async fn simulate_transaction_scenarios() {
     assert!(
         !is_success(effects.status()),
         "Effects should show failure due to insufficient balance"
+    );
+}
+
+/// Exercise the high-level client's SplitCoins + `command_results` path:
+/// programmable-transaction construction through the SDK `Transaction` type,
+/// read-mask forwarding, and `ExecutionResult::CommandResults` access on the
+/// returned envelope. The exhaustive read-mask projection matrix for
+/// `command_results` / `execution_error` is covered server-side by v1's
+/// `simulate_transaction_readmask_scenarios`.
+#[sim_test]
+async fn simulate_transaction_command_results_split_coins() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let gas_obj = gas.last().unwrap();
+    let obj_to_split = gas.first().unwrap();
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let coin_arg = builder
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
+        .unwrap();
+    let amount = builder.pure(1000u64).unwrap();
+    let split_result = builder.command(Command::new_split_coins(coin_arg, vec![amount]));
+    builder.transfer_arg(sender, split_result);
+    let pt = builder.finish();
+
+    let tx_data = TransactionData::new_programmable(
+        sender,
+        vec![*gas_obj],
+        pt,
+        10_000_000, // gas budget
+        test_cluster.get_reference_gas_price().await,
+    );
+    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
+
+    let response = client
+        .simulate_transaction(transaction, false, Some("execution_result.command_results"))
+        .await
+        .expect("simulate_transaction should succeed");
+
+    let command_results = match response.body().execution_result.as_ref() {
+        Some(ExecutionResult::CommandResults(cr)) => cr,
+        other => panic!("expected CommandResults variant, got: {other:?}"),
+    };
+
+    let first = command_results
+        .results
+        .first()
+        .expect("SplitCoins should produce at least one CommandResult");
+    assert!(
+        first.mutated_by_ref.is_some(),
+        "SplitCoins should populate mutated_by_ref (input coin reference)"
+    );
+    assert!(
+        first.return_values.is_some(),
+        "SplitCoins should populate return_values (split-off coin)"
     );
 }

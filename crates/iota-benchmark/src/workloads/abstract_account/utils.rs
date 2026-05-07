@@ -211,7 +211,7 @@ pub async fn create_abstract_account(
         .created()
         .into_iter()
         .filter_map(|(r, o)| {
-            if matches!(o, Owner::Shared { .. }) {
+            if matches!(o, Owner::Shared(_)) {
                 Some(r)
             } else {
                 None

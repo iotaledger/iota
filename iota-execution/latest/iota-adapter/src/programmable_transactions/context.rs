@@ -1447,12 +1447,12 @@ mod checked {
         };
         // override_as_immutable ==> Owner::Shared
         assert_invariant!(
-            !override_as_immutable || matches!(obj.owner, Owner::Shared { .. }),
+            !override_as_immutable || matches!(obj.owner, Owner::Shared(_)),
             "override_as_immutable should only be set for shared objects"
         );
         let is_mutable_input = match obj.owner {
             Owner::Address(_) => true,
-            Owner::Shared { .. } => !override_as_immutable,
+            Owner::Shared(_) => !override_as_immutable,
             Owner::Immutable => false,
             Owner::Object(_) => {
                 // protected by transaction input checker

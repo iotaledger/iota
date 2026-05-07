@@ -729,7 +729,7 @@ impl IndexStoreTables {
                             [DynamicFieldKey::new(*object_id, removed_object.id())],
                         )?;
                     }
-                    Owner::Shared { .. } | Owner::Immutable => {}
+                    Owner::Shared(_) | Owner::Immutable => {}
                     _ => {
                         unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
@@ -754,7 +754,7 @@ impl IndexStoreTables {
                                 )?;
                             }
                         }
-                        Owner::Shared { .. } | Owner::Immutable => {}
+                        Owner::Shared(_) | Owner::Immutable => {}
                         _ => unimplemented!(
                             "a new Owner enum variant was added and needs to be handled"
                         ),
@@ -773,7 +773,7 @@ impl IndexStoreTables {
                             batch.insert_batch(&self.dynamic_field, [(field_key, ())])?;
                         }
                     }
-                    Owner::Shared { .. } | Owner::Immutable => {}
+                    Owner::Shared(_) | Owner::Immutable => {}
                     _ => {
                         unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
@@ -1274,7 +1274,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
                         .insert_batch(&self.tables.dynamic_field, [(field_key, ())])?;
                 }
             }
-            Owner::Shared { .. } | Owner::Immutable => {}
+            Owner::Shared(_) | Owner::Immutable => {}
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
 
