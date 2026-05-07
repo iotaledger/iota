@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 35;
+pub const MAX_PROTOCOL_VERSION: u64 = 36;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,6 +227,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
+// Version 36: Enable built-in Move authenticators in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -533,6 +534,10 @@ struct FeatureFlags {
     // If true, enables the authentication of a sponsor account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authentications: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1601,6 +1606,9 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
+
+    // Cost params for built-in Move authenticators
+    builtin_move_authenticator_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -1897,6 +1905,22 @@ impl ProtocolConfig {
             "enable_move_authentication_for_sponsor requires enable_move_authentication to be set"
         );
         enable_move_authentication_for_sponsor
+    }
+
+    pub fn enable_builtin_move_authentications(&self) -> bool {
+        let enable_builtin_move_authentications =
+            self.feature_flags.enable_builtin_move_authentications;
+        if enable_builtin_move_authentications {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authentications requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.builtin_move_authenticator_cost_base.is_some(),
+                "enable_builtin_move_authentications requires builtin_move_authenticator_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authentications
     }
 
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
@@ -2777,6 +2801,9 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+
+            // Built-in Move authenticators
+            builtin_move_authenticator_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3476,6 +3503,14 @@ impl ProtocolConfig {
                     cfg.feature_flags
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
+                36 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable built-in Move authenticators in devnet.
+                        cfg.feature_flags.enable_builtin_move_authentications = true;
+                        // Set the cost for built-in Move authenticators to 0 for now.
+                        cfg.builtin_move_authenticator_cost_base = Some(0);
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3725,6 +3760,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
+    pub fn set_enable_builtin_move_authentications_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authentications = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {

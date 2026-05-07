@@ -8,7 +8,10 @@ use iota_sdk_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key,
+        builtin_authenticator_functions::PreloadedBuiltinAuthenticatorData,
+    },
     dynamic_field::{self, Field},
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
@@ -83,14 +86,25 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     }
 }
 
-/// A struct used to hold AuthenticatorFunctionRef and
-/// DynamicallyLoadedObjectMetadata together, in order to pass this information
-/// to the execution side.
+/// A struct used to hold authenticator information required by the signing
+/// validation path.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct AuthenticatorFunctionRefForSigning {
+    pub authenticator_function_ref: AuthenticatorFunctionRef,
+    pub builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
+}
+
+/// A struct used to hold authenticator information required by the execution
+/// validation path.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
     pub loaded_object_id: ObjectId,
     pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
+    pub builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
+    /// The account's public key dynamic field, loaded only for a built-in
+    /// authenticator, which is verified without running the Move VM.
+    pub builtin_public_key_loaded_object: Option<(ObjectId, DynamicallyLoadedObjectMetadata)>,
 }
 
 impl AuthenticatorFunctionRefForExecution {
@@ -111,6 +125,17 @@ impl AuthenticatorFunctionRefForExecution {
                 storage_rebate,
                 previous_transaction,
             },
+            builtin_authenticator_data: None,
+            builtin_public_key_loaded_object: None,
+        }
+    }
+}
+
+impl From<AuthenticatorFunctionRefForExecution> for AuthenticatorFunctionRefForSigning {
+    fn from(value: AuthenticatorFunctionRefForExecution) -> Self {
+        AuthenticatorFunctionRefForSigning {
+            authenticator_function_ref: value.authenticator_function_ref,
+            builtin_authenticator_data: value.builtin_authenticator_data,
         }
     }
 }
