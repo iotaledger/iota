@@ -8,7 +8,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Command, ObjectArg, TransactionData},
+    transaction::{CallArg, Command, TransactionData},
 };
 use tonic::Code;
 
@@ -142,10 +142,10 @@ async fn simulate_transaction_command_results_split_coins() {
 
     let mut builder = ProgrammableTransactionBuilder::new();
     let coin_arg = builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
-    let split_result = builder.command(Command::SplitCoins(coin_arg, vec![amount]));
+    let split_result = builder.command(Command::new_split_coins(coin_arg, vec![amount]));
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
