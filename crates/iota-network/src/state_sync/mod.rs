@@ -401,10 +401,6 @@ enum StateSyncMessage {
     // it was able to successfully sync a checkpoint's contents. If multiple checkpoints were
     // synced at the same time, only the highest checkpoint is sent.
     SyncedCheckpoint(Box<VerifiedCheckpoint>),
-    // A new same-chain peer was registered (e.g. via handshake). The event
-    // loop should push our latest checkpoint to this peer in case we are
-    // ahead, and start syncing from them if they are ahead of us.
-    NewSameChainPeerRegistered(PeerId),
 }
 
 /// Reason a checkpoint content sync failed.
@@ -472,7 +468,7 @@ where
         let mut peer_events = {
             let (subscriber, peers) = self.network.subscribe().unwrap();
             for peer_id in peers {
-                self.send_handshake_to_peer(peer_id);
+                self.exchange_handshake_with_peer(peer_id);
                 // TODO: remove get_latest_from_peer once all nodes support
                 // handshake — it's kept as a fallback for old peers.
                 self.spawn_get_latest_from_peer(peer_id);
@@ -599,17 +595,6 @@ where
             StateSyncMessage::SyncedCheckpoint(checkpoint) => {
                 self.spawn_notify_peers_of_checkpoint(*checkpoint)
             }
-            // A new same-chain peer registered — push our latest checkpoint
-            // in case we are ahead of them (they may have missed an earlier
-            // push that arrived before they were registered).
-            StateSyncMessage::NewSameChainPeerRegistered(peer_id) => {
-                let checkpoint = self
-                    .store
-                    .try_get_highest_synced_checkpoint()
-                    .expect("store operation should not fail");
-                self.spawn_push_checkpoint_to_peer(peer_id, checkpoint);
-                self.maybe_start_checkpoint_summary_sync_task();
-            }
         }
     }
 
@@ -735,7 +720,7 @@ where
 
         match peer_event {
             Ok(PeerEvent::NewPeer(peer_id)) => {
-                self.send_handshake_to_peer(peer_id);
+                self.exchange_handshake_with_peer(peer_id);
                 // TODO: remove get_latest_from_peer once all nodes support
                 // handshake — it's kept as a fallback for old peers.
                 self.spawn_get_latest_from_peer(peer_id);
@@ -769,9 +754,11 @@ where
 
     /// Sends our state sync handshake to a newly connected peer. This
     /// registers us in the peer's `peer_heights` immediately — no round-trip
-    /// queries needed.
-    fn send_handshake_to_peer(&mut self, peer_id: PeerId) {
+    /// queries needed. The peer returns its own state in the response so we
+    /// can register it before any pushed checkpoints arrive.
+    fn exchange_handshake_with_peer(&mut self, peer_id: PeerId) {
         if let Some(peer) = self.network.peer(peer_id) {
+            let our_genesis_digest = *self.genesis_checkpoint.digest();
             let genesis_checkpoint = self.genesis_checkpoint.as_ref().clone().into_inner();
             let highest_synced_checkpoint = self
                 .store
@@ -789,6 +776,8 @@ where
                 lowest_available_checkpoint,
             };
             let timeout = self.config.timeout();
+            let peer_heights = self.peer_heights.clone();
+            let weak_sender = self.weak_sender.clone();
             self.tasks.spawn(async move {
                 let mut client = StateSyncClient::new(peer);
                 // Retry with exponential backoff (100ms, 200ms, 400ms, 800ms,
@@ -797,15 +786,48 @@ where
                 const MAX_RETRIES: u32 = 5;
                 for attempt in 0..MAX_RETRIES {
                     let request = Request::new(handshake.clone()).with_timeout(timeout);
-                    match client.push_state_sync_handshake(request).await {
-                        Ok(_) => return,
+                    match client.exchange_state_sync_handshake(request).await {
+                        Ok(response) => {
+                            // Register the remote peer from the response so
+                            // that subsequent checkpoint pushes from them are
+                            // accepted immediately.
+                            let their = response.into_inner();
+                            let on_same_chain =
+                                *their.genesis_checkpoint.digest() == our_genesis_digest;
+                            {
+                                let mut guard = peer_heights.write().unwrap();
+                                guard.insert_peer_info(
+                                    peer_id,
+                                    PeerStateSyncInfo {
+                                        genesis_checkpoint_digest: *their
+                                            .genesis_checkpoint
+                                            .digest(),
+                                        on_same_chain_as_us: on_same_chain,
+                                        height: *their.highest_synced_checkpoint.sequence_number(),
+                                        lowest: their.lowest_available_checkpoint,
+                                    },
+                                );
+                                if on_same_chain {
+                                    guard.insert_checkpoint(their.highest_synced_checkpoint);
+                                }
+                            }
+                            // Kick the event loop so it can start syncing.
+                            if on_same_chain {
+                                if let Some(sender) = weak_sender.upgrade() {
+                                    let _ = sender.send(StateSyncMessage::StartSyncJob).await;
+                                }
+                            }
+                            return;
+                        }
                         Err(e) => {
                             // NotFound means the peer doesn't support
                             // handshake (old version) — no point retrying.
                             if e.status() == anemo::types::response::StatusCode::NotFound {
                                 return;
                             }
-                            debug!(attempt, "handshake push failed, retrying: {e:?}");
+                            debug!(attempt, "handshake exchange failed, retrying: {e:?}");
+
+                            // Wait before retrying with exponential backoff.
                             tokio::time::sleep(Duration::from_millis(100 * 2u64.pow(attempt)))
                                 .await;
                         }
@@ -925,20 +947,6 @@ where
         );
         self.tasks.spawn(task);
     }
-
-    /// Pushes our latest checkpoint to a single peer. Used when a new
-    /// same-chain peer registers via handshake — they may have missed an
-    /// earlier push that arrived before they were registered.
-    fn spawn_push_checkpoint_to_peer(&mut self, peer_id: PeerId, checkpoint: VerifiedCheckpoint) {
-        if let Some(peer) = self.network.peer(peer_id) {
-            let timeout = self.config.timeout();
-            self.tasks.spawn(async move {
-                let mut client = StateSyncClient::new(peer);
-                let request = Request::new(checkpoint.into_inner()).with_timeout(timeout);
-                let _ = client.push_checkpoint_summary(request).await;
-            });
-        }
-    }
 }
 
 /// Sends a notification of the new checkpoint to all connected peers that are
@@ -1054,11 +1062,8 @@ async fn get_latest_from_peer(
 
     // Peer is on our chain. Query availability to get the correct lowest
     // watermark, then insert with complete info in a single step.
-    // Note: there is an inherent race here — a push_checkpoint_summary from
-    // this peer may arrive before we finish this query and register the peer.
-    // The 5-second event loop tick recovers from any missed pushes. A proper
-    // fix would be a handshake protocol where both sides exchange chain_id,
-    // lowest, and highest on connect.
+    // The handshake protocol (bidirectional) normally registers peers faster;
+    // this path is kept as a fallback for peers that don't support handshake.
     if let Some((highest_checkpoint, low_watermark)) =
         query_peer_for_latest_info(&mut client, timeout).await
     {

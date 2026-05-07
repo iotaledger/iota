@@ -161,10 +161,14 @@ where
     /// Handles a handshake from a newly connected peer. Registers the peer
     /// with correct chain identity, sync height, and pruning watermark in a
     /// single step — no additional queries needed.
-    async fn push_state_sync_handshake(
+    ///
+    /// Returns our own state so the caller can register us in a single
+    /// round-trip, eliminating the race where a pushed checkpoint arrives
+    /// before the reverse handshake completes.
+    async fn exchange_state_sync_handshake(
         &self,
         request: Request<StateSyncHandshake>,
-    ) -> Result<Response<()>, Status> {
+    ) -> Result<Response<StateSyncHandshake>, Status> {
         let peer_id = request
             .peer_id()
             .copied()
@@ -194,16 +198,30 @@ where
 
         if on_same_chain {
             if let Some(sender) = self.sender.upgrade() {
-                // Notify the event loop that a new same-chain peer was
-                // registered so it can push our latest checkpoint to them
-                // and start syncing from them if they are ahead.
-                let _ = sender
-                    .send(StateSyncMessage::NewSameChainPeerRegistered(peer_id))
-                    .await;
+                // Kick the event loop so it can start syncing from the new
+                // peer if they are ahead of us.  No separate push needed —
+                // both sides already exchanged full checkpoint objects in
+                // the handshake request/response.
+                let _ = sender.send(StateSyncMessage::StartSyncJob).await;
             }
         }
 
-        Ok(Response::new(()))
+        // Return our own state so the caller can register us immediately.
+        let our_highest = self
+            .store
+            .try_get_highest_synced_checkpoint()
+            .map_err(|e| Status::internal(e.to_string()))?;
+        let our_lowest = self
+            .store
+            .try_get_lowest_available_checkpoint()
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let response = StateSyncHandshake {
+            genesis_checkpoint: self.genesis_checkpoint.as_ref().clone().into_inner(),
+            highest_synced_checkpoint: our_highest.into_inner(),
+            lowest_available_checkpoint: our_lowest,
+        };
+        Ok(Response::new(response))
     }
 }
 
