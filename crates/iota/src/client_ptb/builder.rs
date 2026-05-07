@@ -1215,7 +1215,7 @@ impl<'a> PTBBuilder<'a> {
                 &package_path,
                 build_config.install_dir.clone(),
                 chain_id,
-                AccountAddress::ZERO,
+                IotaAddress::ZERO,
             )
             .map_err(|e| err!(path_loc, "{e}"))?
         } else {
@@ -1226,7 +1226,7 @@ impl<'a> PTBBuilder<'a> {
             self.reader,
             build_config.clone(),
             &package_path,
-            ObjectID::from_address(upgrade_cap_id.into_inner()),
+            ObjectID::from_address(IotaAddress::new(upgrade_cap_id.into_inner().into_bytes())),
             false, // with_unpublished_dependencies
             true,  // skip_dependency_verification
             None,
