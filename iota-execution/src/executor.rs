@@ -8,7 +8,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefForSigning,
     },
     auth_context::AuthContextData,
     base_types::{IotaAddress, TxContext},
@@ -136,7 +136,7 @@ pub trait Executor {
         // Authentication
         authenticators: Vec<(
             MoveAuthenticator,
-            AuthenticatorFunctionRef,
+            AuthenticatorFunctionRefForSigning,
             CheckedInputObjects,
         )>,
         aggregated_authenticator_input_objects: CheckedInputObjects,

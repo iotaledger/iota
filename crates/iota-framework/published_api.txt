@@ -1477,6 +1477,9 @@ module_name
 function_name
 	public fun
 	0x2::authenticator_function
+create_auth_function_ref_v1_inner
+	public(package) fun
+	0x2::authenticator_function
 ImmutableAccountCreated
 	public struct
 	0x2::account
@@ -2284,6 +2287,81 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+SignatureScheme
+	public struct
+	0x2::signature_scheme
+ed25519
+	public fun
+	0x2::signature_scheme
+secp256k1
+	public fun
+	0x2::signature_scheme
+secp256r1
+	public fun
+	0x2::signature_scheme
+multisig
+	public fun
+	0x2::signature_scheme
+passkey
+	public fun
+	0x2::signature_scheme
+flag
+	public fun
+	0x2::signature_scheme
+PublicKey
+	public struct
+	0x2::public_key
+create
+	public fun
+	0x2::public_key
+scheme
+	public fun
+	0x2::public_key
+raw_bytes
+	public fun
+	0x2::public_key
+validate_public_key
+	fun
+	0x2::public_key
+validate_multisig_public_key
+	fun
+	0x2::public_key
+PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
+ed25519_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256k1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256r1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+multisig_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+passkey_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+attach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+rotate_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+detach_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+has_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+borrow_public_key
+	public fun
+	0x2::builtin_authenticator_functions
+public_key_field_name
+	fun
+	0x2::builtin_authenticator_functions
 Receiving
 	public struct
 	0x2::transfer

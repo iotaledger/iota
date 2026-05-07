@@ -1,11 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectRef, TransactionDigest},
+    account_abstraction::builtin_authenticator_functions::PreloadedBuiltinAuthenticatorData,
+    base_types::IotaAddress,
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
@@ -79,34 +80,42 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     }
 }
 
-/// A struct used to hold AuthenticatorFunctionRef and
-/// DynamicallyLoadedObjectMetadata together, in order to pass this information
-/// to the execution side.
+/// A struct used to hold authenticator information required by the signing
+/// validation path.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct AuthenticatorFunctionRefForSigning {
+    pub authenticator_function_ref: AuthenticatorFunctionRef,
+    pub builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
+}
+
+/// A struct used to hold authenticator information required by the execution
+/// validation path.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
-    pub loaded_object_id: ObjectId,
-    pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
+    pub builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
+    pub loaded_objects: Vec<(ObjectId, DynamicallyLoadedObjectMetadata)>,
 }
 
 impl AuthenticatorFunctionRefForExecution {
     pub fn new_v1(
         authenticator_function_ref: AuthenticatorFunctionRefV1,
-        loaded_object_ref: ObjectRef,
-        owner: Owner,
-        storage_rebate: u64,
-        previous_transaction: TransactionDigest,
+        builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
+        loaded_objects: Vec<(ObjectId, DynamicallyLoadedObjectMetadata)>,
     ) -> Self {
         Self {
             authenticator_function_ref: AuthenticatorFunctionRef::V1(authenticator_function_ref),
-            loaded_object_id: loaded_object_ref.object_id,
-            loaded_object_metadata: DynamicallyLoadedObjectMetadata {
-                version: loaded_object_ref.version,
-                digest: loaded_object_ref.digest,
-                owner,
-                storage_rebate,
-                previous_transaction,
-            },
+            builtin_authenticator_data,
+            loaded_objects,
+        }
+    }
+}
+
+impl From<AuthenticatorFunctionRefForExecution> for AuthenticatorFunctionRefForSigning {
+    fn from(value: AuthenticatorFunctionRefForExecution) -> Self {
+        AuthenticatorFunctionRefForSigning {
+            authenticator_function_ref: value.authenticator_function_ref,
+            builtin_authenticator_data: value.builtin_authenticator_data,
         }
     }
 }

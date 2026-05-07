@@ -471,6 +471,10 @@ ExecutionError:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      BuiltinAuthenticatorVerificationError:
+        STRUCT:
+          - reason: STR
 ExecutionStatus:
   ENUM:
     0:

@@ -261,6 +261,10 @@ pub mod checked {
             self.gas_status.charge_storage_read(owner_cost)
         }
 
+        pub fn charge_fixed_cost(&mut self, cost: u64) -> Result<(), ExecutionError> {
+            self.gas_status.charge_fixed_cost(cost)
+        }
+
         /// Resets any mutations, deletions, and events recorded in the store,
         /// as well as any storage costs and rebates, then Re-runs gas
         /// smashing. Effects on store are now as if we were about to begin

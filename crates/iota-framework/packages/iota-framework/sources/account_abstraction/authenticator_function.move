@@ -47,11 +47,12 @@ public fun create_auth_function_ref_v1<Account: key>(
         type_name::get<Account>() == authenticator_metadata.account_type(),
         EAuthenticatorFunctionRefV1NotCompatibleWithAccount,
     );
-    AuthenticatorFunctionRefV1 {
-        package: package_metadata.storage_id(),
+
+    create_auth_function_ref_v1_inner(
+        package_metadata.storage_id().to_address(),
         module_name,
         function_name,
-    }
+    )
 }
 
 /// Return the storage ID of the package represented by `AuthenticatorFunctionRefV1`.
@@ -69,6 +70,15 @@ public fun function_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account
     &self.function_name
 }
 
+/// Create an `AuthenticatorFunctionRefV1` instance for built-in authenticator functions.
+public(package) fun create_auth_function_ref_v1_inner<Account: key>(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionRefV1<Account> {
+    AuthenticatorFunctionRefV1 { package: package.to_id(), module_name, function_name }
+}
+
 /// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_function_ref_v1_for_testing<Account: key>(
@@ -76,5 +86,5 @@ public fun create_auth_function_ref_v1_for_testing<Account: key>(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorFunctionRefV1<Account> {
-    AuthenticatorFunctionRefV1 { package: package.to_id(), module_name, function_name }
+    create_auth_function_ref_v1_inner(package, module_name, function_name)
 }
