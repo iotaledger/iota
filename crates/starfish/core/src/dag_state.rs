@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
@@ -191,8 +191,12 @@ pub(crate) struct DagState {
     /// used for leader schedule yet.
     scoring_subdag: ScoringSubdag,
 
-    /// Commit votes pending to be included in new blocks.
-    pending_commit_votes: VecDeque<CommitVote>,
+    /// Commit votes pending to be included in new blocks. Ordered by
+    /// `(index, digest)` so eviction below a threshold uses `split_off`.
+    pending_commit_votes: BTreeSet<CommitVote>,
+
+    /// Latest quorum commit index
+    last_known_quorum_commit_index: CommitIndex,
 
     /// Acknowledgments pending to be included in new blocks. These represent
     /// votes indicating the availability of transaction data from the
@@ -316,7 +320,8 @@ impl DagState {
             last_committed_rounds: last_committed_rounds.clone(),
             last_solid_subdag_base: None, /* Later the commit observer might update
                                            * this value during recovery process. */
-            pending_commit_votes: VecDeque::new(),
+            pending_commit_votes: BTreeSet::new(),
+            last_known_quorum_commit_index: GENESIS_COMMIT_INDEX,
             transactions_to_write: vec![],
             block_headers_to_write: vec![],
             commits_to_write: vec![],
@@ -1893,11 +1898,16 @@ impl DagState {
     }
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
-        let mut votes = Vec::new();
-        while !self.pending_commit_votes.is_empty() && votes.len() < limit {
-            votes.push(self.pending_commit_votes.pop_front().unwrap());
+        self.evict_pending_commit_votes();
+        if self.pending_commit_votes.len() <= limit {
+            return std::mem::take(&mut self.pending_commit_votes)
+                .into_iter()
+                .collect();
         }
-        votes
+        let pivot = *self.pending_commit_votes.iter().nth(limit).unwrap();
+        let kept = self.pending_commit_votes.split_off(&pivot);
+        let taken = std::mem::replace(&mut self.pending_commit_votes, kept);
+        taken.into_iter().collect()
     }
 
     /// Clean up old cached data for each authority, all cached blocks
@@ -2010,6 +2020,27 @@ impl DagState {
         } else {
             GENESIS_ROUND
         }
+    }
+
+    /// Records the latest quorum commit index observed by `Core` from
+    /// `CommitVoteMonitor`. Drives `evict_pending_commit_votes`.
+    pub(crate) fn set_last_known_quorum_commit_index(&mut self, idx: CommitIndex) {
+        self.last_known_quorum_commit_index = idx;
+    }
+
+    /// Drops queued commit votes whose index is at or below the network's
+    /// quorum commit index minus `gc_depth`. Those votes carry no new
+    /// information for peers and only bloat the in-memory tracker.
+    /// No-op when `consensus_block_restrictions` is off.
+    pub(crate) fn evict_pending_commit_votes(&mut self) {
+        if !self.context.protocol_config.consensus_block_restrictions() {
+            return;
+        }
+        let gc_threshold = self
+            .last_known_quorum_commit_index
+            .saturating_sub(self.context.protocol_config.gc_depth());
+        let pivot = CommitRef::new(gc_threshold + 1, CommitDigest::MIN);
+        self.pending_commit_votes = self.pending_commit_votes.split_off(&pivot);
     }
 
     /// Function removes stalled pending acknowledgments that are older than
@@ -2264,6 +2295,9 @@ impl DagState {
 
         // Clean up old acknowledgments.
         self.evict_pending_acknowledgments();
+
+        // Drop queued commit votes already certified by the network.
+        self.evict_pending_commit_votes();
 
         // Clean up old cordial knowledge.
         self.evict_cordial_knowledge();
@@ -4298,5 +4332,66 @@ mod test {
         for block_ref in block_refs_with_transactions.iter() {
             assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
+    }
+
+    #[tokio::test]
+    async fn test_evict_pending_commit_votes() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let gc_depth = context.protocol_config.gc_depth();
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // The threshold is driven by `last_known_quorum_commit_index`,
+        // which `Core` would normally push from `CommitVoteMonitor`.
+        let quorum: CommitIndex = 500;
+        dag_state.set_last_known_quorum_commit_index(quorum);
+
+        let gc_threshold = quorum.saturating_sub(gc_depth);
+        let lowest_kept = gc_threshold + 1;
+        let highest = lowest_kept + 5;
+        let votes: Vec<CommitRef> = (1..=highest)
+            .map(|i| CommitRef::new(i, CommitDigest::MIN))
+            .collect();
+        dag_state.update_pending_commit_votes(votes);
+        assert_eq!(dag_state.pending_commit_votes.len(), highest as usize);
+
+        dag_state.evict_pending_commit_votes();
+
+        let kept: Vec<CommitIndex> = dag_state
+            .pending_commit_votes
+            .iter()
+            .map(|v| v.index)
+            .collect();
+        assert_eq!(kept, (lowest_kept..=highest).collect::<Vec<_>>());
+
+        // Field defaults to GENESIS_COMMIT_INDEX (= 0): saturating sub gives 0,
+        // pivot = (1, MIN), so all index >= 1 are kept (no real eviction).
+        let mut unset = DagState::new(context.clone(), Arc::new(MemStore::new(context)));
+        let votes: Vec<CommitRef> = (1..=10)
+            .map(|i| CommitRef::new(i, CommitDigest::MIN))
+            .collect();
+        unset.update_pending_commit_votes(votes);
+        unset.evict_pending_commit_votes();
+        assert_eq!(unset.pending_commit_votes.len(), 10);
+
+        // With the flag off the eviction is a no-op regardless of the field.
+        let (mut context_off, _) = Context::new_for_test(4);
+        context_off
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(false);
+        let context_off = Arc::new(context_off);
+        let mut dag_state_off =
+            DagState::new(context_off.clone(), Arc::new(MemStore::new(context_off)));
+        dag_state_off.set_last_known_quorum_commit_index(1_000);
+        let votes: Vec<CommitRef> = (1..=10)
+            .map(|i| CommitRef::new(i, CommitDigest::MIN))
+            .collect();
+        dag_state_off.update_pending_commit_votes(votes);
+        dag_state_off.evict_pending_commit_votes();
+        assert_eq!(dag_state_off.pending_commit_votes.len(), 10);
     }
 }
