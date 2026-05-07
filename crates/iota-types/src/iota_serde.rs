@@ -201,7 +201,7 @@ impl<'de> DeserializeAs<'de, TypeTag> for TypeName {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        s.parse().map_err(D::Error::custom)
+        parse_iota_type_tag(&s).map_err(D::Error::custom)
     }
 }
 
