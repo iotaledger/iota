@@ -6,9 +6,10 @@ use iota_json_rpc_api::WriteApiClient;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::Identifier;
 use iota_types::{
     base_types::ObjectID,
-    transaction::{CallArg, ProgrammableMoveCall, ProgrammableTransaction, TransactionKind},
+    transaction::{CallArg, ProgrammableTransaction, TransactionKind},
 };
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;
@@ -38,15 +39,13 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // Even if there is no easy interface for such things, we must protect against
     // as long as there are user facing interfaces that can accept raw transactional
     // bytes.
-    let commands = vec![iota_types::transaction::Command::MoveCall(Box::new(
-        ProgrammableMoveCall {
-            package: ObjectID::FRAMEWORK,
-            module: "_".into(),
-            function: "timestamp_ms".into(),
-            type_arguments: vec![],
-            arguments: vec![iota_types::transaction::Argument::Input(0)],
-        },
-    ))];
+    let commands = vec![iota_types::transaction::Command::new_move_call(
+        ObjectID::FRAMEWORK,
+        Identifier::new_unchecked("_"),
+        Identifier::new_unchecked("timestamp_ms"),
+        vec![],
+        vec![iota_types::transaction::Argument::Input(0)],
+    )];
     let pt = ProgrammableTransaction { inputs, commands };
     let tx = TransactionKind::programmable(pt);
 

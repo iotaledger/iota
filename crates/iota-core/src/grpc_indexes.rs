@@ -1169,13 +1169,13 @@ fn should_index_dynamic_field(object: &Object) -> bool {
     object
         .data
         .try_as_move()
-        .is_some_and(|move_object| move_object.type_().is_dynamic_field())
+        .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
-    let object_type = object.type_()?.other()?;
+    let object_type = object.type_()?;
 
     if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
         return Some((
@@ -1207,9 +1207,8 @@ fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, Obje
     if !move_object_type.is_regulated_coin_metadata() {
         return None;
     }
-    let object_type = move_object_type.other()?;
     // RegulatedCoinMetadata<T> has one type parameter: the coin type
-    let coin_type = match object_type.type_params().first()? {
+    let coin_type = match move_object_type.type_params().first()? {
         TypeTag::Struct(s) => *s.clone(),
         _ => return None,
     };

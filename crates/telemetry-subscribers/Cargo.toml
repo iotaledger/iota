@@ -33,7 +33,7 @@ prost = "0.13"
 rand.workspace = true
 serde.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tonic = { version = "0.12.3" }
 tracing.workspace = true
 tracing-appender = "0.2.2"

@@ -15,7 +15,7 @@ clap.workspace = true
 iota-bigtable = { git = "https://github.com/iotaledger/iota-bigtable.git", tag = "v0.1.0" }
 serde.workspace = true
 strum.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 
 # internal dependencies

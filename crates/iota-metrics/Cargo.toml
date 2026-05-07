@@ -26,7 +26,7 @@ simple-server-timing-header = "0.1.1"
 sysinfo.workspace = true
 tap.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "net"] }
 tracing.workspace = true
 uuid.workspace = true
 

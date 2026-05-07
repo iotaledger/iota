@@ -23,7 +23,7 @@ use crate::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, Object, Owner},
+    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
@@ -299,12 +299,12 @@ impl TestCheckpointDataBuilder {
             .get(&object_id)
             .cloned()
             .expect("Mutating an object that does not exist");
-        let coin_type = object.coin_type_maybe().unwrap();
+        let coin_type = object.coin_type_opt().cloned().unwrap();
         // Withdraw balance from coin object.
         let move_object = object.data.try_as_move_mut().unwrap();
-        let old_balance = move_object.get_coin_value_unsafe();
+        let old_balance = move_object.get_coin_value_unchecked();
         let new_balance = old_balance - amount;
-        move_object.set_coin_value_unsafe(new_balance);
+        move_object.set_coin_value_unchecked(new_balance);
         tx_builder.mutated_objects.insert(object_id, object);
 
         // Deposit balance into new coin object.
@@ -712,7 +712,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, ProgrammableMoveCall, TransactionDataAPI},
+        transaction::{Command, TransactionDataAPI},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -983,7 +983,7 @@ mod tests {
         // with 100 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unsafe() == 100));
+            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 100));
 
         let tx = &checkpoint.transactions[1];
         let obj_id1 = TestCheckpointDataBuilder::derive_object_id(1);
@@ -991,12 +991,12 @@ mod tests {
         // Verify the original IOTA coin now has 90 NANOS after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unsafe() == 90));
+            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out IOTA coin has 10 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unsafe() == 10));
+            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]
@@ -1017,13 +1017,13 @@ mod tests {
 
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
-            && obj.coin_type_maybe().unwrap() == type_tag
-            && obj.data.try_as_move().unwrap().get_coin_value_unsafe() == 90));
+            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
-            && obj.coin_type_maybe().unwrap() == type_tag
-            && obj.data.try_as_move().unwrap().get_coin_value_unsafe() == 10));
+            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]
@@ -1064,15 +1064,15 @@ mod tests {
                 .kind()
                 .iter_commands()
                 .any(|cmd| {
-                    cmd == &Command::MoveCall(Box::new(ProgrammableMoveCall {
-                        package: ObjectID::ZERO,
-                        module: "test".to_string(),
-                        function: "test".to_string(),
-                        type_arguments: vec![],
-                        arguments: vec![],
-                    }))
+                    cmd == &Command::new_move_call(
+                        ObjectID::ZERO,
+                        Identifier::new_unchecked("test"),
+                        Identifier::new_unchecked("test"),
+                        vec![],
+                        vec![],
+                    )
                 })
-        );
+        )
     }
 
     #[test]

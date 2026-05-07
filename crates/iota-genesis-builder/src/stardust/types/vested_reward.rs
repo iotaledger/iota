@@ -7,10 +7,10 @@ use iota_protocol_config::ProtocolConfig;
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
     error::ExecutionError,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -118,7 +118,7 @@ pub fn to_genesis_object(
 ) -> Result<Object, VestedRewardError> {
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             version,
             timelock.to_bcs_bytes(),
             protocol_config,

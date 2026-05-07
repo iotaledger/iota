@@ -167,23 +167,23 @@ fn check_package_dependencies(
     let mut dependencies = vec![];
     for command in tx_data.kind().iter_commands() {
         match command {
-            Command::Publish(_, deps) => {
+            Command::Publish(cmd) => {
                 // It is possible that the deps list is inaccurate since it's provided
                 // by the user. But that's OK because this publish transaction will fail
                 // to execute in the end. Similar reasoning for Upgrade.
-                dependencies.extend(deps.iter().copied());
+                dependencies.extend(cmd.dependencies.iter().copied());
             }
-            Command::Upgrade(_, deps, package_id, _) => {
-                dependencies.extend(deps.iter().copied());
+            Command::Upgrade(cmd) => {
+                dependencies.extend(cmd.dependencies.iter().copied());
                 // It's crucial that we don't allow upgrading a package in the deny list,
                 // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(*package_id);
+                dependencies.push(cmd.package);
             }
-            Command::MoveCall(call) => {
-                let package = package_store.get_package_object(&call.package)?.ok_or(
+            Command::MoveCall(cmd) => {
+                let package = package_store.get_package_object(&cmd.package)?.ok_or(
                     IotaError::UserInput {
                         error: UserInputError::ObjectNotFound {
-                            object_id: call.package,
+                            object_id: cmd.package,
                             version: None,
                         },
                     },
@@ -205,7 +205,8 @@ fn check_package_dependencies(
             Command::TransferObjects(..)
             | &Command::SplitCoins(..)
             | &Command::MergeCoins(..)
-            | &Command::MakeMoveVec(..) => {}
+            | &Command::MakeMoveVector(..) => {}
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
     for dep in dependencies {

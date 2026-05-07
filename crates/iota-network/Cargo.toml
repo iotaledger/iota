@@ -23,7 +23,7 @@ prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 tap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true

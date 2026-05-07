@@ -16,14 +16,14 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
-    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
@@ -64,7 +64,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
 
     let nft_move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::stardust_nft(),
+            Nft::tag(),
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),
@@ -483,7 +483,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             iota_call_args_1,
         )
         .await?;
-    let cmd_1 = Command::move_call(
+    let cmd_1 = Command::new_move_call(
         package_id,
         module.clone(),
         function_1,
@@ -502,7 +502,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             iota_call_args_2,
         )
         .await?;
-    let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+    let cmd_2 = Command::new_move_call(package_id, module, function_2, type_args, call_args_2);
     pt_builder.command(cmd_1);
     pt_builder.command(cmd_2);
     let pt = pt_builder.finish();

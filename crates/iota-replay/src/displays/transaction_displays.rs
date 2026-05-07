@@ -160,52 +160,53 @@ impl Display for Pretty<'_, Command> {
         let Pretty(command) = self;
         match command {
             Command::MoveCall(p) => {
-                write!(f, "{}", Pretty(&**p))
+                write!(f, "{}", Pretty(p))
             }
-            Command::MakeMoveVec(ty_opt, elems) => {
-                write!(f, "MakeMoveVec:\n ┌")?;
-                if let Some(ty) = ty_opt {
+            Command::MakeMoveVector(cmd) => {
+                write!(f, "MakeMoveVector:\n ┌")?;
+                if let Some(ty) = &cmd.type_ {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;
-                write_sep(f, elems.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.elements.iter().map(Pretty), "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::TransferObjects(objs, addr) => {
+            Command::TransferObjects(cmd) => {
                 write!(f, "TransferObjects:\n ┌\n │ Arguments: \n │   ")?;
-                write_sep(f, objs.iter().map(Pretty), "\n │   ")?;
-                write!(f, "\n │ Address: {}\n └", Pretty(addr))
+                write_sep(f, cmd.objects.iter().map(Pretty), "\n │   ")?;
+                write!(f, "\n │ Address: {}\n └", Pretty(&cmd.address))
             }
-            Command::SplitCoins(coin, amounts) => {
+            Command::SplitCoins(cmd) => {
                 write!(
                     f,
                     "SplitCoins:\n ┌\n │ Coin: {}\n │ Amounts: \n │   ",
-                    Pretty(coin)
+                    Pretty(&cmd.coin)
                 )?;
-                write_sep(f, amounts.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.amounts.iter().map(Pretty), "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::MergeCoins(target, coins) => {
+            Command::MergeCoins(cmd) => {
                 write!(
                     f,
                     "MergeCoins:\n ┌\n │ Target: {}\n │ Coins: \n │   ",
-                    Pretty(target)
+                    Pretty(&cmd.coin)
                 )?;
-                write_sep(f, coins.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.coins_to_merge.iter().map(Pretty), "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::Publish(_bytes, deps) => {
+            Command::Publish(cmd) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
+                write_sep(f, &cmd.dependencies, "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::Upgrade(_bytes, deps, current_package_id, ticket) => {
+            Command::Upgrade(cmd) => {
                 write!(f, "Upgrade:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
-                write!(f, "\n │ Current Package ID: {current_package_id}")?;
-                write!(f, "\n │ Ticket: {}", Pretty(ticket))?;
+                write_sep(f, &cmd.dependencies, "\n │   ")?;
+                write!(f, "\n │ Current Package ID: {}", cmd.package)?;
+                write!(f, "\n │ Ticket: {}", Pretty(&cmd.ticket))?;
                 write!(f, "\n └")
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }

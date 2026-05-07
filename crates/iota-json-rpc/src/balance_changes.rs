@@ -136,8 +136,8 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     for (id, version, digest_opt) in objects {
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
-        if let Some(type_) = o.type_() {
-            if type_.is_coin() {
+        if let Some(struct_tag) = o.type_() {
+            if struct_tag.is_coin() {
                 if let Some(digest) = digest_opt {
                     // TODO: can we return Err here instead?
                     assert_eq!(
@@ -146,8 +146,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let [coin_type]: [TypeTag; 1] =
-                    type_.clone().into_type_params().try_into().unwrap();
+                let coin_type = struct_tag.type_params()[0].clone();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,
@@ -190,6 +189,31 @@ impl<P> ObjectProviderCache<P> {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
+    pub fn insert_objects_into_cache(&mut self, objects: Vec<Object>) {
+        let object_cache = self.object_cache.get_mut();
+        let last_version_cache = self.last_version_cache.get_mut();
+
+        for object in objects {
+            let object_id = object.id();
+            let version = object.version();
+
+            let key = (object_id, version);
+            object_cache.insert(key, object.clone());
+
+            match last_version_cache.get_mut(&key) {
+                Some(existing_seq_number) => {
+                    if version > *existing_seq_number {
+                        *existing_seq_number = version
+                    }
+                }
+                None => {
+                    last_version_cache.insert(key, version);
+                }
+            }
+        }
+    }
+
     pub fn new_with_cache(
         provider: P,
         written_objects: BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
@@ -209,37 +233,6 @@ impl<P> ObjectProviderCache<P> {
                 }
                 None => {
                     last_version_cache.insert(key, object_ref.version);
-                }
-            }
-        }
-
-        Self {
-            object_cache: RwLock::new(object_cache),
-            last_version_cache: RwLock::new(last_version_cache),
-            provider,
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub fn new_with_output_objects(provider: P, output_objects: Vec<Object>) -> Self {
-        let mut object_cache = BTreeMap::new();
-        let mut last_version_cache = BTreeMap::new();
-
-        for object in output_objects {
-            let object_id = object.id();
-            let version = object.version();
-
-            let key = (object_id, version);
-            object_cache.insert(key, object.clone());
-
-            match last_version_cache.get_mut(&key) {
-                Some(existing_seq_number) => {
-                    if version > *existing_seq_number {
-                        *existing_seq_number = version
-                    }
-                }
-                None => {
-                    last_version_cache.insert(key, version);
                 }
             }
         }

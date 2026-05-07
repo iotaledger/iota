@@ -223,7 +223,7 @@ pub fn move_call_pt_impl(
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = convert_move_call_args(&arguments, &mut builder);
 
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),

@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    iter::{self, once},
+    iter::{self},
 };
 
 use anyhow::bail;
@@ -18,9 +18,11 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
-    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
-    GasPayment as GasData, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
-    SystemPackage, TransactionExpiration,
+    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+    EndOfEpochTransactionKind, GasPayment as GasData, MakeMoveVector, MergeCoins,
+    MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
+    SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
+    TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -47,13 +49,14 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+    },
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,
-    type_input::TypeInput,
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -81,8 +84,8 @@ mod messages_tests;
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
-pub fn type_input_validity_check(
-    tag: &TypeInput,
+pub fn type_tag_validity_check(
+    tag: &TypeTag,
     config: &ProtocolConfig,
     starting_count: &mut usize,
 ) -> UserInputResult<()> {
@@ -104,35 +107,35 @@ pub fn type_input_validity_check(
             }
         );
         match tag {
-            TypeInput::Bool
-            | TypeInput::U8
-            | TypeInput::U64
-            | TypeInput::U128
-            | TypeInput::Address
-            | TypeInput::Signer
-            | TypeInput::U16
-            | TypeInput::U32
-            | TypeInput::U256 => (),
-            TypeInput::Vector(t) => {
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::Address
+            | TypeTag::Signer
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U256 => (),
+            TypeTag::Vector(t) => {
                 stack.push((t, depth + 1));
             }
-            TypeInput::Struct(s) => {
+            TypeTag::Struct(s) => {
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        Identifier::is_valid(&s.module),
+                        Identifier::is_valid(s.module().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.module.clone()
+                            error: s.module().as_str().to_owned()
                         }
                     );
                     fp_ensure!(
-                        Identifier::is_valid(&s.name),
+                        Identifier::is_valid(s.name().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.name.clone()
+                            error: s.name().as_str().to_owned()
                         }
                     );
                 }
-                stack.extend(s.type_params.iter().map(|t| (t, next_depth)));
+                stack.extend(s.type_params().iter().map(|t| (t, next_depth)));
             }
         }
     }
@@ -355,99 +358,39 @@ impl CallArgExt for CallArg {
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeInput) {
+fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
-            TypeInput::Bool
-            | TypeInput::U8
-            | TypeInput::U64
-            | TypeInput::U128
-            | TypeInput::Address
-            | TypeInput::Signer
-            | TypeInput::U16
-            | TypeInput::U32
-            | TypeInput::U256 => (),
-            TypeInput::Vector(inner) => stack.push(inner),
-            TypeInput::Struct(struct_tag) => {
-                packages.insert(ObjectID::new(struct_tag.address.into_bytes()));
-                stack.extend(struct_tag.type_params.iter())
+            TypeTag::U8
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::U256
+            | TypeTag::Bool
+            | TypeTag::Address
+            | TypeTag::Signer => (),
+            TypeTag::Vector(inner) => stack.push(inner),
+            TypeTag::Struct(struct_tag) => {
+                packages.insert(ObjectID::new(struct_tag.address().into_bytes()));
+                stack.extend(struct_tag.type_params().iter())
             }
         }
     }
 }
 
-/// A series of commands where the results of one command can be used in future
-/// commands
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ProgrammableTransaction {
-    /// Input objects or primitive values
-    pub inputs: Vec<CallArg>,
-    /// The commands to be executed sequentially. A failure in any command will
-    /// result in the failure of the entire transaction.
-    pub commands: Vec<Command>,
+pub trait MoveCallExt {
+    fn input_objects(&self) -> Vec<InputObjectKind>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
-/// A single command in a programmable transaction.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum Command {
-    /// A call to either an entry or a public Move function
-    MoveCall(Box<ProgrammableMoveCall>),
-    /// `(Vec<forall T:key+store. T>, address)`
-    /// It sends n-objects to the specified address. These objects must have
-    /// store (public transfer) and either the previous owner must be an
-    /// address or the object must be newly created.
-    TransferObjects(Vec<Argument>, Argument),
-    /// `(&mut Coin<T>, Vec<u64>)` -> `Vec<Coin<T>>`
-    /// It splits off some amounts into a new coins with those amounts
-    SplitCoins(Argument, Vec<Argument>),
-    /// `(&mut Coin<T>, Vec<Coin<T>>)`
-    /// It merges n-coins into the first coin
-    MergeCoins(Argument, Vec<Argument>),
-    /// Publishes a Move package. It takes the package bytes and a list of the
-    /// package's transitive dependencies to link against on-chain.
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
-    /// `forall T: Vec<T> -> vector<T>`
-    /// Given n-values of the same type, it constructs a vector. For non objects
-    /// or an empty vector, the type input must be specified.
-    MakeMoveVec(Option<TypeInput>, Vec<Argument>),
-    /// Upgrades a Move package
-    /// Takes (in order):
-    /// 1. A vector of serialized modules for the package.
-    /// 2. A vector of object ids for the transitive dependencies of the new
-    ///    package.
-    /// 3. The object ID of the package being upgraded.
-    /// 4. An argument holding the `UpgradeTicket` that must have been produced
-    ///    from an earlier command in the same programmable transaction.
-    Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
-}
-
-/// The command for calling a Move function, either an entry function or a
-/// public function (which cannot return references).
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ProgrammableMoveCall {
-    /// The package containing the module and function.
-    pub package: ObjectID,
-    /// The specific module in the package containing the function.
-    pub module: String,
-    /// The function to be called.
-    pub function: String,
-    /// The type arguments to the function.
-    pub type_arguments: Vec<TypeInput>,
-    /// The arguments to the function.
-    pub arguments: Vec<Argument>,
-}
-
-impl ProgrammableMoveCall {
+impl MoveCallExt for ProgrammableMoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
-        let ProgrammableMoveCall {
-            package,
-            type_arguments,
-            ..
-        } = self;
-        let mut packages = BTreeSet::from([*package]);
-        for type_argument in type_arguments {
-            add_type_input_packages(&mut packages, type_argument)
+        let mut packages = BTreeSet::from([self.package]);
+        for type_argument in &self.type_arguments {
+            add_type_tag_packages(&mut packages, type_argument);
         }
         packages
             .into_iter()
@@ -455,7 +398,7 @@ impl ProgrammableMoveCall {
             .collect()
     }
 
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         let is_blocked = BLOCKED_MOVE_FUNCTIONS.contains(&(
             self.package,
             self.module.as_str(),
@@ -464,7 +407,7 @@ impl ProgrammableMoveCall {
         fp_ensure!(!is_blocked, UserInputError::BlockedMoveFunction);
         let mut type_arguments_count = 0;
         for tag in &self.type_arguments {
-            type_input_validity_check(tag, config, &mut type_arguments_count)?;
+            type_tag_validity_check(tag, config, &mut type_arguments_count)?;
         }
         fp_ensure!(
             self.arguments.len() < config.max_arguments() as usize,
@@ -477,13 +420,13 @@ impl ProgrammableMoveCall {
             fp_ensure!(
                 Identifier::is_valid(&self.module),
                 UserInputError::InvalidIdentifier {
-                    error: self.module.clone()
+                    error: self.module.to_string()
                 }
             );
             fp_ensure!(
                 Identifier::is_valid(&self.function),
                 UserInputError::InvalidIdentifier {
-                    error: self.module.clone()
+                    error: self.function.to_string()
                 }
             );
         }
@@ -497,75 +440,53 @@ impl ProgrammableMoveCall {
     }
 }
 
-impl Command {
-    pub fn move_call(
-        package: ObjectID,
-        module: Identifier,
-        function: Identifier,
-        type_arguments: Vec<TypeTag>,
-        arguments: Vec<Argument>,
-    ) -> Self {
-        let module = module.to_string();
-        let function = function.to_string();
-        let type_arguments = type_arguments.into_iter().map(TypeInput::from).collect();
-        Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package,
-            module,
-            function,
-            type_arguments,
-            arguments,
-        }))
-    }
+pub trait CommandExt {
+    fn input_objects(&self) -> Vec<InputObjectKind>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>>;
+    fn is_input_arg_used(&self, input_arg: u16) -> bool;
+}
 
-    pub fn make_move_vec(ty: Option<TypeTag>, args: Vec<Argument>) -> Self {
-        Command::MakeMoveVec(ty.map(TypeInput::from), args)
-    }
-
+impl CommandExt for Command {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
-            Command::Upgrade(_, deps, package_id, _) => deps
+            Command::MoveCall(cmd) => cmd.input_objects(),
+            Command::Upgrade(cmd) => cmd
+                .dependencies
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
-                .chain(Some(InputObjectKind::MovePackage(*package_id)))
+                .chain(Some(InputObjectKind::MovePackage(cmd.package)))
                 .collect(),
-            Command::Publish(_, deps) => deps
+            Command::Publish(cmd) => cmd
+                .dependencies
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MoveCall(c) => c.input_objects(),
-            Command::MakeMoveVec(Some(t), _) => {
+            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
                 let mut packages = BTreeSet::new();
-                add_type_input_packages(&mut packages, t);
+                add_type_tag_packages(&mut packages, t);
                 packages
                     .into_iter()
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVec(None, _)
-            | Command::TransferObjects(_, _)
-            | Command::SplitCoins(_, _)
-            | Command::MergeCoins(_, _) => vec![],
-        }
-    }
-
-    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>> {
-        match self {
-            Command::Upgrade(v, _, _, _) => Some(v),
-            Command::Publish(v, _) => Some(v),
-            Command::MoveCall(_)
-            | Command::TransferObjects(_, _)
-            | Command::SplitCoins(_, _)
-            | Command::MergeCoins(_, _)
-            | Command::MakeMoveVec(_, _) => None,
+            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            | Command::TransferObjects(_)
+            | Command::SplitCoins(_)
+            | Command::MergeCoins(_) => vec![],
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
             Command::MoveCall(call) => call.validity_check(config)?,
-            Command::TransferObjects(args, _)
-            | Command::MergeCoins(_, args)
-            | Command::SplitCoins(_, args) => {
+            Command::TransferObjects(TransferObjects { objects: args, .. })
+            | Command::MergeCoins(MergeCoins {
+                coins_to_merge: args,
+                ..
+            })
+            | Command::SplitCoins(SplitCoins { amounts: args, .. }) => {
                 fp_ensure!(!args.is_empty(), UserInputError::EmptyCommandInput);
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
@@ -576,7 +497,10 @@ impl Command {
                     }
                 );
             }
-            Command::MakeMoveVec(ty_opt, args) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_: ty_opt,
+                elements: args,
+            }) => {
                 // ty_opt.is_none() ==> !args.is_empty()
                 fp_ensure!(
                     ty_opt.is_some() || !args.is_empty(),
@@ -584,7 +508,7 @@ impl Command {
                 );
                 if let Some(ty) = ty_opt {
                     let mut type_arguments_count = 0;
-                    type_input_validity_check(ty, config, &mut type_arguments_count)?;
+                    type_tag_validity_check(ty, config, &mut type_arguments_count)?;
                 }
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
@@ -595,7 +519,15 @@ impl Command {
                     }
                 );
             }
-            Command::Publish(modules, deps) | Command::Upgrade(modules, deps, _, _) => {
+            Command::Publish(Publish {
+                modules,
+                dependencies,
+            })
+            | Command::Upgrade(Upgrade {
+                modules,
+                dependencies,
+                ..
+            }) => {
                 fp_ensure!(!modules.is_empty(), UserInputError::EmptyCommandInput);
                 fp_ensure!(
                     modules.len() < config.max_modules_in_publish() as usize,
@@ -608,7 +540,7 @@ impl Command {
                 if let Some(max_package_dependencies) = config.max_package_dependencies_as_option()
                 {
                     fp_ensure!(
-                        deps.len() < max_package_dependencies as usize,
+                        dependencies.len() < max_package_dependencies as usize,
                         UserInputError::SizeLimitExceeded {
                             limit: "maximum package dependencies".to_string(),
                             value: max_package_dependencies.to_string()
@@ -616,48 +548,67 @@ impl Command {
                     );
                 };
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+
         Ok(())
+    }
+
+    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>> {
+        match self {
+            Command::Publish(cmd) => Some(&cmd.modules),
+            Command::Upgrade(cmd) => Some(&cmd.modules),
+            Command::MoveCall(_)
+            | Command::TransferObjects(_)
+            | Command::SplitCoins(_)
+            | Command::MergeCoins(_)
+            | Command::MakeMoveVector(_) => None,
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+        }
     }
 
     fn is_input_arg_used(&self, input_arg: u16) -> bool {
         match self {
             Command::MoveCall(c) => c.is_input_arg_used(input_arg),
-            Command::TransferObjects(args, arg)
-            | Command::MergeCoins(arg, args)
-            | Command::SplitCoins(arg, args) => args
+            Command::TransferObjects(TransferObjects {
+                objects: args,
+                address: arg,
+            })
+            | Command::MergeCoins(MergeCoins {
+                coins_to_merge: args,
+                coin: arg,
+            })
+            | Command::SplitCoins(SplitCoins {
+                amounts: args,
+                coin: arg,
+            }) => args
                 .iter()
-                .chain(once(arg))
-                .any(|a| matches!(a, Argument::Input(inp) if *inp == input_arg)),
-            Command::MakeMoveVec(_, args) => args
+                .chain(iter::once(arg))
+                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
+            Command::MakeMoveVector(MakeMoveVector { elements, .. }) => elements
                 .iter()
-                .any(|a| matches!(a, Argument::Input(inp) if *inp == input_arg)),
-            Command::Upgrade(_, _, _, arg) => {
-                matches!(arg, Argument::Input(inp) if *inp == input_arg)
+                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
+            Command::Upgrade(Upgrade { ticket, .. }) => {
+                matches!(ticket, Argument::Input(input) if *input == input_arg)
             }
-            Command::Publish(_, _) => false,
+            Command::Publish(_) => false,
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
 
-pub fn write_sep<T: Display>(
-    f: &mut Formatter<'_>,
-    items: impl IntoIterator<Item = T>,
-    sep: &str,
-) -> std::fmt::Result {
-    let mut xs = items.into_iter();
-    let Some(x) = xs.next() else {
-        return Ok(());
-    };
-    write!(f, "{x}")?;
-    for x in xs {
-        write!(f, "{sep}{x}")?;
-    }
-    Ok(())
+pub trait ProgrammableTransactionExt {
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
+    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
+    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result;
 }
 
-impl ProgrammableTransaction {
-    pub fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
+impl ProgrammableTransactionExt for ProgrammableTransaction {
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
@@ -710,7 +661,7 @@ impl ProgrammableTransaction {
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
                 .iter()
-                .filter(|c| matches!(c, Command::Publish(_, _) | Command::Upgrade(_, _, _, _)))
+                .filter(|c| c.is_publish() || c.is_upgrade())
                 .count() as u64;
             fp_ensure!(
                 publish_count <= max_publish_commands,
@@ -737,10 +688,7 @@ impl ProgrammableTransaction {
                     used_random_object = command.is_input_arg_used(random_index);
                 } else {
                     fp_ensure!(
-                        matches!(
-                            command,
-                            Command::TransferObjects(_, _) | Command::MergeCoins(_, _)
-                        ),
+                        command.is_transfer_objects() || command.is_merge_coins(),
                         UserInputError::PostRandomCommandRestrictions
                     );
                 }
@@ -750,15 +698,12 @@ impl ProgrammableTransaction {
         Ok(())
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
-        self.inputs
-            .iter()
-            .filter_map(|arg| match arg {
-                CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-                CallArg::Shared(shared) => Some(vec![*shared]),
-                _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
-            })
-            .flatten()
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> {
+        self.inputs.iter().filter_map(|arg| match arg {
+            CallArg::Shared(shared) => Some(*shared),
+            CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+        })
     }
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
@@ -771,84 +716,13 @@ impl ProgrammableTransaction {
             .collect()
     }
 
-    pub fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> + '_ {
+    fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> {
         self.commands
             .iter()
             .filter_map(|q| q.non_system_packages_to_be_published())
     }
-}
 
-impl Display for ProgrammableMoveCall {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let ProgrammableMoveCall {
-            package,
-            module,
-            function,
-            type_arguments,
-            arguments,
-        } = self;
-        write!(f, "{package}::{module}::{function}")?;
-        if !type_arguments.is_empty() {
-            write!(f, "<")?;
-            write_sep(f, type_arguments, ",")?;
-            write!(f, ">")?;
-        }
-        write!(f, "(")?;
-        write_sep(f, arguments, ",")?;
-        write!(f, ")")
-    }
-}
-
-impl Display for Command {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Command::MoveCall(p) => {
-                write!(f, "MoveCall({p})")
-            }
-            Command::MakeMoveVec(ty_opt, elems) => {
-                write!(f, "MakeMoveVec(")?;
-                if let Some(ty) = ty_opt {
-                    write!(f, "Some{ty}")?;
-                } else {
-                    write!(f, "None")?;
-                }
-                write!(f, ",[")?;
-                write_sep(f, elems, ",")?;
-                write!(f, "])")
-            }
-            Command::TransferObjects(objs, addr) => {
-                write!(f, "TransferObjects([")?;
-                write_sep(f, objs, ",")?;
-                write!(f, "],{addr})")
-            }
-            Command::SplitCoins(coin, amounts) => {
-                write!(f, "SplitCoins({coin}")?;
-                write_sep(f, amounts, ",")?;
-                write!(f, ")")
-            }
-            Command::MergeCoins(target, coins) => {
-                write!(f, "MergeCoins({target},")?;
-                write_sep(f, coins, ",")?;
-                write!(f, ")")
-            }
-            Command::Publish(_bytes, deps) => {
-                write!(f, "Publish(_,")?;
-                write_sep(f, deps, ",")?;
-                write!(f, ")")
-            }
-            Command::Upgrade(_bytes, deps, current_package_id, ticket) => {
-                write!(f, "Upgrade(_,")?;
-                write_sep(f, deps, ",")?;
-                write!(f, ", {current_package_id}")?;
-                write!(f, ", {ticket}")?;
-                write!(f, ")")
-            }
-        }
-    }
-}
-
-impl Display for ProgrammableTransaction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result {
         let ProgrammableTransaction { inputs, commands } = self;
         writeln!(f, "Inputs: {inputs:?}")?;
         writeln!(f, "Commands: [")?;
@@ -883,7 +757,7 @@ fn left_union_shared_input_objects(
 }
 
 impl TransactionKind {
-    /// present to make migrations to programmable transactions eaier.
+    /// present to make migrations to programmable transactions easier.
     /// Will be removed
     pub fn programmable(pt: ProgrammableTransaction) -> Self {
         TransactionKind::ProgrammableTransaction(pt)
@@ -1139,7 +1013,7 @@ impl Display for TransactionKind {
             }
             Self::ProgrammableTransaction(p) => {
                 writeln!(writer, "Transaction Kind : Programmable")?;
-                write!(writer, "{p}")?;
+                p.fmt_display(&mut writer)?;
             }
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
@@ -2459,7 +2333,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2469,9 +2343,9 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
-                ),
+                ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                    cancelled_transactions,
+                },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
         .pipe(Self::new_system_transaction)
@@ -3297,4 +3171,21 @@ impl TransactionKey {
             _ => panic!("called expect_digest on a non-Digest TransactionKey: {self:?}"),
         }
     }
+}
+
+// TODO https://github.com/iotaledger/iota/issues/10960
+pub fn write_sep<T: core::fmt::Display>(
+    f: &mut core::fmt::Formatter<'_>,
+    items: impl IntoIterator<Item = T>,
+    sep: &str,
+) -> std::fmt::Result {
+    let mut xs = items.into_iter();
+    let Some(x) = xs.next() else {
+        return Ok(());
+    };
+    write!(f, "{x}")?;
+    for x in xs {
+        write!(f, "{sep}{x}")?;
+    }
+    Ok(())
 }

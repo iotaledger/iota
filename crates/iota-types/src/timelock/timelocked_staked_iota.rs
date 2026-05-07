@@ -68,7 +68,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_timelocked_staked_iota() {
+                if o.struct_tag().is_timelocked_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(
                             "Unable to deserialize TimelockedStakedIota object: {err:?}"

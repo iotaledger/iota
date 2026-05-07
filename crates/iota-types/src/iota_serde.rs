@@ -179,6 +179,32 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
     }
 }
 
+/// A marker for type tags that are serialized as strings. Normally, a
+/// type tag is serialized as a string for readable formats, and as a byte array
+/// for non-readable formats. This marker can be used to serialize a type tag as
+/// a string even in non-readable formats.
+pub struct TypeName;
+
+impl SerializeAs<TypeTag> for TypeName {
+    fn serialize_as<S>(value: &TypeTag, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.to_canonical_string(false);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, TypeTag> for TypeName {
+    fn deserialize_as<D>(deserializer: D) -> Result<TypeTag, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(D::Error::custom)
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct BigInt<T>(#[serde_as(as = "DisplayFromStr")] T)

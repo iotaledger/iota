@@ -227,10 +227,23 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = {
-            response.output_objects.map(|output_objects| {
-                ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
-            })
+        // Skip cache (and downstream balance/object_changes) when the validator
+        // returned no input/output objects — e.g. the already-executed early-return.
+        // Without this guard, cache misses fall through to a provider lookup that
+        // races with local state and returns "version higher than latest".
+        let object_cache = if (opts.show_balance_changes || opts.show_object_changes)
+            && (response.input_objects.is_some() || response.output_objects.is_some())
+        {
+            let mut object_cache = ObjectProviderCache::new(self.state.clone());
+            if let Some(input_objects) = response.input_objects {
+                object_cache.insert_objects_into_cache(input_objects);
+            }
+            if let Some(output_objects) = response.output_objects {
+                object_cache.insert_objects_into_cache(output_objects);
+            }
+            Some(object_cache)
+        } else {
+            None
         };
 
         let balance_changes = match &object_cache {

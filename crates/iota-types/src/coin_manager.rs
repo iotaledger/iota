@@ -94,7 +94,7 @@ impl TryFrom<&Object> for CoinManager {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         if let Data::Move(o) = &object.data {
-            if o.type_().is_coin_manager() {
+            if o.struct_tag().is_coin_manager() {
                 return CoinManager::from_bcs_bytes(o.contents());
             }
         }

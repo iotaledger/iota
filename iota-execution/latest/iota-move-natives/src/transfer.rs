@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use iota_types::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     dynamic_field::derive_dynamic_field_id,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::Owner,
@@ -118,7 +118,7 @@ pub fn receive_object_internal(
         &child_ty,
         &layout,
         &annotated_layout,
-        MoveObjectType::from(tag),
+        tag,
     ) {
         // NB: Loaded and doesn't exist and inauthenticated read should lead to the exact same error
         Ok(None) => {

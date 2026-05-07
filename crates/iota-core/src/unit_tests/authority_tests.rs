@@ -18,7 +18,8 @@ use iota_protocol_config::{
 };
 use iota_types::{
     base_types::{
-        AuthorityName, Identifier, StructTag, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+        AuthorityName, Identifier, IotaAddress, StructTag, TxContext, dbg_addr, dbg_object_id,
+        random_object_ref,
     },
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -33,8 +34,11 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
-    object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
+        VersionAssignment,
+    },
+    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -532,7 +536,7 @@ async fn test_dev_inspect_dynamic_field() {
             CallArg::Pure(test_object1_bytes.clone()),
             CallArg::Pure(test_object1_bytes.clone()),
         ],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
@@ -1043,7 +1047,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     // no child to delete since we are using the old version of the parent
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::ImmutableOrOwned(parent)],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("remove_field"),
@@ -1098,7 +1102,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
-        commands: vec![Command::move_call(
+        commands: vec![Command::new_move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("create"),
@@ -3099,7 +3103,7 @@ async fn test_genesis_iota_system_state_object() {
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&StructTag::new_iota_system_state()));
+    assert!(move_object.struct_tag().is_iota_system_state());
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();
@@ -4208,7 +4212,7 @@ pub async fn call_move_(
         args.push(arg.to_call_arg(&mut builder, authority).await);
     }
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -4342,7 +4346,7 @@ async fn call_move_with_gas_coins(
         args.push(arg.to_call_arg(&mut builder, authority).await);
     }
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -4480,7 +4484,7 @@ pub async fn call_dev_inspect(
         arguments.push(a.to_call_arg(&mut builder, authority).await)
     }
 
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         *package,
         Identifier::new(module).unwrap(),
         Identifier::new(function).unwrap(),
@@ -4636,7 +4640,7 @@ async fn test_shared_object_transaction_ok() {
         .get_assigned_shared_object_versions(&certificate.key())
         .expect("Versions should be set")
         .into_iter()
-        .find_map(|(object_id, version)| {
+        .find_map(|VersionAssignment { object_id, version }| {
             if object_id == shared_object_id {
                 Some(version)
             } else {
@@ -4744,9 +4748,9 @@ async fn test_consensus_commit_prologue_generation() {
             .get_assigned_shared_object_versions(txn_key)
             .expect("versions should be set")
             .iter()
-            .filter_map(|(id, seq)| {
-                if id == &ObjectID::CLOCK {
-                    Some(*seq)
+            .filter_map(|VersionAssignment { object_id, version }| {
+                if object_id == &ObjectID::CLOCK {
+                    Some(*version)
                 } else {
                     None
                 }
@@ -5622,7 +5626,7 @@ async fn test_for_inc_201_dev_inspect() {
         .get_package_bytes(false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.command(Command::Publish(
+    builder.command(Command::new_publish(
         modules,
         BuiltInFramework::all_package_ids(),
     ));
@@ -6554,6 +6558,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .get_assigned_shared_object_versions(&cancelled_txn.key())
         .expect("Versions should be set")
         .into_iter()
+        .map(|VersionAssignment { object_id, version }| (object_id, version))
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
@@ -6628,24 +6633,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
-            if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
+            ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions }
+            if cancelled_transactions == &[CancelledTransaction{
+                 digest: *cancelled_txn.digest(),
+                 version_assignments: vec![
+                    VersionAssignment::new(
                         shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
                     )
                 ]
-            )]
+            }]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

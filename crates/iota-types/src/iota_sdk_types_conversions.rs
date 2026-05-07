@@ -26,13 +26,10 @@ use iota_sdk_types::{
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, MoveStruct, Object, ObjectData},
+    object::{GenesisObject, Object, ObjectData},
     transaction::{
-        CancelledTransaction, Command, ConsensusCommitPrologueV1,
-        ConsensusDeterminedVersionAssignments, GasPayment, GenesisTransaction, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, Transaction, TransactionKind, TransactionV1,
-        TransferObjects, Upgrade, VersionAssignment,
+        GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
+        TransactionKind, TransactionV1,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -102,7 +99,7 @@ impl TryFrom<crate::object::Data> for ObjectData {
 
     fn try_from(value: crate::object::Data) -> Result<Self, Self::Error> {
         match value {
-            crate::object::Data::Move(move_object) => Self::Struct(move_object_to_sdk(move_object)),
+            crate::object::Data::Move(move_object) => Self::Struct(move_object),
             crate::object::Data::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
@@ -114,40 +111,11 @@ impl TryFrom<ObjectData> for crate::object::Data {
 
     fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
         match value {
-            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)),
+            ObjectData::Struct(move_object) => Self::Move(move_object),
             ObjectData::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
     }
-}
-
-fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
-    MoveStruct {
-        type_: move_object_type_to_sdk(obj.type_),
-        version: obj.version,
-        contents: obj.contents,
-    }
-}
-
-fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
-    crate::object::MoveObject {
-        type_: sdk_object_type_to_move(&obj.type_),
-        version: obj.version,
-        contents: obj.contents,
-    }
-}
-
-pub fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
-    StructTag::new(
-        type_.address(),
-        type_.module(),
-        type_.name(),
-        type_.type_params(),
-    )
-}
-
-fn sdk_object_type_to_move(type_: &StructTag) -> crate::base_types::MoveObjectType {
-    crate::base_types::MoveObjectType::from(type_)
 }
 
 impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
@@ -230,14 +198,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
 
         match value {
             InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
-                TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
-                    inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction
-                        .commands
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_, _>>()?,
-                })
+                TransactionKind::ProgrammableTransaction(programmable_transaction)
             }
             InternalTxnKind::Genesis(genesis_transaction) => {
                 TransactionKind::Genesis(GenesisTransaction {
@@ -247,42 +208,17 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .map(|obj| match obj {
                             crate::transaction::GenesisObject::RawObject { data, owner } => {
                                 match data.try_into() {
-                                    Ok(data) => Ok(GenesisObject {
-                                        data,
-                                        owner,
-                                    }),
+                                    Ok(data) => Ok(GenesisObject { data, owner }),
                                     Err(e) => Err(e),
                                 }
                             }
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction.events,
                 })
             }
             InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
-                        ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                            cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
-                                digest: value.0,
-                                version_assignments:
-                                    value
-                                        .1
-                                        .into_iter()
-                                        .map(|value| VersionAssignment { object_id: value.0, version: value.1 })
-                                        .collect(),
-                            }).collect()
-                        },
-                };
-                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
-                    epoch: consensus_commit_prologue_v1.epoch,
-                    round: consensus_commit_prologue_v1.round,
-                    sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                    commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                    consensus_commit_digest: consensus_commit_prologue_v1
-                        .consensus_commit_digest,
-                    consensus_determined_version_assignments,
-                })
+                TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
             }
             #[allow(deprecated)]
             InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -291,9 +227,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                 // only for BCS enum variant compatibility.
                 TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
-            InternalTxnKind::EndOfEpochTransaction(vec) => {
-                TransactionKind::EndOfEpoch(vec)
-            }
+            InternalTxnKind::EndOfEpochTransaction(vec) => TransactionKind::EndOfEpoch(vec),
             InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
@@ -314,61 +248,26 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
     fn try_from(value: TransactionKind) -> Result<Self, Self::Error> {
         match value {
             TransactionKind::ProgrammableTransaction(programmable_transaction) => {
-                Self::ProgrammableTransaction(crate::transaction::ProgrammableTransaction {
-                    inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction
-                        .commands
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_,_>>()?,
-                })
+                Self::ProgrammableTransaction(programmable_transaction)
             }
             TransactionKind::Genesis(genesis_transaction) => {
                 Self::Genesis(crate::transaction::GenesisTransaction {
                     objects: genesis_transaction
                         .objects
                         .into_iter()
-                        .map(|obj| {
-                            match obj.data.try_into() {
-                                Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
-                                    data,
-                                    owner: obj.owner,
-                                }),
-                                Err(e) => Err(e),
-                            }
+                        .map(|obj| match obj.data.try_into() {
+                            Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
+                                data,
+                                owner: obj.owner,
+                            }),
+                            Err(e) => Err(e),
                         })
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     events: genesis_transaction.events,
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions { cancelled_transactions } =>
-                    crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                        cancelled_transactions.into_iter().map(|value|
-                            (
-                                value.digest,
-                                value
-                                    .version_assignments
-                                    .into_iter()
-                                    .map(|value| (value.object_id, value.version))
-                                    .collect()
-                            )
-                        ).collect()
-                    ),
-                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
-                };
-                Self::ConsensusCommitPrologueV1(
-                    crate::messages_consensus::ConsensusCommitPrologueV1 {
-                        epoch: consensus_commit_prologue_v1.epoch,
-                        round: consensus_commit_prologue_v1.round,
-                        sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                        commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                        consensus_commit_digest: consensus_commit_prologue_v1
-                            .consensus_commit_digest,
-                        consensus_determined_version_assignments,
-                    },
-                )
+                Self::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
             }
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -377,9 +276,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                 // only for BCS enum variant compatibility.
                 Self::AuthenticatorStateUpdateV1Deprecated
             }
-            TransactionKind::EndOfEpoch(vec) => {
-                Self::EndOfEpochTransaction(vec)
-            }
+            TransactionKind::EndOfEpoch(vec) => Self::EndOfEpochTransaction(vec),
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
@@ -788,93 +685,6 @@ impl From<crate::effects::TransactionEvents> for TransactionEvents {
 impl From<TransactionEvents> for crate::effects::TransactionEvents {
     fn from(value: TransactionEvents) -> Self {
         Self { data: value.0 }
-    }
-}
-
-impl TryFrom<crate::transaction::Command> for Command {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::Command) -> Result<Self, Self::Error> {
-        use crate::transaction::Command as InternalCmd;
-        match value {
-            InternalCmd::MoveCall(programmable_move_call) => Self::MoveCall(MoveCall {
-                package: programmable_move_call.package,
-                module: Identifier::new(programmable_move_call.module.as_str())?,
-                function: Identifier::new(programmable_move_call.function.as_str())?,
-                type_arguments: programmable_move_call
-                    .type_arguments
-                    .into_iter()
-                    .map(|type_input| type_input.into_type_tag())
-                    .collect::<Result<_, _>>()?,
-                arguments: programmable_move_call.arguments,
-            }),
-            InternalCmd::TransferObjects(objects, address) => {
-                Self::TransferObjects(TransferObjects { objects, address })
-            }
-            InternalCmd::SplitCoins(coin, amounts) => {
-                Self::SplitCoins(SplitCoins { coin, amounts })
-            }
-            InternalCmd::MergeCoins(argument, coins_to_merge) => Self::MergeCoins(MergeCoins {
-                coin: argument,
-                coins_to_merge,
-            }),
-            InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
-                modules,
-                dependencies,
-            }),
-            InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
-                type_: type_tag
-                    .map(|type_input| type_input.into_type_tag())
-                    .transpose()?,
-                elements,
-            }),
-            InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
-                Self::Upgrade(Upgrade {
-                    modules,
-                    dependencies,
-                    package,
-                    ticket,
-                })
-            }
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<Command> for crate::transaction::Command {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Command) -> Result<Self, Self::Error> {
-        match value {
-            Command::MoveCall(move_call) => Self::move_call(
-                move_call.package,
-                move_call.module,
-                move_call.function,
-                move_call.type_arguments,
-                move_call.arguments,
-            ),
-            Command::TransferObjects(transfer_objects) => {
-                Self::TransferObjects(transfer_objects.objects, transfer_objects.address)
-            }
-            Command::SplitCoins(split_coins) => {
-                Self::SplitCoins(split_coins.coin, split_coins.amounts)
-            }
-            Command::MergeCoins(merge_coins) => {
-                Self::MergeCoins(merge_coins.coin, merge_coins.coins_to_merge)
-            }
-            Command::Publish(publish) => Self::Publish(publish.modules, publish.dependencies),
-            Command::MakeMoveVector(make_move_vector) => {
-                Self::make_move_vec(make_move_vector.type_, make_move_vector.elements)
-            }
-            Command::Upgrade(upgrade) => Self::Upgrade(
-                upgrade.modules,
-                upgrade.dependencies,
-                upgrade.package,
-                upgrade.ticket,
-            ),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-        .pipe(Ok)
     }
 }
 

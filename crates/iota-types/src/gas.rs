@@ -16,7 +16,7 @@ pub mod checked {
         ObjectID,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
-        object::Object,
+        object::{MoveObjectExt, Object},
         transaction::ObjectReadResult,
     };
 
@@ -121,24 +121,24 @@ pub mod checked {
     pub fn deduct_gas(gas_object: &mut Object, charge_or_rebate: i64) {
         // The object must be a gas coin as we have checked in transaction handle phase.
         let gas_coin = gas_object.data.try_as_move_mut().unwrap();
-        let balance = gas_coin.get_coin_value_unsafe();
+        let balance = gas_coin.get_coin_value_unchecked();
         let new_balance = if charge_or_rebate < 0 {
             balance + (-charge_or_rebate as u64)
         } else {
             assert!(balance >= charge_or_rebate as u64);
             balance - charge_or_rebate as u64
         };
-        gas_coin.set_coin_value_unsafe(new_balance)
+        gas_coin.set_coin_value_unchecked(new_balance)
     }
 
     pub fn get_gas_balance(gas_object: &Object) -> UserInputResult<u64> {
         if let Some(move_obj) = gas_object.data.try_as_move() {
-            if !move_obj.type_().is_gas_coin() {
+            if !move_obj.struct_tag().is_gas_coin() {
                 return Err(UserInputError::InvalidGasObject {
                     object_id: gas_object.id(),
                 });
             }
-            Ok(move_obj.get_coin_value_unsafe())
+            Ok(move_obj.get_coin_value_unchecked())
         } else {
             Err(UserInputError::InvalidGasObject {
                 object_id: gas_object.id(),

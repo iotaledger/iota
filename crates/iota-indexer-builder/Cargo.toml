@@ -11,7 +11,7 @@ publish = false
 anyhow.workspace = true
 async-trait.workspace = true
 prometheus.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
 tokio-util.workspace = true
 tracing.workspace = true
 

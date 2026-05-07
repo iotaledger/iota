@@ -29,7 +29,7 @@ use iota_sdk::IotaClient;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
     balance::Balance,
-    base_types::{Identifier, IotaAddress, MoveObjectType, ObjectID, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -474,7 +474,7 @@ async fn check_address_swap_split_map_after_migration(
                         *destination,
                         Some(IotaObjectResponseQuery::new(
                             Some(IotaObjectDataFilter::StructType(
-                                MoveObjectType::timelocked_iota_balance().into(),
+                                StructTag::new_timelocked_gas_balance(),
                             )),
                             Some(IotaObjectDataOptions::new().with_bcs()),
                         )),

@@ -12,7 +12,7 @@ use iota_types::{
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::{TimestampMs, VersionedDkgConfirmation},
+    messages_consensus::{TimestampMs, VersionAssignment, VersionedDkgConfirmation},
     signature::GenericSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -311,7 +311,7 @@ impl ConsensusCommitOutput {
 pub(crate) struct ConsensusOutputCache {
     // shared version assignments is a DashMap because it is read from execution so we don't
     // want contention.
-    shared_version_assignments: DashMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+    shared_version_assignments: DashMap<TransactionKey, Vec<VersionAssignment>>,
 
     // deferred transactions is only used by consensus handler so there should never be lock
     // contention
@@ -372,7 +372,7 @@ impl ConsensusOutputCache {
     pub fn get_assigned_shared_object_versions(
         &self,
         key: &TransactionKey,
-    ) -> Option<Vec<(ObjectID, SequenceNumber)>> {
+    ) -> Option<Vec<VersionAssignment>> {
         self.shared_version_assignments
             .get(key)
             .map(|locks| locks.clone())
@@ -398,7 +398,7 @@ impl ConsensusOutputCache {
     pub fn set_shared_object_versions_for_testing(
         &self,
         tx_digest: &TransactionDigest,
-        assigned_versions: &[(ObjectID, SequenceNumber)],
+        assigned_versions: &[VersionAssignment],
     ) {
         self.shared_version_assignments.insert(
             TransactionKey::Digest(*tx_digest),

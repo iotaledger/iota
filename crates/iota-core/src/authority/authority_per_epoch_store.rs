@@ -50,9 +50,9 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
-        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
+        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusTransaction,
+        ConsensusTransactionKey, ConsensusTransactionKind, SignedAuthorityCapabilitiesV1,
+        TimestampMs, VerifiedAuthorityCapabilitiesV1, VersionAssignment, VersionedDkgConfirmation,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey},
@@ -1514,7 +1514,7 @@ impl AuthorityPerEpochStore {
                         let assigned_shared_versions = assigned_shared_versions
                             .get_or_init(|| {
                                 self.get_assigned_shared_object_versions(key)
-                                    .map(|versions| versions.into_iter().collect())
+                                    .map(|versions| versions.into_iter().map(|v| (v.object_id, v.version)).collect())
                             })
                             .as_ref()
                             // Shared version assignments could have been deleted if the tx just
@@ -1662,7 +1662,7 @@ impl AuthorityPerEpochStore {
     pub fn set_shared_object_versions_for_testing(
         &self,
         tx_digest: &TransactionDigest,
-        assigned_versions: &[(ObjectID, SequenceNumber)],
+        assigned_versions: &[VersionAssignment],
     ) -> IotaResult {
         self.consensus_output_cache
             .set_shared_object_versions_for_testing(tx_digest, assigned_versions);
@@ -1825,7 +1825,7 @@ impl AuthorityPerEpochStore {
     pub fn get_assigned_shared_object_versions(
         &self,
         key: &TransactionKey,
-    ) -> Option<Vec<(ObjectID, SequenceNumber)>> {
+    ) -> Option<Vec<VersionAssignment>> {
         self.consensus_output_cache
             .get_assigned_shared_object_versions(key)
     }
@@ -3288,22 +3288,24 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)> =
-            Vec::new();
+        let mut cancelled_transactions: Vec<CancelledTransaction> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
                 Some(CancelConsensusCertificateReason::CongestionOnObjects { .. })
                 | Some(CancelConsensusCertificateReason::DkgFailed) => {
-                    let assigned_versions = SharedObjVerManager::assign_versions_for_certificate(
+                    let version_assignments = SharedObjVerManager::assign_versions_for_certificate(
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
-                    version_assignment.push((*txn.digest(), assigned_versions));
+                    cancelled_transactions.push(CancelledTransaction {
+                        digest: *txn.digest(),
+                        version_assignments,
+                    });
                 }
                 None => {}
             }
@@ -3311,16 +3313,13 @@ impl AuthorityPerEpochStore {
 
         fail_point_arg!(
             "additional_cancelled_txns_for_tests",
-            |additional_cancelled_txns: Vec<(
-                TransactionDigest,
-                Vec<(ObjectID, SequenceNumber)>
-            )>| {
-                version_assignment.extend(additional_cancelled_txns);
+            |additional_cancelled_txns: Vec<CancelledTransaction>| {
+                cancelled_transactions.extend(additional_cancelled_txns);
             }
         );
 
         let transaction = consensus_commit_info
-            .create_consensus_commit_prologue_transaction(self.epoch(), version_assignment);
+            .create_consensus_commit_prologue_transaction(self.epoch(), cancelled_transactions);
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
