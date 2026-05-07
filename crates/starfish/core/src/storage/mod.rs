@@ -252,7 +252,6 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    #[expect(dead_code)]
     pub(crate) fn scoring_metrics(
         mut self,
         scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,

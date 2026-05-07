@@ -759,66 +759,57 @@ async fn test_read_highest_commit_index_with_votes(
     );
 }
 
-// #[rstest]
-// #[tokio::test]
-// async fn scan_scoring_metrics(
-//     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store:
-// TestStore, ) {
-//     use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+#[rstest]
+#[tokio::test]
+async fn scan_scoring_metrics(
+    #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
+) {
+    use crate::scoring_metrics_store::StorageScoringMetrics;
 
-//     let store = test_store.store();
-//     let metrics_updates = [
-//         VersionedStorageScoringMetrics::new_v1_for_test(
-//             1, // faulty_blocks_provable
-//             2, // faulty_blocks_unprovable
-//             4, // missing_proposals
-//             3, // equivocations
-//         ),
-//         VersionedStorageScoringMetrics::new_v1_for_test(
-//             0, // faulty_blocks_provable
-//             0, // faulty_blocks_unprovable
-//             0, // missing_proposals
-//             0, // equivocations
-//         ),
-//     ];
-//     let authories = [
-//         AuthorityIndex::new_for_test(0),
-//         AuthorityIndex::new_for_test(1),
-//         AuthorityIndex::new_for_test(2),
-//     ];
+    let store = test_store.store();
+    let metrics_updates = [
+        StorageScoringMetrics::new_v1_for_test(1, 2, 4, 3),
+        StorageScoringMetrics::new_v1_for_test(0, 0, 0, 0),
+    ];
+    let authorities = [
+        AuthorityIndex::new_for_test(0),
+        AuthorityIndex::new_for_test(1),
+    ];
 
-//     let metrics_to_write = vec![
-//         (authories[0], metrics_updates[0].clone()),
-//         (authories[1], metrics_updates[1].clone()),
-//     ];
+    // Write metrics for two authorities and verify scan returns them.
+    let metrics_to_write = vec![
+        (authorities[0], metrics_updates[0].clone()),
+        (authorities[1], metrics_updates[1].clone()),
+    ];
+    store
+        .write(
+            WriteBatch::default().scoring_metrics(metrics_to_write.clone()),
+            test_store.context(),
+        )
+        .unwrap();
 
-//     store
-//         .write(WriteBatch::default().scoring_metrics(metrics_to_write.
-// clone()))         .unwrap();
+    let scanned = store
+        .scan_scoring_metrics()
+        .expect("scan should not fail");
+    assert_eq!(scanned, metrics_to_write);
 
-//     {
-//         let scanned_metrics = store
-//             .scan_scoring_metrics()
-//             .expect("Scan scoring_metrics should not fail");
-//         assert_eq!(&scanned_metrics, &metrics_to_write);
-//     }
+    // Overwrite authority 0 with zeroed metrics; authority 1 stays unchanged.
+    let overwrite = vec![(authorities[0], metrics_updates[1].clone())];
+    store
+        .write(
+            WriteBatch::default().scoring_metrics(overwrite),
+            test_store.context(),
+        )
+        .unwrap();
 
-//     let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
-
-//     store
-//         .write(WriteBatch::default().scoring_metrics(metrics_to_write.
-// clone()))         .unwrap();
-
-//     {
-//         let scanned_metrics = store
-//             .scan_scoring_metrics()
-//             .expect("Scan scoring_metrics should not fail");
-//         assert_eq!(
-//             &scanned_metrics,
-//             &vec![
-//                 (authories[0], metrics_updates[1].clone()),
-//                 (authories[1], metrics_updates[1].clone())
-//             ]
-//         );
-//     }
-// }
+    let scanned = store
+        .scan_scoring_metrics()
+        .expect("scan should not fail");
+    assert_eq!(
+        scanned,
+        vec![
+            (authorities[0], metrics_updates[1].clone()),
+            (authorities[1], metrics_updates[1].clone()),
+        ]
+    );
+}

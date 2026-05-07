@@ -54,11 +54,40 @@ impl StarfishMisbehaviorCounts {
     }
 }
 
-/// Serializable per-authority misbehavior counts for storage persistence.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub(crate) struct StorageScoringMetrics {
+/// Versioned envelope for persisted scoring metrics. New versions are added as
+/// enum variants so existing RocksDB data deserializes without migration.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) enum StorageScoringMetrics {
+    V1(StorageScoringMetricsV1),
+}
+
+impl Default for StorageScoringMetrics {
+    fn default() -> Self {
+        Self::V1(StorageScoringMetricsV1::default())
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub(crate) struct StorageScoringMetricsV1 {
     pub(crate) faulty_blocks_provable: u64,
     pub(crate) faulty_blocks_unprovable: u64,
     pub(crate) missing_proposals: u64,
     pub(crate) equivocations: u64,
+}
+
+#[cfg(test)]
+impl StorageScoringMetrics {
+    pub(crate) fn new_v1_for_test(
+        faulty_blocks_provable: u64,
+        faulty_blocks_unprovable: u64,
+        missing_proposals: u64,
+        equivocations: u64,
+    ) -> Self {
+        Self::V1(StorageScoringMetricsV1 {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        })
+    }
 }
