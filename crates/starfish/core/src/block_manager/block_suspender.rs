@@ -521,8 +521,8 @@ pub(crate) mod tests {
         BlockSuspender::new(Arc::new(context))
     }
 
-    #[test]
-    fn evict_below_round_unsuspends_single_dep() {
+    #[tokio::test]
+    async fn evict_below_round_unsuspends_single_dep() {
         let mut suspender = new_suspender();
         let a = block_ref(5, 0); // missing ancestor at floor
         let b = header(10, 1, vec![a]);
@@ -542,8 +542,8 @@ pub(crate) mod tests {
         assert!(suspender.is_empty());
     }
 
-    #[test]
-    fn evict_below_round_keeps_dep_above_floor() {
+    #[tokio::test]
+    async fn evict_below_round_keeps_dep_above_floor() {
         let mut suspender = new_suspender();
         let a_low = block_ref(5, 0);
         let c_high = block_ref(20, 0);
@@ -565,8 +565,8 @@ pub(crate) mod tests {
         assert!(!suspender.headers_to_fetch.contains_key(&a_low));
     }
 
-    #[test]
-    fn evict_below_round_cascades_chain() {
+    #[tokio::test]
+    async fn evict_below_round_cascades_chain() {
         // Chain: a (round 5, evicted) ← b (round 10, suspended on a)
         //                           ← c (round 20, suspended on b)
         let mut suspender = new_suspender();
@@ -595,8 +595,8 @@ pub(crate) mod tests {
         assert!(suspender.is_empty());
     }
 
-    #[test]
-    fn evict_below_round_prunes_only_fetch_below_floor() {
+    #[tokio::test]
+    async fn evict_below_round_prunes_only_fetch_below_floor() {
         let mut suspender = new_suspender();
         let r3 = block_ref(3, 0);
         let r7 = block_ref(7, 1);
