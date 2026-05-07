@@ -8,7 +8,6 @@ use std::sync::{
 
 use arc_swap::ArcSwapOption;
 use iota_types::messages_consensus::{MisbehaviorObservations, VersionedMisbehaviorReport};
-use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior::{
     MisbehaviorReportVersion, merge_max,
@@ -101,19 +100,7 @@ impl ReportAggregator {
 
     /// Increments the invalid report counter for the given authority.
     ///
-    /// On this branch the counter is in-memory only and has no consumer in
-    /// tree (no Prometheus metric, no `Scorer` input, not echoed in outgoing
-    /// reports). The `DBReceivedReportsStatePerAuthority` /
-    /// `to_serializable` / `update_from_serializable` machinery exists as
-    /// forward-looking scaffolding for the
-    /// `score-integration-persist-scorer-state` follow-up PR, which adds a
-    /// `DBMap<u32, DBReceivedReportsStatePerAuthority>` to
-    /// `AuthorityEpochTables`, snapshots into it through
-    /// `ConsensusCommitOutput` whenever a misbehavior-report transaction is
-    /// seen, and restores it at epoch start. Until that PR lands, restarts
-    /// reset this counter to zero — acceptable because no consumer yet
-    /// observes it. Operator visibility (e.g. a per-authority Prometheus
-    /// gauge) is still TODO and orthogonal to the persistence work.
+    /// On this branch the counter is in-memory only and resets on restart.
     pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.received_reports_state[authority as usize]
             .invalid_reports_count
@@ -146,8 +133,7 @@ impl ReportAggregator {
 }
 
 /// Tracks the live in-memory state of the received reports for a single
-/// authority. Not serialized directly — use `to_serializable()` to produce a
-/// `DBReceivedReportsStatePerAuthority` snapshot for DB storage.
+/// authority.
 #[derive(Debug)]
 pub(crate) struct ReceivedReportsStatePerAuthority {
     // The misbehavior counts received from the authority, i.e., the information
@@ -179,21 +165,16 @@ impl ReceivedReportsStatePerAuthority {
             invalid_reports_count: self.invalid_reports_count_snapshot(),
         }
     }
-
-    #[expect(dead_code)]
-    pub fn update_from_serializable(&self, serializable: DBReceivedReportsStatePerAuthority) {
-        self.received_metrics
-            .store(serializable.received_metrics.map(Arc::new));
-        self.invalid_reports_count
-            .store(serializable.invalid_reports_count, Ordering::Relaxed);
-    }
 }
 
-/// DB storage record for a single authority's received reports state. Stored as
-/// `DBMap<u32, DBReceivedReportsStatePerAuthority>`. Only authorities that have
-/// sent at least one report have an entry (i.e., `received_metrics` is `Some`).
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct DBReceivedReportsStatePerAuthority {
+/// Serializable snapshot of a single authority's received-reports state.
+/// Scaffolding for the storage layer of `ReportAggregator`: a future PR will
+/// persist these records via `DBMap<u32, DBReceivedReportsStatePerAuthority>`
+/// in `AuthorityEpochTables`, enabling report state to survive restarts.
+/// Until then, this struct is only used in tests.
+#[cfg(test)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
+pub(crate) struct DBReceivedReportsStatePerAuthority {
     pub received_metrics: Option<MisbehaviorObservations>,
     pub invalid_reports_count: u64,
 }
