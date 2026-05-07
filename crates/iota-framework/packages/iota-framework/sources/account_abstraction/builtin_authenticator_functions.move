@@ -65,7 +65,20 @@ public struct PublicKeyFieldName has copy, drop, store {}
 
 // === Public Functions ===
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in ed25519 authenticator function.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Ed25519 authenticator.
+///
+/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
+/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
+/// `vector<u8>` whose decoded bytes are the flag-prefixed Ed25519 signature wire format:
+///
+/// ```
+/// 0x00 || sig[64B] || pk[32B]   (97 bytes total)
+/// ```
+///
+/// `sig` is the 64-byte Ed25519 signature over
+/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
+/// `pk` is the 32-byte Ed25519 public key. The signature is verified against the address
+/// derived from the public key stored as a dynamic field on the account.
 public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
@@ -76,7 +89,20 @@ public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
     )
 }
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in secp256k1 authenticator function.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Secp256k1 authenticator.
+///
+/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
+/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
+/// `vector<u8>` whose decoded bytes are the flag-prefixed Secp256k1 signature wire format:
+///
+/// ```
+/// 0x01 || sig[64B] || pk[33B]   (98 bytes total)
+/// ```
+///
+/// `sig` is the 64-byte compact (r, s) Secp256k1 signature over
+/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
+/// `pk` is the 33-byte compressed Secp256k1 public key. The signature is verified against the
+/// address derived from the public key stored as a dynamic field on the account.
 public fun secp256k1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
@@ -87,7 +113,20 @@ public fun secp256k1_authenticator_function_ref_v1<Account: key>(): Authenticato
     )
 }
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in secp256r1 authenticator function.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Secp256r1 authenticator.
+///
+/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
+/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
+/// `vector<u8>` whose decoded bytes are the flag-prefixed Secp256r1 signature wire format:
+///
+/// ```
+/// 0x02 || sig[64B] || pk[33B]   (98 bytes total)
+/// ```
+///
+/// `sig` is the 64-byte compact (r, s) Secp256r1 signature over
+/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
+/// `pk` is the 33-byte compressed Secp256r1 public key. The signature is verified against the
+/// address derived from the public key stored as a dynamic field on the account.
 public fun secp256r1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
@@ -98,7 +137,19 @@ public fun secp256r1_authenticator_function_ref_v1<Account: key>(): Authenticato
     )
 }
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in multisig authenticator function.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in MultiSig authenticator.
+///
+/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
+/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
+/// `vector<u8>` whose decoded bytes are the flag-prefixed MultiSig signature wire format:
+///
+/// ```
+/// 0x03 || <MultiSig wire bytes>   (variable length)
+/// ```
+///
+/// The MultiSig wire bytes encode the bitmap of participating signers, their individual
+/// signatures, and the composite public key. The composite signature is verified against
+/// the address derived from the `MultiSigPublicKey` stored as a dynamic field on the account.
 public fun multisig_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
@@ -109,7 +160,22 @@ public fun multisig_authenticator_function_ref_v1<Account: key>(): Authenticator
     )
 }
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in passkey authenticator function.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Passkey authenticator.
+///
+/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
+/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
+/// `vector<u8>` whose decoded bytes are the flag-prefixed Passkey (WebAuthn) signature wire
+/// format:
+///
+/// ```
+/// 0x06 || <PasskeyAuthenticator wire bytes>   (variable length)
+/// ```
+///
+/// The Passkey wire bytes encode the authenticator data, client data JSON, and the Secp256r1
+/// signature produced by the WebAuthn credential. The challenge embedded in `clientDataJSON`
+/// must equal `Blake2b256(IntentMessage(Intent::iota_transaction(), TransactionData))`.
+/// The signature is verified against the address derived from the Secp256r1 public key stored
+/// as a dynamic field on the account.
 public fun passkey_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {

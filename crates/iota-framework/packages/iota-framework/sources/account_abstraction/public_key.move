@@ -15,13 +15,13 @@
 /// | MultiSig   | 0x03 | variable (BCS)        |
 /// | Passkey    | 0x06 | 33 bytes (compressed) |
 ///
-/// `PublicKey` values are constructed exclusively through `create`.
+/// `PublicKey` values are constructed exclusively through `create`. Once created,
+/// the inner fields are immutable.
 ///
 /// **Validation scope**: `create` checks that the scheme is recognized, that the byte length
 /// matches the scheme, and — for MultiSig — that the BCS structure is well-formed (signer
 /// count, weights, threshold). It does **not** verify that the raw bytes form a valid curve
 /// point; bytes of the correct length but off the curve are accepted at construction time.
-/// Once created, the inner fields are immutable.
 module iota::public_key;
 
 use iota::bcs;
