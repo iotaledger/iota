@@ -108,13 +108,14 @@ async fn test_valid_user_transaction_passes() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let mut transactions = vec![make_user_tx_v1(tx)];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     assert_eq!(
         transactions.len(),
@@ -127,6 +128,11 @@ async fn test_valid_user_transaction_passes() {
         2,
         "Locks for object and gas should be acquired"
     );
+    assert_eq!(
+        user_tx_digests.len(),
+        1,
+        "One user transaction digest should be collected"
+    );
 }
 
 /// Test that non-UserTransactionV1 transactions (e.g. EndOfPublish) pass
@@ -138,13 +144,14 @@ async fn test_non_user_transaction_passes_through() {
 
     let mut transactions = vec![make_end_of_publish()];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     assert_eq!(
         transactions.len(),
@@ -153,6 +160,10 @@ async fn test_non_user_transaction_passes_through() {
     );
     assert!(dropped.is_empty());
     assert!(locks.is_empty());
+    assert!(
+        user_tx_digests.is_empty(),
+        "No user transaction digests for non-user transactions"
+    );
 }
 
 /// Test that duplicate transactions (same ConsensusTransactionKey) are
@@ -197,13 +208,14 @@ async fn test_duplicate_transaction_deduplicated() {
     // blocks.
     let mut transactions = vec![make_user_tx_v1(tx.clone()), make_user_tx_v1(tx)];
 
-    let (dropped, _locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, _locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     assert_eq!(
         transactions.len(),
@@ -214,6 +226,11 @@ async fn test_duplicate_transaction_deduplicated() {
     assert!(
         dropped.is_empty(),
         "Duplicate is a silent dedup, not an error"
+    );
+    assert_eq!(
+        user_tx_digests.len(),
+        1,
+        "Dedup'd copy should not appear in user_tx_digests"
     );
 }
 
@@ -279,13 +296,14 @@ async fn test_mixed_batch_filtering() {
         make_end_of_publish(),
     ];
 
-    let (dropped, _locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, _locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     // tx1 first occurrence kept, tx1 duplicate removed, tx2 kept, eop kept.
     assert_eq!(
@@ -296,6 +314,11 @@ async fn test_mixed_batch_filtering() {
     assert!(
         dropped.is_empty(),
         "Only duplicates removed; no semantic errors"
+    );
+    assert_eq!(
+        user_tx_digests.len(),
+        2,
+        "tx1 + tx2 digests (duplicate and EndOfPublish excluded)"
     );
 }
 
@@ -361,13 +384,14 @@ async fn test_simple_conflict() {
         make_user_tx_v1_verified(verified_tx2.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -384,6 +408,14 @@ async fn test_simple_conflict() {
         locks.get(&object.compute_object_reference()),
         Some(verified_tx1.digest())
     );
+
+    assert_eq!(
+        user_tx_digests.len(),
+        2,
+        "Both kept and dropped user txs should be collected"
+    );
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
 }
 
 /// Two transactions on different objects: both pass with no conflicts.
@@ -446,13 +478,14 @@ async fn test_no_conflict() {
         make_user_tx_v1_verified(verified_tx2.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     assert_eq!(transactions.len(), 2, "Both transactions should remain");
     assert!(dropped.is_empty(), "No transactions should be dropped");
@@ -465,6 +498,10 @@ async fn test_no_conflict() {
         locks.get(&object2.compute_object_reference()),
         Some(verified_tx2.digest())
     );
+
+    assert_eq!(user_tx_digests.len(), 2);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
 }
 
 /// Three transactions with a chain conflict via shared gas: tx1 and tx2 win,
@@ -542,13 +579,14 @@ async fn test_chain_conflict() {
         make_user_tx_v1_verified(verified_tx3.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -570,6 +608,11 @@ async fn test_chain_conflict() {
         Some(verified_tx2.digest()),
         "tx2 should hold the shared gas lock"
     );
+
+    assert_eq!(user_tx_digests.len(), 3);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
+    assert!(user_tx_digests.contains(verified_tx3.digest()));
 }
 
 /// Multiple independent conflict sets in one batch: tx1 beats tx2 on object A,
@@ -658,13 +701,14 @@ async fn test_multiple_conflicts_in_batch() {
         make_user_tx_v1_verified(verified_tx4.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -682,6 +726,12 @@ async fn test_multiple_conflicts_in_batch() {
         locks.get(&object_b.compute_object_reference()),
         Some(verified_tx3.digest())
     );
+
+    assert_eq!(user_tx_digests.len(), 4);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
+    assert!(user_tx_digests.contains(verified_tx3.digest()));
+    assert!(user_tx_digests.contains(verified_tx4.digest()));
 }
 
 /// Two transactions sharing the same gas object: first wins, second dropped.
@@ -741,13 +791,14 @@ async fn test_gas_object_conflict() {
         make_user_tx_v1_verified(verified_tx2.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -764,6 +815,10 @@ async fn test_gas_object_conflict() {
         locks.get(&object1.compute_object_reference()),
         Some(verified_tx1.digest())
     );
+
+    assert_eq!(user_tx_digests.len(), 2);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
 }
 
 /// tx1 locks both A and B; tx2 (object A) and tx3 (object B) are both dropped.
@@ -850,13 +905,14 @@ async fn test_winner_blocks_multiple_losers() {
         make_user_tx_v1_verified(verified_tx3.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -874,6 +930,11 @@ async fn test_winner_blocks_multiple_losers() {
         locks.get(&object_b.compute_object_reference()),
         Some(verified_tx1.digest())
     );
+
+    assert_eq!(user_tx_digests.len(), 3);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
+    assert!(user_tx_digests.contains(verified_tx3.digest()));
 }
 
 /// Verifies that dropped transactions don't acquire locks, allowing later
@@ -964,13 +1025,14 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         make_user_tx_v1_verified(verified_tx4.clone()),
     ];
 
-    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
-        &authority,
-        &epoch_store,
-        &mut transactions,
-    )
-    .await
-    .unwrap();
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
 
     let (dropped_digests, _): (Vec<TransactionDigest>, Vec<IotaError>) =
         dropped.into_iter().unzip();
@@ -1004,6 +1066,12 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         !locks.contains_key(&gas1.compute_object_reference()),
         "gas1 should not be locked since tx2 was dropped"
     );
+
+    assert_eq!(user_tx_digests.len(), 4);
+    assert!(user_tx_digests.contains(verified_tx1.digest()));
+    assert!(user_tx_digests.contains(verified_tx2.digest()));
+    assert!(user_tx_digests.contains(verified_tx3.digest()));
+    assert!(user_tx_digests.contains(verified_tx4.digest()));
 }
 
 // ---------------------------------------------------------------------------

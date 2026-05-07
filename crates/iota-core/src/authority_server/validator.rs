@@ -71,6 +71,7 @@ impl ValidatorService {
             metrics,
             traffic_controller: _,
             client_id_source: _,
+            soft_locks: _,
         } = self.clone();
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();

@@ -107,6 +107,7 @@ use crate::{
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
+    authority_server::soft_lock::PreConsensusSoftLocks,
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
         PendingCheckpoint, PendingCheckpointContentsV1, PendingCheckpointInfo,
@@ -682,6 +683,16 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
+    /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
+    ///
+    /// Set via `OnceCell` rather than passed through the constructor because
+    /// the same `Arc` instance must be shared with the gRPC `ValidatorService`
+    /// (which acquires locks pre-consensus). The gRPC server is created once
+    /// and persists across epochs, while a new `AuthorityPerEpochStore` is
+    /// created on each epoch change — so the wiring happens after construction
+    /// in `start_epoch_specific_validator_components`. Left empty in tests.
+    soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
+
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
 
@@ -1211,6 +1222,7 @@ impl AuthorityPerEpochStore {
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
+            soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1763,6 +1775,19 @@ impl AuthorityPerEpochStore {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
             .await
+    }
+
+    /// Sets the pre-consensus soft lock table. Called once during validator
+    /// setup. Gating on `enable_white_flag_flow` is the caller's
+    /// responsibility — when the flow is disabled, releases simply produce no
+    /// digests so the `OnceCell` may stay empty harmlessly.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance.
+    pub fn set_soft_locks(&self, soft_locks: Arc<PreConsensusSoftLocks>) {
+        self.soft_locks
+            .set(soft_locks)
+            .expect("soft_locks should only be set once");
     }
 
     pub async fn notify_read_running_root(
@@ -3301,8 +3326,11 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
+        // Also collects all UserTransactionV1 digests for soft lock release
+        // after the consensus output is quarantined.
+        let mut soft_lock_release_tx_digests = Vec::new();
         if enable_white_flag {
-            let (dropped, owned_object_locks) =
+            let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
@@ -3310,6 +3338,7 @@ impl AuthorityPerEpochStore {
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
+            soft_lock_release_tx_digests = soft_lock_digests;
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
@@ -3538,6 +3567,29 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+
+        // Release pre-consensus soft locks now that permanent locks are visible
+        // in the quarantine. Both accepted and rejected transactions are
+        // released: accepted ones now hold permanent locks, rejected ones need
+        // their non-conflicting owned objects freed for new transactions.
+        //
+        // If the white-flag flow produced digests to release but the OnceCell
+        // was never wired, that's a startup bug — locks would leak until TTL
+        // expiry. Log at `error!` so alerts fire; tests that exercise the
+        // white-flag path without a validator service take this branch
+        // harmlessly.
+        if !soft_lock_release_tx_digests.is_empty() {
+            if let Some(soft_locks) = self.soft_locks.get() {
+                soft_locks.release_for_batch(&soft_lock_release_tx_digests);
+            } else {
+                error!(
+                    count = soft_lock_release_tx_digests.len(),
+                    "white-flag flow produced soft-lock release digests but \
+                         soft_locks OnceCell was never set — wiring bug in \
+                         start_epoch_specific_validator_components"
+                );
+            }
+        }
 
         // Only after batch is written, notify checkpoint service to start building any
         // new pending checkpoints.
