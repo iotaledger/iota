@@ -476,7 +476,6 @@ impl AuthorityStorePruner {
         let mut effects_to_prune = vec![];
 
         let mut pruning_start = Instant::now();
-        let mut total_checkpoints_pruned: u64 = 0;
 
         loop {
             let Some(ckpt) = checkpoint_store
@@ -519,8 +518,6 @@ impl AuthorityStorePruner {
             if effects_to_prune.len() >= config.max_transactions_in_batch
                 || checkpoints_to_prune.len() >= config.max_checkpoints_in_batch
             {
-                total_checkpoints_pruned += checkpoints_to_prune.len() as u64;
-
                 match mode {
                     PruningMode::Objects => {
                         Self::prune_objects(
@@ -565,8 +562,6 @@ impl AuthorityStorePruner {
         }
 
         if !checkpoints_to_prune.is_empty() {
-            total_checkpoints_pruned += checkpoints_to_prune.len() as u64;
-
             match mode {
                 PruningMode::Objects => {
                     Self::prune_objects(
@@ -589,9 +584,10 @@ impl AuthorityStorePruner {
                     metrics.clone(),
                 )?,
             };
-        }
 
-        if total_checkpoints_pruned > 0 {
+            // Report pruning time for this batch so the progress logger
+            // shows time alongside the checkpoint deltas it reads from the
+            // DB (which are already updated at this point).
             if let Some(tracker) = progress_tracker {
                 let elapsed = pruning_start.elapsed();
                 match mode {
@@ -600,6 +596,7 @@ impl AuthorityStorePruner {
                 }
             }
         }
+
         Ok(())
     }
 

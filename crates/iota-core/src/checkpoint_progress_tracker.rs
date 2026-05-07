@@ -20,15 +20,14 @@ use crate::{
 ///
 /// Passed as `Option<Arc<CheckpointProgressTracker>>` — callers that don't need
 /// progress reporting (CLI tools, tests) simply pass `None`.
+///
+/// All values are accumulated and reset on each logging tick.
 pub struct CheckpointProgressTracker {
-    /// Accumulated checkpoint execution time in nanoseconds (monotonically
-    /// increasing).
+    /// Accumulated checkpoint execution time in nanoseconds.
     execution_time_ns: AtomicU64,
-    /// Accumulated object pruning time in nanoseconds (monotonically
-    /// increasing).
+    /// Accumulated object pruning time in nanoseconds.
     object_pruning_time_ns: AtomicU64,
-    /// Accumulated checkpoint/effects pruning time in nanoseconds
-    /// (monotonically increasing).
+    /// Accumulated checkpoint/effects pruning time in nanoseconds.
     checkpoint_pruning_time_ns: AtomicU64,
 }
 
@@ -70,9 +69,6 @@ impl CheckpointProgressTracker {
             let mut prev_total_tx: u64 = 0;
             let mut prev_obj_pruned: u64 = 0;
             let mut prev_ckpt_pruned: u64 = 0;
-            let mut prev_exec_time_ns: u64 = 0;
-            let mut prev_obj_prune_time_ns: u64 = 0;
-            let mut prev_ckpt_prune_time_ns: u64 = 0;
 
             loop {
                 interval.tick().await;
@@ -109,52 +105,41 @@ impl CheckpointProgressTracker {
                     .flatten()
                     .unwrap_or(0);
 
-                let exec_time_ns = tracker.execution_time_ns.load(Ordering::Relaxed);
-                let object_prune_time_ns = tracker.object_pruning_time_ns.load(Ordering::Relaxed);
-                let checkpoint_prune_time_ns =
-                    tracker.checkpoint_pruning_time_ns.load(Ordering::Relaxed);
-
                 let exec_delta = highest_executed_seq_number.saturating_sub(prev_executed);
                 let tx_delta = total_tx.saturating_sub(prev_total_tx);
                 let object_prune_delta = object_pruned_seq_number.saturating_sub(prev_obj_pruned);
                 let checkpoint_prune_delta =
                     checkpoint_pruned_seq_number.saturating_sub(prev_ckpt_pruned);
 
-                if exec_delta > 0 || object_prune_delta > 0 || checkpoint_prune_delta > 0 {
-                    let exec_time_delta =
-                        Duration::from_nanos(exec_time_ns.saturating_sub(prev_exec_time_ns));
-                    let object_prune_time_delta = Duration::from_nanos(
-                        object_prune_time_ns.saturating_sub(prev_obj_prune_time_ns),
-                    );
-                    let checkpoint_prune_time_delta = Duration::from_nanos(
-                        checkpoint_prune_time_ns.saturating_sub(prev_ckpt_prune_time_ns),
-                    );
-                    info!(
-                        "checkpoint progress [epoch {}]: executed {}/{} (+{}, {} tx/s, {:.2?}), \
-                         objects pruned {} (+{}, {:.2?}), \
-                         checkpoints pruned {} (+{}, {:.2?})",
-                        epoch,
-                        highest_executed_seq_number,
-                        synced_seq_number,
-                        exec_delta,
-                        tx_delta,
-                        exec_time_delta,
-                        object_pruned_seq_number,
-                        object_prune_delta,
-                        object_prune_time_delta,
-                        checkpoint_pruned_seq_number,
-                        checkpoint_prune_delta,
-                        checkpoint_prune_time_delta,
-                    );
-                }
+                if exec_delta > 0
+                    || tx_delta > 0
+                    || object_prune_delta > 0
+                    || checkpoint_prune_delta > 0
+                {
+                    let exec_time_delta_ns = tracker.execution_time_ns.swap(0, Ordering::Relaxed);
+                    let exec_time_delta = Duration::from_nanos(exec_time_delta_ns);
 
-                prev_executed = highest_executed_seq_number;
-                prev_total_tx = total_tx;
-                prev_obj_pruned = object_pruned_seq_number;
-                prev_ckpt_pruned = checkpoint_pruned_seq_number;
-                prev_exec_time_ns = exec_time_ns;
-                prev_obj_prune_time_ns = object_prune_time_ns;
-                prev_ckpt_prune_time_ns = checkpoint_prune_time_ns;
+                    let object_prune_time_delta_ns =
+                        tracker.object_pruning_time_ns.swap(0, Ordering::Relaxed);
+                    let object_prune_time_delta = Duration::from_nanos(object_prune_time_delta_ns);
+
+                    let checkpoint_prune_time_delta_ns = tracker
+                        .checkpoint_pruning_time_ns
+                        .swap(0, Ordering::Relaxed);
+                    let checkpoint_prune_time_delta =
+                        Duration::from_nanos(checkpoint_prune_time_delta_ns);
+
+                    info!(
+                        "checkpoint progress [epoch {epoch}]: executed {highest_executed_seq_number}/{synced_seq_number} (+{exec_delta}, {tx_delta} tx/s, {exec_time_delta:.2?}), \
+                         objects pruned {object_pruned_seq_number} (+{object_prune_delta}, {object_prune_time_delta:.2?}), \
+                         checkpoints pruned {checkpoint_pruned_seq_number} (+{checkpoint_prune_delta}, {checkpoint_prune_time_delta:.2?})",
+                    );
+
+                    prev_executed = highest_executed_seq_number;
+                    prev_total_tx = total_tx;
+                    prev_obj_pruned = object_pruned_seq_number;
+                    prev_ckpt_pruned = checkpoint_pruned_seq_number;
+                }
             }
         });
     }
