@@ -774,9 +774,9 @@ impl Core {
         Ok((None, BTreeMap::new()))
     }
 
-    /// Attempts to propose a new block for the next round. If a block has
-    /// already proposed for latest or earlier round, then no block is
-    /// created and None is returned.
+    /// Attempts to propose a new block at the current clock round. Eligibility
+    /// (round bounds, block restrictions) is enforced upstream in
+    /// `should_propose`.
     #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, reason: ReasonToCreateBlock) -> Option<VerifiedBlock> {
         let _s = self
@@ -1218,7 +1218,10 @@ impl Core {
         info!("Last known proposed round set to {round}");
     }
 
-    /// Whether the core should propose new blocks.
+    /// Returns true when Core should propose at the current clock round. As a
+    /// side effect, when proposal is greenlit under
+    /// `consensus_block_restrictions`, refreshes `DagState`'s last-known
+    /// quorum commit index to enable eviction for commit votes
     pub(crate) fn should_propose(&self) -> bool {
         let (clock_round, last_proposed_round, local_commit_index, local_commit_round) = {
             let dag_state = self.dag_state.read();

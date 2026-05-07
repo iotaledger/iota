@@ -1899,14 +1899,15 @@ impl DagState {
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         self.evict_pending_commit_votes();
-        let mut votes = Vec::with_capacity(limit.min(self.pending_commit_votes.len()));
-        while votes.len() < limit {
-            match self.pending_commit_votes.pop_first() {
-                Some(v) => votes.push(v),
-                None => break,
-            }
+        if self.pending_commit_votes.len() <= limit {
+            return std::mem::take(&mut self.pending_commit_votes)
+                .into_iter()
+                .collect();
         }
-        votes
+        let pivot = *self.pending_commit_votes.iter().nth(limit).unwrap();
+        let kept = self.pending_commit_votes.split_off(&pivot);
+        let taken = std::mem::replace(&mut self.pending_commit_votes, kept);
+        taken.into_iter().collect()
     }
 
     /// Clean up old cached data for each authority, all cached blocks
