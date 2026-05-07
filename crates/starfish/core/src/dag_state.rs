@@ -122,40 +122,35 @@ impl std::fmt::Display for DataSource {
 const STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS: usize = 10;
 
 /// Per-leader-round complaint history derived from the strong-vote masks of
-/// blocks that voted for that leader. Each voter's latest mask is kept in
-/// `voter_masks` so a re-vote replaces the previous contribution; the rolling
-/// `complaint_counts[authority]` aggregates how many voters currently blame
-/// that authority at this leader round.
+/// blocks that voted for that leader. The first mask we observe from each
+/// voter is folded into `complaint_counts` (which authorities the voter blamed)
+/// and the voter is recorded in `voters_counted`; subsequent masks from the
+/// same voter — i.e. equivocations — are ignored, capping each voter's
+/// contribution at +1 per blamed authority.
 #[derive(Default)]
 struct StarfishSpeedLeaderRoundHints {
-    voter_masks: BTreeMap<AuthorityIndex, AuthoritySet>,
+    voters_counted: AuthoritySet,
     complaint_counts: Vec<u16>,
 }
 
 impl StarfishSpeedLeaderRoundHints {
     fn new(committee_size: usize) -> Self {
         Self {
-            voter_masks: BTreeMap::new(),
+            voters_counted: AuthoritySet::default(),
             complaint_counts: vec![0; committee_size],
         }
     }
 
-    fn apply_mask_delta(&mut self, mask: AuthoritySet, delta: i32) {
+    /// Records `voter`'s blame mask. No-op if `voter` has already contributed
+    /// to this round (equivocations are ignored).
+    fn add_vote(&mut self, voter: AuthorityIndex, mask: AuthoritySet) {
+        if !self.voters_counted.insert(voter) {
+            return;
+        }
         for authority in mask.iter() {
             let count = &mut self.complaint_counts[authority.value()];
-            if delta > 0 {
-                *count = count.saturating_add(delta as u16);
-            } else {
-                *count = count.saturating_sub((-delta) as u16);
-            }
+            *count = count.saturating_add(1);
         }
-    }
-
-    fn update_vote(&mut self, voter: AuthorityIndex, mask: AuthoritySet) {
-        if let Some(previous_mask) = self.voter_masks.insert(voter, mask) {
-            self.apply_mask_delta(previous_mask, -1);
-        }
-        self.apply_mask_delta(mask, 1);
     }
 }
 
@@ -2513,7 +2508,7 @@ impl DagState {
             .starfish_speed_leader_hints
             .entry(leader_round)
             .or_insert_with(|| StarfishSpeedLeaderRoundHints::new(committee_size));
-        entry.update_vote(voter, mask);
+        entry.add_vote(voter, mask);
 
         while self.starfish_speed_leader_hints.len() > STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS {
             let Some(&oldest) = self.starfish_speed_leader_hints.keys().next() else {
