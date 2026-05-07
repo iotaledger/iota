@@ -1418,10 +1418,10 @@ impl Core {
             return;
         }
         for block in blocks {
-            let Some(mask) = block.strong_vote() else {
+            let Some(strong_vote) = block.strong_vote() else {
                 continue;
             };
-            if mask.is_empty() {
+            if strong_vote.is_strong_vote() {
                 continue;
             }
             let leader_round = block.round().saturating_sub(1);
@@ -1438,7 +1438,11 @@ impl Core {
             if leader_authority != self.context.own_index {
                 continue;
             }
-            dag_state.record_strong_vote_complaint(block.author(), leader_round, mask);
+            dag_state.record_strong_vote_complaint(
+                block.author(),
+                leader_round,
+                strong_vote.missing,
+            );
         }
     }
 
