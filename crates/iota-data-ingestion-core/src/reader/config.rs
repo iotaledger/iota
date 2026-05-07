@@ -1,45 +1,96 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Configuration options for the ingestion framework.
+//! Configuration types for the checkpoint reader.
+//!
+//! The two main types are:
+//!
+//! - [`CheckpointReaderConfig`]: the base configuration for the checkpoint
+//!   reader. Suited for most default use cases.
+//! - [`CheckpointReaderConfigExt`]: extends [`CheckpointReaderConfig`] with
+//!   opt-in configuration toggles beyond the base, such as server-side
+//!   transaction filters for fullnode connections.
+//!
+//! [`CheckpointReaderConfigExt`] wraps [`CheckpointReaderConfig`] and exposes
+//! a builder for the extra toggles. A `From<CheckpointReaderConfig>` impl is
+//! provided so existing [`CheckpointReaderConfig`] values can be converted
+//! to [`CheckpointReaderConfigExt`].
 
 use std::path::PathBuf;
 
-use crate::{
+use crate::filters::fullnode::TransactionFilter;
+pub use crate::{
     ReaderOptions,
-    filters::fullnode::TransactionFilter,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 
-/// Configuration options for the ingestion framework.
+/// Extends [`CheckpointReaderConfig`] with opt-in configuration toggles.
+///
+/// Use this type when you need framework features beyond what the base
+/// [`CheckpointReaderConfig`] exposes (e.g. server-side transaction filtering
+/// for fullnode connections).
+///
+/// # Example
+///
+/// ```rust
+/// use iota_data_ingestion_core::{
+///     ReaderOptions,
+///     filters::fullnode::{ExecutionStatusFilter, TransactionFilter},
+///     reader::config::{CheckpointReaderConfig, CheckpointReaderConfigExt, RemoteUrl},
+/// };
+///
+/// let filter = TransactionFilter::default()
+///     .with_execution_status(ExecutionStatusFilter::default().with_success(true));
+///
+/// let config = CheckpointReaderConfigExt::new(ReaderOptions::default())
+///     .with_remote_store_url(RemoteUrl::Fullnode("http://127.0.0.1:50051".into()))
+///     .with_fullnode_transaction_filter(filter);
+/// ```
+/// # Example with an existing [`CheckpointReaderConfig`]
+///
+/// ```rust
+/// use iota_data_ingestion_core::{
+///     ReaderOptions,
+///     filters::fullnode::{ExecutionStatusFilter, TransactionFilter},
+///     reader::config::{CheckpointReaderConfig, CheckpointReaderConfigExt, RemoteUrl},
+/// };
+///
+/// let base_config = CheckpointReaderConfig {
+///     reader_options: ReaderOptions::default(),
+///     remote_store_url: Some(RemoteUrl::Fullnode("http://127.0.0.1:50051".into())),
+///     ..Default::default()
+/// };
+///
+/// let filter = TransactionFilter::default()
+///     .with_execution_status(ExecutionStatusFilter::default().with_success(true));
+/// let config =
+///     CheckpointReaderConfigExt::from(base_config).with_fullnode_transaction_filter(filter);
+/// ```
 #[derive(Clone, Default)]
-pub struct IngestionConfig {
-    /// Config the checkpoint reader behavior for downloading new checkpoints.
-    pub(crate) reader_options: ReaderOptions,
-    /// Local path for checkpoint ingestion. If not provided, checkpoints will
-    /// be ingested from a temporary directory.
-    pub(crate) ingestion_path: Option<PathBuf>,
-    /// Remote source for checkpoint data stream.
-    pub(crate) remote_store_url: Option<RemoteUrl>,
+pub struct CheckpointReaderConfigExt {
+    /// The base configuration for the checkpoint reader.
+    pub(crate) base: CheckpointReaderConfig,
     /// Filter applied to transactions within a checkpoint.
     pub(crate) fullnode_transaction_filter: Option<TransactionFilter>,
 }
 
-impl From<CheckpointReaderConfig> for IngestionConfig {
+impl From<CheckpointReaderConfig> for CheckpointReaderConfigExt {
     fn from(config: CheckpointReaderConfig) -> Self {
         Self {
-            reader_options: config.reader_options,
-            ingestion_path: config.ingestion_path,
-            remote_store_url: config.remote_store_url,
+            base: config,
             ..Default::default()
         }
     }
 }
 
-impl IngestionConfig {
+impl CheckpointReaderConfigExt {
+    /// Constructs a new configuration with the given [`ReaderOptions`].
     pub fn new(reader_options: ReaderOptions) -> Self {
         Self {
-            reader_options,
+            base: CheckpointReaderConfig {
+                reader_options,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
@@ -49,13 +100,13 @@ impl IngestionConfig {
     /// If not provided, checkpoints will be ingested from a temporary
     /// directory.
     pub fn with_ingestion_path(mut self, path: impl Into<PathBuf>) -> Self {
-        self.ingestion_path = Some(path.into());
+        self.base.ingestion_path = Some(path.into());
         self
     }
 
-    /// Sets the remote store URL for checkpoint to be downloaded from.
+    /// Sets the remote source from which checkpoints are downloaded.
     pub fn with_remote_store_url(mut self, url: RemoteUrl) -> Self {
-        self.remote_store_url = Some(url);
+        self.base.remote_store_url = Some(url);
         self
     }
 
@@ -64,8 +115,10 @@ impl IngestionConfig {
     /// When set, the remote source will only return checkpoints containing
     /// transactions that match the provided [`TransactionFilter`].
     ///
-    /// ### Connection Requirements
-    /// This is only supported for [`RemoteUrl::Fullnode`] connections.
+    /// # Errors
+    ///
+    /// Using this filter with any source other than [`RemoteUrl::Fullnode`]
+    /// will cause the executor to return an error when started.
     pub fn with_fullnode_transaction_filter(mut self, filter: TransactionFilter) -> Self {
         self.fullnode_transaction_filter = Some(filter);
         self

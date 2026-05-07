@@ -33,7 +33,8 @@ use tracing::{debug, error, info};
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
 use crate::{
-    IngestionConfig, IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
+    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
+    config::CheckpointReaderConfigExt,
     create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
@@ -554,10 +555,10 @@ pub(crate) struct CheckpointReader {
 impl CheckpointReader {
     pub(crate) async fn new(
         starting_checkpoint_number: CheckpointSequenceNumber,
-        config: IngestionConfig,
+        config: CheckpointReaderConfigExt,
     ) -> IngestionResult<Self> {
         if config.fullnode_transaction_filter.is_some()
-            && !matches!(config.remote_store_url, Some(RemoteUrl::Fullnode(_)))
+            && !matches!(config.base.remote_store_url, Some(RemoteUrl::Fullnode(_)))
         {
             return Err(IngestionError::Unsupported(
                 "filter is only supported on `RemoteUrl::Fullnode` connections".into(),
@@ -567,12 +568,12 @@ impl CheckpointReader {
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
 
-        let remote_store = if let Some(url) = config.remote_store_url {
+        let remote_store = if let Some(url) = config.base.remote_store_url {
             Some(Arc::new(
                 RemoteStore::new(
                     url,
-                    config.reader_options.batch_size,
-                    config.reader_options.timeout_secs,
+                    config.base.reader_options.batch_size,
+                    config.base.reader_options.timeout_secs,
                 )
                 .await?,
             ))
@@ -580,7 +581,7 @@ impl CheckpointReader {
             None
         };
 
-        let path = match config.ingestion_path {
+        let path = match config.base.ingestion_path {
             Some(p) => p,
             None => tempfile::tempdir()?.keep(),
         };
@@ -593,8 +594,8 @@ impl CheckpointReader {
             gc_signal_rx,
             remote_store,
             token: token.clone(),
-            data_limiter: DataLimiter::new(config.reader_options.data_limit),
-            reader_options: config.reader_options,
+            data_limiter: DataLimiter::new(config.base.reader_options.data_limit),
+            reader_options: config.base.reader_options,
             fullnode_transaction_filter: config.fullnode_transaction_filter,
         };
 

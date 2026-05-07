@@ -16,7 +16,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    DataIngestionMetrics, IngestionConfig, IngestionError, IngestionResult, ReaderOptions, Worker,
+    DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    config::CheckpointReaderConfigExt,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -262,7 +263,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// registered.
     pub async fn run_with_config(
         mut self,
-        config: impl Into<IngestionConfig>,
+        config: impl Into<CheckpointReaderConfigExt>,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
         let checkpoint_reader =

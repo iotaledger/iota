@@ -4,10 +4,9 @@
 //! Types and utilities for fetching checkpoints from local and remote sources.
 
 pub(crate) mod common;
-pub(crate) mod config;
+pub mod config;
 pub(crate) mod fetch;
 pub mod filters;
 pub mod v2;
 
 pub use common::ReaderOptions;
-pub use config::IngestionConfig;
