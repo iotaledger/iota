@@ -1122,9 +1122,30 @@ impl AuthorityPerEpochStore {
     // epoch significantly right now, so we need to manually release the tables to
     // release its memory usage.
     pub fn release_db_handles(&self) {
-        // When the logic to release DB handles becomes obsolete, it may still be useful
-        // to make sure AuthorityEpochTables is not used after the next epoch starts.
-        self.tables.store(None);
+        let epoch = self.epoch();
+        // Swap out the tables Arc so no new references can be obtained via tables().
+        if let Some(tables) = self.tables.swap(None) {
+            // strong_count() == 1 means we hold the only reference and the
+            // RocksDB handles will be freed when this Arc is dropped below.
+            // A higher count means some code path still holds a reference,
+            // which delays freeing the underlying RocksDB memory.
+            let strong_count = Arc::strong_count(&tables);
+            if strong_count > 1 {
+                warn!(
+                    epoch,
+                    strong_count,
+                    "Epoch tables Arc has lingering references after release_db_handles(). \
+                     RocksDB memory for epoch {} will not be freed until all {} references \
+                     are dropped.",
+                    epoch,
+                    strong_count
+                );
+            } else {
+                debug!(epoch, "Epoch tables released cleanly for epoch {}", epoch);
+            }
+            // tables Arc is dropped here, freeing the RocksDB handles if
+            // strong_count == 1
+        }
     }
 
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {

@@ -356,7 +356,6 @@ pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     //   genesis-file-location:  <path to genesis blob for the network>
     // authority-store-pruning-config:
     //   num-latest-epoch-dbs-to-retain: 3
-    //   epoch-db-pruning-period-secs: 3600
     //   num-epochs-to-retain: 18446744073709551615
     //   max-checkpoints-in-batch: 10
     //   max-transactions-in-batch: 1000

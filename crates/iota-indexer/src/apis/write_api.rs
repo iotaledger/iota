@@ -43,11 +43,11 @@ use crate::{
     apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
     ingestion::primary::prepare::InMemObjectCache,
-    models::transactions::tx_events_to_iota_tx_events,
-    optimistic_indexing::OptimisticTransactionExecutor,
+    models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
+    optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
-    types::{IndexedObjectChange, IotaTransactionBlockResponseWithOptions, grpc_conversion},
+    types::{IndexedObjectChange, grpc_conversion},
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
@@ -349,6 +349,22 @@ impl OptimisticWriteApi {
             optimistic_tx_executor,
         }
     }
+
+    async fn build_response(
+        &self,
+        ingestion_path: IngestionPath,
+        options: IotaTransactionBlockResponseOptions,
+    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+        let package_resolver = self.write_api.package_resolver.clone();
+        let stored_transaction = StoredTransaction::from(ingestion_path);
+        stored_transaction
+            .try_into_iota_transaction_block_response(options, &package_resolver)
+            .await
+    }
+
+    pub fn executor(&self) -> &OptimisticTransactionExecutor {
+        &self.optimistic_tx_executor
+    }
 }
 
 #[async_trait]
@@ -441,15 +457,13 @@ impl WriteApiServer for OptimisticWriteApi {
         options: Option<IotaTransactionBlockResponseOptions>,
         _request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = self
+        let ingestion_path = self
             .optimistic_tx_executor
-            .execute_and_index_transaction(tx_bytes, signatures, options.clone())
+            .execute_and_index_transaction(tx_bytes, signatures)
             .await?;
-        Ok(IotaTransactionBlockResponseWithOptions {
-            response: iota_transaction_response,
-            options: options.unwrap_or_default(),
-        }
-        .into())
+        Ok(self
+            .build_response(ingestion_path, options.unwrap_or_default())
+            .await?)
     }
 
     async fn dev_inspect_transaction_block(

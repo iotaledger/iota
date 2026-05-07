@@ -779,7 +779,7 @@ impl IndexerReader {
     ///  Retrieval order:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
-    async fn multi_get_transactions(
+    pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<StoredTransaction>> {

@@ -1914,6 +1914,16 @@ impl IotaNode {
             // Arc<AuthorityPerEpochStore> may linger.
             cur_epoch_store.release_db_handles();
 
+            // Drop the old epoch store to free its in-memory structures
+            // (ConsensusOutputCache, ConsensusQuarantine, DashMaps, etc.).
+            // The DB tables were already released above.
+            drop(cur_epoch_store);
+
+            // Prune old epoch databases after each epoch transition to prevent
+            // accumulation of RocksDB instances during fast catch-up sync
+            // (e.g. syncing from genesis).
+            self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
+
             if cfg!(msim)
                 && !matches!(
                     self.config
