@@ -75,12 +75,15 @@ use crate::{
 ///
 /// # Returns
 ///
-/// `Ok((dropped, locks))` where:
+/// `Ok((dropped, locks, all_user_tx_digests))` where:
 /// - `dropped` — `(digest, error)` for every semantically-invalid or
 ///   lock-conflicting transaction. Silent drops (duplicates, already-executed)
 ///   are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
+/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
+///   (both kept and dropped). Used by the caller to release pre-consensus soft
+///   locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -88,6 +91,7 @@ pub async fn validate_and_resolve_conflicts(
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
     HashMap<ObjectRef, LockDetails>,
+    Vec<TransactionDigest>,
 )> {
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
@@ -96,6 +100,9 @@ pub async fn validate_and_resolve_conflicts(
     let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
+    // All UserTransactionV1 digests seen in this commit (both kept and dropped),
+    // used by the caller to release pre-consensus soft locks.
+    let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -118,6 +125,7 @@ pub async fn validate_and_resolve_conflicts(
         };
 
         let digest = *transaction.digest();
+        all_user_tx_digests.push(digest);
 
         // Check #1: Already executed — silent dedup.
         if authority_state
@@ -285,7 +293,7 @@ pub async fn validate_and_resolve_conflicts(
     let mut iter = keep.into_iter();
     transactions.retain(|_| iter.next().unwrap_or(true));
 
-    Ok((dropped, current_commit_locks))
+    Ok((dropped, current_commit_locks, all_user_tx_digests))
 }
 
 /// Extracts owned input object references from a `UserTransactionV1`

@@ -4,8 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 /// Metrics for the validator service.
@@ -33,6 +34,8 @@ pub struct ValidatorServiceMetrics {
     pub forwarded_header_invalid: IntCounter,
     pub forwarded_header_not_included: IntCounter,
     pub client_id_source_config_mismatch: IntCounter,
+    pub num_rejected_tx_soft_lock_conflict: IntCounter,
+    pub soft_lock_table_size: IntGauge,
 }
 
 impl ValidatorServiceMetrics {
@@ -182,6 +185,18 @@ impl ValidatorServiceMetrics {
             client_id_source_config_mismatch: register_int_counter_with_registry!(
                 "validator_service_client_id_source_config_mismatch",
                 "Number of times detected that client id source config doesn't agree with x-forwarded-for header",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_soft_lock_conflict: register_int_counter_with_registry!(
+                "validator_service_num_rejected_tx_soft_lock_conflict",
+                "Number of transactions rejected due to pre-consensus soft lock conflict on owned objects",
+                registry,
+            )
+                .unwrap(),
+            soft_lock_table_size: register_int_gauge_with_registry!(
+                "validator_service_soft_lock_table_size",
+                "Current number of object refs held in the pre-consensus soft lock table",
                 registry,
             )
                 .unwrap(),
