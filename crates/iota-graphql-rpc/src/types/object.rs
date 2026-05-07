@@ -746,7 +746,7 @@ impl ObjectImpl<'_> {
 
         let move_object = native
             .data
-            .try_as_move()
+            .as_struct_opt()
             .ok_or_else(|| Error::Internal("Failed to convert object into MoveObject".to_string()))
             .extend()?;
 

@@ -214,7 +214,7 @@
     "required_objects": [
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "143",
                     "contents": [
                         253,
@@ -306701,7 +306701,7 @@
         },
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "143",
                     "contents": [
                         253,

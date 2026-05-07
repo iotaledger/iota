@@ -3030,7 +3030,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.try_as_move().map(MoveObject::version)
+                    object.data.as_struct_opt().map(MoveObject::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
