@@ -13,7 +13,6 @@ use crate::{
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
-    leader_schedule::LeaderSchedule,
     transaction::TransactionVerifier,
 };
 
@@ -34,14 +33,12 @@ pub(crate) struct SignedBlockVerifier {
     context: Arc<Context>,
     genesis: BTreeSet<BlockRef>,
     transaction_verifier: Arc<dyn TransactionVerifier>,
-    leader_schedule: Arc<LeaderSchedule>,
 }
 
 impl SignedBlockVerifier {
     pub(crate) fn new(
         context: Arc<Context>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
-        leader_schedule: Arc<LeaderSchedule>,
     ) -> Self {
         let genesis = genesis_block_headers(&context)
             .into_iter()
@@ -51,7 +48,6 @@ impl SignedBlockVerifier {
             context,
             genesis,
             transaction_verifier,
-            leader_schedule,
         }
     }
     pub(crate) fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
@@ -249,7 +245,6 @@ pub(crate) mod test {
     use crate::{
         block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader},
         context::Context,
-        leader_schedule::LeaderSwapTable,
         transaction::{TransactionVerifier, ValidationError},
     };
 
@@ -275,12 +270,7 @@ pub(crate) mod test {
         let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
-        let leader_schedule = Arc::new(LeaderSchedule::new(
-            context.clone(),
-            LeaderSwapTable::default(),
-        ));
-        let verifier =
-            SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}), leader_schedule);
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
         let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
             BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),

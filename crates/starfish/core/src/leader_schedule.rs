@@ -154,12 +154,6 @@ impl LeaderSchedule {
         dag_state.read().is_scoring_subdag_empty()
     }
 
-    /// Single-leader-per-round wrapper around `elect_leader` for callers that
-    /// don't deal with pipelining. Starfish has exactly one leader per round.
-    pub(crate) fn leader_for_round(&self, round: u32) -> AuthorityIndex {
-        self.elect_leader(round, 0)
-    }
-
     pub(crate) fn elect_leader(&self, round: u32, leader_offset: u32) -> AuthorityIndex {
         cfg_if::cfg_if! {
             // TODO: we need to differentiate the leader strategy in tests, so for

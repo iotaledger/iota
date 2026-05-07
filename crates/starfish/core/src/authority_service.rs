@@ -1646,7 +1646,7 @@ mod tests {
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
-        leader_schedule::{LeaderSchedule, LeaderSwapTable},
+        leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
@@ -2422,10 +2422,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -2592,10 +2588,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -2778,10 +2770,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3110,10 +3098,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3255,10 +3239,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3422,10 +3402,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3622,10 +3598,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3851,10 +3823,6 @@ mod tests {
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
-            Arc::new(LeaderSchedule::new(
-                context.clone(),
-                LeaderSwapTable::default(),
-            )),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new(context.clone()));
