@@ -10,7 +10,10 @@ use itertools::Itertools;
 use starfish_config::AuthorityIndex;
 use tracing::debug;
 
-use crate::{BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader, context::Context};
+use crate::{
+    BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader, block_header::BlockHeaderDigest,
+    context::Context,
+};
 
 /// Outcome of [`BlockSuspender::evict_below_round`].
 pub(crate) struct EvictBelowRoundOutcome {
@@ -408,21 +411,34 @@ impl BlockSuspender {
     /// Returns headers that became fully resolved (and any further headers that
     /// cascaded from them) so the caller can write them to `DagState`.
     pub(crate) fn evict_below_round(&mut self, round_floor: Round) -> EvictBelowRoundOutcome {
-        let fetch_before = self.headers_to_fetch.len();
-        self.headers_to_fetch.retain(|r, _| r.round > round_floor);
-        let fetch_evicted = fetch_before - self.headers_to_fetch.len();
+        // Smallest BlockRef with round > round_floor — split keeps everything
+        // from this key onward (round > floor) in the original map.
+        let pivot = BlockRef::new(round_floor + 1, AuthorityIndex::MIN, BlockHeaderDigest::MIN);
 
-        let evicted_ancestor_refs: Vec<BlockRef> = self
-            .missing_ancestors
-            .keys()
-            .filter(|r| r.round <= round_floor)
-            .copied()
-            .collect();
-        let ancestors_evicted = evicted_ancestor_refs.len();
+        let kept_to_fetch = self.headers_to_fetch.split_off(&pivot);
+        let fetch_entries_evicted =
+            std::mem::replace(&mut self.headers_to_fetch, kept_to_fetch).len();
 
+        let kept_missing = self.missing_ancestors.split_off(&pivot);
+        let evicted_missing = std::mem::replace(&mut self.missing_ancestors, kept_missing);
+        let ancestors_evicted = evicted_missing.len();
+
+        // Evicted ancestors are gone from `self.missing_ancestors`, so the
+        // cascade helper can't be entered through them directly. Seed it with
+        // their immediate dependents; deeper levels (round > floor) are still
+        // in `self.missing_ancestors` and the helper handles them.
         let mut unsuspended = vec![];
-        for evicted_ref in evicted_ancestor_refs {
-            unsuspended.extend(self.recursively_unsuspend_dependents(evicted_ref));
+        for (evicted_ref, dependents) in evicted_missing {
+            for suspended_block_ref in dependents {
+                if let Some(unsuspended_block) =
+                    self.unsuspend_if_ready(&suspended_block_ref, &evicted_ref)
+                {
+                    self.report_unsuspended_block(&unsuspended_block);
+                    let new_ref = unsuspended_block.block_header.reference();
+                    unsuspended.push(unsuspended_block.block_header);
+                    unsuspended.extend(self.recursively_unsuspend_dependents(new_ref));
+                }
+            }
         }
 
         self.update_stats(0);
@@ -430,7 +446,7 @@ impl BlockSuspender {
         EvictBelowRoundOutcome {
             unsuspended_headers: unsuspended,
             ancestors_evicted,
-            fetch_entries_evicted: fetch_evicted,
+            fetch_entries_evicted,
         }
     }
     pub(crate) fn headers_to_fetch(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
