@@ -145,7 +145,7 @@ use tokio::time::Instant;
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
 /// Magic for V2 reference files. Distinct from the V1 magic (`0xDEADBEEF`) so
 /// a V1 reader fails fast on the magic check rather than silently
-/// mis-decoding a V2 ref record's extra `previous_transaction_checkpoint`
+/// miss-decoding a V2 ref record's extra `previous_transaction_checkpoint`
 /// trailer.
 const REFERENCE_FILE_MAGIC_V2: u32 = 0xCAFEBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;

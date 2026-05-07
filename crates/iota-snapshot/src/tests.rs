@@ -104,7 +104,7 @@ async fn snapshot_round_trip(
 
     // On-wire size assertion: with no compression the uploaded `.ref` file
     // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES_V2`. This
-    // locks the V2 trailer width — a bug that mis-sized records would
+    // locks the V2 trailer width — a bug that miss-sized records would
     // still pass the round-trip if writer and reader agreed on the wrong
     // size. Reads from the remote store, since `sync_file_to_remote`
     // removes the local copy after upload.
