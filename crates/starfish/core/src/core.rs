@@ -1417,27 +1417,22 @@ impl Core {
         if !self.context.protocol_config.consensus_starfish_speed() {
             return;
         }
+        let own_index = self.context.own_index;
         for block in blocks {
-            let Some(strong_vote) = block.strong_vote() else {
-                continue;
-            };
-            if strong_vote.is_strong_vote() {
+            // Use the producer's pinned leader (in the strong-vote payload),
+            // not the local canonical leader. The local view can disagree
+            // across schedule rotations — same misattribution surface fixed
+            // for the commit path in StarfishSpeed.
+            if !block.is_strong_blame_for(own_index) {
                 continue;
             }
             let leader_round = block.round().saturating_sub(1);
             if leader_round == GENESIS_ROUND {
                 continue;
             }
-            let Some(leader_authority) =
-                self.committer.get_leaders(leader_round).into_iter().next()
-            else {
+            let Some(strong_vote) = block.strong_vote() else {
                 continue;
             };
-            // Only record complaints for our own leader rounds — that's all
-            // `starfish_speed_excluded_ack_authorities` will ever read.
-            if leader_authority != self.context.own_index {
-                continue;
-            }
             dag_state.record_strong_vote_complaint(
                 block.author(),
                 leader_round,
