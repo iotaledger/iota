@@ -207,3 +207,15 @@ pub fn is_certificate_denied(
     certificate_deny_set.contains(transaction_digest)
         || get_denied_certificates().contains(transaction_digest)
 }
+
+impl From<&Object> for DynamicallyLoadedObjectMetadata {
+    fn from(object: &Object) -> Self {
+        Self {
+            version: object.version(),
+            digest: object.digest(),
+            owner: *object.owner(),
+            storage_rebate: object.storage_rebate,
+            previous_transaction: object.previous_transaction,
+        }
+    }
+}

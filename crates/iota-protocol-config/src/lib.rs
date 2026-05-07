@@ -166,6 +166,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+//             Enable built-in Move authenticators in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -472,6 +473,10 @@ struct FeatureFlags {
     // If true, enables the authentication of a sponsor account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authentications: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1400,6 +1405,9 @@ pub struct ProtocolConfig {
     // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    // Cost params for built-in Move authenticators
+    builtin_move_authenticator_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -1704,6 +1712,22 @@ impl ProtocolConfig {
             "enable_move_authentication_for_sponsor requires enable_move_authentication to be set"
         );
         enable_move_authentication_for_sponsor
+    }
+
+    pub fn enable_builtin_move_authentications(&self) -> bool {
+        let enable_builtin_move_authentications =
+            self.feature_flags.enable_builtin_move_authentications;
+        if enable_builtin_move_authentications {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authentications requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.builtin_move_authenticator_cost_base.is_some(),
+                "enable_builtin_move_authentications requires builtin_move_authenticator_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authentications
     }
 
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
@@ -2390,6 +2414,9 @@ impl ProtocolConfig {
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
+
+            // Built-in Move authenticators
+            builtin_move_authenticator_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2941,6 +2968,13 @@ impl ProtocolConfig {
                     // header size by committee size and garbage-collect the block
                     // manager.
                     cfg.feature_flags.consensus_block_restrictions = true;
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable built-in Move authenticators in devnet.
+                        cfg.feature_flags.enable_builtin_move_authentications = true;
+                        // Set the cost for built-in Move authenticators to 0 for now.
+                        cfg.builtin_move_authenticator_cost_base = Some(0);
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -3166,6 +3200,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
+    pub fn set_enable_builtin_move_authentications_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authentications = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {

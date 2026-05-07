@@ -43,6 +43,7 @@ feature_flags:
   publish_package_metadata: true
   enable_move_authentication: true
   enable_move_authentication_for_sponsor: true
+  enable_builtin_move_authentications: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
   adjust_rewards_by_score: true
@@ -342,3 +343,4 @@ auth_context_tx_inputs_cost_base: 30
 auth_context_tx_inputs_cost_per_byte: 2
 auth_context_replace_cost_base: 30
 auth_context_replace_cost_per_byte: 2
+builtin_move_authenticator_cost_base: 0

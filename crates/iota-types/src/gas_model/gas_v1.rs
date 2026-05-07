@@ -488,6 +488,13 @@ mod checked {
                 })
         }
 
+        fn charge_fixed_cost(&mut self, cost: u64) -> Result<(), ExecutionError> {
+            self.gas_status.charge_fixed_cost(cost).map_err(|e| {
+                debug_assert_eq!(e.major_status(), StatusCode::OUT_OF_GAS);
+                ExecutionErrorKind::InsufficientGas.into()
+            })
+        }
+
         /// Update `storage_rebate` and `storage_gas_units` for each object in
         /// the transaction. There is no charge in this function.
         /// Charges will all be applied together at the end

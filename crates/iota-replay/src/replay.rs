@@ -26,6 +26,7 @@ use iota_types::{
         authenticator_function::{
             AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
+        builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
     },
     auth_context::AuthContextData,
     base_types::{ObjectRef, SequenceNumber, VersionNumber},
@@ -34,7 +35,7 @@ use iota_types::{
     dynamic_field::{self, Field},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::SharedInput,
+    execution::{DynamicallyLoadedObjectMetadata, SharedInput},
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -2176,26 +2177,28 @@ fn load_authenticator_function_ref(
         .object_to_authenticate_components()
         .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_id = dynamic_field::derive_dynamic_field_id(
+    let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &AuthenticatorFunctionRefV1Key::tag().into(),
         &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
     )
     .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-    let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
-        err: format!(
-            "Authenticator function ref dynamic field {field_id} not found in storage \
+    let authenticator_function_ref_field_obj = get_object(&authenticator_function_ref_field_id).ok_or_else(|| {
+        ReplayEngineError::GeneralError {
+            err: format!(
+                "Authenticator function ref dynamic field {authenticator_function_ref_field_id} not found in storage \
              for account object {account_object_id} at version {account_object_version}"
-        ),
+            ),
+        }
     })?;
 
-    let field_move_object = field_obj
+    let field_move_object = authenticator_function_ref_field_obj
         .data
         .as_struct_opt()
         .expect("dynamic field should never be a package object");
 
-    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
+    let authenticator_function_ref_field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
         .to_rust()
         .map_err(|e| ReplayEngineError::GeneralError {
             err: format!(
@@ -2203,12 +2206,49 @@ fn load_authenticator_function_ref(
             ),
         })?;
 
+    let (builtin_authenticator_data, public_key_loaded_obj) = if let Some(expected_scheme) =
+        builtin_authenticator_functions::resolve_builtin_signature_scheme(
+            &authenticator_function_ref_field.value,
+        ) {
+        let (public_key_field_id, loaded_data) =
+            builtin_authenticator_functions::load_builtin_public_key(
+                account_object_id,
+                |public_key_field_id| Ok(get_object(&public_key_field_id)),
+            )
+            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+        let (public_key, public_key_loaded_metadata) =
+            loaded_data.ok_or_else(|| ReplayEngineError::GeneralError {
+                err: format!(
+                    "Public key dynamic field {public_key_field_id} not found in storage \
+                     for account object {account_object_id} at version {account_object_version}"
+                ),
+            })?;
+
+        (
+            Some(PreloadedBuiltinAuthenticatorData {
+                expected_scheme,
+                public_key,
+            }),
+            Some((public_key_field_id, public_key_loaded_metadata)),
+        )
+    } else {
+        (None, None)
+    };
+
+    let mut loaded_objects = vec![(
+        authenticator_function_ref_field_id,
+        DynamicallyLoadedObjectMetadata::from(&authenticator_function_ref_field_obj),
+    )];
+
+    if let Some(public_key_loaded_obj) = public_key_loaded_obj {
+        loaded_objects.push(public_key_loaded_obj);
+    }
+
     Ok(AuthenticatorFunctionRefForExecution::new_v1(
-        field.value,
-        field_obj.object_ref(),
-        field_obj.owner,
-        field_obj.storage_rebate,
-        field_obj.previous_transaction,
+        authenticator_function_ref_field.value,
+        builtin_authenticator_data,
+        loaded_objects,
     ))
 }
 
