@@ -25,7 +25,8 @@ pub(crate) mod block_suspender;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
@@ -131,10 +132,10 @@ impl BlockManager {
         let metrics = &self.context.metrics.node_metrics;
         metrics.block_manager_gc_floor.set(gc_floor as i64);
 
-        let txs_before = self.suspended_transactions.len();
-        self.suspended_transactions
-            .retain(|r, _| r.round > gc_floor);
-        let txs_evicted = (txs_before - self.suspended_transactions.len()) as u64;
+        let pivot = BlockRef::new(gc_floor + 1, AuthorityIndex::MIN, BlockHeaderDigest::MIN);
+        let kept_txs = self.suspended_transactions.split_off(&pivot);
+        let txs_evicted =
+            std::mem::replace(&mut self.suspended_transactions, kept_txs).len() as u64;
         metrics
             .block_manager_gc_evicted_suspended_transactions_total
             .inc_by(txs_evicted);
