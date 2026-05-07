@@ -216,7 +216,7 @@ impl BlockSuspender {
         (fully_resolved_headers, ancestors_to_fetch)
     }
     /// Recursively unsuspends all blocks that were dependent on a now-accepted
-    /// block.
+    /// or now-gc-evicted block.
     ///
     /// Starting from `resolved_block`, this function walks the dependency graph
     /// and attempts to unsuspend any suspended blocks that were blocked on
