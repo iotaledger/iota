@@ -368,6 +368,16 @@ pub(crate) enum ConsensusError {
 
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
+
+    #[error(
+        "Block at round {block_round} carries strong_vote pinned to leader \
+         authority {leader_authority} but does not reference that leader at round {leader_round}"
+    )]
+    StrongVoteLeaderNotInAncestors {
+        block_round: Round,
+        leader_round: Round,
+        leader_authority: AuthorityIndex,
+    },
 }
 
 impl ConsensusError {

@@ -13,7 +13,8 @@ use crate::{
     },
     block_header::{
         BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        TransactionsCommitment, VerifiedBlockHeader, VerifiedTransactions, genesis_block_headers,
+        StrongVote, TransactionsCommitment, VerifiedBlockHeader, VerifiedTransactions,
+        genesis_block_headers,
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus},
     context::Context,
@@ -32,7 +33,7 @@ fn v2_block(
     round: Round,
     author: u8,
     ancestors: Vec<BlockRef>,
-    strong_vote: Option<AuthoritySet>,
+    strong_vote: Option<StrongVote>,
     timestamp_ms: BlockTimestampMs,
 ) -> VerifiedBlockHeader {
     let header = BlockHeaderV2::new(
@@ -55,7 +56,7 @@ fn v2_block_with_acks(
     author: u8,
     ancestors: Vec<BlockRef>,
     acks: Vec<BlockRef>,
-    strong_vote: Option<AuthoritySet>,
+    strong_vote: Option<StrongVote>,
     timestamp_ms: BlockTimestampMs,
 ) -> VerifiedBlockHeader {
     let header = BlockHeaderV2::new(
@@ -70,6 +71,18 @@ fn v2_block_with_acks(
         strong_vote,
     );
     VerifiedBlockHeader::new_for_test(BlockHeader::V2(header))
+}
+
+/// Wraps a "missing" mask into a `StrongVote` pinned to `leader_authority`.
+/// `None` passes through (no vote).
+fn pin_strong_vote(
+    leader_authority: AuthorityIndex,
+    missing: Option<AuthoritySet>,
+) -> Option<StrongVote> {
+    missing.map(|missing| StrongVote {
+        leader_authority,
+        missing,
+    })
 }
 
 /// Marks `header`'s transaction data as locally available, so
@@ -162,27 +175,33 @@ fn test_context_with_flag(enable_starfish_speed: bool) -> (Arc<Context>, Arc<RwL
     (ctx, dag_state)
 }
 
-/// Populate `dag_state` through round 5; round-4 voters carry the given
-/// `strong_vote` values. Returns the leader slot at round 3.
+/// Populate `dag_state` through round 5; round-4 voters carry strong-vote
+/// payloads pinned to the canonical round-3 leader. Returns the leader slot at
+/// round 3.
 fn build_metastate_dag(
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     committer: &crate::base_committer::BaseCommitter,
     voter_strong_votes: [Option<AuthoritySet>; 4],
 ) -> crate::block_header::Slot {
-    let round_3_refs = build_v2_layers(&context, &dag_state, None, committer.leader_round(1));
+    let leader_round = committer.leader_round(1);
+    let round_3_refs = build_v2_layers(&context, &dag_state, None, leader_round);
+    let leader_authority = committer
+        .elect_leader(leader_round)
+        .expect("should elect a leader")
+        .authority;
 
     // Round 4 (voting): each voter links to all round-3 blocks and carries the
-    // configured strong_vote.
+    // configured missing-mask, pinned to the canonical leader.
     let mut round_4_refs = Vec::new();
-    let voting_round = committer.leader_round(1) + 1;
-    for (author, strong_vote) in voter_strong_votes.into_iter().enumerate() {
+    let voting_round = leader_round + 1;
+    for (author, missing) in voter_strong_votes.into_iter().enumerate() {
         let author = author as u8;
         let block = v2_block(
             voting_round,
             author,
             round_3_refs.clone(),
-            strong_vote,
+            pin_strong_vote(leader_authority, missing),
             default_ts(voting_round, author),
         );
         round_4_refs.push(block.reference());
@@ -368,9 +387,11 @@ fn build_equivocating_metastate_dag(
         .accept_block_header(leader_b, DataSource::Test);
 
     // Round `voting_round`: each voter includes all non-leader round-3 blocks
-    // plus the chosen leader block, and carries the configured strong_vote.
+    // plus the chosen leader block, and carries the configured missing-mask
+    // pinned to the (shared) leader authority — the equivocating L_A and L_B
+    // share the same author.
     let mut round_4_refs = Vec::new();
-    for (author, (leader_choice, strong_vote)) in voter_config.into_iter().enumerate() {
+    for (author, (leader_choice, missing)) in voter_config.into_iter().enumerate() {
         let author = author as u8;
         let chosen_leader = match leader_choice {
             LeaderChoice::A => leader_a_ref,
@@ -382,7 +403,7 @@ fn build_equivocating_metastate_dag(
             voting_round,
             author,
             ancestors,
-            strong_vote,
+            pin_strong_vote(leader_slot.authority, missing),
             default_ts(voting_round, author),
         );
         round_4_refs.push(block.reference());
@@ -496,15 +517,19 @@ fn build_through_voting_round(
     let leader_round = committer.leader_round(1);
     let voting_round = leader_round + 1;
     let round_3_refs = build_v2_layers(context, dag_state, None, leader_round);
+    let leader_authority = committer
+        .elect_leader(leader_round)
+        .expect("should elect a leader")
+        .authority;
 
     let mut voter_refs = Vec::with_capacity(4);
-    for (author, strong_vote) in voter_strong_votes.into_iter().enumerate() {
+    for (author, missing) in voter_strong_votes.into_iter().enumerate() {
         let author = author as u8;
         let block = v2_block(
             voting_round,
             author,
             round_3_refs.clone(),
-            strong_vote,
+            pin_strong_vote(leader_authority, missing),
             default_ts(voting_round, author),
         );
         voter_refs.push(block.reference());
@@ -730,22 +755,15 @@ async fn pending_leader_resolves_to_standard() {
     );
 }
 
-/// Optimistic-commit injects phantom acks: when the canonical leader at commit
-/// time differs from the leader the producers were "voting for" (e.g. block
-/// built before a schedule rotation, committed after), the strong-vote bytes
-/// — which carry no leader identity — get credited as acks for the canonical
-/// leader's `acknowledgments` set. The test sets up a single-validator view
-/// where:
-///   - The canonical leader of round 3 (per the post-rotation table) is
-///     authority 1, whose round-3 block has acks=[round-2 block from authority
-///     3].
-///   - That round-2 block's transaction data is *not* locally available.
-///   - Round-4 voters carry `strong_vote = Some(empty)`, consistent with the
-///     pre-rotation leader (different acks, all available).
-/// Optimistic linearization injects phantom acks for the canonical leader's
-/// ack set, committing the round-2 block via fictional 2f+1 evidence — even
-/// though no validator has its data. Asserts the system invariant
-/// "Z committed via Optimistic ⇒ ≥1 stake has Z's data" — fails by design.
+/// A strong vote computed against one leader must not be counted as evidence
+/// for a different canonical leader (e.g. across a leader-schedule swap).
+/// Asserts the StarfishSpeed safety invariant: every ref in
+/// `committed_transaction_refs` has locally-available transaction data.
+///
+/// Setup: round-3 leaders have asymmetric ack lists — A (auth 0) acks
+/// nothing; B (auth 1) acks `r2[3]`. Local data state covers everything
+/// except `r2[3]`. Round-4 voters cast strong votes computed against A.
+/// The committer's swap table designates B as canonical leader of round 3.
 #[tokio::test]
 async fn optimistic_commits_ref_without_actual_data_backing() {
     telemetry_subscribers::init_for_testing();
@@ -811,12 +829,8 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         r3_blocks.push(block);
     }
 
-    // Mark transaction data as locally available for everything *except*
-    //   - r2[3] (the block in B's acks)
-    //   - r3[1..=3] (B, C, D themselves)
-    // The producer's data state covers A's set ({A, A.acks=∅}) cleanly, so
-    // `Core::compute_strong_vote_for(A_block)` returns `Some(empty)` — a
-    // legitimate strong vote for A.
+    // Mark transaction data available for everything except `r2[3]` and
+    // round-3 blocks other than A.
     for block in &r1_blocks {
         add_transactions_for(&dag_state, block);
     }
@@ -827,28 +841,17 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
     }
     add_transactions_for(&dag_state, &r3_blocks[0]);
 
-    // Sanity: with this data state, A is a legitimate strong-vote target; B
-    // is *not* (data for B itself and for `r2[3]` is missing).
     let a_block = &r3_blocks[0];
     let b_block = &r3_blocks[1];
     {
         let dag = dag_state.read();
-        assert!(
-            Core::compute_strong_vote_for(&dag, a_block).is_empty(),
-            "producer should be able to legitimately strong-vote for A"
-        );
-        assert!(
-            !Core::compute_strong_vote_for(&dag, b_block).is_empty(),
-            "producer should NOT be able to legitimately strong-vote for B"
-        );
+        assert!(Core::compute_strong_vote(&dag, a_block).is_strong_vote());
+        assert!(!Core::compute_strong_vote(&dag, b_block).is_strong_vote());
     }
 
-    // Build round-4 voters using the production strong-vote computation
-    // against A — this is what an honest validator on the pre-rotation table
-    // would produce.
     let voter_strong_vote = {
         let dag = dag_state.read();
-        Core::compute_strong_vote_for(&dag, a_block)
+        Core::compute_strong_vote(&dag, a_block)
     };
     let r4_refs: Vec<BlockRef> = (0..4u8)
         .map(|author| {
@@ -875,9 +878,7 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
             .accept_block_header(block, DataSource::Test);
     }
 
-    // Force canonical leader of round 3 to authority 1 (B).
-    // Test mode: `elect_leader(3, 0)` returns `(3 + 0) % 4 = 3`. The swap
-    // table flags auth 3 as bad and remaps to auth 1.
+    // Swap table forcing canonical leader of round 3 to authority 1.
     let alt_table = LeaderSwapTable {
         good_nodes: vec![(
             auth_1,
@@ -905,22 +906,15 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
     let leader_b_slot = committer.elect_leader(3).expect("leader at round 3");
     assert_eq!(leader_b_slot.authority, auth_1);
 
-    let (block_b, strong_voters) = match committer.try_direct_decide(leader_b_slot) {
-        LeaderStatus::Commit(b, Some(CommitMetastate::Optimistic), sv) => (b, sv),
-        other => panic!("expected Optimistic Commit, got {other}"),
+    let (block_b, metastate, strong_voters) = match committer.try_direct_decide(leader_b_slot) {
+        LeaderStatus::Commit(b, m, sv) => (b, m, sv),
+        other => panic!("expected Commit at any metastate, got {other}"),
     };
 
     let mut linearizer = Linearizer::new(context, dag_state.clone(), alt_schedule);
-    let pending = linearizer.get_pending_sub_dags(vec![(
-        block_b,
-        Some(CommitMetastate::Optimistic),
-        strong_voters,
-    )]);
+    let pending = linearizer.get_pending_sub_dags(vec![(block_b, metastate, strong_voters)]);
     assert_eq!(pending.len(), 1);
 
-    // The Optimistic injection records each strong voter as acking
-    // {leader_ref, leader.acks}. With B.acks = [r2[3]], r2[3] crosses the
-    // 2f+1 threshold via these phantom acks and lands in committed_refs.
     let p_committed = pending[0]
         .committed_transaction_refs
         .iter()
@@ -928,18 +922,11 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
             GenericTransactionRef::BlockRef(br) => br.round == 2 && br.author == auth_3,
             GenericTransactionRef::TransactionRef(tr) => tr.round == 2 && tr.author == auth_3,
         });
-    assert!(
-        p_committed,
-        "round-2 block from auth 3 (B's ack target) should be committed via the \
-         Optimistic injection"
-    );
-
     let p_data_available = dag_state.read().is_data_available(&r2_refs[3]);
 
     assert!(
         !p_committed || p_data_available,
-        "Optimistic committed round-2 block from auth 3 via phantom acks: \
-         strong-vote bytes were leader-agnostic, got credited as acks for B's \
-         ack set, despite no validator having that block's transaction data"
+        "ref {:?} committed without locally-available transaction data",
+        r2_refs[3]
     );
 }
