@@ -784,7 +784,7 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::Address { .. } => {
+                    Owner::Address(_) => {
                         return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
