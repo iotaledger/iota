@@ -379,6 +379,7 @@ impl DagState {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
             state.load_cached_data_for_authority(authority_index, round, DataSource::Recover);
         }
+        state.replay_strong_vote_complaints_from_recovered_headers();
         state
     }
 
@@ -2483,6 +2484,50 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
+    }
+
+    /// Walks the headers loaded from storage during construction and feeds
+    /// any strong-blame masks pinned to this node's authority into the
+    /// per-leader-round complaint hints. Restores the adaptive-ack heuristic
+    /// after a restart instead of waiting ~10 leader rounds for it to
+    /// repopulate from live traffic.
+    ///
+    /// Note on ordering: `recent_block_headers` is a `BTreeMap` keyed by
+    /// `BlockRef`, so iteration is sorted by `(round, author, digest)`. The
+    /// first-vote-wins rule in `record_strong_vote_complaint` therefore
+    /// settles on the smallest-digest header from each (voter, leader_round)
+    /// pair on recovery, where in the live path it would settle on the
+    /// network-arrival-first header. This only matters under voter
+    /// equivocation; honest voters publish one header per round, and either
+    /// way each voter still contributes at most +1 per blamed authority.
+    fn replay_strong_vote_complaints_from_recovered_headers(&mut self) {
+        if !self.context.protocol_config.consensus_starfish_speed()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return;
+        }
+        let own_index = self.context.own_index;
+        // Snapshot before mutating self via record_strong_vote_complaint.
+        let to_replay: Vec<(AuthorityIndex, Round, AuthoritySet)> = self
+            .recent_block_headers
+            .values()
+            .filter_map(|h| {
+                if !h.is_strong_blame_for(own_index) {
+                    return None;
+                }
+                let leader_round = h.round().saturating_sub(1);
+                if leader_round == GENESIS_ROUND {
+                    return None;
+                }
+                Some((h.author(), leader_round, h.strong_vote()?.missing))
+            })
+            .collect();
+        for (voter, leader_round, mask) in to_replay {
+            self.record_strong_vote_complaint(voter, leader_round, mask);
+        }
     }
 
     /// Records a strong-vote complaint from `voter` against this node when
