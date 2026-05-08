@@ -46,6 +46,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;

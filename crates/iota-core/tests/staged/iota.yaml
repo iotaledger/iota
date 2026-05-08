@@ -560,7 +560,7 @@ IntentMessage:
     - intent:
         TYPENAME: Intent
     - value:
-        TYPENAME: TransactionData
+        TYPENAME: Transaction
 MakeMoveVector:
   STRUCT:
     - type:
@@ -854,22 +854,12 @@ SystemPackage:
     - dependencies:
         SEQ:
           TYPENAME: ObjectId
-TransactionData:
+Transaction:
   ENUM:
     0:
       V1:
         NEWTYPE:
-          TYPENAME: TransactionDataV1
-TransactionDataV1:
-  STRUCT:
-    - kind:
-        TYPENAME: TransactionKind
-    - sender:
-        TYPENAME: Address
-    - gas_data:
-        TYPENAME: GasPayment
-    - expiration:
-        TYPENAME: TransactionExpiration
+          TYPENAME: TransactionV1
 TransactionEffects:
   ENUM:
     0:
@@ -944,6 +934,16 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TransactionV1:
+  STRUCT:
+    - kind:
+        TYPENAME: TransactionKind
+    - sender:
+        TYPENAME: Address
+    - gas_payment:
+        TYPENAME: GasPayment
+    - expiration:
+        TYPENAME: TransactionExpiration
 TransferObjects:
   STRUCT:
     - objects:

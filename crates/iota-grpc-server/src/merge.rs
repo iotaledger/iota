@@ -771,15 +771,7 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             return Ok(());
         }
 
-        let sdk_transaction: iota_sdk_types::Transaction = source
-            .transaction_data()
-            .clone()
-            .try_into()
-            .map_err(|e: SdkTypeConversionError| {
-                RpcError::from(e).with_context("failed to convert transaction")
-            })?;
-
-        Merge::merge(self, &sdk_transaction, mask)
+        Merge::merge(self, source.transaction_data(), mask)
     }
 }
 

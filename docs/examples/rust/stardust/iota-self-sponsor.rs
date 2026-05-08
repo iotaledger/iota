@@ -24,6 +24,7 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
+use iota_types::transaction::TransactionDataAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 

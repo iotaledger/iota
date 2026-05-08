@@ -21,7 +21,7 @@ use iota_types::{
     message_envelope::Message,
     transaction::{
         CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };

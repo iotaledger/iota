@@ -10,7 +10,7 @@ use iota_types::{
     timelock::timelocked_staking::{
         ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
-    transaction::{CallArg, Command, TransactionData},
+    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
 };
 
 use crate::TransactionBuilder;

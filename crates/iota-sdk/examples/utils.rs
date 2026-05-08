@@ -25,7 +25,7 @@ use iota_sdk::{
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, Command, Transaction, TransactionData},
+        transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI},
     },
     wallet_context::WalletContext,
 };
