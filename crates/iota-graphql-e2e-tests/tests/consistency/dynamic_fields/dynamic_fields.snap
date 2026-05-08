@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 37 tasks
 
@@ -809,9 +810,51 @@ Response: {
         "sequenceNumber": 8
       }
     },
-    "parent_version_4_outside_consistent_range": {
+    "parent_version_4_has_df_and_dof": {
       "dynamicFields": {
         "edges": [
+          {
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          },
+          {
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74CAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlCAAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ==",
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000001::string::String"
+                }
+              },
+              "value": {
+                "json": "df1"
+              }
+            }
+          },
           {
             "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
             "node": {
@@ -834,7 +877,11 @@ Response: {
         ]
       }
     },
-    "parent_version_4_paginated_outside_consistent_range": null,
+    "parent_version_4_paginated_after_cursor_0": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
     "parent_version_6_no_df_1_2_3": {
       "dynamicFields": {
         "edges": [
@@ -907,25 +954,7 @@ Response: {
         "edges": []
       }
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 42,
-          "column": 5
-        }
-      ],
-      "path": [
-        "parent_version_4_paginated_outside_consistent_range",
-        "dynamicFields"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }
 
 task 36, lines 510-541:

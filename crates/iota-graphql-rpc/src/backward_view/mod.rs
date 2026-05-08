@@ -6,6 +6,7 @@
 
 pub(crate) mod consistent;
 pub(crate) mod historical;
+pub(crate) mod version_pinned;
 
 use iota_indexer::{
     models::objects::BackwardHistoryObjectStatus, types::ObjectStatus as NativeObjectStatus,
