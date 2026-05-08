@@ -911,11 +911,11 @@ impl TransactionKindExt for TransactionKind {
         match self {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
-            Self::Programmable(_) => "ProgrammableTransaction",
+            Self::Programmable(_) => "Programmable",
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
-            Self::EndOfEpoch(_) => "EndOfEpochTransaction",
+            Self::EndOfEpoch(_) => "EndOfEpoch",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),

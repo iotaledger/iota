@@ -12,7 +12,7 @@
                     "value": {
                         "V1": {
                             "kind": {
-                                "kind": "programmable_transaction",
+                                "kind": "programmable",
                                 "inputs": [
                                     {
                                         "pure": {
@@ -83,7 +83,7 @@
             }
         ],
         "kind": {
-            "kind": "programmable_transaction",
+            "kind": "programmable",
             "inputs": [
                 {
                     "pure": {

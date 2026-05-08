@@ -922,7 +922,7 @@ TransactionExpiration:
 TransactionKind:
   ENUM:
     0:
-      ProgrammableTransaction:
+      Programmable:
         NEWTYPE:
           TYPENAME: ProgrammableTransaction
     1:
