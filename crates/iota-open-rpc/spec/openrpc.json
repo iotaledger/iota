@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.23.0-alpha"
+    "version": "1.24.0-alpha"
   },
   "methods": [
     {
@@ -3885,7 +3885,11 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
-                  "fields": {}
+                  "fields": {
+                    "id": {
+                      "id": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b"
+                    }
+                  }
                 }
               }
             }

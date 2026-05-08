@@ -8,7 +8,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Command, TransactionData},
+    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
 };
 use tonic::Code;
 
@@ -82,11 +82,10 @@ async fn simulate_transaction_scenarios() {
         .unwrap()
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(None, sender)
         .with_gas_budget(1)
         .build();
-    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
     assert_grpc_error(result, Code::Internal);
 
@@ -101,10 +100,9 @@ async fn simulate_transaction_scenarios() {
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
     let fake_recipient = IotaAddress::random();
-    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
-    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let response = client
         .simulate_transaction(transaction, false, None)
         .await
@@ -149,14 +147,13 @@ async fn simulate_transaction_command_results_split_coins() {
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
-    let tx_data = TransactionData::new_programmable(
+    let transaction: Transaction = TransactionData::new_programmable(
         sender,
         vec![*gas_obj],
         pt,
         10_000_000, // gas budget
         test_cluster.get_reference_gas_price().await,
     );
-    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
 
     let response = client
         .simulate_transaction(transaction, false, Some("execution_result.command_results"))

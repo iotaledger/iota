@@ -621,9 +621,12 @@ mod test {
     use iota_config::genesis::Genesis;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
-        epoch_data::EpochData, gas::IotaGasStatus, in_memory_storage::InMemoryStorage,
-        iota_system_state::IotaSystemStateTrait, metrics::LimitsMetrics,
-        transaction::CheckedInputObjects,
+        epoch_data::EpochData,
+        gas::IotaGasStatus,
+        in_memory_storage::InMemoryStorage,
+        iota_system_state::IotaSystemStateTrait,
+        metrics::LimitsMetrics,
+        transaction::{CheckedInputObjects, TransactionDataAPI},
     };
 
     #[test]

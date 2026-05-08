@@ -13,7 +13,7 @@ use iota_grpc_types::{
 };
 use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::transaction::TransactionData;
+use iota_types::transaction::{TransactionData, TransactionDataAPI};
 
 use super::build_item;
 use crate::{

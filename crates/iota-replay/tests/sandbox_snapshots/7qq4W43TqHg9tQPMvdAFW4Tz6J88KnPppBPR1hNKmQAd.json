@@ -84,7 +84,7 @@
                                 ]
                             },
                             "sender": "0x3529ec0ab25aa843942715194dd4eee1fc1d5c83dfef28e839838fa0f0b36aa0",
-                            "gas_data": {
+                            "gas_payment": {
                                 "objects": [
                                     [
                                         "0xfd11d7c566940494d376f21cc0a502869026765acffd95cd37292b330bc2dfe8",

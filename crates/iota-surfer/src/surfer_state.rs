@@ -19,7 +19,7 @@ use iota_types::{
     move_package::MovePackageExt,
     object::{Object, Owner},
     storage::WriteKind,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
 };
 use move_binary_format::{file_format::Visibility, normalized};
 use move_core_types::identifier::IdentStr;

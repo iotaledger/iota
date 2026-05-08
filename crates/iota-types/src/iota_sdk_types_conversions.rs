@@ -27,12 +27,12 @@ use iota_sdk_types::{
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
-    transaction::{GasPayment, SignedTransaction, Transaction, TransactionV1},
+    transaction::SignedTransaction,
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use tap::Pipe;
 
-use crate::{object::ObjectInner, transaction::TransactionDataAPI as _};
+use crate::object::ObjectInner;
 
 #[derive(Debug)]
 pub struct SdkTypeConversionError(pub String);
@@ -87,78 +87,6 @@ impl TryFrom<Object> for crate::object::Object {
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         })
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
-        match value {
-            crate::transaction::TransactionData::V1(value) => value.try_into(),
-        }
-    }
-}
-
-impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
-        Ok(Self::V1(value.try_into()?))
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionData> for Transaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
-        match value {
-            crate::transaction::TransactionData::V1(value) => Ok(Self::V1(value.try_into()?)),
-        }
-    }
-}
-
-impl TryFrom<Transaction> for crate::transaction::TransactionData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
-        match value {
-            Transaction::V1(value) => value.try_into(),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
-        Self {
-            sender: value.sender(),
-            gas_payment: GasPayment {
-                objects: value.gas().to_vec(),
-                owner: value.gas_data().owner,
-                price: value.gas_data().price,
-                budget: value.gas_data().budget,
-            },
-            expiration: value.expiration,
-            kind: value.into_kind(),
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
-        Self {
-            kind: value.kind,
-            sender: value.sender,
-            gas_data: value.gas_payment,
-            expiration: value.expiration,
-        }
         .pipe(Ok)
     }
 }
@@ -696,7 +624,7 @@ impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
         } = value.into_inner();
 
         Self {
-            transaction: intent_message.value.try_into()?,
+            transaction: intent_message.value,
             signatures: tx_signatures
                 .into_iter()
                 .map(TryInto::try_into)
@@ -716,7 +644,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
         } = value;
 
         Self::new(
-            transaction.try_into()?,
+            transaction,
             signatures
                 .into_iter()
                 .map(TryInto::try_into)

@@ -128,11 +128,7 @@ impl MoveObjectExt for MoveObject {
                 },
             ));
         }
-        Ok(Self {
-            object_type: tag.into(),
-            version,
-            contents,
-        })
+        Self::new(tag.into(), version, contents).map_err(ExecutionError::invariant_violation)
     }
 
     fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
@@ -164,12 +160,12 @@ impl MoveObjectExt for MoveObject {
     /// value. It is the caller's responsibility to check that `self` is a coin.
     /// This function may panic or do something unexpected otherwise.
     fn get_coin_value_unchecked(&self) -> u64 {
-        debug_assert!(self.object_type.is_coin());
+        debug_assert!(self.object_type().is_coin());
         // 32 bytes for object ID, 8 for balance
-        debug_assert!(self.contents.len() == 40);
+        debug_assert!(self.contents().len() == 40);
 
         // unwrap safe because we checked that it is a coin
-        u64::from_le_bytes(<[u8; 8]>::try_from(&self.contents[ID_END_INDEX..]).unwrap())
+        u64::from_le_bytes(<[u8; 8]>::try_from(&self.contents()[ID_END_INDEX..]).unwrap())
     }
 
     /// Update the `value: u64` field of a `Coin<T>` type.
@@ -178,11 +174,13 @@ impl MoveObjectExt for MoveObject {
     /// coin.
     /// This function may panic or do something unexpected otherwise.
     fn set_coin_value_unchecked(&mut self, value: u64) {
-        debug_assert!(self.object_type.is_coin());
+        debug_assert!(self.object_type().is_coin());
         // 32 bytes for object ID, 8 for balance
-        debug_assert!(self.contents.len() == 40);
+        debug_assert!(self.contents().len() == 40);
 
-        self.contents.splice(ID_END_INDEX.., value.to_le_bytes());
+        let mut new_contents = self.contents().to_vec();
+        new_contents[ID_END_INDEX..].copy_from_slice(&value.to_le_bytes());
+        self.set_contents(new_contents).unwrap();
     }
 
     /// Update the `timestamp_ms: u64` field of the `Clock` type.
@@ -191,10 +189,11 @@ impl MoveObjectExt for MoveObject {
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
         assert!(self.struct_tag().is_clock());
         // 32 bytes for object ID, 8 for timestamp
-        assert!(self.contents.len() == 40);
+        assert!(self.contents().len() == 40);
 
-        self.contents
-            .splice(ID_END_INDEX.., timestamp_ms.to_le_bytes());
+        let mut new_contents = self.contents().to_vec();
+        new_contents[ID_END_INDEX..].copy_from_slice(&timestamp_ms.to_le_bytes());
+        self.set_contents(new_contents).unwrap();
     }
 
     /// Update the contents of this object but does not increment its version
@@ -222,7 +221,9 @@ impl MoveObjectExt for MoveObject {
 
         #[cfg(debug_assertions)]
         let old_id = self.id();
-        self.contents = new_contents;
+
+        self.set_contents(new_contents)
+            .map_err(ExecutionError::invariant_violation)?;
 
         // Update should not modify ID
         #[cfg(debug_assertions)]
@@ -235,21 +236,21 @@ impl MoveObjectExt for MoveObject {
     /// higher (and checked to be higher in debug).
     fn increment_version_to(&mut self, next: SequenceNumber) {
         debug_assert!(
-            self.version < next,
+            self.version() < next,
             "Not an increment: {} to {next}",
-            self.version
+            self.version()
         );
-        self.version = next;
+        self.set_version(next);
     }
 
     /// Sets the version to a lower value (checked in debug).
     fn decrement_version_to(&mut self, prev: SequenceNumber) {
         debug_assert!(
-            prev < self.version,
+            prev < self.version(),
             "Not a decrement: {} to {prev}",
-            self.version
+            self.version()
         );
-        self.version = prev;
+        self.set_version(prev);
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -280,7 +281,7 @@ impl MoveObjectExt for MoveObject {
 
     /// Convert `self` to the JSON representation dictated by `layout`.
     fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
-        BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
+        BoundedVisitor::deserialize_struct(self.contents(), layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
             }
@@ -293,9 +294,9 @@ impl MoveObjectExt for MoveObject {
     /// usually simple, and we only do this once per object being mutated.
     fn object_size_for_gas_metering(&self) -> usize {
         let serialized_type_tag_size =
-            bcs::serialized_size(&self.object_type).expect("Serializing type tag should not fail");
+            bcs::serialized_size(self.object_type()).expect("Serializing type tag should not fail");
         // + 8 for `version`
-        self.contents.len() + serialized_type_tag_size + 8
+        self.contents().len() + serialized_type_tag_size + 8
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
@@ -311,7 +312,7 @@ impl MoveObjectExt for MoveObject {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.object_type.coin_type_opt() {
+        if let Some(type_tag) = self.object_type().coin_type_opt() {
             let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
@@ -322,7 +323,7 @@ impl MoveObjectExt for MoveObject {
             let layout = layout_resolver.get_annotated_layout(self.struct_tag())?;
 
             let mut traversal = BalanceTraversal::default();
-            MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
+            MoveValue::visit_deserialize(self.contents(), &layout.into_layout(), &mut traversal)
                 .map_err(|e| IotaError::ObjectSerialization {
                     error: e.to_string(),
                 })?;
@@ -689,11 +690,14 @@ impl Object {
     }
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_gas_coin().into(),
-            version: OBJECT_START_VERSION,
-            contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_gas_coin().into(),
+                OBJECT_START_VERSION,
+                GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner: Owner::Immutable,
             data,
@@ -720,11 +724,14 @@ impl Object {
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_gas_coin().into(),
-            version: OBJECT_START_VERSION,
-            contents: GasCoin::new(id, gas).to_bcs_bytes(),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_gas_coin().into(),
+                OBJECT_START_VERSION,
+                GasCoin::new(id, gas).to_bcs_bytes(),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner: Owner::Address(owner),
             data,
@@ -735,11 +742,14 @@ impl Object {
     }
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_treasury_cap(struct_tag).into(),
-            version: OBJECT_START_VERSION,
-            contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_treasury_cap(struct_tag).into(),
+                OBJECT_START_VERSION,
+                bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner: Owner::Immutable,
             data,
@@ -750,11 +760,14 @@ impl Object {
     }
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_coin_metadata(struct_tag).into(),
-            version: OBJECT_START_VERSION,
-            contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_coin_metadata(struct_tag).into(),
+                OBJECT_START_VERSION,
+                bcs::to_bytes(&metadata).expect("Failed to serialize"),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner: Owner::Immutable,
             data,
@@ -765,11 +778,14 @@ impl Object {
     }
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_gas_coin().into(),
-            version: OBJECT_START_VERSION,
-            contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_gas_coin().into(),
+                OBJECT_START_VERSION,
+                GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner: Owner::Object(owner),
             data,
@@ -789,11 +805,14 @@ impl Object {
         version: SequenceNumber,
         owner: Owner,
     ) -> Self {
-        let data = Data::Struct(MoveObject {
-            object_type: StructTag::new_gas_coin().into(),
-            version,
-            contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
-        });
+        let data = Data::Struct(
+            MoveObject::new(
+                StructTag::new_gas_coin().into(),
+                version,
+                GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
+            )
+            .unwrap(),
+        );
         ObjectInner {
             owner,
             data,
