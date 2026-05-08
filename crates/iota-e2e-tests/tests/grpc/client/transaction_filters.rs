@@ -158,9 +158,8 @@ async fn test_transaction_filter_scenarios() {
                 grpc_filter::ExecutionStatusFilter::default().with_success(true),
             ),
             grpc_filter::TransactionFilter::default().with_transaction_kinds(
-                grpc_filter::TransactionKindsFilter::default().with_kinds(vec![
-                    grpc_filter::TransactionKind::ProgrammableTransaction.into(),
-                ]),
+                grpc_filter::TransactionKindsFilter::default()
+                    .with_kinds(vec![grpc_filter::TransactionKind::Programmable.into()]),
             ),
         ]),
     );
