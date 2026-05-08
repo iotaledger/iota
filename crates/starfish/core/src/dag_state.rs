@@ -2486,20 +2486,13 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    /// Walks the headers loaded from storage during construction and feeds
-    /// any strong-blame masks pinned to this node's authority into the
-    /// per-leader-round complaint hints. Restores the adaptive-ack heuristic
-    /// after a restart instead of waiting ~10 leader rounds for it to
-    /// repopulate from live traffic.
-    ///
-    /// Note on ordering: `recent_block_headers` is a `BTreeMap` keyed by
-    /// `BlockRef`, so iteration is sorted by `(round, author, digest)`. The
-    /// first-vote-wins rule in `record_strong_vote_complaint` therefore
-    /// settles on the smallest-digest header from each (voter, leader_round)
-    /// pair on recovery, where in the live path it would settle on the
-    /// network-arrival-first header. This only matters under voter
-    /// equivocation; honest voters publish one header per round, and either
-    /// way each voter still contributes at most +1 per blamed authority.
+    /// Replays strong-blame complaints from recovered headers so the
+    /// adaptive-ack heuristic survives a restart. `BTreeMap` iteration order
+    /// (smallest digest first for equivocators) — each voter still
+    /// contributes at most +1; it may be a different block from the voter
+    /// in case of equivocation, but it doesn't really matter, since the choice
+    /// from which specific block among equivocated to record complaint was
+    /// arbitrary.
     fn replay_strong_vote_complaints_from_recovered_headers(&mut self) {
         if !self.context.protocol_config.consensus_starfish_speed()
             || !self
