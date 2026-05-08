@@ -4449,48 +4449,52 @@ mod test {
         );
     }
 
-    #[rstest]
-    #[case::protocol_flag_off(false, true)]
-    #[case::local_parameter_off(true, false)]
     #[tokio::test]
-    async fn adaptive_ack_returns_empty_when_feature_disabled(
-        #[case] starfish_speed: bool,
-        #[case] adaptive_acks: bool,
-    ) {
-        let (mut ctx, _) = Context::new_for_test(4);
-        ctx.protocol_config
-            .set_consensus_starfish_speed_for_testing(starfish_speed);
-        ctx.parameters
-            .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
-        let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context, store);
+    async fn adaptive_ack_feature_gating() {
+        // Sweep all 4 (protocol_flag, local_param) combinations. Feature is
+        // active iff both are true; in every other combination both
+        // `record_strong_vote_complaint` and
+        // `starfish_speed_excluded_ack_authorities` short-circuit.
+        for (starfish_speed, adaptive_acks) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (mut ctx, _) = Context::new_for_test(4);
+            ctx.protocol_config
+                .set_consensus_starfish_speed_for_testing(starfish_speed);
+            ctx.parameters
+                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+            let context = Arc::new(ctx);
+            let store = Arc::new(MemStore::new(context.clone()));
+            let mut dag_state = DagState::new(context, store);
 
-        let target = AuthorityIndex::from(2u8);
-        let leader_round = 5;
-        // Two voters' blames against target — would exclude if the feature
-        // were on.
-        dag_state.record_strong_vote_complaint(
-            AuthorityIndex::from(0u8),
-            leader_round,
-            blame_mask(target),
-        );
-        dag_state.record_strong_vote_complaint(
-            AuthorityIndex::from(1u8),
-            leader_round,
-            blame_mask(target),
-        );
+            let target = AuthorityIndex::from(2u8);
+            let leader_round = 5;
+            dag_state.record_strong_vote_complaint(
+                AuthorityIndex::from(0u8),
+                leader_round,
+                blame_mask(target),
+            );
+            dag_state.record_strong_vote_complaint(
+                AuthorityIndex::from(1u8),
+                leader_round,
+                blame_mask(target),
+            );
 
-        assert!(
-            dag_state
-                .starfish_speed_excluded_ack_authorities()
-                .is_empty(),
-            "excluded set must be empty when the feature is disabled"
-        );
-        assert!(
-            dag_state.starfish_speed_leader_hints.is_empty(),
-            "record_strong_vote_complaint must short-circuit, leaving hints empty"
-        );
+            let feature_active = starfish_speed && adaptive_acks;
+            let case = format!("(starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks})");
+            assert_eq!(
+                dag_state
+                    .starfish_speed_excluded_ack_authorities()
+                    .contains(target),
+                feature_active,
+                "{case}: target excluded iff feature active",
+            );
+            assert_eq!(
+                !dag_state.starfish_speed_leader_hints.is_empty(),
+                feature_active,
+                "{case}: hints recorded iff feature active",
+            );
+        }
     }
 
     #[tokio::test]
