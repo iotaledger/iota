@@ -456,6 +456,7 @@ impl DagState {
         self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
+        self.starfish_speed_leader_hints.clear();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -474,6 +475,8 @@ impl DagState {
         // Rebuild scoring_subdag from stored commits so leader schedule state
         // matches peers after fast sync reinitialization.
         self.rebuild_scoring_subdag_from_store();
+
+        self.replay_strong_vote_complaints_from_recovered_headers();
 
         info!("DagState reinitialized successfully");
     }

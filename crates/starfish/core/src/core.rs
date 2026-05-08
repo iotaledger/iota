@@ -645,7 +645,6 @@ impl Core {
             let mut dag_state = self.dag_state.write();
 
             // 1. Store block headers on disk
-            self.record_strong_vote_complaints(&mut dag_state, &block_headers);
             dag_state.accept_block_headers(block_headers, DataSource::FastCommitSyncer);
 
             // 1.5. Clear fast sync flag (will be persisted with the flush)
