@@ -4315,4 +4315,222 @@ mod test {
             assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
     }
+
+    /// Builds a 4-authority context with `consensus_starfish_speed` toggled
+    /// per the argument and the local adaptive-ack parameter unchanged from
+    /// its default (`true`).
+    fn adaptive_ack_test_context(starfish_speed: bool) -> Arc<Context> {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        Arc::new(ctx)
+    }
+
+    /// Single-authority `AuthoritySet` mask blaming `target`.
+    fn blame_mask(target: AuthorityIndex) -> AuthoritySet {
+        let mut mask = AuthoritySet::new();
+        mask.insert(target);
+        mask
+    }
+
+    /// Round-1 placeholder ref for an authority — only `(round, author)`
+    /// matters for the adaptive-ack filter; the digest is incidental.
+    fn ref_for(author: AuthorityIndex) -> BlockRef {
+        BlockRef::new(1, author, BlockHeaderDigest::MIN)
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_excludes_authority_at_validity_threshold() {
+        let context = adaptive_ack_test_context(true);
+        assert_eq!(
+            context.committee.validity_threshold(),
+            2,
+            "this test assumes f+1 = 2 (n=4)"
+        );
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        let target = AuthorityIndex::from(2u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let leader_round = 5;
+        let mask = blame_mask(target);
+
+        // First voter: count = 1, below f+1 = 2.
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, mask);
+        assert!(
+            !dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "single voter must not exclude — below validity threshold"
+        );
+
+        // Second distinct voter: count = 2 = f+1 → exclude.
+        dag_state.record_strong_vote_complaint(voter_1, leader_round, mask);
+        assert!(
+            dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "two distinct voters reached validity threshold, target should be excluded"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_same_voter_counts_once_per_leader_round() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        let target_x = AuthorityIndex::from(2u8);
+        let target_y = AuthorityIndex::from(3u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let leader_round = 5;
+
+        // Voter 0 records `{X}`.
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, blame_mask(target_x));
+        // Same voter 0 records a second, different mask `{X, Y}` for the same
+        // leader round — first-vote-wins, the second mask is dropped entirely
+        // (Y stays at 0; X stays at 1).
+        let mut second_mask = AuthoritySet::new();
+        second_mask.insert(target_x);
+        second_mask.insert(target_y);
+        dag_state.record_strong_vote_complaint(voter_0, leader_round, second_mask);
+
+        // Add one more distinct voter blaming X. X reaches f+1 = 2 → excluded;
+        // Y is still at 0 → not excluded. If equivocations were counted, Y's
+        // count would be 1 here.
+        dag_state.record_strong_vote_complaint(voter_1, leader_round, blame_mask(target_x));
+
+        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
+        assert!(excluded.contains(target_x), "X must be excluded");
+        assert!(
+            !excluded.contains(target_y),
+            "Y must not be excluded — voter_0's second mask was dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_prunes_complaints_outside_window() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        let target = AuthorityIndex::from(2u8);
+        let voter_0 = AuthorityIndex::from(0u8);
+        let voter_1 = AuthorityIndex::from(1u8);
+        let initial_leader_round = 5;
+
+        // Two voters blame target at the initial leader round → would exclude.
+        dag_state.record_strong_vote_complaint(voter_0, initial_leader_round, blame_mask(target));
+        dag_state.record_strong_vote_complaint(voter_1, initial_leader_round, blame_mask(target));
+        assert!(
+            dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "target excluded before window slides"
+        );
+
+        // Record complaints at 10 later leader rounds with unrelated masks
+        // (blame voter_0 instead of target). The window keeps the most recent
+        // 10 entries — `initial_leader_round` is pruned.
+        for r in 1..=(STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS as Round) {
+            dag_state.record_strong_vote_complaint(
+                voter_0,
+                initial_leader_round + r,
+                blame_mask(voter_0),
+            );
+        }
+        assert!(
+            !dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .contains(target),
+            "initial leader round was pruned out of the window — target no longer excluded"
+        );
+    }
+
+    #[rstest]
+    #[case::protocol_flag_off(false, true)]
+    #[case::local_parameter_off(true, false)]
+    #[tokio::test]
+    async fn adaptive_ack_returns_empty_when_feature_disabled(
+        #[case] starfish_speed: bool,
+        #[case] adaptive_acks: bool,
+    ) {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        ctx.parameters
+            .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        let target = AuthorityIndex::from(2u8);
+        let leader_round = 5;
+        // Two voters' blames against target — would exclude if the feature
+        // were on.
+        dag_state.record_strong_vote_complaint(
+            AuthorityIndex::from(0u8),
+            leader_round,
+            blame_mask(target),
+        );
+        dag_state.record_strong_vote_complaint(
+            AuthorityIndex::from(1u8),
+            leader_round,
+            blame_mask(target),
+        );
+
+        assert!(
+            dag_state
+                .starfish_speed_excluded_ack_authorities()
+                .is_empty(),
+            "excluded set must be empty when the feature is disabled"
+        );
+        assert!(
+            dag_state.starfish_speed_leader_hints.is_empty(),
+            "record_strong_vote_complaint must short-circuit, leaving hints empty"
+        );
+    }
+
+    #[tokio::test]
+    async fn adaptive_ack_filter_drops_blamed_authority_refs() {
+        let context = adaptive_ack_test_context(true);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        // Pending acknowledgments: one ref per authority.
+        let auth = |i: u8| AuthorityIndex::from(i);
+        let raw_acks = vec![
+            ref_for(auth(0)),
+            ref_for(auth(1)),
+            ref_for(auth(2)),
+            ref_for(auth(3)),
+        ];
+
+        // Two distinct voters blame authority 2 → exclude.
+        let target = auth(2);
+        let leader_round = 5;
+        dag_state.record_strong_vote_complaint(auth(0), leader_round, blame_mask(target));
+        dag_state.record_strong_vote_complaint(auth(1), leader_round, blame_mask(target));
+
+        // Same two-line filter Core::new_block applies after take_acknowledgments.
+        let excluded = dag_state.starfish_speed_excluded_ack_authorities();
+        let filtered: Vec<BlockRef> = raw_acks
+            .into_iter()
+            .filter(|r| !excluded.contains(r.author))
+            .collect();
+
+        assert_eq!(filtered.len(), 3, "blamed authority's ref dropped");
+        assert!(
+            filtered.iter().all(|r| r.author != target),
+            "filtered acks must not contain target"
+        );
+        for kept in [auth(0), auth(1), auth(3)] {
+            assert!(
+                filtered.iter().any(|r| r.author == kept),
+                "non-blamed authority {kept} kept in acks"
+            );
+        }
+    }
 }
