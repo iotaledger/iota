@@ -141,9 +141,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable additional borrow checks.
 // Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
 //             supported.
-//             Enable built-in Move authenticators in devnet.
 // Version 26: Introduce a module to allow Move code to query protocol feature
 //             flags at runtime.
+//             Enable built-in Move authenticators in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2771,6 +2771,10 @@ impl ProtocolConfig {
                     cfg.check_zklogin_issuer_cost_base = None;
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
+                }
+                26 => {
+                    // Introduce a module to allow Move code to query protocol
+                    // feature flags at runtime.
 
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
@@ -2778,10 +2782,6 @@ impl ProtocolConfig {
                         // Set the cost for built-in Move authenticators to 0 for now.
                         cfg.builtin_move_authenticator_cost_base = Some(0);
                     }
-                }
-                26 => {
-                    // Introduce a module to allow Move code to query protocol
-                    // feature flags at runtime.
                 }
 
                 // Use this template when making changes:
