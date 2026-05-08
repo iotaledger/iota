@@ -2303,15 +2303,21 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
     Ok(())
 }
 
-/// Test that the built-in Ed25519 authenticator is rejected when
-/// `enable_builtin_move_authentications` is disabled in the protocol config.
+/// Test that a built-in account cannot be created when
+/// `enable_builtin_move_authenticators` is disabled in the protocol config.
+/// Ed25519 is used as a representative scheme.
+///
+/// Each `*_authenticator_function_ref_v1` function calls
+/// `check_builtin_authenticators_enabled()` and aborts with
+/// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
+/// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
+/// transaction itself fails — it never reaches the authentication step.
 #[sim_test]
-async fn test_builtin_ed25519_authenticator_disabled_in_protocol_config()
--> Result<(), anyhow::Error> {
+async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_builtin_move_authentications_for_testing(false);
+        config.set_enable_builtin_move_authenticators_for_testing(false);
         config
     });
 
@@ -2329,45 +2335,33 @@ async fn test_builtin_ed25519_authenticator_disabled_in_protocol_config()
         .clone();
     let pk = kp.public();
 
-    test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
-        )
+    // With the feature disabled, `ed25519_authenticator_function_ref_v1` aborts
+    // with EBuiltinAuthenticatorsNotEnabled (code 0) inside account creation.
+    let transaction = test_env
+        .craft_create_builtin_account(pk.scheme(), pk.as_ref(), AA_BUILTIN_ED25519_CREATE_FN)
         .await?;
-    let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.0.into();
-
-    let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    let aa_gas = test_env
+    let (effects, _) = test_env
         .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-        .await;
-
-    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
-    let tx_data = test_env
-        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .execute_transaction_return_raw_effects(transaction)
         .await?;
-    let sig = builtin_sig_for_keypair(&kp, &tx_data, aa_ref)?;
-    let aa_tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
 
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
-    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
-        panic!(
-            "Expected MoveAuthenticatorExecutionFailure when built-in authenticators are \
-             disabled, got: {err:?}"
-        );
-    };
+    let status = effects.into_status();
     assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
+        status.is_err(),
+        "Expected account creation to fail when built-in authenticators are disabled, \
+         got: {status:?}"
     );
     assert!(
-        error.contains("Built-in Move authenticators are not enabled on this network"),
-        "Expected 'Built-in Move authenticators are not enabled on this network' in error, \
-         got: {error}"
+        matches!(
+            status.unwrap_err().0,
+            ExecutionFailureStatus::MoveAbort(MoveLocation { module, .. }, abort_code)
+            if module.name() == ident_str!("builtin_authenticator_functions")
+                && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
+        ),
+        "Expected MoveAbort in builtin_authenticator_functions with code 0 \
+         (EBuiltinAuthenticationsNotEnabled)"
     );
+
     Ok(())
 }
 
