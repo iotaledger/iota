@@ -298,12 +298,6 @@ impl VersionedMisbehaviorReport {
         }
     }
 
-    pub fn verify(&self, committee_size: usize) -> bool {
-        match &self.payload {
-            MisbehaviorObservations::V1(report) => report.verify(committee_size),
-        }
-    }
-
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
@@ -355,9 +349,9 @@ impl MisbehaviorObservationsV1 {
         // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
         if (self.faulty_blocks_provable.len() != committee_size)
-            | (self.faulty_blocks_unprovable.len() != committee_size)
-            | (self.equivocations.len() != committee_size)
-            | (self.missing_proposals.len() != committee_size)
+            || (self.faulty_blocks_unprovable.len() != committee_size)
+            || (self.equivocations.len() != committee_size)
+            || (self.missing_proposals.len() != committee_size)
         {
             return false;
         }

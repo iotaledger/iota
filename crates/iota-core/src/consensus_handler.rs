@@ -253,9 +253,15 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // last_consensus_stats, so that it won't be re-executed in the future.
         self.last_consensus_stats.index = execution_index;
 
-        self.epoch_store
-            .misbehavior_monitor
-            .update_from_consensus_output(consensus_output.misbehavior_counts());
+        if self
+            .epoch_store
+            .protocol_config()
+            .calculate_validator_scores()
+        {
+            self.epoch_store
+                .misbehavior_monitor
+                .update_from_consensus_output(consensus_output.misbehavior_counts());
+        }
 
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),

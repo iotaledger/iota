@@ -676,6 +676,7 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
+    /// Monitors local observations of misbehaviors and sends reports.
     pub(crate) misbehavior_monitor: MisbehaviorMonitor,
     /// Aggregates incoming misbehavior reports from peers.
     pub(crate) report_aggregator: ReportAggregator,

@@ -1,10 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
-};
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 use iota_types::{
@@ -29,27 +26,23 @@ pub struct MisbehaviorMonitor {
     authority: AuthorityName,
     report_version: MisbehaviorReportVersion,
     committee_size: usize,
-    // The current metrics counts collected by the authority, i.e., the local view of the node
-    // about the behaviour of the rest of the committee, according to the blocks received.
     current_local_observations: ArcSwap<MisbehaviorObservations>,
-    // Single-writer: the three rate-limit fields below are only mutated by
-    // SubmitCheckpointToConsensus::checkpoint_created. Don't add additional writers without
-    // revisiting the atomicity story — `last_report_summary` and `last_report_checkpoint_seq`
-    // form a logical tuple but are stored as independent Relaxed atomics, safe today only
-    // because reads and writes happen from the single CheckpointBuilder task.
-    // `has_sent_end_of_epoch_report` is an independent epoch-once flag.
-    //
-    // Summary of the last MisbehaviorReport this node submitted, defined as the sum of all
-    // metrics across authorities. Since reported counts are monotonically non-decreasing within
-    // an epoch, the summary is also monotonic. Used to skip submitting reports when nothing has
-    // changed since the last submission (rate limiting).
-    last_report_summary: AtomicU64,
-    // Sequence number of the last checkpoint at which this node submitted a report. Used together
-    // with `MIN_CHECKPOINTS_BETWEEN_REPORTS` to rate-limit submissions.
-    last_report_checkpoint_seq: AtomicU64,
-    // Whether this node has already submitted a report close to the epoch end. Ensures the
-    // end-of-epoch report is sent at most once per epoch.
-    has_sent_end_of_epoch_report: AtomicBool,
+    rate_limit: Mutex<ReportRateLimitState>,
+}
+
+/// Mutable state used to rate-limit outgoing misbehavior reports. Grouped
+/// behind a single `Mutex` so reads and writes are always consistent.
+pub(crate) struct ReportRateLimitState {
+    /// Summary of the last submitted report (sum of all metrics across
+    /// authorities). Monotonic within an epoch — used to skip submissions
+    /// when nothing has changed.
+    pub last_report_summary: u64,
+    /// Checkpoint sequence number at which the last report was submitted.
+    /// Used with `MIN_CHECKPOINTS_BETWEEN_REPORTS` for rate-limiting.
+    pub last_report_checkpoint_seq: u64,
+    /// Whether the end-of-epoch report has already been sent (at most once
+    /// per epoch).
+    pub has_sent_end_of_epoch_report: bool,
 }
 
 impl MisbehaviorMonitor {
@@ -66,36 +59,18 @@ impl MisbehaviorMonitor {
             report_version,
             committee_size,
             current_local_observations,
-            last_report_summary: AtomicU64::new(0),
-            last_report_checkpoint_seq: AtomicU64::new(0),
-            has_sent_end_of_epoch_report: AtomicBool::new(false),
+            rate_limit: Mutex::new(ReportRateLimitState {
+                last_report_summary: 0,
+                last_report_checkpoint_seq: 0,
+                has_sent_end_of_epoch_report: false,
+            }),
         }
     }
 
-    pub(crate) fn last_report_summary(&self) -> u64 {
-        self.last_report_summary.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn store_last_report_summary(&self, summary: u64) {
-        self.last_report_summary.store(summary, Ordering::Relaxed)
-    }
-
-    pub(crate) fn last_report_checkpoint_seq(&self) -> u64 {
-        self.last_report_checkpoint_seq.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn store_last_report_checkpoint_seq(&self, seq: u64) {
-        self.last_report_checkpoint_seq
-            .store(seq, Ordering::Relaxed)
-    }
-
-    pub(crate) fn has_sent_end_of_epoch_report(&self) -> bool {
-        self.has_sent_end_of_epoch_report.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn mark_end_of_epoch_report_sent(&self) {
-        self.has_sent_end_of_epoch_report
-            .store(true, Ordering::Relaxed);
+    pub(crate) fn rate_limit(&self) -> std::sync::MutexGuard<'_, ReportRateLimitState> {
+        self.rate_limit
+            .lock()
+            .expect("rate limit lock should not be poisoned")
     }
 
     pub fn generate_report(&self, generation: u64) -> VersionedMisbehaviorReport {
