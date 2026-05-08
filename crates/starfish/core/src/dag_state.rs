@@ -15,7 +15,7 @@ use std::{
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 use tokio::{
     sync::{mpsc::error::TrySendError, watch},
     time::Instant,
@@ -123,33 +123,35 @@ const STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS: usize = 10;
 
 /// Per-leader-round complaint history derived from the strong-vote masks of
 /// blocks that voted for that leader. The first mask we observe from each
-/// voter is folded into `complaint_counts` (which authorities the voter blamed)
-/// and the voter is recorded in `voters_counted`; subsequent masks from the
-/// same voter — i.e. equivocations — are ignored, capping each voter's
-/// contribution at +1 per blamed authority.
+/// voter is folded into `complaint_stakes` (which authorities the voter blamed,
+/// weighted by the voter's stake) and the voter is recorded in
+/// `voters_counted`; subsequent masks from the same voter — i.e. equivocations
+/// — are ignored, capping each voter's contribution at its own stake per
+/// blamed authority.
 #[derive(Default)]
 struct StarfishSpeedLeaderRoundHints {
     voters_counted: AuthoritySet,
-    complaint_counts: Vec<u16>,
+    complaint_stakes: Vec<Stake>,
 }
 
 impl StarfishSpeedLeaderRoundHints {
     fn new(committee_size: usize) -> Self {
         Self {
             voters_counted: AuthoritySet::default(),
-            complaint_counts: vec![0; committee_size],
+            complaint_stakes: vec![0; committee_size],
         }
     }
 
-    /// Records `voter`'s blame mask. No-op if `voter` has already contributed
-    /// to this round (equivocations are ignored).
-    fn add_vote(&mut self, voter: AuthorityIndex, mask: AuthoritySet) {
+    /// Records `voter`'s blame mask, accumulating `voter_stake` against each
+    /// authority in the mask. No-op if `voter` has already contributed to
+    /// this round (equivocations are ignored).
+    fn add_vote(&mut self, voter: AuthorityIndex, voter_stake: Stake, mask: AuthoritySet) {
         if !self.voters_counted.insert(voter) {
             return;
         }
         for authority in mask.iter() {
-            let count = &mut self.complaint_counts[authority.value()];
-            *count = count.saturating_add(1);
+            let stake = &mut self.complaint_stakes[authority.value()];
+            *stake = stake.saturating_add(voter_stake);
         }
     }
 }
@@ -2542,11 +2544,12 @@ impl DagState {
             return;
         }
         let committee_size = self.context.committee.size();
+        let voter_stake = self.context.committee.stake(voter);
         let entry = self
             .starfish_speed_leader_hints
             .entry(leader_round)
             .or_insert_with(|| StarfishSpeedLeaderRoundHints::new(committee_size));
-        entry.add_vote(voter, mask);
+        entry.add_vote(voter, voter_stake, mask);
 
         while self.starfish_speed_leader_hints.len() > STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS {
             let Some(&oldest) = self.starfish_speed_leader_hints.keys().next() else {
@@ -2558,10 +2561,10 @@ impl DagState {
 
     /// Returns the set of authorities the local node should drop from the
     /// `acknowledgments` field of new blocks: those whose aggregated
-    /// complaint count over the last `STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS`
+    /// complaint stake over the last `STARFISH_SPEED_HINT_WINDOW_LEADER_ROUNDS`
     /// of the local node's leader rounds reaches
-    /// `Committee::validity_threshold` (= f+1). Returns an empty set when
-    /// the feature is off.
+    /// `Committee::validity_threshold` (= f+1 in stake). Returns an empty set
+    /// when the feature is off.
     pub(crate) fn starfish_speed_excluded_ack_authorities(&self) -> AuthoritySet {
         if !self.context.protocol_config.consensus_starfish_speed()
             || !self
@@ -2572,7 +2575,7 @@ impl DagState {
             return AuthoritySet::default();
         }
         let committee_size = self.context.committee.size();
-        let mut scores = vec![0usize; committee_size];
+        let mut scores: Vec<Stake> = vec![0; committee_size];
         for hints in self
             .starfish_speed_leader_hints
             .iter()
@@ -2581,10 +2584,10 @@ impl DagState {
             .map(|(_, h)| h)
         {
             for (auth, score) in scores.iter_mut().enumerate() {
-                *score += hints.complaint_counts[auth] as usize;
+                *score = score.saturating_add(hints.complaint_stakes[auth]);
             }
         }
-        let threshold = self.context.committee.validity_threshold() as usize;
+        let threshold = self.context.committee.validity_threshold();
         let mut mask = AuthoritySet::default();
         for (auth, score) in scores.into_iter().enumerate() {
             if score >= threshold {
