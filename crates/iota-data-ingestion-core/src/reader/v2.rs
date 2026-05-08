@@ -329,7 +329,7 @@ impl CheckpointReaderActor {
                 Some(self.current_checkpoint_number),
                 None,
                 Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
-                self.fullnode_transaction_filter.clone(),
+                self.fullnode_transaction_filter.clone().map(Into::into),
                 None,
             )
             .await
