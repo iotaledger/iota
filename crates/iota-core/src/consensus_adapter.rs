@@ -79,7 +79,6 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_processed: IntCounterVec,
     pub sequencing_in_flight_semaphore_wait: IntGauge,
     pub sequencing_in_flight_submissions: IntGauge,
-    pub num_inflight_transactions: IntGauge,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
 }
@@ -175,12 +174,6 @@ impl ConsensusAdapterMetrics {
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
                 "Number of transactions actively submitting to consensus (post-semaphore permit). Capped at submit_semaphore size.",
-                registry,
-            )
-            .unwrap(),
-            num_inflight_transactions: register_int_gauge_with_registry!(
-                "num_inflight_transactions",
-                "Number of transactions in the consensus queue (waiting for permit + submitting). Used by graduated load shedding.",
                 registry,
             )
             .unwrap(),
@@ -1403,7 +1396,6 @@ impl<'a> InflightDropGuard<'a> {
         adapter
             .num_inflight_transactions
             .fetch_add(1, Ordering::SeqCst);
-        adapter.metrics.num_inflight_transactions.inc();
         adapter
             .metrics
             .sequencing_certificate_inflight
@@ -1431,7 +1423,6 @@ impl Drop for InflightDropGuard<'_> {
         self.adapter
             .num_inflight_transactions
             .fetch_sub(1, Ordering::SeqCst);
-        self.adapter.metrics.num_inflight_transactions.dec();
         self.adapter
             .metrics
             .sequencing_certificate_inflight

@@ -142,7 +142,7 @@ query_instant() {
 echo
 echo "=> capturing metrics from Prometheus over [${start_epoch}..${end_epoch}] (${run_seconds}s)..."
 
-query_range 'num_inflight_transactions{host=~"validator.*"}'                                    num_inflight.json
+query_range 'sum by (host) (sequencing_certificate_inflight{host=~"validator.*"})'              num_inflight.json
 query_range 'sequencing_in_flight_submissions{host=~"validator.*"}'                             in_flight.json
 query_range 'consensus_queue_load_shedding_percentage{host=~"validator.*"}'                     shed_pct.json
 query_range 'rate(transaction_overload_sources[30s])'                                           overload_rate.json
@@ -155,7 +155,7 @@ query_instant "sum by (host, error)  (increase(validator_service_num_rejected_tx
 
 {
     echo "timestamp,metric,host,labels,value"
-    for spec in "num_inflight.json:num_inflight_transactions" \
+    for spec in "num_inflight.json:sum_sequencing_certificate_inflight" \
                 "in_flight.json:sequencing_in_flight_submissions" \
                 "shed_pct.json:consensus_queue_load_shedding_percentage" \
                 "overload_rate.json:rate_transaction_overload_sources" \
@@ -206,7 +206,7 @@ summarize_total() {
     echo "validator:     max_pending=$max_pending  start_pct=$start_pct  white_flag=$white_flag"
     echo "wall:          ${run_seconds}s   stress_rc=$stress_rc"
     echo
-    echo "[gauge] num_inflight_transactions (shedding-input; capped at max_pending_transactions)"
+    echo "[gauge] sum(sequencing_certificate_inflight) — total in-flight per validator (shedding-input)"
     summarize_gauge num_inflight.json num_inflight
     echo
     echo "[gauge] sequencing_in_flight_submissions (post-permit; capped at submit_semaphore size)"
