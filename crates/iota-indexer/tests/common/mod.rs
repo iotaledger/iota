@@ -54,6 +54,7 @@ use tokio::{
     sync::{Mutex, OnceCell},
     task::JoinHandle,
 };
+use tokio_util::sync::CancellationToken;
 
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -457,7 +458,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
             &registry,
             pool,
             metrics,
-            tokio_util::sync::CancellationToken::new(),
+            CancellationToken::new(),
         )
         .await
     });
