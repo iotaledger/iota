@@ -748,21 +748,21 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
                     .unwrap()
-                )
+                }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
                     .unwrap()
-                )
+                }
             ),
         ]
     );
@@ -799,21 +799,21 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
                     .unwrap()
-                )
+                }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
                     .unwrap()
-                )
+                }
             ),
         ]
     );
@@ -961,15 +961,15 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
-                )
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
-                )
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                }
             ),
         ]
     );
@@ -1113,21 +1113,21 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
-                )
+                }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
-                )
+                }
             ),
         ]
     );
@@ -1365,21 +1365,21 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
-                )
+                }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
-                )
+                }
             ),
         ]
     );
@@ -1640,12 +1640,12 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             effects.unchanged_shared_objects(),
             vec![(
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2
                     )
                     .unwrap()
-                )
+                }
             ),]
         );
     }
@@ -1685,21 +1685,21 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             vec![
                 (
                     tester.shared_counter_1.object_id,
-                    UnchangedSharedKind::Cancelled(
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    UnchangedSharedKind::Cancelled {
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
                         .unwrap()
-                    )
+                    }
                 ),
                 (
                     tester.shared_counter_2.object_id,
-                    UnchangedSharedKind::Cancelled(
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    UnchangedSharedKind::Cancelled {
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
                         .unwrap()
-                    )
+                    }
                 ),
             ]
         );
@@ -1966,13 +1966,13 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             effects.unchanged_shared_objects(),
             vec![(
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled(
-                    SequenceNumber::new_congested_with_suggested_gas_price(
+                UnchangedSharedKind::Cancelled {
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
                     .unwrap()
-                )
-            ),]
+                }
+            )]
         );
     }
     // Transactions that touch both shared counters:
@@ -2018,21 +2018,21 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             vec![
                 (
                     tester.shared_counter_1.object_id,
-                    UnchangedSharedKind::Cancelled(
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    UnchangedSharedKind::Cancelled {
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
                         .unwrap()
-                    )
+                    }
                 ),
                 (
                     tester.shared_counter_2.object_id,
-                    UnchangedSharedKind::Cancelled(
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    UnchangedSharedKind::Cancelled {
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
                         .unwrap()
-                    )
+                    }
                 ),
             ]
         );

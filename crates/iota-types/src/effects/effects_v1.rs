@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use iota_sdk_types::effects::UnchangedSharedKind;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -15,7 +16,6 @@ use super::{
 use crate::{
     base_types::{
         EpochId, IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        VersionDigest,
     },
     digests::{EffectsAuxDataDigest, TransactionEventsDigest},
     effects::{InputSharedObject, TransactionEffectsAPI},
@@ -120,22 +120,23 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                 self.unchanged_shared_objects
                     .iter()
                     .filter_map(|(id, change_kind)| match change_kind {
-                        UnchangedSharedKind::ReadOnlyRoot((version, digest)) => Some(
+                        UnchangedSharedKind::ReadOnlyRoot { version, digest } => Some(
                             InputSharedObject::ReadOnly(ObjectRef::new(*id, *version, *digest)),
                         ),
-                        UnchangedSharedKind::MutateDeleted(seqno) => {
-                            Some(InputSharedObject::MutateDeleted(*id, *seqno))
+                        UnchangedSharedKind::MutateDeleted { version } => {
+                            Some(InputSharedObject::MutateDeleted(*id, *version))
                         }
-                        UnchangedSharedKind::ReadDeleted(seqno) => {
-                            Some(InputSharedObject::ReadDeleted(*id, *seqno))
+                        UnchangedSharedKind::ReadDeleted { version } => {
+                            Some(InputSharedObject::ReadDeleted(*id, *version))
                         }
-                        UnchangedSharedKind::Cancelled(seqno) => {
-                            Some(InputSharedObject::Cancelled(*id, *seqno))
+                        UnchangedSharedKind::Cancelled { version } => {
+                            Some(InputSharedObject::Cancelled(*id, *version))
                         }
                         // We can not expose the per epoch config object as input shared object,
                         // since it does not require sequencing, and hence shall not be considered
                         // as a normal input shared object.
                         UnchangedSharedKind::PerEpochConfig => None,
+                        _ => unimplemented!("a new UnchangedSharedKind enum variant was added and needs to be handled"),
                     }),
             )
             .collect()
@@ -358,17 +359,20 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             )),
             InputSharedObject::ReadOnly(obj_ref) => self.unchanged_shared_objects.push((
                 obj_ref.object_id,
-                UnchangedSharedKind::ReadOnlyRoot((obj_ref.version, obj_ref.digest)),
+                UnchangedSharedKind::ReadOnlyRoot {
+                    version: obj_ref.version,
+                    digest: obj_ref.digest,
+                },
             )),
-            InputSharedObject::ReadDeleted(obj_id, seqno) => self
+            InputSharedObject::ReadDeleted(obj_id, version) => self
                 .unchanged_shared_objects
-                .push((obj_id, UnchangedSharedKind::ReadDeleted(seqno))),
-            InputSharedObject::MutateDeleted(obj_id, seqno) => self
+                .push((obj_id, UnchangedSharedKind::ReadDeleted { version })),
+            InputSharedObject::MutateDeleted(obj_id, version) => self
                 .unchanged_shared_objects
-                .push((obj_id, UnchangedSharedKind::MutateDeleted(seqno))),
-            InputSharedObject::Cancelled(obj_id, seqno) => self
+                .push((obj_id, UnchangedSharedKind::MutateDeleted { version })),
+            InputSharedObject::Cancelled(obj_id, version) => self
                 .unchanged_shared_objects
-                .push((obj_id, UnchangedSharedKind::Cancelled(seqno))),
+                .push((obj_id, UnchangedSharedKind::Cancelled { version })),
         }
     }
 
@@ -427,24 +431,24 @@ impl TransactionEffectsV1 {
                     } else {
                         Some((
                             object_ref.object_id,
-                            UnchangedSharedKind::ReadOnlyRoot((
-                                object_ref.version,
-                                object_ref.digest,
-                            )),
+                            UnchangedSharedKind::ReadOnlyRoot {
+                                version: object_ref.version,
+                                digest: object_ref.digest,
+                            },
                         ))
                     }
                 }
                 SharedInput::Deleted((id, version, mutable, _)) => {
                     debug_assert!(!changed_objects.contains_key(&id));
                     if mutable {
-                        Some((id, UnchangedSharedKind::MutateDeleted(version)))
+                        Some((id, UnchangedSharedKind::MutateDeleted { version }))
                     } else {
-                        Some((id, UnchangedSharedKind::ReadDeleted(version)))
+                        Some((id, UnchangedSharedKind::ReadDeleted { version }))
                     }
                 }
                 SharedInput::Cancelled((id, version)) => {
                     debug_assert!(!changed_objects.contains_key(&id));
-                    Some((id, UnchangedSharedKind::Cancelled(version)))
+                    Some((id, UnchangedSharedKind::Cancelled { version }))
                 }
             })
             .chain(
@@ -598,22 +602,4 @@ impl Default for TransactionEffectsV1 {
             aux_data_digest: None,
         }
     }
-}
-
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
-pub enum UnchangedSharedKind {
-    /// Read-only shared objects from the input. We don't really need
-    /// ObjectDigest for protocol correctness, but it will make it easier to
-    /// verify untrusted read.
-    ReadOnlyRoot(VersionDigest),
-    /// Deleted shared objects that appear mutably/owned in the input.
-    MutateDeleted(SequenceNumber),
-    /// Deleted shared objects that appear as read-only in the input.
-    ReadDeleted(SequenceNumber),
-    /// Shared objects in cancelled transaction. The sequence number embed
-    /// cancellation reason.
-    Cancelled(SequenceNumber),
-    /// Read of a per-epoch config object that should remain the same during an
-    /// epoch.
-    PerEpochConfig,
 }

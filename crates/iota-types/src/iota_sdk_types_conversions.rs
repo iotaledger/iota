@@ -21,7 +21,7 @@ use iota_sdk_types::{
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
-        UnchangedSharedKind, UnchangedSharedObject,
+        UnchangedSharedObject,
     },
     events::TransactionEvents,
     gas::GasCostSummary,
@@ -306,30 +306,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, kind)| UnchangedSharedObject {
                             object_id: id,
-                            kind: match kind {
-                                crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                    version,
-                                    digest,
-                                )) => UnchangedSharedKind::ReadOnlyRoot { version, digest },
-                                crate::effects::UnchangedSharedKind::MutateDeleted(
-                                    sequence_number,
-                                ) => UnchangedSharedKind::MutateDeleted {
-                                    version: sequence_number,
-                                },
-                                crate::effects::UnchangedSharedKind::ReadDeleted(
-                                    sequence_number,
-                                ) => UnchangedSharedKind::ReadDeleted {
-                                    version: sequence_number,
-                                },
-                                crate::effects::UnchangedSharedKind::Cancelled(sequence_number) => {
-                                    UnchangedSharedKind::Cancelled {
-                                        version: sequence_number,
-                                    }
-                                }
-                                crate::effects::UnchangedSharedKind::PerEpochConfig => {
-                                    UnchangedSharedKind::PerEpochConfig
-                                }
-                            },
+                            kind,
                         })
                         .collect(),
                     auxiliary_data_digest: effects.aux_data_digest,
@@ -422,33 +399,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                             .map(|obj| {
                                 (
                                     obj.object_id,
-                                    match obj.kind {
-                                        UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                                            crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                                version,
-                                                digest,
-                                            ))
-                                        }
-                                        UnchangedSharedKind::MutateDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::MutateDeleted(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::ReadDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::ReadDeleted(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::Cancelled { version } => {
-                                            crate::effects::UnchangedSharedKind::Cancelled(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::PerEpochConfig => {
-                                            crate::effects::UnchangedSharedKind::PerEpochConfig
-                                        }
-                                        _ => unimplemented!("a new enum variant was added and needs to be handled"),
-                                    },
+                                    obj.kind,
                                 )
                             })
                             .collect(),
@@ -987,38 +938,5 @@ impl From<crate::crypto::AuthorityPublicKeyBytes> for Bls12381PublicKey {
 impl From<Bls12381PublicKey> for crate::crypto::AuthorityPublicKeyBytes {
     fn from(value: Bls12381PublicKey) -> Self {
         Self::new(value.into_inner())
-    }
-}
-
-impl From<UnchangedSharedKind> for crate::effects::UnchangedSharedKind {
-    fn from(value: UnchangedSharedKind) -> Self {
-        match value {
-            UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                Self::ReadOnlyRoot((version, digest))
-            }
-            UnchangedSharedKind::MutateDeleted { version } => Self::MutateDeleted(version),
-            UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version),
-            UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version),
-            UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-    }
-}
-
-impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
-    fn from(value: crate::effects::UnchangedSharedKind) -> Self {
-        match value {
-            crate::effects::UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
-                Self::ReadOnlyRoot { version, digest }
-            }
-            crate::effects::UnchangedSharedKind::MutateDeleted(version) => {
-                Self::MutateDeleted { version }
-            }
-            crate::effects::UnchangedSharedKind::ReadDeleted(version) => {
-                Self::ReadDeleted { version }
-            }
-            crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled { version },
-            crate::effects::UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
-        }
     }
 }
