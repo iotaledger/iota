@@ -211,7 +211,7 @@ impl DynamicField {
                 };
 
                 let query = match parent_version {
-                    Some(pv) => version_pinned::query(pv, &page, |q| apply_filter(q, parent)),
+                    Some(pv) => version_pinned::query(parent, pv, &page),
                     None => {
                         consistent::query(checkpoint_viewed_at, &page, |q| apply_filter(q, parent))
                     }
