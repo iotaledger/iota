@@ -33,14 +33,6 @@ pub fn verify_view_func(
     }
 
     let function_handle = module.function_handle_at(function_definition.function);
-    for (idx, type_parameter) in function_handle.type_parameters.iter().enumerate() {
-        if !is_valid_view_type_parameter(type_parameter) {
-            return Err(verification_failure(format!(
-                "View function '{function_identifier}' type parameter {idx} must have the 'copy' or 'drop' ability"
-            )));
-        }
-    }
-
     for parameter in &module.signature_at(function_handle.parameters).0 {
         verify_view_parameter_type(module, &function_handle.type_parameters, parameter)
             .map_err(verification_failure)?;
@@ -59,10 +51,6 @@ pub fn verify_view_func(
     }
 
     Ok(())
-}
-
-fn is_valid_view_type_parameter(type_parameter: &AbilitySet) -> bool {
-    type_parameter.has_copy() || type_parameter.has_drop()
 }
 
 fn verify_view_parameter_type(
@@ -92,6 +80,13 @@ fn verify_view_return_type(
     function_type_args: &[AbilitySet],
     return_type: &SignatureToken,
 ) -> Result<(), String> {
+    if contains_reference_type(return_type) {
+        return Err(format!(
+            "Invalid view function return type: {}. View functions cannot return references.",
+            format_signature_token(module, return_type),
+        ));
+    }
+
     if contains_view_unsafe_by_value_type(module, function_type_args, return_type)? {
         return Err(format!(
             "Invalid view function return type: {}. View functions cannot return objects or values that could contain objects.",
@@ -100,6 +95,29 @@ fn verify_view_return_type(
     }
 
     Ok(())
+}
+
+fn contains_reference_type(signature_token: &SignatureToken) -> bool {
+    use SignatureToken as S;
+    match signature_token {
+        S::Reference(_) | S::MutableReference(_) => true,
+        S::Vector(inner) => contains_reference_type(inner),
+        S::DatatypeInstantiation(instantiation) => {
+            let (_, type_arguments) = &**instantiation;
+            type_arguments.iter().any(contains_reference_type)
+        }
+        S::Bool
+        | S::U8
+        | S::U16
+        | S::U32
+        | S::U64
+        | S::U128
+        | S::U256
+        | S::Address
+        | S::Signer
+        | S::TypeParameter(_)
+        | S::Datatype(_) => false,
+    }
 }
 
 fn contains_mutable_reference_type(signature_token: &SignatureToken) -> bool {
@@ -134,9 +152,12 @@ fn contains_view_unsafe_by_value_type(
     match signature_token {
         // References are not by-value. Mutable references are rejected separately.
         S::Reference(_) | S::MutableReference(_) => Ok(false),
-        // Function type parameters are checked independently so that diagnostics
-        // are not duplicated for each use.
-        S::TypeParameter(_) => Ok(false),
+        S::TypeParameter(idx) => {
+            let abilities = function_type_args.get(*idx as usize).ok_or_else(|| {
+                format!("Unexpected CompiledModule error: type parameter index {idx} out of bounds")
+            })?;
+            Ok(!(abilities.has_copy() || abilities.has_drop()))
+        }
         S::Datatype(_) | S::DatatypeInstantiation(_) => {
             let abilities = module
                 .abilities(signature_token, function_type_args)
@@ -270,7 +291,47 @@ mod tests {
     }
 
     #[test]
-    fn rejects_type_parameter_without_copy_or_drop() {
+    fn accepts_unused_type_parameter_without_copy_or_drop() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![AbilitySet::EMPTY],
+            vec![],
+            vec![SignatureToken::Bool],
+        );
+
+        verify(&module).unwrap();
+    }
+
+    #[test]
+    fn accepts_immutable_reference_to_type_parameter_without_copy_or_drop() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![AbilitySet::EMPTY],
+            vec![SignatureToken::Reference(Box::new(
+                SignatureToken::TypeParameter(0),
+            ))],
+            vec![SignatureToken::Bool],
+        );
+
+        verify(&module).unwrap();
+    }
+
+    #[test]
+    fn accepts_immutable_reference_to_vector_type_parameter_without_copy_or_drop() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![AbilitySet::EMPTY],
+            vec![SignatureToken::Reference(Box::new(SignatureToken::Vector(
+                Box::new(SignatureToken::TypeParameter(0)),
+            )))],
+            vec![SignatureToken::Bool],
+        );
+
+        verify(&module).unwrap();
+    }
+
+    #[test]
+    fn rejects_by_value_type_parameter_without_copy_or_drop() {
         let module = module_with_view_signature(
             Visibility::Public,
             vec![AbilitySet::EMPTY | Ability::Store],
@@ -280,7 +341,24 @@ mod tests {
 
         assert_error_contains(
             &module,
-            "type parameter 0 must have the 'copy' or 'drop' ability",
+            "cannot accept objects or values that could contain objects by value",
+        );
+    }
+
+    #[test]
+    fn rejects_by_value_vector_type_parameter_without_copy_or_drop() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![AbilitySet::EMPTY],
+            vec![SignatureToken::Vector(Box::new(
+                SignatureToken::TypeParameter(0),
+            ))],
+            vec![SignatureToken::Bool],
+        );
+
+        assert_error_contains(
+            &module,
+            "cannot accept objects or values that could contain objects by value",
         );
     }
 
@@ -402,5 +480,46 @@ mod tests {
             &module,
             "cannot return objects or values that could contain objects",
         );
+    }
+
+    #[test]
+    fn rejects_type_parameter_return_without_copy_or_drop() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![AbilitySet::EMPTY | Ability::Store],
+            vec![],
+            vec![SignatureToken::TypeParameter(0)],
+        );
+
+        assert_error_contains(
+            &module,
+            "cannot return objects or values that could contain objects",
+        );
+    }
+
+    #[test]
+    fn rejects_reference_return_type() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![],
+            vec![SignatureToken::Reference(Box::new(SignatureToken::U64))],
+            vec![SignatureToken::Reference(Box::new(SignatureToken::U64))],
+        );
+
+        assert_error_contains(&module, "cannot return references");
+    }
+
+    #[test]
+    fn rejects_nested_reference_return_type() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![],
+            vec![SignatureToken::Reference(Box::new(SignatureToken::U64))],
+            vec![SignatureToken::Vector(Box::new(SignatureToken::Reference(
+                Box::new(SignatureToken::U64),
+            )))],
+        );
+
+        assert_error_contains(&module, "cannot return references");
     }
 }

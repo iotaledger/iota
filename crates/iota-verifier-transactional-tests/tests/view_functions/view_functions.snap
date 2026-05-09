@@ -22,7 +22,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 3, lines 32-38:
 //# publish --view-functions store_type_parameter
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("View function 'store_type_parameter' type parameter 0 must have the 'copy' or 'drop' ability"), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid view function parameter type: T0. View functions cannot accept objects or values that could contain objects by value."), command: Some(0) } }
 
 task 4, lines 40-46:
 //# publish --view-functions mutable_reference_parameter
