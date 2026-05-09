@@ -137,7 +137,7 @@ struct StarfishSpeedLeaderRoundHints {
 impl StarfishSpeedLeaderRoundHints {
     fn new(committee_size: usize) -> Self {
         Self {
-            voters_counted: AuthoritySet::default(),
+            voters_counted: AuthoritySet::new(),
             complaint_stakes: vec![0; committee_size],
         }
     }
@@ -2572,7 +2572,7 @@ impl DagState {
                 .parameters
                 .enable_starfish_speed_adaptive_acknowledgments
         {
-            return AuthoritySet::default();
+            return AuthoritySet::new();
         }
         let committee_size = self.context.committee.size();
         let mut scores: Vec<Stake> = vec![0; committee_size];
@@ -2588,7 +2588,7 @@ impl DagState {
             }
         }
         let threshold = self.context.committee.validity_threshold();
-        let mut mask = AuthoritySet::default();
+        let mut mask = AuthoritySet::new();
         for (auth, score) in scores.into_iter().enumerate() {
             if score >= threshold {
                 mask.insert(AuthorityIndex::from(auth as u8));

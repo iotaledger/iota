@@ -931,7 +931,7 @@ impl Core {
                 .read()
                 .starfish_speed_excluded_ack_authorities()
         } else {
-            AuthoritySet::default()
+            AuthoritySet::new()
         };
 
         // Consume the acknowledgments about transaction data availability for past
