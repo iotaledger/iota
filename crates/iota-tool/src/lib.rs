@@ -769,6 +769,9 @@ fn start_summary_sync(
             verify_progress_bar.finish_with_message("Checkpoint summary verification is complete");
         }
 
+        // SAFETY: All four watermarks must be set together so the executor
+        // starts from `highest_executed + 1` and never tries to access
+        // checkpoint contents in the restored (summary-only) range.
         checkpoint_store.update_highest_verified_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_synced_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_executed_checkpoint(&checkpoint)?;
