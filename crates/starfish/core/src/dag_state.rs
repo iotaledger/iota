@@ -2493,13 +2493,8 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    /// Replays strong-blame complaints from recovered headers so the
-    /// adaptive-ack heuristic survives a restart. `BTreeMap` iteration order
-    /// (smallest digest first for equivocators) — each voter still
-    /// contributes at most +1; it may be a different block from the voter
-    /// in case of equivocation, but it doesn't really matter, since the choice
-    /// from which specific block among equivocated to record complaint was
-    /// arbitrary.
+    /// Seeds adaptive-ack hints from strong-blame masks already present in
+    /// `recent_block_headers` so the heuristic survives a restart.
     fn replay_strong_vote_complaints_from_recovered_headers(&mut self) {
         if !self.context.protocol_config.consensus_starfish_speed()
             || !self
