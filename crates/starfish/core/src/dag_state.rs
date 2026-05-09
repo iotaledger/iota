@@ -2146,18 +2146,30 @@ impl DagState {
         let clock_round = self.threshold_clock_round();
         let mut taken = Vec::with_capacity(limit);
 
-        for ack in self.pending_acknowledgments.iter() {
-            if taken.len() >= limit || ack.round >= clock_round {
-                break;
+        if exclude.is_empty() {
+            for ack in self.pending_acknowledgments.iter() {
+                if taken.len() >= limit || ack.round >= clock_round {
+                    break;
+                }
+                taken.push(*ack);
             }
-            if exclude.contains(ack.author) {
-                continue;
+            if let Some(&last_ack) = taken.last() {
+                self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
+                self.pending_acknowledgments.remove(&last_ack);
             }
-            taken.push(*ack);
-        }
-
-        for ack in &taken {
-            self.pending_acknowledgments.remove(ack);
+        } else {
+            for ack in self.pending_acknowledgments.iter() {
+                if taken.len() >= limit || ack.round >= clock_round {
+                    break;
+                }
+                if exclude.contains(ack.author) {
+                    continue;
+                }
+                taken.push(*ack);
+            }
+            for ack in &taken {
+                self.pending_acknowledgments.remove(ack);
+            }
         }
 
         taken
