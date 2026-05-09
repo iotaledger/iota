@@ -183,11 +183,11 @@ pub fn linter_visitors(level: LintLevel) -> Vec<Visitor> {
             collection_equality::CollectionEqualityVisitor.visitor(),
             public_random::PublicRandomVisitor.visitor(),
             missing_key::MissingKeyVisitor.visitor(),
-            view_function::ViewFunctionVisitor.visitor(),
         ],
         LintLevel::All => {
             let mut visitors = linter_visitors(LintLevel::Default);
             visitors.extend([
+                view_function::ViewFunctionVisitor.visitor(),
                 freezing_capability::WarnFreezeCapability.visitor(),
                 public_mut_tx_context::PreferMutableTxContext.visitor(),
             ]);

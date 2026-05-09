@@ -32,3 +32,12 @@ warning[Lint W99010]: function can be marked '#[view]'
    │
    = Add '#[view]' to make the function explicitly callable as a view function.
    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/view_function/suggestions.move:45:16
+   │
+45 │     public fun generic_key<T: key>(x: &T): u64 {
+   │                ^^^^^^^^^^^ Function 'generic_key' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
