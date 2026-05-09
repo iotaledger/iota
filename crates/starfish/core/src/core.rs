@@ -914,31 +914,34 @@ impl Core {
             .proposed_block_transactions
             .observe(transactions.len() as f64);
 
-        // Consume the acknowledgments about transaction data availability for past
-        // blocks to be included.
-        let mut acknowledgments = self.dag_state.write().take_acknowledgments(
-            self.context
-                .protocol_config
-                .consensus_max_acknowledgments_per_block_or_default() as usize,
-        );
-
-        // Adaptive acknowledgment filtering: drop refs whose author has been
-        // persistently blamed by recent strong-vote masks for this node's
-        // leader rounds. Local heuristic, gated on protocol + local flags.
-        if self.context.protocol_config.consensus_starfish_speed()
+        // Adaptive acknowledgment filtering: only applied to leader blocks,
+        // where included refs feed the optimistic-commit path.
+        let am_leader_at_clock_round = self
+            .leaders(clock_round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index);
+        let exclude = if am_leader_at_clock_round
+            && self.context.protocol_config.consensus_starfish_speed()
             && self
                 .context
                 .parameters
                 .enable_starfish_speed_adaptive_acknowledgments
         {
-            let excluded = self
-                .dag_state
+            self.dag_state
                 .read()
-                .starfish_speed_excluded_ack_authorities();
-            if !excluded.is_empty() {
-                acknowledgments.retain(|r| !excluded.contains(r.author));
-            }
-        }
+                .starfish_speed_excluded_ack_authorities()
+        } else {
+            AuthoritySet::default()
+        };
+
+        // Consume the acknowledgments about transaction data availability for past
+        // blocks to be included.
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+            exclude,
+        );
 
         self.context
             .metrics

@@ -2134,28 +2134,30 @@ impl DagState {
         self.pending_acknowledgments.insert(block_ref);
     }
 
-    /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
-    /// ensuring they are from rounds below `clock_round`.
-    pub(crate) fn take_acknowledgments(&mut self, limit: usize) -> Vec<BlockRef> {
+    /// Takes at most `limit` acknowledgments from `pending_acknowledgments`
+    /// from rounds below `clock_round`. Refs whose author is in `exclude` are
+    /// skipped over and stay pending so they can be acked later.
+    pub(crate) fn take_acknowledgments(
+        &mut self,
+        limit: usize,
+        exclude: AuthoritySet,
+    ) -> Vec<BlockRef> {
         self.evict_pending_acknowledgments();
         let clock_round = self.threshold_clock_round();
         let mut taken = Vec::with_capacity(limit);
-        let mut last_ack = None;
 
         for ack in self.pending_acknowledgments.iter() {
             if taken.len() >= limit || ack.round >= clock_round {
                 break;
             }
+            if exclude.contains(ack.author) {
+                continue;
+            }
             taken.push(*ack);
         }
 
-        if let Some(last) = taken.last() {
-            last_ack = Some(*last);
-        }
-
-        if let Some(last_ack) = last_ack {
-            self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
-            self.pending_acknowledgments.remove(&last_ack);
+        for ack in &taken {
+            self.pending_acknowledgments.remove(ack);
         }
 
         taken
@@ -4562,7 +4564,6 @@ mod test {
         dag_state.record_strong_vote_complaint(auth(0), leader_round, blame_mask(target));
         dag_state.record_strong_vote_complaint(auth(1), leader_round, blame_mask(target));
 
-        // Same two-line filter Core::new_block applies after take_acknowledgments.
         let excluded = dag_state.starfish_speed_excluded_ack_authorities();
         let filtered: Vec<BlockRef> = raw_acks
             .into_iter()
