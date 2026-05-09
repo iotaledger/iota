@@ -37,3 +37,4 @@ tonic:
 fast_commit_sync_batch_size: 1000
 commit_sync_gap_threshold: 1000
 enable_fast_commit_syncer: true
+enable_starfish_speed_adaptive_acknowledgments: true
