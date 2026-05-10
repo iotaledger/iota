@@ -1,29 +1,45 @@
 #!/usr/bin/env bash
 # Bump the workspace version and propagate it to dependent files.
 #
-# Usage: scripts/bump_version.sh <new-version>
-# Example: scripts/bump_version.sh 1.24.0-alpha
+# Usage: scripts/bump_version.sh <minor|patch|none> <alpha|beta|rc|release>
+#
+# The first argument controls which segment of MAJOR.MINOR.PATCH gets
+# incremented; "none" keeps the base version unchanged (useful for promoting
+# a pre-release in place, e.g. alpha -> beta).
+#
+# The second argument sets the pre-release suffix; "release" means no suffix.
+#
+# Examples:
+#   scripts/bump_version.sh minor alpha    # 1.24.0       -> 1.25.0-alpha
+#   scripts/bump_version.sh none  beta     # 1.24.0-alpha -> 1.24.0-beta
+#   scripts/bump_version.sh none  release  # 1.24.0-rc    -> 1.24.0
+#   scripts/bump_version.sh patch release  # 1.24.0       -> 1.24.1
 
 set -euo pipefail
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <new-version>" >&2
-    echo "Example: $0 1.24.0-alpha" >&2
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <minor|patch|none> <alpha|beta|rc|release>" >&2
     exit 1
 fi
 
-new_version="$1"
+bump="$1"
+prerelease="$2"
 
-if [[ ! "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
-    echo "Error: '$new_version' is not a valid version (expected MAJOR.MINOR.PATCH[-prerelease])" >&2
-    exit 1
-fi
+case "$bump" in
+    minor|patch|none) ;;
+    *)
+        echo "Error: first argument must be one of: minor, patch, none (got '$bump')" >&2
+        exit 1
+        ;;
+esac
 
-# Forms used across the touched files:
-#   new_base  = MAJOR.MINOR.PATCH (no prerelease) e.g. 1.24.0
-#   new_short = MAJOR.MINOR                       e.g. 1.24
-new_base="${new_version%%-*}"
-new_short="${new_base%.*}"
+case "$prerelease" in
+    alpha|beta|rc|release) ;;
+    *)
+        echo "Error: second argument must be one of: alpha, beta, rc, release (got '$prerelease')" >&2
+        exit 1
+        ;;
+esac
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
@@ -42,6 +58,43 @@ old_version="$(awk '
 if [ -z "$old_version" ]; then
     echo "Error: failed to read current version from Cargo.toml" >&2
     exit 1
+fi
+
+if [[ ! "$old_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[A-Za-z0-9.]+)?$ ]]; then
+    echo "Error: current version '$old_version' is not a valid MAJOR.MINOR.PATCH[-prerelease]" >&2
+    exit 1
+fi
+
+major="${BASH_REMATCH[1]}"
+minor="${BASH_REMATCH[2]}"
+patch="${BASH_REMATCH[3]}"
+
+case "$bump" in
+    minor)
+        minor=$((minor + 1))
+        patch=0
+        ;;
+    patch)
+        patch=$((patch + 1))
+        ;;
+    none) ;;
+esac
+
+# Forms used across the touched files:
+#   new_base  = MAJOR.MINOR.PATCH (no prerelease) e.g. 1.24.0
+#   new_short = MAJOR.MINOR                       e.g. 1.24
+new_base="$major.$minor.$patch"
+new_short="$major.$minor"
+
+if [ "$prerelease" = "release" ]; then
+    new_version="$new_base"
+else
+    new_version="$new_base-$prerelease"
+fi
+
+# Expose the resolved version to GitHub Actions if running there.
+if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "IOTA_VERSION=$new_version" >> "$GITHUB_ENV"
 fi
 
 if [ "$old_version" = "$new_version" ]; then

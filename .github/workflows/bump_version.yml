@@ -3,10 +3,24 @@ name: Bump version
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "New version (MAJOR.MINOR.PATCH[-prerelease], e.g. 1.24.0-alpha)"
-        type: string
+      bump:
+        description: "Which segment of the base version to bump"
+        type: choice
         required: true
+        default: none
+        options:
+          - none
+          - minor
+          - patch
+      prerelease:
+        description: "Pre-release suffix to set (release = no suffix)"
+        type: choice
+        required: true
+        options:
+          - alpha
+          - beta
+          - rc
+          - release
       base_branch:
         description: "Branch to open the PR against"
         type: string
@@ -26,14 +40,14 @@ jobs:
           ref: ${{ inputs.base_branch }}
 
       - name: Run bump_version.sh
-        run: scripts/bump_version.sh "${{ inputs.version }}"
+        run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           base: ${{ inputs.base_branch }}
-          branch: release/bump-version-${{ inputs.version }}
-          title: "release: bump version to `${{ inputs.version }}`"
-          commit-message: "release: bump version to `${{ inputs.version }}`"
-          body: Automated version bump to `${{ inputs.version }}`.
+          branch: release/bump-version-${{ env.IOTA_VERSION }}
+          title: "release: bump version to `${{ env.IOTA_VERSION }}`"
+          commit-message: "release: bump version to `${{ env.IOTA_VERSION }}`"
+          body: Automated version bump to `${{ env.IOTA_VERSION }}`.
           delete-branch: true
