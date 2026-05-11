@@ -557,11 +557,11 @@ impl ObjectInner {
     }
 
     pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.object_type()
+        self.data.opt_object_type()
     }
 
     pub fn struct_tag(&self) -> Option<StructTag> {
-        self.data.struct_tag()
+        self.data.opt_struct_tag()
     }
 
     pub fn is_coin(&self) -> bool {
@@ -655,7 +655,7 @@ impl ObjectInner {
     /// like this: `S<T>`.
     /// Returns the inner parameter type `T`.
     pub fn get_move_template_type(&self) -> IotaResult<TypeTag> {
-        let move_struct = self.data.struct_tag().ok_or_else(|| IotaError::Type {
+        let move_struct = self.data.opt_struct_tag().ok_or_else(|| IotaError::Type {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(

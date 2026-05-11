@@ -426,7 +426,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .unwrap();
 
     assert_eq!(
-        b.data.struct_tag().unwrap(),
+        b.data.opt_struct_tag().unwrap(),
         StructTag::new(
             package_v2,
             Identifier::from_static("base"),

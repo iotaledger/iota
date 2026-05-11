@@ -144,7 +144,7 @@ impl ObjectType {
 impl From<&Object> for ObjectType {
     fn from(o: &Object) -> Self {
         o.data
-            .object_type()
+            .opt_object_type()
             .map(|t| ObjectType::Struct(t.clone()))
             .unwrap_or(ObjectType::Package)
     }

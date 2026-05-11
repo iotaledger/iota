@@ -171,7 +171,7 @@ impl DynamicFieldHandler {
                 )?;
                 let version = object.version().as_u64();
                 let digest = object.digest().to_string();
-                let object_type = object.data.object_type().unwrap().clone();
+                let object_type = object.data.opt_object_type().unwrap().clone();
                 DynamicFieldEntry {
                     parent_object_id: parent_id.to_string(),
                     transaction_digest: object.previous_transaction.to_base58(),

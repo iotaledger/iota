@@ -2746,7 +2746,7 @@ impl AuthorityState {
                     (
                         object.version(),
                         object.digest(),
-                        object.data.object_type().unwrap().clone(),
+                        object.data.opt_object_type().unwrap().clone(),
                     )
                 } else {
                     // If not found, try to find it in the database.
@@ -2759,7 +2759,7 @@ impl AuthorityState {
                         })?;
                     let version = object.version();
                     let digest = object.digest();
-                    let object_type = object.data.object_type().unwrap().clone();
+                    let object_type = object.data.opt_object_type().unwrap().clone();
                     (version, digest, object_type)
                 };
 

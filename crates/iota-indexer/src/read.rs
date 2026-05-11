@@ -2033,7 +2033,7 @@ impl IndexerReader {
                         ))
                     })?;
 
-                let object_type = object.data.object_type().unwrap().clone();
+                let object_type = object.data.opt_object_type().unwrap().clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,
