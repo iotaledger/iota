@@ -47,6 +47,9 @@ jobs:
       - name: Run bump_version.sh
         run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
 
+      - name: Revert bump_version.sh to base branch version
+        run: git checkout HEAD -- scripts/bump_version.sh 2>/dev/null || git rm -f scripts/bump_version.sh
+
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
