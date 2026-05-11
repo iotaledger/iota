@@ -132,7 +132,11 @@ impl BlockManager {
         let metrics = &self.context.metrics.node_metrics;
         metrics.block_manager_gc_floor.set(gc_floor as i64);
 
-        let pivot = BlockRef::new(gc_floor + 1, AuthorityIndex::MIN, BlockHeaderDigest::MIN);
+        let pivot = BlockRef::new(
+            gc_floor.saturating_add(1),
+            AuthorityIndex::MIN,
+            BlockHeaderDigest::MIN,
+        );
         let kept_txs = self.suspended_transactions.split_off(&pivot);
         let txs_evicted =
             std::mem::replace(&mut self.suspended_transactions, kept_txs).len() as u64;

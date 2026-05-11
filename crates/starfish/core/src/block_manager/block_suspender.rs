@@ -413,28 +413,24 @@ impl BlockSuspender {
     pub(crate) fn evict_below_round(&mut self, round_floor: Round) -> EvictBelowRoundOutcome {
         // Smallest BlockRef with round > round_floor — split keeps everything
         // from this key onward (round > floor) in the original map.
-        let pivot = round_floor
-            .checked_add(1)
-            .map(|round| BlockRef::new(round, AuthorityIndex::MIN, BlockHeaderDigest::MIN));
+        let pivot = BlockRef::new(
+            round_floor.saturating_add(1),
+            AuthorityIndex::MIN,
+            BlockHeaderDigest::MIN,
+        );
 
-        let fetch_entries_evicted = if let Some(pivot) = pivot {
-            let kept_to_fetch = self.headers_to_fetch.split_off(&pivot);
-            std::mem::replace(&mut self.headers_to_fetch, kept_to_fetch).len()
-        } else {
-            std::mem::take(&mut self.headers_to_fetch).len()
-        };
+        let kept_to_fetch = self.headers_to_fetch.split_off(&pivot);
+        let fetch_entries_evicted =
+            std::mem::replace(&mut self.headers_to_fetch, kept_to_fetch).len();
 
         // Collect evicted keys via an O(log n + k) range scan; leave them in
         // `self.missing_ancestors` so `recursively_unsuspend_dependents` can
         // remove and cascade through them as usual.
-        let evicted_ancestor_refs: Vec<BlockRef> = if let Some(pivot) = pivot {
-            self.missing_ancestors
-                .range(..pivot)
-                .map(|(k, _)| *k)
-                .collect()
-        } else {
-            self.missing_ancestors.keys().copied().collect()
-        };
+        let evicted_ancestor_refs: Vec<BlockRef> = self
+            .missing_ancestors
+            .range(..pivot)
+            .map(|(k, _)| *k)
+            .collect();
         let ancestors_evicted = evicted_ancestor_refs.len();
 
         let mut unsuspended = vec![];
