@@ -15,9 +15,10 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTypeTag, MoveFunctionName,
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
@@ -30,7 +31,6 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
@@ -43,11 +43,11 @@ use crate::{
     apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
     ingestion::primary::prepare::InMemObjectCache,
-    models::transactions::tx_events_to_iota_tx_events,
-    optimistic_indexing::OptimisticTransactionExecutor,
+    models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
+    optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
-    types::{IndexedObjectChange, IotaTransactionBlockResponseWithOptions, grpc_conversion},
+    types::{IndexedObjectChange, grpc_conversion},
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
@@ -117,11 +117,7 @@ impl WriteApi {
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.clone().try_into()?,
-                false,
-                Some(readmask.as_str()),
-            )
+            .simulate_transaction(transaction_data.clone(), false, Some(readmask.as_str()))
             .await?
             .into_inner();
 
@@ -151,7 +147,7 @@ impl WriteApi {
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
@@ -219,12 +215,12 @@ impl WriteApi {
         let skip_checks = skip_checks.unwrap_or(true);
 
         let (price, budget) = match (gas_price, gas_budget) {
-            (Some(price), Some(budget)) => (price.into_inner(), budget.into_inner()),
+            (Some(price), Some(budget)) => (price.into_inner(), budget),
             (price, budget) => {
                 let (ref_price, max_gas) = self.reference_gas_price_and_max_tx_gas().await?;
                 (
                     price.map(BigInt::into_inner).unwrap_or(ref_price),
-                    budget.map(BigInt::into_inner).unwrap_or(max_gas),
+                    budget.unwrap_or(max_gas),
                 )
             }
         };
@@ -237,8 +233,8 @@ impl WriteApi {
         let transaction_data = TransactionData::V1(TransactionDataV1 {
             kind,
             sender: sender_address,
-            gas_data: GasData {
-                payment,
+            gas_payment: GasData {
+                objects: payment,
                 owner,
                 price,
                 budget,
@@ -257,11 +253,7 @@ impl WriteApi {
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.try_into()?,
-                skip_checks,
-                Some(readmask.as_str()),
-            )
+            .simulate_transaction(transaction_data, skip_checks, Some(readmask.as_str()))
             .await?
             .into_inner();
 
@@ -275,7 +267,7 @@ impl WriteApi {
             .transpose()?
             .unwrap_or_default();
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
@@ -292,9 +284,9 @@ impl WriteApi {
                     .clone()
                     .map(|s| -> Box<dyn std::error::Error + Send + Sync> { s.into() });
 
-                let mut error = ExecutionError::new(exec_err.into(), source);
+                let mut error = ExecutionError::new(exec_err, source);
                 if let Some(command_index) = execution_error.command_index {
-                    error = error.with_command_index(command_index as usize);
+                    error = error.with_command_index(command_index);
                 }
                 Ok(error.to_string())
             })
@@ -348,6 +340,22 @@ impl OptimisticWriteApi {
             write_api,
             optimistic_tx_executor,
         }
+    }
+
+    async fn build_response(
+        &self,
+        ingestion_path: IngestionPath,
+        options: IotaTransactionBlockResponseOptions,
+    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+        let package_resolver = self.write_api.package_resolver.clone();
+        let stored_transaction = StoredTransaction::from(ingestion_path);
+        stored_transaction
+            .try_into_iota_transaction_block_response(options, &package_resolver)
+            .await
+    }
+
+    pub fn executor(&self) -> &OptimisticTransactionExecutor {
+        &self.optimistic_tx_executor
     }
 }
 
@@ -441,15 +449,13 @@ impl WriteApiServer for OptimisticWriteApi {
         options: Option<IotaTransactionBlockResponseOptions>,
         _request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = self
+        let ingestion_path = self
             .optimistic_tx_executor
-            .execute_and_index_transaction(tx_bytes, signatures, options.clone())
+            .execute_and_index_transaction(tx_bytes, signatures)
             .await?;
-        Ok(IotaTransactionBlockResponseWithOptions {
-            response: iota_transaction_response,
-            options: options.unwrap_or_default(),
-        }
-        .into())
+        Ok(self
+            .build_response(ingestion_path, options.unwrap_or_default())
+            .await?)
     }
 
     async fn dev_inspect_transaction_block(

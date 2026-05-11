@@ -13,7 +13,6 @@ use fastcrypto::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use iota_sdk_types::crypto::IntentMessage;
-use schemars::JsonSchema;
 use serde::Serialize;
 use tracing::instrument;
 
@@ -61,7 +60,7 @@ pub trait AuthenticatorTrait {
 /// Instances are never constructed; deserialization rejects the flag byte.
 #[iota_proc_macros::allow_deprecated_for_derives]
 #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ZkLoginAuthenticatorDeprecated;
 
 #[allow(deprecated)]
@@ -95,7 +94,7 @@ impl AsRef<[u8]> for ZkLoginAuthenticatorDeprecated {
 /// implement its own `verify`.
 #[iota_proc_macros::allow_deprecated_for_derives]
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(clippy::large_enum_variant)]
 pub enum GenericSignature {
     MultiSig,

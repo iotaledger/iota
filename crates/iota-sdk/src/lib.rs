@@ -108,14 +108,13 @@ use iota_json_rpc_types::{
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_types::base_types::{IotaAddress, ObjectID, StructTag};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
-use move_core_types::language_storage::StructTag;
 use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;

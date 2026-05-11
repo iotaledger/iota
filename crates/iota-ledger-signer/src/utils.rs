@@ -8,7 +8,7 @@ use iota_sdk::{
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
         base_types::{ObjectID, ObjectType},
-        object::{MoveObject, Object},
+        object::{MoveObject, MoveObjectExt, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
@@ -43,15 +43,15 @@ fn object_ids_from_transaction(
 ) -> Result<Vec<ObjectID>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
-        .payment
+        .objects
         .iter()
-        .map(|payment| payment.0);
+        .map(|object| object.object_id);
 
     let input_objects = transaction
         .input_objects()?
         .into_iter()
         .filter_map(|input| match input {
-            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.0),
+            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.object_id),
             _ => None,
         });
 
@@ -78,7 +78,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     };
 
     let move_object = MoveObject::new_from_execution_with_limit(
-        move_object_type,
+        move_object_type.into(),
         data.version,
         bcs_bytes,
         250 * 1024, // The limit is not important here, it is copied from the protocol config

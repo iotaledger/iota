@@ -53,20 +53,20 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddr
             )
         }
         TypeFilter::ByType(tag) => {
-            let package = tag.address;
-            let module = tag.module.to_string();
-            let mut name = tag.name.as_str().to_owned();
-            let (table, col_name) = if tag.type_params.is_empty() {
+            let package = tag.address();
+            let module = tag.module().to_string();
+            let mut name = tag.name().to_string();
+            let (table, col_name) = if tag.type_params().is_empty() {
                 ("event_struct_name", "type_name")
             } else {
                 let mut prefix = "<";
-                for param in &tag.type_params {
+                for param in tag.type_params() {
                     name += prefix;
                     // SAFETY: write! to String always succeeds.
                     write!(
                         name,
                         "{}",
-                        param.to_canonical_display(/* with_prefix */ true)
+                        param.to_canonical_string(/* with_prefix */ true)
                     )
                     .unwrap();
                     prefix = ", ";
@@ -79,7 +79,7 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddr
                 select_ev(sender, table),
                 format!(
                     "package = {} and module = {{}} and {} = {{}}",
-                    bytea_literal(package.as_slice()),
+                    bytea_literal(package.as_bytes()),
                     col_name
                 ),
                 module,

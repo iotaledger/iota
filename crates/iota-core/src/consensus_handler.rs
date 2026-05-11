@@ -10,21 +10,23 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use consensus_config::Committee as ConsensusCommittee;
-use consensus_core::{CommitConsumerMonitor, CommitIndex};
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
+    messages_consensus::{
+        CancelledTransaction, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind,
+    },
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
+use starfish_config::Committee as ConsensusCommittee;
 use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
@@ -206,7 +208,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         let round = consensus_output.leader_round();
 
-        // TODO: Is this check necessary? For now mysticeti will not
+        // TODO: Is this check necessary? For now consensus will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
         assert!(
@@ -429,57 +431,6 @@ impl AsyncTransactionScheduler {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
             transaction_manager.enqueue(transactions, &epoch_store);
-        }
-    }
-}
-
-/// Consensus handler used by Mysticeti. Since Mysticeti repo is not yet
-/// integrated, we use a channel to receive the consensus output from Mysticeti.
-/// During initialization, the sender is passed into Mysticeti which can send
-/// consensus output to the channel.
-pub struct MysticetiConsensusHandler {
-    handle: Option<tokio::task::JoinHandle<()>>,
-}
-
-impl MysticetiConsensusHandler {
-    pub fn new(
-        last_processed_commit_at_startup: CommitIndex,
-        mut consensus_handler: ConsensusHandler<CheckpointService>,
-        mut receiver: UnboundedReceiver<consensus_core::CommittedSubDag>,
-        commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-    ) -> Self {
-        let handle = spawn_monitored_task!(async move {
-            // TODO: pause when execution is overloaded, so consensus can detect the
-            // backpressure.
-            while let Some(consensus_output) = receiver.recv().await {
-                let commit_index = consensus_output.commit_ref.index;
-                if commit_index <= last_processed_commit_at_startup {
-                    consensus_handler.handle_prior_consensus_output(consensus_output);
-                } else {
-                    consensus_handler
-                        .handle_consensus_output(consensus_output)
-                        .await;
-                }
-                commit_consumer_monitor.set_highest_handled_commit(commit_index);
-            }
-        });
-        Self {
-            handle: Some(handle),
-        }
-    }
-
-    pub async fn abort(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
-    }
-}
-
-impl Drop for MysticetiConsensusHandler {
-    fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
         }
     }
 }
@@ -788,14 +739,14 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_txn_version_assignment,
+            cancelled_transactions,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -803,17 +754,17 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> VerifiedExecutableTransaction {
-        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
+        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use consensus_core::{
-        BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
-    };
+    use std::time::Duration;
+
+    use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
     use iota_types::{
@@ -831,12 +782,16 @@ mod tests {
         },
     };
     use prometheus::Registry;
+    use starfish_core::{
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        VerifiedBlockHeader, VerifiedTransactions,
+    };
 
     use super::*;
     use crate::{
         authority::{
-            authority_per_epoch_store::ConsensusStatsAPI,
-            test_authority_builder::TestAuthorityBuilder,
+            AuthorityMetrics, authority_per_epoch_store::ConsensusStatsAPI,
+            backpressure::BackpressureManager, test_authority_builder::TestAuthorityBuilder,
         },
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
@@ -883,7 +838,8 @@ mod tests {
         // AND
         // Create test transactions
         let transactions = test_certificates(&state, shared_object).await;
-        let mut blocks = Vec::new();
+        let mut headers = Vec::new();
+        let mut subdag_transactions = Vec::new();
 
         for (i, transaction) in transactions.iter().enumerate() {
             let transaction_bytes: Vec<u8> = bcs::to_bytes(
@@ -891,22 +847,30 @@ mod tests {
             )
             .unwrap();
 
-            // AND create block for each transaction
-            let block = VerifiedBlock::new_for_test(
-                TestBlock::new(100 + i as u32, (i % consensus_committee.size()) as u32)
-                    .set_transactions(vec![Transaction::new(transaction_bytes)])
+            // AND create a block header + separate transactions batch for each
+            // transaction. In Starfish, transactions live on the subdag
+            // alongside (not inside) the block headers.
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-
-            blocks.push(block);
+            let tx_batch = VerifiedTransactions::new_for_test(
+                &header,
+                vec![Transaction::new(transaction_bytes)],
+            );
+            headers.push(header);
+            subdag_transactions.push(tx_batch);
         }
 
         // AND create the consensus output
-        let leader_block = blocks[0].clone();
+        let leader_header = headers[0].clone();
+        let committed_header_refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
         let committed_sub_dag = CommittedSubDag::new(
-            leader_block.reference(),
-            blocks.clone(),
-            leader_block.timestamp_ms(),
+            leader_header.reference(),
+            headers.clone(),
+            committed_header_refs,
+            subdag_transactions,
+            leader_header.timestamp_ms(),
             CommitRef::new(10, CommitDigest::MIN),
             vec![],
         );
@@ -922,7 +886,7 @@ mod tests {
             pin_mut!(waiter);
 
             // waiter should not complete within 5 seconds
-            tokio::time::timeout(std::time::Duration::from_secs(5), &mut waiter)
+            tokio::time::timeout(Duration::from_secs(5), &mut waiter)
                 .await
                 .unwrap_err();
 
@@ -930,13 +894,13 @@ mod tests {
             backpressure_manager.set_backpressure(false);
 
             // waiter completes now.
-            tokio::time::timeout(std::time::Duration::from_secs(100), waiter)
+            tokio::time::timeout(Duration::from_secs(100), waiter)
                 .await
                 .unwrap();
         }
 
         // AND capturing the consensus stats
-        let num_blocks = blocks.len();
+        let num_blocks = headers.len();
         let num_transactions = transactions.len();
         let last_consensus_stats_1 = consensus_handler.last_consensus_stats.clone();
         assert_eq!(
@@ -1080,9 +1044,9 @@ mod tests {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let data = SenderSignedData::new(
             TransactionData::new_transfer(
-                IotaAddress::default(),
+                IotaAddress::ZERO,
                 random_object_ref(),
-                IotaAddress::default(),
+                IotaAddress::ZERO,
                 random_object_ref(),
                 1000 * gas_price,
                 gas_price,

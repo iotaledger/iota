@@ -14,7 +14,6 @@ use fastcrypto::{
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
-use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
@@ -33,7 +32,7 @@ mod passkey_authenticator_test;
 
 /// An passkey authenticator with parsed fields. See field definition below. Can
 /// be initialized from [struct RawPasskeyAuthenticator].
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone)]
 pub struct PasskeyAuthenticator {
     /// `authenticatorData` is a bytearray that encodes
     /// [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data)
@@ -49,21 +48,17 @@ pub struct PasskeyAuthenticator {
 
     /// Normalized r1 signature returned by passkey.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     signature: Secp256r1Signature,
 
     /// Compact r1 public key upon passkey creation.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     pk: Secp256r1PublicKey,
 
     /// Decoded `client_data_json.challenge` which is expected to be the signing
     /// message `hash(Intent | bcs_message)`
-    #[serde(skip)]
     challenge: [u8; DefaultHash::OUTPUT_SIZE],
 
     /// Initialization of bytes for passkey in serialized form.
-    #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
 

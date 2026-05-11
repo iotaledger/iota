@@ -38,7 +38,10 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::{base_types::IotaAddress, crypto::IotaKeyPair};
+use iota_types::{
+    base_types::{IotaAddress, address_from_iota_pub_key},
+    crypto::IotaKeyPair,
+};
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -783,7 +786,7 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: IotaAddress = kp.public().into();
+            let address: IotaAddress = address_from_iota_pub_key(kp.public());
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])

@@ -46,12 +46,12 @@ jobs:
       CARGO_NET_RETRY: 10
       RUSTUP_MAX_RETRIES: 10
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
       - name: Set Swap Space
-        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
+        uses: actionhippie/swap-space@0cffa893f224708cfb6b011690d8ba819d69c10f # v1.1.0
         with:
           size: 256G
 
@@ -148,7 +148,7 @@ jobs:
           sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
 
       - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
+        uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: target/lcov.info

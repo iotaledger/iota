@@ -9,8 +9,10 @@ use iota_grpc_client::Client;
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_types::{base_types::ObjectID, object::Object};
-use move_core_types::account_address::AccountAddress;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    object::Object,
+};
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -79,23 +81,22 @@ impl LocalDBPackageStore {
     }
 
     pub fn update(&self, object: &Object) -> iota_package_resolver::Result<()> {
-        let Some(_package) = object.data.try_as_package() else {
+        let Some(_package) = object.data.as_package_opt() else {
             return Ok(());
         };
         self.package_store_tables.update(object)?;
         Ok(())
     }
 
-    pub async fn get(&self, id: AccountAddress) -> iota_package_resolver::Result<Object> {
+    pub async fn get(&self, id: IotaAddress) -> iota_package_resolver::Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectID::from(id))
+            .get(&ObjectID::new(id.into_bytes()))
             .map_err(Error::TypedStore)?
         {
             object
         } else {
-            let object_id = ObjectID::from(id);
             fn grpc_err(e: impl std::error::Error + Send + Sync + 'static) -> PackageResolverError {
                 PackageResolverError::Store {
                     store: "gRPC",
@@ -104,7 +105,7 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects(&[(object_id.into(), None)], Some("bcs"))
+                .get_objects(&[(ObjectID::new(id.into_bytes()), None)], Some("bcs"))
                 .await
                 .map_err(grpc_err)?
                 .into_inner();
@@ -123,7 +124,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: AccountAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: IotaAddress) -> iota_package_resolver::Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }

@@ -85,7 +85,7 @@ fn get_move_function_arg_types_not_found() {
             )
             .await;
 
-        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0000000000000000000000000000000000000000000000000000000001823746")));
+        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0x0000000000000000000000000000000000000000000000000000000001823746")));
 
         let result = client
             .get_move_function_arg_types(
@@ -160,7 +160,7 @@ fn get_normalized_move_modules_by_package_not_found() {
             .get_normalized_move_modules_by_package("0x1823746".parse().unwrap())
             .await;
 
-        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0000000000000000000000000000000000000000000000000000000001823746")));
+        assert!(matches!(result, Err(err) if err.to_string().contains("Package not found in DB: 0x0000000000000000000000000000000000000000000000000000000001823746")));
     });
 }
 

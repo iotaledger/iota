@@ -494,17 +494,15 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
 mod tests {
     use std::sync::atomic::Ordering;
 
-    use iota_protocol_config::{ConsensusChoice, ProtocolConfig};
+    use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
         MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
-    fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
-        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-        config.set_consensus_choice_for_testing(consensus_choice);
-        config
+    fn mock_protocol_config() -> ProtocolConfig {
+        ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
     impl Scorer {
@@ -521,7 +519,7 @@ mod tests {
     fn test_scorer_initialization() {
         let voting_power = vec![10, 20, 30];
         let committee_size = voting_power.len();
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
 
         let scorer = Scorer::new(voting_power, &protocol_config);
 
@@ -535,7 +533,7 @@ mod tests {
     fn test_increment_invalid_reports_count() {
         let voting_power = vec![10, 20, 30];
 
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
 
         let scorer = Scorer::new(voting_power, &protocol_config);
 
@@ -587,7 +585,7 @@ mod tests {
     #[test]
     fn test_update_scores() {
         let voting_power = vec![2, 5, 20];
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
         let scorer = Scorer::new(voting_power, &protocol_config);
 
         // Before calling update_scores, all scores should be MAX_SCORE

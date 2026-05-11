@@ -13,14 +13,14 @@ use fastcrypto::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
         IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
     signature::GenericSignature,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;
@@ -583,16 +583,16 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
     // Create a dummy TransactionData
-    let gas = (
+    let gas = ObjectRef::new(
         ObjectID::random(),
-        SequenceNumber::new(),
+        SequenceNumber::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random_for_testing_only()],
+        vec![IotaAddress::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -902,13 +902,13 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
             assert_eq!(
                 call_arguments,
                 vec![
-                    "0x80016463353733613538633764613031366166633630326432616535356162646161366464633365373963326634633038353339346336633234623438333965633465303132306462363930326230393737373231313861373861626136323038393838323030353130396631666133613563303738643931363434343536363063"
+                    "{\"pure\":{\"value\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}}"
                 ]
             );
             assert_eq!(type_arguments, serde_json::json!([]));
             assert_eq!(
                 object_to_authenticate,
-                serde_json::json!({"Object": {"SharedObject": {"id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": 4, "mutable": false}}})
+                serde_json::json!({"shared": {"object_id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": "4", "mutable": false}})
             );
         }
         _ => panic!("Expected MoveAuthenticator variant"),

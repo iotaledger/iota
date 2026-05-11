@@ -49,7 +49,7 @@ impl ChildObjectResolver for InMemoryStorage {
             Some(obj) => obj,
         };
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -76,7 +76,7 @@ impl ChildObjectResolver for InMemoryStorage {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 
@@ -178,13 +178,13 @@ impl InMemoryStorage {
     pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
         let mut input_objects = Vec::new();
         for kind in transaction.transaction_data().input_objects().unwrap() {
-            let obj: Object = match kind {
-                InputObjectKind::MovePackage(id)
-                | InputObjectKind::ImmOrOwnedMoveObject((id, _, _))
-                | InputObjectKind::SharedMoveObject { id, .. } => {
-                    self.get_object(&id).unwrap().clone()
+            let id = match kind {
+                InputObjectKind::MovePackage(id) | InputObjectKind::SharedMoveObject { id, .. } => {
+                    id
                 }
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => object_ref.object_id,
             };
+            let obj = self.get_object(&id).unwrap().clone();
 
             input_objects.push(ObjectReadResult::new(kind, obj.into()));
         }

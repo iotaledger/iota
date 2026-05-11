@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use iota_types::base_types::TypeTag;
+
 use crate::GrpcReader;
 
 /// Per-item overhead when an item is placed in a protobuf `repeated`
@@ -29,7 +31,7 @@ pub(crate) const HAS_NEXT_TRUE_OVERHEAD: usize = 2;
 pub(crate) fn render_json(
     grpc_reader: Arc<GrpcReader>,
     max_json_move_value_size: usize,
-    type_tag: &iota_types::TypeTag,
+    type_tag: &TypeTag,
     contents: &[u8],
 ) -> Option<prost_types::Value> {
     // JSON rendering is best-effort - log errors but don't fail the request

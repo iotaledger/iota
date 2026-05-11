@@ -223,9 +223,7 @@ async fn test_wait_for_object_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
             let object = Object::with_id_owner_version_for_testing(
                 object_id,
                 SequenceNumber::from(0),
-                Owner::Shared {
-                    initial_shared_version: version,
-                },
+                Owner::Shared(version),
             );
             cache.write_object_for_testing(object);
         }
@@ -245,9 +243,7 @@ async fn test_wait_for_object_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
             let object = Object::with_id_owner_version_for_testing(
                 object_id,
                 version,
-                Owner::Shared {
-                    initial_shared_version: version,
-                },
+                Owner::Shared(version),
             );
             cache.write_object_for_testing(object);
         }
@@ -269,7 +265,7 @@ async fn test_wait_for_package_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
         .into_modules();
     let package = Object::new_package_for_testing(
         &compiled_modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
@@ -338,7 +334,7 @@ async fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCa
     let object = Object::with_id_owner_version_for_testing(
         object_id,
         higher_version,
-        Owner::AddressOwner(IotaAddress::default()),
+        Owner::Address(IotaAddress::ZERO),
     );
 
     // Write higher version to cache

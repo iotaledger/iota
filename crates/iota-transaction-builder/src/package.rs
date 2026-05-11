@@ -7,19 +7,19 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, ObjectArg, TransactionData, TransactionKind},
+    transaction::{
+        Argument, CallArg, SharedObjectRef, TransactionData, TransactionDataAPI, TransactionKind,
+    },
 };
-use move_core_types::ident_str;
 
 use crate::TransactionBuilder;
 
 impl TransactionBuilder {
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
@@ -33,7 +33,7 @@ impl TransactionBuilder {
             builder.transfer_arg(sender, upgrade_cap);
             builder.finish()
         };
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Publish a new move package.
@@ -59,7 +59,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
@@ -84,41 +84,38 @@ impl TransactionBuilder {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
-                Owner::AddressOwner(_) => {
-                    ObjectArg::ImmOrOwnedObject(upgrade_capability.object_ref())
-                }
-                Owner::Shared {
-                    initial_shared_version,
-                } => ObjectArg::SharedObject {
-                    id: upgrade_capability.object_ref().0,
+                Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                    object_id: upgrade_capability.object_ref().object_id,
                     initial_shared_version,
                     mutable: true,
-                },
+                }),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
-                Owner::ObjectOwner(_) => {
+                Owner::Object(_) => {
                     bail!("Upgrade capability controlled by object");
                 }
+                _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
             };
             builder.obj(capability_arg).unwrap();
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("authorize_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("authorize_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("commit_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("commit_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );
@@ -126,7 +123,7 @@ impl TransactionBuilder {
             builder.finish()
         };
 
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Upgrade an existing move package.
@@ -156,8 +153,9 @@ impl TransactionBuilder {
         let cap_owner = upgrade_cap
             .owner
             .ok_or_else(|| anyhow!("Unable to determine ownership of upgrade capability"))?;
-        let digest =
-            MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids).to_vec();
+        let digest = MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids)
+            .into_inner()
+            .to_vec();
         TransactionData::new_upgrade(
             sender,
             gas,

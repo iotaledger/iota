@@ -65,9 +65,16 @@ impl AwsClient {
             .with_contents(EnvConfigFileKind::Config, "[default]\noutput=json")
             .build();
 
+        let http_client = aws_smithy_http_client::Builder::new()
+            .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+            ))
+            .build_https();
+
         let mut clients = HashMap::new();
         for region in settings.regions.clone() {
             let sdk_config = aws_config::defaults(BehaviorVersion::latest())
+                .http_client(http_client.clone())
                 .region(Region::new(region.clone()))
                 .profile_files(profile_files.clone())
                 .load()

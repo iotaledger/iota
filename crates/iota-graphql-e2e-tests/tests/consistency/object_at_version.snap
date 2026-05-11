@@ -10,13 +10,13 @@ task 1, lines 18-55:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 57:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 59:
 //# create-checkpoint
@@ -44,7 +44,7 @@ Response: {
 task 5, line 76:
 //# run Test::M1::update --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 1307200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 1307200, non_refundable_storage_fee: 0
 
 task 6, line 78:
 //# create-checkpoint
@@ -86,7 +86,7 @@ task 8, line 108:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400, storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 9, line 110:
 //# create-checkpoint
@@ -121,7 +121,7 @@ task 11, line 140:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2538400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 2538400, non_refundable_storage_fee: 0
 
 task 12, line 142:
 //# create-checkpoint
@@ -167,7 +167,7 @@ task 14, line 184:
 //# run Test::M1::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 15, line 186:
 //# create-checkpoint
@@ -194,7 +194,7 @@ task 17, line 216:
 //# run Test::M1::create --args 0 @A
 created: object(17,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 18, line 218:
 //# create-checkpoint
@@ -204,7 +204,7 @@ task 19, line 220:
 //# run Test::M1::create --args 0 @A
 created: object(19,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 20, line 222:
 //# create-checkpoint
@@ -214,7 +214,7 @@ task 21, line 224:
 //# run Test::M1::create --args 0 @A
 created: object(21,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 22, line 226:
 //# create-checkpoint
@@ -224,7 +224,7 @@ task 23, line 228:
 //# run Test::M1::create --args 0 @A
 created: object(23,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 24, line 230:
 //# create-checkpoint
@@ -234,7 +234,7 @@ task 25, line 232:
 //# run Test::M1::create --args 0 @A
 created: object(25,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 26, line 234:
 //# create-checkpoint
@@ -244,7 +244,7 @@ task 27, line 236:
 //# run Test::M1::create --args 0 @A
 created: object(27,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 28, line 238:
 //# create-checkpoint

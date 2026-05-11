@@ -10,10 +10,7 @@ use std::{
 };
 
 use iota_framework::{SystemPackage, SystemPackageMetadata};
-use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    base_types::ObjectID,
-};
+use iota_types::base_types::ObjectID;
 use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, Snapshot>;
@@ -70,10 +67,10 @@ impl SnapshotPackage {
 }
 
 const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+    ObjectID::STD,
+    ObjectID::FRAMEWORK,
+    ObjectID::SYSTEM,
+    ObjectID::STARDUST,
 ];
 
 /// Returns the list of system packages in the order they should be published.
@@ -81,7 +78,7 @@ const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
 pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectID> {
     let mut publish_order = SYSTEM_PACKAGE_PUBLISH_ORDER.to_vec();
     if protocol_version < 9 {
-        publish_order.insert(3, iota_types::GENESIS_BRIDGE_PACKAGE_ID);
+        publish_order.insert(3, ObjectID::GENESIS_BRIDGE);
     }
     publish_order
 }

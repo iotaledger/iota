@@ -11,7 +11,9 @@ use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits},
     object::Owner,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+    },
     utils::to_sender_signed_transaction,
 };
 

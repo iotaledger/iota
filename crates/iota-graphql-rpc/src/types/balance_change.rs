@@ -4,7 +4,6 @@
 
 use async_graphql::*;
 use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
-use iota_types::object::Owner as NativeOwner;
 
 use crate::{
     error::Error,
@@ -23,17 +22,11 @@ pub(crate) struct BalanceChange {
 impl BalanceChange {
     /// The address or object whose balance has changed.
     async fn owner(&self) -> Option<Owner> {
-        use NativeOwner as O;
-
-        match self.stored.owner {
-            O::AddressOwner(addr) | O::ObjectOwner(addr) => Some(Owner {
-                address: IotaAddress::from(addr),
-                checkpoint_viewed_at: self.checkpoint_viewed_at,
-                root_version: None,
-            }),
-
-            O::Shared { .. } | O::Immutable => None,
-        }
+        self.stored.owner.address_or_object().map(|addr| Owner {
+            address: IotaAddress::from(*addr),
+            checkpoint_viewed_at: self.checkpoint_viewed_at,
+            root_version: None,
+        })
     }
 
     /// The inner type of the coin whose balance has changed (e.g.

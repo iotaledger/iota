@@ -897,14 +897,9 @@ impl DBBatch {
     }
 
     /// Deletes a range of keys between `from` (inclusive) and `to`
-    /// (non-inclusive) by writing a range delete tombstone in the db map
-    /// If the DBMap is configured with ignore_range_deletions set to false,
-    /// the effect of this write will be visible immediately i.e. you won't
-    /// see old values when you do a lookup or scan. But if it is configured
-    /// with ignore_range_deletions set to true, the old value are visible until
-    /// compaction actually deletes them which will happen sometime after. By
-    /// default ignore_range_deletions is set to true on a DBMap (unless it is
-    /// overridden in the config), so please use this function with caution
+    /// (non-inclusive) by writing a range delete tombstone in the db map.
+    /// The effect of this write is visible immediately, i.e. you won't see
+    /// old values when you do a lookup or scan.
     pub fn schedule_delete_range<K: Serialize, V>(
         &mut self,
         db: &DBMap<K, V>,
@@ -1128,14 +1123,9 @@ where
         Ok(())
     }
 
-    /// Writes a range delete tombstone to delete all entries in the db map
-    /// If the DBMap is configured with ignore_range_deletions set to false,
-    /// the effect of this write will be visible immediately i.e. you won't
-    /// see old values when you do a lookup or scan. But if it is configured
-    /// with ignore_range_deletions set to true, the old value are visible until
-    /// compaction actually deletes them which will happen sometime after. By
-    /// default ignore_range_deletions is set to true on a DBMap (unless it is
-    /// overridden in the config), so please use this function with caution
+    /// Writes a range delete tombstone to delete all entries in the db map.
+    /// The effect of this write is visible immediately, i.e. you won't see
+    /// old values when you do a lookup or scan.
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let first_key = self.safe_iter().next().transpose()?.map(|(k, _v)| k);

@@ -4,51 +4,52 @@
 
 use std::{fs, path::PathBuf, time::Duration};
 
-use iota_config::node::AuthorityStorePruningConfig;
 use itertools::Itertools;
-use tokio::sync::oneshot;
 use tracing::{info, warn};
 use typed_store::rocks::safe_drop_db;
 
 use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
 
 /// The `AuthorityPerEpochStorePruner` manages the pruning process for Authority
-/// Store databases on a per-epoch basis. It contains a cancellation handle that
-/// can be used to stop the pruning task.
+/// Store databases on a per-epoch basis. It retains only the N most recent (by
+/// epoch number). Pruning is triggered at node startup and after each epoch
+/// transition.
 pub struct AuthorityPerEpochStorePruner {
-    _cancel_handle: oneshot::Sender<()>,
+    parent_path: PathBuf,
+    num_latest_epoch_dbs_to_retain: usize,
 }
 
 impl AuthorityPerEpochStorePruner {
-    /// Creates a new pruning task for the `AuthorityStore` with the specified
-    /// configuration. The task runs periodically based on the
-    /// `epoch_db_pruning_period_secs` value from the config, pruning old
-    /// epoch databases unless all versions are to be retained. The function
-    /// returns a struct containing a cancellation handle for the pruning task.
-    pub fn new(parent_path: PathBuf, config: &AuthorityStorePruningConfig) -> Self {
-        let (_cancel_handle, mut recv) = tokio::sync::oneshot::channel();
-        let num_latest_epoch_dbs_to_retain = config.num_latest_epoch_dbs_to_retain;
-        if num_latest_epoch_dbs_to_retain == 0 || num_latest_epoch_dbs_to_retain == usize::MAX {
-            info!("Skipping pruning of epoch tables as we want to retain all versions");
-            return Self { _cancel_handle };
+    /// Creates a new epoch DB pruner and immediately prunes any stale epoch
+    /// databases left over from a previous run (e.g. after a crash).
+    pub async fn new(parent_path: PathBuf, num_latest_epoch_dbs_to_retain: usize) -> Self {
+        let pruner = Self {
+            parent_path,
+            num_latest_epoch_dbs_to_retain,
+        };
+        // Prune on startup to clean up stale epoch DBs from prior runs.
+        pruner.prune_old_epoch_dbs().await;
+        pruner
+    }
+
+    /// Prunes old epoch databases, retaining only the configured number of
+    /// most recent ones. Should be called after each epoch transition.
+    pub async fn prune_old_epoch_dbs(&self) {
+        if self.num_latest_epoch_dbs_to_retain == 0
+            || self.num_latest_epoch_dbs_to_retain == usize::MAX
+        {
+            return;
         }
-        let mut prune_interval =
-            tokio::time::interval(Duration::from_secs(config.epoch_db_pruning_period_secs));
-        tokio::task::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = prune_interval.tick() => {
-                        info!("Starting pruning of epoch tables");
-                        match Self::prune_old_directories(&parent_path, num_latest_epoch_dbs_to_retain).await {
-                            Ok(pruned_count) => info!("Finished pruning old epoch databases. Pruned {} dbs", pruned_count),
-                            Err(err) => warn!("Error while removing old epoch databases {:?}", err),
-                        }
-                    }
-                    _ = &mut recv => break,
+        match Self::prune_old_directories(&self.parent_path, self.num_latest_epoch_dbs_to_retain)
+            .await
+        {
+            Ok(pruned_count) => {
+                if pruned_count > 0 {
+                    info!("Pruned {} old epoch databases", pruned_count);
                 }
             }
-        });
-        Self { _cancel_handle }
+            Err(err) => warn!("Error while removing old epoch databases: {:?}", err),
+        }
     }
 
     /// Prunes old epoch directories from the specified parent path, retaining

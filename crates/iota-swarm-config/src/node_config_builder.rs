@@ -157,7 +157,6 @@ impl ValidatorConfigBuilder {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             parameters: Default::default(),
-            starfish_parameters: Default::default(),
         };
 
         let p2p_config = P2pConfig {

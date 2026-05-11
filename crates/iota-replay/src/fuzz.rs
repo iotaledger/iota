@@ -122,7 +122,7 @@ impl ReplayFuzzer {
             let stat = e.to_execution_status().0;
             match &stat {
                 ExecutionFailureStatus::InvariantViolation
-                | ExecutionFailureStatus::VMInvariantViolation => {
+                | ExecutionFailureStatus::VmInvariantViolation => {
                     return Err(ReplayFuzzError::InvariantViolation {
                         tx_digest: sandbox_state.transaction_info.tx_digest,
                         kind: transaction_kind.clone(),

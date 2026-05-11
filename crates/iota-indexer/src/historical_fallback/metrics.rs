@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_storage::http_key_value_store::ItemType;
-use prometheus::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
+use prometheus::{
+    IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry,
+};
 
 #[derive(Clone)]
 pub struct HistoricalFallbackClientMetrics {
     pub(crate) cache_hits: IntCounterVec,
     pub(crate) cache_misses: IntCounterVec,
+    pub(crate) cache_object_before_version_hits: IntCounter,
+    pub(crate) cache_object_before_version_misses: IntCounter,
 }
 
 impl HistoricalFallbackClientMetrics {
@@ -27,6 +32,18 @@ impl HistoricalFallbackClientMetrics {
                 registry,
             )
             .unwrap(),
+            cache_object_before_version_hits: register_int_counter_with_registry!(
+                "historical_fallback_cache_object_before_version_hits",
+                "Historical fallback cache object before version hits",
+                registry,
+            )
+            .unwrap(),
+            cache_object_before_version_misses: register_int_counter_with_registry!(
+                "historical_fallback_cache_object_before_version_misses",
+                "Historical fallback cache object before version misses",
+                registry,
+            )
+            .unwrap(),
         }
     }
 
@@ -40,5 +57,13 @@ impl HistoricalFallbackClientMetrics {
         self.cache_misses
             .with_label_values(&[item_type.to_string()])
             .inc();
+    }
+
+    pub(crate) fn record_cache_object_before_version_hit(&self) {
+        self.cache_object_before_version_hits.inc();
+    }
+
+    pub(crate) fn record_cache_object_before_version_miss(&self) {
+        self.cache_object_before_version_misses.inc();
     }
 }

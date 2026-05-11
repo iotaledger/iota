@@ -197,23 +197,12 @@ impl ConsensusAdapterMetrics {
     }
 }
 
-/// Block status for internal use in the consensus adapter that serves for both
-/// Mysticeti and Starfish.
+/// Block status for internal use in the consensus adapter.
 pub enum BlockStatusInternal {
     Sequenced,
     GarbageCollected,
 }
 
-impl From<consensus_core::BlockStatus> for BlockStatusInternal {
-    fn from(status: consensus_core::BlockStatus) -> Self {
-        match status {
-            consensus_core::BlockStatus::Sequenced(_) => BlockStatusInternal::Sequenced,
-            consensus_core::BlockStatus::GarbageCollected(_) => {
-                BlockStatusInternal::GarbageCollected
-            }
-        }
-    }
-}
 impl From<starfish_core::BlockStatus> for BlockStatusInternal {
     fn from(status: starfish_core::BlockStatus) -> Self {
         match status {
@@ -1284,7 +1273,7 @@ mod adapter_tests {
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
         },
-        mysticeti_adapter::LazyMysticetiClient,
+        starfish_adapter::LazyStarfishClient,
     };
 
     fn test_committee(rng: &mut StdRng, size: usize) -> Committee {
@@ -1312,7 +1301,7 @@ mod adapter_tests {
 
         // When we define max submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             *committee.authority_by_index(0).unwrap(),
             Arc::new(ConnectionMonitorStatusForTests {}),
@@ -1342,7 +1331,7 @@ mod adapter_tests {
 
         // Without submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             *committee.authority_by_index(0).unwrap(),
             Arc::new(ConnectionMonitorStatusForTests {}),

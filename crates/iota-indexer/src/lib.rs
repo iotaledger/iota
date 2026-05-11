@@ -50,7 +50,8 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
-) -> Result<(ServerHandle, CancellationToken), IndexerError> {
+    cancel: CancellationToken,
+) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
 
@@ -72,16 +73,9 @@ pub async fn build_json_rpc_server(
             .await?,
     ))?;
 
-    let cancel = CancellationToken::new();
-
     let handle = builder
-        .start(
-            config.rpc_address,
-            None,
-            ServerType::Http,
-            Some(cancel.clone()),
-        )
+        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
         .await?;
 
-    Ok((handle, cancel))
+    Ok(handle)
 }

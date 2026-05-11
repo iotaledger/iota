@@ -11,7 +11,6 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     auth_context::AuthContext,
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
@@ -28,8 +27,8 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
-    is_system_package,
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
     storage::{
@@ -38,9 +37,7 @@ use iota_types::{
     },
     transaction::InputObjects,
 };
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
+use move_core_types::{account_address::AccountAddress, resolver::ResourceResolver};
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
@@ -112,7 +109,7 @@ impl<'backing> TemporaryStore<'backing> {
                     .intersection(
                         &receiving_objects
                             .iter()
-                            .map(|oref| &oref.0)
+                            .map(|oref| &oref.object_id)
                             .collect::<HashSet<_>>()
                     )
                     .next()
@@ -234,18 +231,18 @@ impl<'backing> TemporaryStore<'backing> {
         // Regardless of execution status (including aborts), we insert the previous
         // transaction for any successfully received objects during the
         // transaction.
-        for (id, expected_version, expected_digest) in &self.receiving_objects {
+        for receiving_object in &self.receiving_objects {
             // If the receiving object is in the loaded runtime objects, then that means
             // that it was actually successfully loaded (so existed, and there
             // was authenticated mutable access to it). So we insert the
             // previous transaction as a dependency.
-            if let Some(obj_meta) = self.loaded_runtime_objects.get(id) {
+            if let Some(obj_meta) = self.loaded_runtime_objects.get(&receiving_object.object_id) {
                 // Check that the expected version, digest, and owner match the loaded version,
                 // digest, and owner. If they don't then don't register a dependency.
                 // This is because this could be "spoofed" by loading a dynamic object field.
-                let loaded_via_receive = obj_meta.version == *expected_version
-                    && obj_meta.digest == *expected_digest
-                    && obj_meta.owner.is_address_owned();
+                let loaded_via_receive = obj_meta.version == receiving_object.version
+                    && obj_meta.digest == receiving_object.digest
+                    && obj_meta.owner.is_address();
                 if loaded_via_receive {
                     transaction_dependencies.insert(obj_meta.previous_transaction);
                 }
@@ -340,12 +337,12 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
         let old_ref = old_object.compute_object_reference();
-        debug_assert_eq!(old_ref.0, id);
+        debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,
             DynamicallyLoadedObjectMetadata {
-                version: old_ref.1,
-                digest: old_ref.2,
+                version: old_ref.version,
+                digest: old_ref.digest,
                 owner: old_object.owner,
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
@@ -362,7 +359,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// input objects. We could probably fix above to make it less special.
     pub fn upgrade_system_package(&mut self, package: Object) {
         let id = package.id();
-        assert!(package.is_package() && is_system_package(id));
+        assert!(package.is_package() && id.is_system_package());
         self.execution_results.modified_objects.insert(id);
         self.execution_results.written_objects.insert(id, package);
     }
@@ -486,7 +483,7 @@ impl<'backing> TemporaryStore<'backing> {
             unmetered_storage_rebate
         );
         let mut system_state_wrapper = self
-            .read_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .read_object(&ObjectID::SYSTEM_STATE)
             .expect("0x5 object must be mutated in system tx with unmetered storage rebate")
             .clone();
         // In unmetered execution, storage_rebate field of mutated object must be 0.
@@ -523,7 +520,7 @@ impl<'backing> TemporaryStore<'backing> {
                     )
                     .or_else(|| self.loaded_runtime_objects.get(object_id).cloned())
                     .unwrap_or_else(|| {
-                        debug_assert!(is_system_package(*object_id));
+                        debug_assert!(object_id.is_system_package());
                         let package_obj =
                             self.store.get_package_object(object_id).unwrap().unwrap();
                         let obj = package_obj.object();
@@ -552,7 +549,11 @@ impl TemporaryStore<'_> {
         mutable_inputs: &HashSet<ObjectID>,
         is_epoch_change: bool,
     ) -> IotaResult<()> {
-        let gas_objs: HashSet<&ObjectID> = gas_charger.gas_coins().iter().map(|g| &g.0).collect();
+        let gas_objs: HashSet<&ObjectID> = gas_charger
+            .gas_coins()
+            .iter()
+            .map(|g| &g.object_id)
+            .collect();
         // mark input objects as authenticated
         let mut authenticated_for_mutation: HashSet<_> = self
             .input_objects
@@ -566,11 +567,11 @@ impl TemporaryStore<'_> {
                     return None;
                 }
                 match &obj.owner {
-                    Owner::AddressOwner(a) => {
+                    Owner::Address(a) => {
                         assert!(sender == a, "Input object not owned by sender");
                         Some(id)
                     }
-                    Owner::Shared { .. } => Some(id),
+                    Owner::Shared(_) => Some(id),
                     Owner::Immutable => {
                         // object is authenticated, but it cannot own other objects,
                         // so we should not add it to `authenticated_objs`
@@ -584,8 +585,11 @@ impl TemporaryStore<'_> {
                         // us from catching this.
                         None
                     }
-                    Owner::ObjectOwner(_parent) => {
+                    Owner::Object(_parent) => {
                         unreachable!("Input objects must be address owned, shared, or immutable")
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             })
@@ -627,14 +631,14 @@ impl TemporaryStore<'_> {
                     )
                 };
                 match &old_obj.owner {
-                    Owner::ObjectOwner(parent) => ObjectID::from(*parent),
-                    Owner::AddressOwner(parent) => {
+                    Owner::Object(parent) => *parent,
+                    Owner::Address(parent) => {
                         // For Receiving<_> objects, the address owner is actually an object.
                         // If it was actually an address, we should have caught it as an input and
                         // it would already have been in authenticated_for_mutation
                         ObjectID::from(*parent)
                     }
-                    owner @ Owner::Shared { .. } => panic!(
+                    owner @ Owner::Shared(_) => panic!(
                         "Unauthenticated root at {to_authenticate:?} with owner {owner:?}\n\
                         Potentially covering objects in: {authenticated_for_mutation:#?}",
                     ),
@@ -648,10 +652,13 @@ impl TemporaryStore<'_> {
                         // tx can update are system packages,
                         // but in principle we could allow others.
                         assert!(
-                            is_system_package(to_authenticate),
+                            to_authenticate.is_system_package(),
                             "Only system packages can be upgraded"
                         );
                         continue;
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             };
@@ -740,7 +747,7 @@ impl TemporaryStore<'_> {
             self.execution_results.modified_objects.iter().all(|id| {
                 self.mutable_input_refs.contains_key(id)
                     || self.loaded_runtime_objects.contains_key(id)
-                    || is_system_package(*id)
+                    || id.is_system_package()
             }),
             "A modified object must be either a mutable input, a loaded child object, or a system package"
         );
@@ -1091,11 +1098,11 @@ impl Storage for TemporaryStore<'_> {
         // And also if we already have it in the input there is no need to commit it
         // again in the effects.
         if result.num_non_gas_coin_owners > 0
-            && !self.input_objects.contains_key(&IOTA_DENY_LIST_OBJECT_ID)
+            && !self.input_objects.contains_key(&ObjectID::DENY_LIST)
         {
             self.loaded_per_epoch_config_objects
                 .write()
-                .insert(IOTA_DENY_LIST_OBJECT_ID);
+                .insert(ObjectID::DENY_LIST);
         }
         result
     }
@@ -1145,11 +1152,11 @@ impl ResourceResolver for TemporaryStore<'_> {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        struct_tag: &StructTag,
+        struct_tag: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
-        let object = match self.read_object(&ObjectID::from(*address)) {
+        let object = match self.read_object(&ObjectID::new(address.into_bytes())) {
             Some(x) => x,
-            None => match self.read_object(&ObjectID::from(*address)) {
+            None => match self.read_object(&ObjectID::new(address.into_bytes())) {
                 None => return Ok(None),
                 Some(x) => {
                     if !x.is_immutable() {
@@ -1161,9 +1168,9 @@ impl ResourceResolver for TemporaryStore<'_> {
         };
 
         match &object.data {
-            Data::Move(m) => {
+            Data::Struct(m) => {
                 assert!(
-                    m.is_type(struct_tag),
+                    m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \
                     or bad object request from caller"
                 );

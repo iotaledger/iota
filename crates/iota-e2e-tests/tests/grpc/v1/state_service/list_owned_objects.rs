@@ -15,26 +15,18 @@ use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    TypeTag,
-    base_types::IotaAddress,
-    coin::TreasuryCap,
+    base_types::{IotaAddress, StructTag, TypeTag},
     effects::TransactionEffectsAPI,
     object::Owner,
     parse_iota_struct_tag,
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
 };
-use move_core_types::language_storage::StructTag;
 use prost_types::FieldMask;
 
 use crate::utils::{
     NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
-    comma_separated_field_mask_to_paths, publish_example_package, setup_grpc_test,
+    comma_separated_field_mask_to_paths, first_sender, publish_example_package, setup_grpc_test,
 };
-
-/// Get the first wallet address from a test cluster.
-fn first_sender(cluster: &test_cluster::TestCluster) -> IotaAddress {
-    cluster.wallet.get_addresses().first().copied().unwrap()
-}
 
 /// Make a unary call and validate field presence on every returned object.
 async fn list_and_validate(
@@ -157,7 +149,7 @@ async fn list_owned_objects_nonexistent_owner() {
     let mut state_client = client.state_service_client();
 
     // Random address that owns nothing
-    let random_addr = IotaAddress::random_for_testing_only();
+    let random_addr = IotaAddress::random();
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(random_addr));
 
     let response = list_and_validate(
@@ -451,8 +443,8 @@ async fn list_owned_objects_cursor_pagination_e2e() {
     );
 
     // The set of IDs must match the single-page response (order may differ
-    // because page_size=1 walks in v2-key order while the full page may use
-    // a different natural order, but the *set* must be identical).
+    // because page_size=1 walks in owner-index key order while the full page
+    // may use a different natural order, but the *set* must be identical).
     let expected_set: std::collections::HashSet<_> = expected_ids.iter().collect();
     assert_eq!(
         unique, expected_set,
@@ -507,7 +499,7 @@ async fn list_owned_objects_tto_indexing() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_test_code"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     // The sender owns several gas coins by default; pick one that is not the
     // gas-payment coin so we can pass it as the `Coin<IOTA>` argument to
@@ -536,7 +528,7 @@ async fn list_owned_objects_tto_indexing() {
             package_id,
             "tto_coin",
             "start",
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref))],
+            vec![CallArg::ImmutableOrOwned(coin_ref)],
         )
         .build();
     let signed_start = test_cluster.sign_transaction(&start_tx);
@@ -544,23 +536,23 @@ async fn list_owned_objects_tto_indexing() {
         .execute_transaction_return_raw_effects(signed_start)
         .await
         .unwrap();
-    assert!(start_effects.status().is_ok(), "start tx must succeed");
+    assert!(start_effects.status().is_success(), "start tx must succeed");
 
     let parent_ref = start_effects
         .created()
         .iter()
         .find_map(|(obj_ref, owner)| match owner {
-            Owner::AddressOwner(addr) if *addr == sender => Some(*obj_ref),
+            Owner::Address(addr) if *addr == sender => Some(*obj_ref),
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");
-    let parent_addr = IotaAddress::from(parent_ref.0);
+    let parent_addr = IotaAddress::from(parent_ref.object_id);
 
     // The coin is now owned by `parent_addr` via TTO; grab its post-start ref.
     let coin_after_start = start_effects
         .mutated_excluding_gas()
         .iter()
-        .find_map(|(obj_ref, _)| (obj_ref.0 == coin_ref.0).then_some(*obj_ref))
+        .find_map(|(obj_ref, _)| (obj_ref.object_id == coin_ref.object_id).then_some(*obj_ref))
         .expect("coin must appear in mutated set after start");
 
     // Parent starts with 1 coin (TTO'd in by `start`).
@@ -585,8 +577,8 @@ async fn list_owned_objects_tto_indexing() {
             "tto_coin",
             "receive",
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(parent_ref)),
-                CallArg::Object(ObjectArg::Receiving(coin_after_start)),
+                CallArg::ImmutableOrOwned(parent_ref),
+                CallArg::Receiving(coin_after_start),
             ],
         )
         .build();
@@ -595,7 +587,10 @@ async fn list_owned_objects_tto_indexing() {
         .execute_transaction_return_raw_effects(signed_receive)
         .await
         .unwrap();
-    assert!(receive_effects.status().is_ok(), "receive tx must succeed");
+    assert!(
+        receive_effects.status().is_success(),
+        "receive tx must succeed"
+    );
 
     // Parent ends with 0 coins.
     wait_for_owned_count(&mut state_client, parent_addr, 0, "parent after receive").await;
@@ -666,9 +661,9 @@ async fn list_owned_objects_filter_by_type() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/grpc/data/trusted_coin"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
-    // Wait for the publish tx to land in a checkpoint so the owner_v2 index
+    // Wait for the publish tx to land in a checkpoint so the owner index
     // reflects the newly-created TreasuryCap.
     test_cluster.wait_for_checkpoint(2, None).await;
 
@@ -680,8 +675,8 @@ async fn list_owned_objects_filter_by_type() {
         .parse::<TypeTag>()
         .unwrap()
         .to_string();
-    let treasury_cap_type =
-        TreasuryCap::type_(parse_iota_struct_tag(&trusted).unwrap()).to_canonical_string(true);
+    let treasury_cap_type = StructTag::new_treasury_cap(parse_iota_struct_tag(&trusted).unwrap())
+        .to_canonical_string(true);
 
     // After publishing we have the treasury cap and the coin metadata has 0
     // supply
@@ -738,7 +733,7 @@ async fn list_owned_objects_filter_by_type() {
             "trusted_coin",
             "mint",
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury_cap_ref)),
+                CallArg::ImmutableOrOwned(treasury_cap_ref),
                 CallArg::Pure(bcs::to_bytes(&100_000u64).unwrap()),
             ],
         )
@@ -748,9 +743,9 @@ async fn list_owned_objects_filter_by_type() {
         .execute_transaction_return_raw_effects(signed_mint)
         .await
         .unwrap();
-    assert!(mint_effects.status().is_ok(), "mint tx must succeed");
+    assert!(mint_effects.status().is_success(), "mint tx must succeed");
 
-    // Wait for the mint tx to land in a checkpoint so the owner_v2 index and
+    // Wait for the mint tx to land in a checkpoint so the owner index and
     // the treasury supply reflect the new coin.
     test_cluster.wait_for_checkpoint(3, None).await;
 

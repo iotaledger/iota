@@ -21,7 +21,7 @@ jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tracing.workspace = true
 
 # internal dependencies

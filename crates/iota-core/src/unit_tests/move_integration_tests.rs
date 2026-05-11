@@ -7,8 +7,9 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{
+        Identifier, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TypeTag,
+    },
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
@@ -16,12 +17,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
-    u256::U256,
-};
+use move_core_types::{account_address::AccountAddress, identifier::IdentStr, u256::U256};
 
 use super::*;
 use crate::authority::authority_tests::{
@@ -49,7 +45,7 @@ async fn test_object_wrapping_unwrapping() {
     .await;
 
     let gas_version = authority.get_object(&gas).await.unwrap().version();
-    let create_child_version = SequenceNumber::lamport_increment([gas_version]);
+    let create_child_version = SequenceNumber::lamport_increment([gas_version]).unwrap();
 
     // Create a Child object.
     let effects = call_move(
@@ -57,7 +53,7 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "create_child",
         vec![],
@@ -70,11 +66,18 @@ async fn test_object_wrapping_unwrapping() {
         "{:?}",
         effects.status()
     );
-    let child_object_ref = effects.created()[0].0;
-    assert_eq!(child_object_ref.1, create_child_version);
+    let ObjectRef {
+        object_id: child_object_ref_id,
+        version: child_object_ref_version,
+        ..
+    } = effects.created()[0].0;
+    assert_eq!(child_object_ref_version, create_child_version);
 
-    let wrapped_version =
-        SequenceNumber::lamport_increment([child_object_ref.1, effects.gas_object().0.1]);
+    let wrapped_version = SequenceNumber::lamport_increment([
+        child_object_ref_version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -82,11 +85,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "create_parent",
         vec![],
-        vec![TestCallArg::Object(child_object_ref.0)],
+        vec![TestCallArg::Object(child_object_ref_id)],
     )
     .await
     .unwrap();
@@ -106,20 +109,27 @@ async fn test_object_wrapping_unwrapping() {
         (1, 0, 0, 1)
     );
     let new_child_object_ref = effects.wrapped()[0];
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectRef::new(
+        child_object_ref_id,
         wrapped_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     // Make sure that the child's version gets increased after wrapped.
     assert_eq!(new_child_object_ref, expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
 
-    let parent_object_ref = effects.created()[0].0;
-    assert_eq!(parent_object_ref.1, wrapped_version);
+    let ObjectRef {
+        object_id: parent_object_ref_id,
+        version: parent_object_ref_version,
+        ..
+    } = effects.created()[0].0;
+    assert_eq!(parent_object_ref_version, wrapped_version);
 
-    let unwrapped_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
+    let unwrapped_version = SequenceNumber::lamport_increment([
+        parent_object_ref_version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -127,11 +137,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "extract_child",
         vec![],
-        vec![TestCallArg::Object(parent_object_ref.0)],
+        vec![TestCallArg::Object(parent_object_ref_id)],
     )
     .await
     .unwrap();
@@ -151,15 +161,16 @@ async fn test_object_wrapping_unwrapping() {
         (2, 0, 1)
     );
     // Make sure that version increments again when unwrapped.
-    assert_eq!(effects.unwrapped()[0].0.1, unwrapped_version);
+    assert_eq!(effects.unwrapped()[0].0.version, unwrapped_version);
     check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
     let child_object_ref = effects.unwrapped()[0].0;
 
     let rewrap_version = SequenceNumber::lamport_increment([
-        parent_object_ref.1,
-        child_object_ref.1,
-        effects.gas_object().0.1,
-    ]);
+        parent_object_ref_version,
+        child_object_ref.version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Wrap the child to the parent again.
     let effects = call_move(
@@ -167,13 +178,13 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "set_child",
         vec![],
         vec![
-            TestCallArg::Object(parent_object_ref.0),
-            TestCallArg::Object(child_object_ref.0),
+            TestCallArg::Object(parent_object_ref_id),
+            TestCallArg::Object(child_object_ref.object_id),
         ],
     )
     .await
@@ -186,18 +197,21 @@ async fn test_object_wrapping_unwrapping() {
     // Check that child object showed up in wrapped.
     // mutated contains parent and gas.
     assert_eq!((effects.mutated().len(), effects.wrapped().len()), (2, 1));
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectRef::new(
+        child_object_ref.object_id,
         rewrap_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     assert_eq!(effects.wrapped()[0], expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
     let child_object_ref = effects.wrapped()[0];
     let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
 
-    let deleted_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.1]);
+    let deleted_version = SequenceNumber::lamport_increment([
+        parent_object_ref.version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(
@@ -205,11 +219,11 @@ async fn test_object_wrapping_unwrapping() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_wrapping",
         "delete_parent",
         vec![],
-        vec![TestCallArg::Object(parent_object_ref.0)],
+        vec![TestCallArg::Object(parent_object_ref.object_id)],
     )
     .await
     .unwrap();
@@ -221,10 +235,10 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(effects.deleted().len(), 1);
     assert_eq!(effects.unwrapped_then_deleted().len(), 1);
     // Check that both objects are marked as deleted in the authority.
-    let expected_child_object_ref = (
-        child_object_ref.0,
+    let expected_child_object_ref = ObjectRef::new(
+        child_object_ref.object_id,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(
         effects
@@ -232,10 +246,10 @@ async fn test_object_wrapping_unwrapping() {
             .contains(&expected_child_object_ref)
     );
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
-    let expected_parent_object_ref = (
-        parent_object_ref.0,
+    let expected_parent_object_ref = ObjectRef::new(
+        parent_object_ref.object_id,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(effects.deleted().contains(&expected_parent_object_ref));
     check_latest_object_ref(&authority, &expected_parent_object_ref, true).await;
@@ -265,7 +279,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -273,8 +287,11 @@ async fn test_object_owning_another_object() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
-    let parent = effects.created()[0].0;
+    assert!(effects.status().is_success());
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Create a child.
     let effects = call_move(
@@ -282,7 +299,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_child",
         vec![],
@@ -291,8 +308,11 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
-    let child = effects.created()[0].0;
+    assert!(effects.status().is_success());
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
 
     // Mutate the child directly should work fine.
     let effects = call_move(
@@ -300,15 +320,15 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Add the child to the parent.
     let effects = call_move(
@@ -316,11 +336,14 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "add_child",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(child_id),
+        ],
     )
     .await
     .unwrap();
@@ -328,15 +351,12 @@ async fn test_object_owning_another_object() {
     let child_effect = effects
         .mutated()
         .into_iter()
-        .find(|((id, _, _), _)| id == &child.0)
+        .find(|(object_ref, _)| object_ref.object_id == child_id)
         .unwrap();
     // Check that the child is now owned by the parent.
-    let field_id = match child_effect.1 {
-        Owner::ObjectOwner(field_id) => field_id.into(),
-        Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
-    };
-    let field_object = authority.get_object(&field_id).await.unwrap();
-    assert_eq!(field_object.owner, parent.0);
+    let field_id = child_effect.1.as_object();
+    let field_object = authority.get_object(field_id).await.unwrap();
+    assert_eq!(field_object.owner, parent_id);
 
     // Mutate the child directly will now fail because we need the parent to
     // authenticate.
@@ -345,11 +365,11 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await;
     assert!(result.is_err());
@@ -360,11 +380,14 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "mutate_child_with_parent",
         vec![],
-        vec![TestCallArg::Object(child.0), TestCallArg::Object(parent.0)],
+        vec![
+            TestCallArg::Object(child_id),
+            TestCallArg::Object(parent_id),
+        ],
     )
     .await;
     assert!(effects.is_err());
@@ -376,7 +399,7 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -385,8 +408,11 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
-    let new_parent = effects.created()[0].0;
+    assert!(effects.status().is_success());
+    let ObjectRef {
+        object_id: new_parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Transfer the child to the new_parent.
     let effects = call_move(
@@ -394,19 +420,19 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "transfer_child",
         vec![],
         vec![
-            TestCallArg::Object(parent.0),
-            TestCallArg::Object(new_parent.0),
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(new_parent_id),
         ],
     )
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Delete the child. This should fail as the child cannot be used as a
     // transaction argument
@@ -415,11 +441,11 @@ async fn test_object_owning_another_object() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await;
     assert!(effects.is_err());
@@ -449,7 +475,7 @@ async fn test_create_then_delete_parent_child() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child",
         vec![],
@@ -458,13 +484,13 @@ async fn test_create_then_delete_parent_child() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Creates 3 objects, the parent, a field, and the child
     assert_eq!(effects.created().len(), 3);
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
@@ -474,15 +500,15 @@ async fn test_create_then_delete_parent_child() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that both objects were deleted.
     assert_eq!(effects.deleted().len(), 3);
 }
@@ -511,7 +537,7 @@ async fn test_create_then_delete_parent_child_wrap() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child_wrapped",
         vec![],
@@ -520,7 +546,7 @@ async fn test_create_then_delete_parent_child_wrap() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Modifies the gas object
     assert_eq!(effects.mutated().len(), 1);
     // Creates 3 objects, the parent, a field, and the child
@@ -533,14 +559,14 @@ async fn test_create_then_delete_parent_child_wrap() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
     let field = effects
         .created()
         .iter()
-        .find(|((id, _, _), _)| id != &parent.0)
+        .find(|(object_ref, _)| object_ref.object_id != parent.object_id)
         .unwrap()
         .0;
 
@@ -550,16 +576,16 @@ async fn test_create_then_delete_parent_child_wrap() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The parent and field are considered deleted, the child doesn't count because
     // it wasn't considered created in the first place.
@@ -574,9 +600,9 @@ async fn test_create_then_delete_parent_child_wrap() {
             .into_iter()
             .collect::<HashSet<_>>(),
         HashSet::from([
-            (gas_ref.0, gas_ref.1),
-            (parent.0, parent.1),
-            (field.0, field.1)
+            (gas_ref.object_id, gas_ref.version),
+            (parent.object_id, parent.version),
+            (field.object_id, field.version)
         ]),
     );
 }
@@ -608,7 +634,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent_and_child_wrapped",
         vec![],
@@ -617,7 +643,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Modifies the gas object
     assert_eq!(effects.mutated().len(), 1);
     // Creates 3 objects, the parent, a field, and the child
@@ -630,14 +656,14 @@ async fn test_remove_child_when_no_prior_version_exists() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
     let field = effects
         .created()
         .iter()
-        .find(|((id, _, _), _)| id != &parent.0)
+        .find(|(object_ref, _)| object_ref.object_id != parent.object_id)
         .unwrap()
         .0;
 
@@ -647,16 +673,16 @@ async fn test_remove_child_when_no_prior_version_exists() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "remove_wrapped_child",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent.object_id)],
     )
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The field is considered deleted. The child doesn't count because it wasn't
     // considered created in the first place.
@@ -670,9 +696,9 @@ async fn test_remove_child_when_no_prior_version_exists() {
             .into_iter()
             .collect::<HashSet<_>>(),
         HashSet::from([
-            (gas_ref.0, gas_ref.1),
-            (parent.0, parent.1),
-            (field.0, field.1)
+            (gas_ref.object_id, gas_ref.version),
+            (parent.object_id, parent.version),
+            (field.object_id, field.version)
         ]),
     );
 }
@@ -701,7 +727,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_parent",
         vec![],
@@ -710,8 +736,11 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
-    let parent = effects.created()[0].0;
+    assert!(effects.status().is_success());
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Create a child.
     let effects = call_move(
@@ -719,7 +748,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "create_child",
         vec![],
@@ -728,8 +757,11 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
-    let child = effects.created()[0].0;
+    assert!(effects.status().is_success());
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
 
     // Add the child to the parent.
     let effects = call_move(
@@ -737,16 +769,19 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "add_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(child_id),
+        ],
     )
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.wrapped().len(), 1);
 
@@ -756,16 +791,16 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "object_owner",
         "delete_parent_and_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent_id)],
     )
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that parent object was deleted.
     assert_eq!(effects.deleted().len(), 2);
     // Check that child object was unwrapped and deleted.
@@ -793,15 +828,18 @@ async fn test_entry_point_vector_empty() {
 
     // call a function with an empty vector
     let type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Obj", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Obj", package.object_id).as_str())
+            .unwrap();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec =
-            builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(
+            Some(type_tag.clone()),
+            vec![],
+        ));
         builder.programmable_move_call(
-            package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("obj_vec_empty").unwrap(),
+            package.object_id,
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("obj_vec_empty"),
             vec![],
             vec![empty_vec],
         );
@@ -826,12 +864,14 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector whose type is generic
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec =
-            builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(
+            Some(type_tag.clone()),
+            vec![],
+        ));
         builder.programmable_move_call(
-            package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("type_param_vec_empty").unwrap(),
+            package.object_id,
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("type_param_vec_empty"),
             vec![type_tag.clone()],
             vec![empty_vec],
         );
@@ -857,11 +897,11 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector, no type tag
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(None, vec![]));
         builder.programmable_move_call(
-            package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("obj_vec_empty").unwrap(),
+            package.object_id,
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("obj_vec_empty"),
             vec![],
             vec![empty_vec],
         );
@@ -887,11 +927,11 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector whose type is generic
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(None, vec![]));
         builder.programmable_move_call(
-            package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("type_param_vec_empty").unwrap(),
+            package.object_id,
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("type_param_vec_empty"),
             vec![type_tag],
             vec![empty_vec],
         );
@@ -940,7 +980,7 @@ async fn test_entry_point_vector_primitive() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "prim_vec_len",
         vec![],
@@ -981,7 +1021,7 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -994,14 +1034,16 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
@@ -1022,7 +1064,7 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1035,13 +1077,16 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_child",
         vec![],
@@ -1057,7 +1102,10 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1065,7 +1113,7 @@ async fn test_entry_point_vector() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "child_access",
         vec![],
@@ -1103,7 +1151,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another",
         vec![],
@@ -1116,14 +1164,16 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
@@ -1144,7 +1194,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another",
         vec![],
@@ -1157,13 +1207,16 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: wrong_obj_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1176,14 +1229,17 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: correct_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "two_obj_vec_destroy",
         vec![],
@@ -1205,7 +1261,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_shared",
         vec![],
@@ -1218,7 +1274,10 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: shared_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1226,7 +1285,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy",
         vec![],
@@ -1248,7 +1307,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1261,7 +1320,9 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1269,7 +1330,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects",
         vec![],
@@ -1285,7 +1346,7 @@ async fn test_entry_point_vector_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1298,7 +1359,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint",
         vec![],
@@ -1311,7 +1372,9 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1319,7 +1382,7 @@ async fn test_entry_point_vector_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_ref",
         vec![],
@@ -1335,7 +1398,7 @@ async fn test_entry_point_vector_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1362,7 +1425,8 @@ async fn test_entry_point_vector_any() {
     .await;
 
     let any_type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.object_id).as_str())
+            .unwrap();
 
     // mint an owned object
     let effects = call_move(
@@ -1370,7 +1434,7 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1383,14 +1447,16 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
@@ -1411,7 +1477,7 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1424,13 +1490,16 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_child_any",
         vec![any_type_tag.clone()],
@@ -1446,7 +1515,10 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1454,7 +1526,7 @@ async fn test_entry_point_vector_any() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "child_access_any",
         vec![any_type_tag],
@@ -1487,7 +1559,8 @@ async fn test_entry_point_vector_any_error() {
     .await;
 
     let any_type_tag =
-        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::entry_point_vector::Any", package.object_id).as_str())
+            .unwrap();
 
     // mint an owned object of a wrong type
     let effects = call_move(
@@ -1495,7 +1568,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another_any",
         vec![any_type_tag.clone()],
@@ -1508,14 +1581,16 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
@@ -1536,7 +1611,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_another_any",
         vec![any_type_tag.clone()],
@@ -1549,13 +1624,16 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: wrong_obj_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1568,14 +1646,17 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: correct_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "two_obj_vec_destroy_any",
         vec![any_type_tag.clone()],
@@ -1597,7 +1678,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_shared_any",
         vec![any_type_tag.clone()],
@@ -1610,7 +1691,10 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: shared_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1618,7 +1702,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "obj_vec_destroy_any",
         vec![any_type_tag.clone()],
@@ -1640,7 +1724,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1653,7 +1737,9 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1661,7 +1747,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_any",
         vec![any_type_tag.clone()],
@@ -1677,7 +1763,7 @@ async fn test_entry_point_vector_any_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1690,7 +1776,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "mint_any",
         vec![any_type_tag.clone()],
@@ -1703,7 +1789,9 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0;
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1711,7 +1799,7 @@ async fn test_entry_point_vector_any_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_vector",
         "same_objects_ref_any",
         vec![any_type_tag.clone()],
@@ -1725,7 +1813,7 @@ async fn test_entry_point_vector_any_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1760,7 +1848,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -1782,7 +1870,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -1804,7 +1892,7 @@ async fn test_entry_point_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -1844,7 +1932,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -1862,7 +1950,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1880,7 +1968,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_vec_option_utf8_arg",
         vec![],
@@ -1898,7 +1986,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -1916,7 +2004,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1934,7 +2022,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "vec_option_utf8_arg",
         vec![],
@@ -1952,7 +2040,7 @@ async fn test_nested_string() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_vec_option_utf8_arg",
         vec![],
@@ -1991,7 +2079,7 @@ async fn test_entry_point_string_vec() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_vec_arg",
         vec![],
@@ -2032,7 +2120,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -2047,8 +2135,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2067,7 +2155,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "ascii_arg",
         vec![],
@@ -2082,8 +2170,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2102,7 +2190,7 @@ async fn test_entry_point_string_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_arg",
         vec![],
@@ -2117,8 +2205,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2158,7 +2246,7 @@ async fn test_entry_point_string_vec_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "utf8_vec_arg",
         vec![],
@@ -2173,8 +2261,8 @@ async fn test_entry_point_string_vec_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2207,7 +2295,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_ascii_arg",
         vec![],
@@ -2219,8 +2307,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2237,7 +2325,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -2249,8 +2337,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2265,7 +2353,7 @@ async fn test_entry_point_string_option_error() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "entry_point_types",
         "option_utf8_arg",
         vec![],
@@ -2277,8 +2365,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2301,11 +2389,11 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         args: Vec<Argument>,
     ) {
         let n = builder.pure(args.len() as u64).unwrap();
-        let vec = builder.command(Command::MakeMoveVec(Some(t.clone().into()), args));
+        let vec = builder.command(Command::new_make_move_vector(Some(t.clone()), args));
         builder.programmable_move_call(
             package,
-            Identifier::new("entry_point_types").unwrap(),
-            Identifier::new("drop_all").unwrap(),
+            Identifier::from_static("entry_point_types"),
+            Identifier::from_static("drop_all"),
             vec![t.clone()],
             vec![vec, n],
         );
@@ -2384,8 +2472,8 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     let arg = builder.pure(value.clone()).unwrap();
     let id_result = builder.programmable_move_call(
         package_id,
-        Identifier::new("entry_point_types").unwrap(),
-        Identifier::new("id").unwrap(),
+        Identifier::from_static("entry_point_types"),
+        Identifier::from_static("id"),
         vec![t.clone()],
         vec![arg],
     );
@@ -2414,13 +2502,13 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     let arg = builder.pure(value).unwrap();
     let id_result = builder.programmable_move_call(
         package_id,
-        Identifier::new("entry_point_types").unwrap(),
-        Identifier::new("id").unwrap(),
+        Identifier::from_static("entry_point_types"),
+        Identifier::from_static("id"),
         vec![t.clone()],
         vec![arg],
     );
     let inner_args = vec![arg, id_result, arg];
-    let vec = builder.command(Command::MakeMoveVec(Some(t.clone().into()), inner_args));
+    let vec = builder.command(Command::new_make_move_vector(Some(t.clone()), inner_args));
     let args = vec![vec, vec, vec];
     make_and_drop(
         &mut builder,
@@ -2465,7 +2553,7 @@ macro_rules! make_vec_tests_for_type {
                 false,
             )
             .await;
-            let package_id = package.0;
+            let package_id = package.object_id;
             test_make_move_vec_for_type(
                 &authority,
                 &gas,
@@ -2546,7 +2634,7 @@ make_vec_tests_for_type!(
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2570,7 +2658,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     // single without a type argument
     let mut builder = ProgrammableTransactionBuilder::new();
     let arg = builder.pure(value.clone()).unwrap();
-    builder.command(Command::MakeMoveVec(None, vec![arg]));
+    builder.command(Command::new_make_move_vector(None, vec![arg]));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2599,7 +2687,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     // invalid bcs
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = vec![builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false)];
-    builder.command(Command::MakeMoveVec(Some(t.clone().into()), args));
+    builder.command(Command::new_make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2615,7 +2703,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 0
             ),
             command: Some(0)
@@ -2630,7 +2718,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         builder.pure(value).unwrap(),
         builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false),
     ];
-    builder.command(Command::MakeMoveVec(Some(t.clone().into()), args));
+    builder.command(Command::new_make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2646,7 +2734,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 3,
             ),
             command: Some(0)
@@ -2734,7 +2822,7 @@ make_vec_error_tests_for_type!(
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2753,7 +2841,7 @@ async fn test_make_move_vec_empty() {
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.command(Command::MakeMoveVec(None, vec![]));
+    builder.command(Command::new_make_move_vector(None, vec![]));
     let pt = builder.finish();
     let result = execute_programmable_transaction(
         &authority,
@@ -2777,12 +2865,12 @@ fn resolved_struct(
     (address, module, name): (&AccountAddress, &IdentStr, &IdentStr),
     type_args: Vec<TypeTag>,
 ) -> TypeTag {
-    TypeTag::Struct(Box::new(StructTag {
-        address: *address,
-        module: module.to_owned(),
-        name: name.to_owned(),
-        type_params: type_args,
-    }))
+    TypeTag::Struct(Box::new(StructTag::new(
+        IotaAddress::new(address.into_bytes()),
+        Identifier::new_unchecked(module.as_str()),
+        Identifier::new_unchecked(name.as_str()),
+        type_args,
+    )))
 }
 
 fn option_tag(inner: TypeTag) -> TypeTag {
@@ -2935,7 +3023,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     let upgrade_cap = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap();
 
     (package.0, upgrade_cap.0)
@@ -2949,18 +3037,18 @@ pub async fn collect_packages_and_upgrade_caps(
         .created()
         .into_iter()
         .filter(|(_, owner)| matches!(owner, Owner::Immutable))
-        .map(|(package, _)| (package.0, package))
+        .map(|(package, _)| (package.object_id, package))
         .collect();
     let mut caps = HashMap::new();
     for (obj_ref, owner) in effects.created() {
-        if !matches!(owner, Owner::AddressOwner(_)) {
+        if !matches!(owner, Owner::Address(_)) {
             continue;
         }
-        let cap = authority.get_object(&obj_ref.0).await.unwrap();
-        let bcs = cap.data.try_as_move().unwrap().contents();
+        let cap = authority.get_object(&obj_ref.object_id).await.unwrap();
+        let bcs = cap.data.as_struct_opt().unwrap().contents();
         let obj: UpgradeCap = bcs::from_bytes(bcs).unwrap();
         let pkg = packages.get(&obj.package.bytes).unwrap();
-        caps.insert(pkg.0, obj_ref);
+        caps.insert(pkg.object_id, obj_ref);
     }
     caps
 }
@@ -3015,14 +3103,14 @@ pub fn build_multi_upgrade_txns(
     for package_upgrade in package_upgrades {
         let package_id = package_upgrade.package_id;
         let cap = builder
-            .obj(ObjectArg::ImmOrOwnedObject(package_upgrade.upgrade_cap))
+            .obj(CallArg::ImmutableOrOwned(package_upgrade.upgrade_cap))
             .unwrap();
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("package").unwrap(),
-            Identifier::new("authorize_upgrade").unwrap(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![cap, policy, digest],
         );
@@ -3033,9 +3121,9 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("package").unwrap(),
-            Identifier::new("commit_upgrade").unwrap(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("commit_upgrade"),
             vec![],
             vec![cap, receipt],
         );
@@ -3049,7 +3137,7 @@ async fn check_latest_object_ref(
 ) {
     let response = authority
         .handle_object_info_request(ObjectInfoRequest {
-            object_id: object_ref.0,
+            object_id: object_ref.object_id,
             generate_layout: LayoutGenerationOption::None,
             request_kind: ObjectInfoRequestKind::LatestObjectInfo,
         })

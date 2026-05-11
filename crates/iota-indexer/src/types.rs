@@ -7,7 +7,7 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
@@ -21,7 +21,6 @@ use iota_types::{
     object::{Object, Owner},
     transaction::SenderSignedData,
 };
-use move_core_types::language_storage::StructTag;
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -184,11 +183,11 @@ impl IndexedEvent {
             transaction_digest,
             senders: vec![event.sender],
             package: event.package_id,
-            module: event.transaction_module.to_string(),
+            module: event.module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: event.type_.address.into(),
-            event_type_module: event.type_.module.to_string(),
-            event_type_name: event.type_.name.to_string(),
+            event_type_package: event.type_.address().into(),
+            event_type_module: event.type_.module().to_string(),
+            event_type_name: event.type_.name().to_string(),
             bcs: event.contents.clone(),
             timestamp_ms,
         }
@@ -228,10 +227,10 @@ impl EventIndex {
             event_sequence_number,
             sender: event.sender,
             emit_package: event.package_id,
-            emit_module: event.transaction_module.to_string(),
-            type_package: event.type_.address.into(),
-            type_module: event.type_.module.to_string(),
-            type_name: event.type_.name.to_string(),
+            emit_module: event.module.to_string(),
+            type_package: event.type_.address().into(),
+            type_module: event.type_.module().to_string(),
+            type_name: event.type_.name().to_string(),
             type_instantiation,
         }
     }
@@ -247,7 +246,7 @@ impl EventIndex {
         EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             emit_package: ObjectID::random(),
             emit_module: rng.gen::<u64>().to_string(),
             type_package: ObjectID::random(),
@@ -308,10 +307,11 @@ impl TryFrom<i16> for OwnerType {
 // Returns owner_type, owner_address
 pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<IotaAddress>) {
     match owner {
-        Owner::AddressOwner(address) => (OwnerType::Address, Some(*address)),
-        Owner::ObjectOwner(address) => (OwnerType::Object, Some(*address)),
-        Owner::Shared { .. } => (OwnerType::Shared, None),
+        Owner::Address(address) => (OwnerType::Address, Some(*address)),
+        Owner::Object(object_id) => (OwnerType::Object, Some(*object_id.as_address())),
+        Owner::Shared(_) => (OwnerType::Shared, None),
         Owner::Immutable => (OwnerType::Immutable, None),
+        _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
     }
 }
 
@@ -348,7 +348,7 @@ impl IndexedObject {
 impl IndexedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
-        let random_address = IotaAddress::random_for_testing_only();
+        let random_address = IotaAddress::random();
         IndexedObject {
             checkpoint_sequence_number: rng.gen(),
             object: Object::with_owner_for_testing(random_address),
@@ -443,10 +443,10 @@ impl TxIndex {
 
         let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
         let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let payers = repeat_with(IotaAddress::random_for_testing_only)
+        let payers = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
-        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+        let recipients = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
@@ -468,7 +468,7 @@ impl TxIndex {
             input_objects,
             changed_objects,
             payers,
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             recipients,
             move_calls,
             wrapped_or_deleted_objects,
@@ -797,9 +797,7 @@ pub(crate) mod grpc_conversion {
         object::Objects as GrpcObjects,
     };
     use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
-    use iota_types::{
-        iota_sdk_types_conversions::type_tag_sdk_to_core, object::Object, transaction::Argument,
-    };
+    use iota_types::object::Object;
 
     use crate::types::IndexerResult;
 
@@ -820,9 +818,9 @@ pub(crate) mod grpc_conversion {
             .into_iter()
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
-                    IotaArgument::from(Argument::from(command_output.argument()?)),
+                    IotaArgument::from(command_output.argument()?),
                     command_output.output_bcs()?.to_vec(),
-                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                    command_output.type_tag()?.into(),
                 ))
             })
             .collect()
@@ -837,7 +835,7 @@ pub(crate) mod grpc_conversion {
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
                     command_output.output_bcs()?.to_vec(),
-                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                    command_output.type_tag()?.into(),
                 ))
             })
             .collect()

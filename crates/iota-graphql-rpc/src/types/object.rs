@@ -19,16 +19,13 @@ use iota_indexer::{
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
-    TypeTag,
+    base_types::{StructTag, TypeTag},
     object::{
         MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
         bounded_visitor::BoundedVisitor,
     },
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout},
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -632,7 +629,7 @@ impl ObjectImpl<'_> {
     pub(crate) async fn digest(&self) -> Option<String> {
         self.0
             .native_impl()
-            .map(|native| native.digest().base58_encode())
+            .map(|native| native.digest().to_base58())
     }
 
     pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
@@ -641,7 +638,7 @@ impl ObjectImpl<'_> {
         let native = self.0.native_impl()?;
 
         match native.owner {
-            O::AddressOwner(address) => {
+            O::Address(address) => {
                 let address = IotaAddress::from(address);
                 Some(ObjectOwner::Address(AddressOwner {
                     owner: Some(Owner {
@@ -652,7 +649,7 @@ impl ObjectImpl<'_> {
                 }))
             }
             O::Immutable => Some(ObjectOwner::Immutable(Immutable { dummy: None })),
-            O::ObjectOwner(address) => {
+            O::Object(address) => {
                 let parent = Object::query(
                     ctx,
                     address.into(),
@@ -664,11 +661,10 @@ impl ObjectImpl<'_> {
 
                 Some(ObjectOwner::Parent(Box::new(Parent { parent })))
             }
-            O::Shared {
-                initial_shared_version,
-            } => Some(ObjectOwner::Shared(Shared {
-                initial_shared_version: initial_shared_version.value().into(),
+            O::Shared(initial_shared_version) => Some(ObjectOwner::Shared(Shared {
+                initial_shared_version: initial_shared_version.as_u64().into(),
             })),
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
@@ -750,7 +746,7 @@ impl ObjectImpl<'_> {
 
         let move_object = native
             .data
-            .try_as_move()
+            .as_struct_opt()
             .ok_or_else(|| Error::Internal("Failed to convert object into MoveObject".to_string()))
             .extend()?;
 
@@ -812,7 +808,7 @@ impl Object {
         use ObjectKind as K;
 
         match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => native.version().value(),
+            K::NotIndexed(native) | K::Indexed(native, _) => native.version().as_u64(),
             K::WrappedOrDeleted(object_version) => *object_version,
         }
     }
@@ -1106,7 +1102,7 @@ impl Object {
 /// See [`Object::root_version`] for more details on parent/child object version
 /// mechanics.
 fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
-    native.as_inner().version().into()
+    native.as_inner().version().as_u64()
 }
 
 impl ObjectFilter {
@@ -1678,7 +1674,7 @@ pub(crate) async fn deserialize_move_struct(
     move_object: &NativeMoveObject,
     resolver: &PackageResolver,
 ) -> Result<(StructTag, MoveStruct), Error> {
-    let struct_tag = StructTag::from(move_object.type_().clone());
+    let struct_tag = move_object.struct_tag().clone();
     let contents = move_object.contents();
     let move_type_layout = resolver
         .type_layout(TypeTag::from(struct_tag.clone()))

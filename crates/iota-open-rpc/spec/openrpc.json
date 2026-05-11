@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.22.0-beta"
+    "version": "1.23.1-beta"
   },
   "methods": [
     {
@@ -43,14 +43,14 @@
           "name": "gas_price",
           "description": "Gas is not charged, but gas usage is still calculated. Default to use reference gas price",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
           "name": "epoch",
           "description": "The epoch to perform the call. Will be set from the system state object if not provided",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -610,7 +610,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -632,10 +632,10 @@
         }
       ],
       "result": {
-        "name": "CheckpointPage",
+        "name": "Page<Checkpoint,String>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Checkpoint_and_BigInt_for_uint64"
+          "$ref": "#/components/schemas/Page_for_Checkpoint_and_String"
         }
       },
       "examples": [
@@ -761,7 +761,7 @@
           "description": "the event query criteria.",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         }
       ],
@@ -817,10 +817,10 @@
       "description": "Return the sequence number of the latest checkpoint that has been executed",
       "params": [],
       "result": {
-        "name": "BigInt<u64>",
+        "name": "String",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/BigInt_for_uint64"
+          "type": "string"
         }
       },
       "examples": [
@@ -1270,7 +1270,7 @@
           "name": "version",
           "description": "An optional protocol version specifier. If omitted, the latest protocol config table for the node will be returned.",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -1294,7 +1294,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "25",
+              "maxSupportedProtocolVersion": "26",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -2212,10 +2212,10 @@
       "description": "Return the total number of transaction blocks known to the server.",
       "params": [],
       "result": {
-        "name": "BigInt<u64>",
+        "name": "String",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/BigInt_for_uint64"
+          "type": "string"
         }
       },
       "examples": [
@@ -2243,7 +2243,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         },
         {
@@ -2419,7 +2419,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         }
       ],
@@ -2650,7 +2650,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "$ref": "#/components/schemas/Base58"
             }
           }
         },
@@ -3078,7 +3078,7 @@
           "description": "the version of the queried object. If None, default to the latest known version",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         },
         {
@@ -3405,7 +3405,7 @@
         }
       ],
       "result": {
-        "name": "CoinPage",
+        "name": "Page<Coin,ObjectIDSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3680,7 +3680,7 @@
         }
       ],
       "result": {
-        "name": "CoinPage",
+        "name": "Page<Coin,ObjectIDSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3756,7 +3756,7 @@
           "name": "epoch",
           "description": "The epoch of interest. If None, default to the latest epoch",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -3885,7 +3885,11 @@
                 "content": {
                   "dataType": "moveObject",
                   "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
-                  "fields": {}
+                  "fields": {
+                    "id": {
+                      "id": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b"
+                    }
+                  }
                 }
               }
             }
@@ -3969,7 +3973,7 @@
         }
       ],
       "result": {
-        "name": "DynamicFieldPage",
+        "name": "Page<IotaDynamicFieldInfo,ObjectIDSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
@@ -4056,7 +4060,7 @@
           "name": "cursor",
           "description": "Optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -4077,10 +4081,10 @@
         }
       ],
       "result": {
-        "name": "EpochMetricsPage",
+        "name": "Page<EpochMetrics,String>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_EpochMetrics_and_BigInt_for_uint64"
+          "$ref": "#/components/schemas/Page_for_EpochMetrics_and_String"
         }
       }
     },
@@ -4097,7 +4101,7 @@
           "name": "cursor",
           "description": "Optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -4118,10 +4122,10 @@
         }
       ],
       "result": {
-        "name": "EpochPage",
+        "name": "Page<EpochInfo,String>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_EpochInfo_and_BigInt_for_uint64"
+          "$ref": "#/components/schemas/Page_for_EpochInfo_and_String"
         }
       }
     },
@@ -4262,7 +4266,7 @@
         }
       ],
       "result": {
-        "name": "ObjectsPage",
+        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
@@ -4390,10 +4394,10 @@
       "description": "Return the reference gas price for the network",
       "params": [],
       "result": {
-        "name": "BigInt<u64>",
+        "name": "String",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/BigInt_for_uint64"
+          "type": "string"
         }
       },
       "examples": [
@@ -4632,7 +4636,7 @@
         }
       ],
       "result": {
-        "name": "Supply",
+        "name": "IotaSupply",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Supply"
@@ -4666,10 +4670,10 @@
       "description": "Return the total number of transactions. Exclusively served by the indexer.",
       "params": [],
       "result": {
-        "name": "BigInt<u64>",
+        "name": "String",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/BigInt_for_uint64"
+          "type": "string"
         }
       }
     },
@@ -4754,7 +4758,7 @@
         }
       ],
       "result": {
-        "name": "ObjectsPage",
+        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
@@ -4853,7 +4857,7 @@
         }
       ],
       "result": {
-        "name": "EventPage",
+        "name": "Page<IotaEvent,IotaEventID>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Event_and_EventID"
@@ -4976,7 +4980,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         },
         {
@@ -4997,10 +5001,10 @@
         }
       ],
       "result": {
-        "name": "TransactionBlocksPage",
+        "name": "Page<IotaTransactionBlockResponse,Base58Schema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_TransactionDigest"
+          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_Base58"
         }
       },
       "examples": [
@@ -5156,7 +5160,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -5220,7 +5224,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5307,7 +5311,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -5372,7 +5376,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           }
         },
@@ -5388,7 +5392,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5441,7 +5445,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5499,7 +5503,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           }
         },
@@ -5508,7 +5512,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5571,7 +5575,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5615,7 +5619,7 @@
           "name": "amount",
           "description": "stake amount",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -5638,7 +5642,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5696,7 +5700,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5745,7 +5749,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5795,7 +5799,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5839,7 +5843,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           }
         },
@@ -5855,7 +5859,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5897,7 +5901,7 @@
           "description": "the number of coins to split into",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -5912,7 +5916,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -5954,7 +5958,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -5969,7 +5973,7 @@
           "name": "amount",
           "description": "the amount to be split out and transferred",
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       ],
@@ -6018,7 +6022,7 @@
           "description": "the gas budget, the transaction will fail if the gas cost exceed the budget",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         },
         {
@@ -6116,7 +6120,7 @@
             "type": "string"
           },
           "totalBalance": {
-            "$ref": "#/components/schemas/BigInt_for_uint128"
+            "type": "string"
           }
         }
       },
@@ -6133,7 +6137,7 @@
             "type": "string"
           },
           "coinType": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "owner": {
             "description": "Owner of the balance change",
@@ -6146,59 +6150,14 @@
         }
       },
       "Base58": {
-        "type": "string"
+        "description": "Base58 encoded data",
+        "type": "string",
+        "format": "base58"
       },
       "Base64": {
-        "description": "Base64 encoding",
-        "type": "string"
-      },
-      "BigInt_for_uint": {
-        "type": "string"
-      },
-      "BigInt_for_uint128": {
-        "type": "string"
-      },
-      "BigInt_for_uint16": {
-        "type": "string"
-      },
-      "BigInt_for_uint32": {
-        "type": "string"
-      },
-      "BigInt_for_uint64": {
-        "type": "string"
-      },
-      "CallArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Pure"
-            ],
-            "properties": {
-              "Pure": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Object"
-            ],
-            "properties": {
-              "Object": {
-                "$ref": "#/components/schemas/ObjectArg"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
+        "description": "Base64 encoded data",
+        "type": "string",
+        "format": "base64"
       },
       "Checkpoint": {
         "type": "object",
@@ -6225,7 +6184,7 @@
             "description": "Checkpoint digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Base58"
               }
             ]
           },
@@ -6242,11 +6201,7 @@
           },
           "epoch": {
             "description": "Checkpoint's epoch ID",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochRollingGasCostSummary": {
             "description": "The running total gas costs of all transactions included in the current epoch so far until this checkpoint.",
@@ -6258,17 +6213,13 @@
           },
           "networkTotalTransactions": {
             "description": "Total number of transactions committed since genesis, including those in this checkpoint.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "previousDigest": {
             "description": "Digest of the previous checkpoint",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               {
                 "type": "null"
@@ -6277,25 +6228,17 @@
           },
           "sequenceNumber": {
             "description": "Checkpoint sequence number",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "timestampMs": {
             "description": "Timestamp of the checkpoint - number of milliseconds from the Unix epoch Checkpoint timestamps are monotonic, but not strongly monotonic - subsequent checkpoints can have same timestamp if they originate from the same underlining consensus commit",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "transactions": {
             "description": "Transaction digests",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "$ref": "#/components/schemas/Base58"
             }
           },
           "validatorSignature": {
@@ -6324,21 +6267,13 @@
           }
         ]
       },
-      "CheckpointDigest": {
-        "description": "Representation of a Checkpoint's digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
       "CheckpointId": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           {
-            "$ref": "#/components/schemas/CheckpointDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         ]
       },
@@ -6354,7 +6289,7 @@
         ],
         "properties": {
           "balance": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "coinObjectId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -6363,13 +6298,13 @@
             "type": "string"
           },
           "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
+            "$ref": "#/components/schemas/Base58"
           },
           "previousTransaction": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumberBigInt"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         }
       },
@@ -6382,7 +6317,7 @@
         ],
         "properties": {
           "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "validators": {
             "type": "array",
@@ -6393,7 +6328,7 @@
                   "$ref": "#/components/schemas/AuthorityPublicKeyBytes"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -6401,81 +6336,6 @@
             }
           }
         }
-      },
-      "CompressedSignature": {
-        "description": "Unlike [enum Signature], [enum CompressedSignature] does not contain public key.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "deprecated": true,
-            "type": "string",
-            "enum": [
-              "ZkLoginDeprecated"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Move"
-            ],
-            "properties": {
-              "Move": {
-                "$ref": "#/components/schemas/MoveAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "ConsensusCommitDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "ConsensusDeterminedVersionAssignments": {
         "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
@@ -6492,7 +6352,7 @@
                   "type": "array",
                   "items": [
                     {
-                      "$ref": "#/components/schemas/TransactionDigest"
+                      "$ref": "#/components/schemas/Base58"
                     },
                     {
                       "type": "array",
@@ -6503,7 +6363,7 @@
                             "$ref": "#/components/schemas/ObjectID"
                           },
                           {
-                            "$ref": "#/components/schemas/SequenceNumber"
+                            "$ref": "#/components/schemas/SequenceNumberU64"
                           }
                         ],
                         "maxItems": 2,
@@ -6540,7 +6400,7 @@
                 "$ref": "#/components/schemas/MoveStruct"
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -6625,36 +6485,21 @@
         "properties": {
           "gasBudget": {
             "description": "The gas budget for the transaction.",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "default": null,
+            "type": [
+              "string",
+              "null"
             ]
           },
           "gasObjects": {
             "description": "The gas objects used to pay for the transaction.",
+            "default": null,
             "type": [
               "array",
               "null"
             ],
             "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/ObjectID"
-                },
-                {
-                  "$ref": "#/components/schemas/SequenceNumber"
-                },
-                {
-                  "$ref": "#/components/schemas/ObjectDigest"
-                }
-              ],
-              "maxItems": 3,
-              "minItems": 3
+              "$ref": "#/components/schemas/ObjectRef"
             }
           },
           "gasSponsor": {
@@ -6744,14 +6589,6 @@
           }
         }
       },
-      "Digest": {
-        "description": "A representation of a 32 byte digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base58"
-          }
-        ]
-      },
       "DisplayFieldsResponse": {
         "type": "object",
         "properties": {
@@ -6818,13 +6655,9 @@
           },
           "suggestedGasPrice": {
             "description": "If an input object is congested, suggest a gas price to use.",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -6879,7 +6712,7 @@
         ],
         "properties": {
           "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
+            "$ref": "#/components/schemas/Base58"
           },
           "name": {
             "$ref": "#/components/schemas/DynamicFieldName"
@@ -6894,7 +6727,7 @@
             "$ref": "#/components/schemas/DynamicFieldType"
           },
           "version": {
-            "$ref": "#/components/schemas/SequenceNumber"
+            "$ref": "#/components/schemas/SequenceNumberU64"
           }
         }
       },
@@ -6906,7 +6739,7 @@
         ],
         "properties": {
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "value": true
         }
@@ -6936,9 +6769,6 @@
             "minItems": 32
           }
         }
-      },
-      "Ed25519IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
       },
       "EndOfEpochData": {
         "type": "object",
@@ -6971,7 +6801,7 @@
                   "$ref": "#/components/schemas/AuthorityPublicKeyBytes"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -7006,45 +6836,41 @@
         ],
         "properties": {
           "burntTokensAmount": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "epochEndTimestamp": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "lastCheckpointId": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "mintedTokensAmount": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "protocolVersion": {
             "description": "existing fields from `SystemEpochInfoEventV1` (without epoch)",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "referenceGasPrice": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storageCharge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storageFundBalance": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storageRebate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "totalGasFees": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "totalStake": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "totalStakeRewardsDistributed": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       },
@@ -7062,7 +6888,7 @@
             "description": "Committee validators. Each element is an index pointing to `validators`.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "endOfEpochInfo": {
@@ -7078,35 +6904,19 @@
           },
           "epoch": {
             "description": "Epoch number",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochStartTimestamp": {
             "description": "The timestamp when the epoch started.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochTotalTransactions": {
             "description": "Count of tx in epoch",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "firstCheckpointId": {
             "description": "First, last checkpoint sequence numbers",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "referenceGasPrice": {
             "description": "The reference gas price for the given epoch.",
@@ -7149,35 +6959,19 @@
           },
           "epoch": {
             "description": "The current epoch ID.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochStartTimestamp": {
             "description": "The timestamp when the epoch started.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochTotalTransactions": {
             "description": "The total number of transactions in the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "firstCheckpointId": {
             "description": "The first checkpoint ID of the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           }
         }
       },
@@ -7259,22 +7053,26 @@
           },
           "timestampMs": {
             "description": "UTC timestamp in milliseconds since epoch (1/1/1970)",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "transactionModule": {
             "description": "Move module where this event was emitted.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "type": {
             "description": "Move event type.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StructTag"
+              }
+            ]
           }
         }
       },
@@ -7301,7 +7099,7 @@
             ],
             "properties": {
               "Transaction": {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Base58"
               }
             },
             "additionalProperties": false
@@ -7335,7 +7133,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7358,7 +7160,7 @@
             ],
             "properties": {
               "MoveEventType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -7379,7 +7181,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7432,19 +7238,11 @@
                 "properties": {
                   "endTime": {
                     "description": "right endpoint of time interval, milliseconds since epoch, exclusive",
-                    "allOf": [
-                      {
-                        "$ref": "#/components/schemas/BigInt_for_uint64"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "startTime": {
                     "description": "left endpoint of time interval, milliseconds since epoch, inclusive",
-                    "allOf": [
-                      {
-                        "$ref": "#/components/schemas/BigInt_for_uint64"
-                      }
-                    ]
+                    "type": "string"
                   }
                 }
               }
@@ -7536,10 +7334,10 @@
         ],
         "properties": {
           "eventSeq": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "txDigest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           }
         }
       },
@@ -7587,7 +7385,7 @@
         ]
       },
       "GasCostSummary": {
-        "description": "Summary of the charges in a transaction. Storage is charged independently of computation. There are 3 parts to the storage charges: `storage_cost`: it is the charge of storage at the time the transaction is executed.                 The cost of storage is the number of bytes of the objects being mutated                 multiplied by a variable storage cost per byte `storage_rebate`: this is the amount a user gets back when manipulating an object.                   The `storage_rebate` is the `storage_cost` for an object minus fees. `non_refundable_storage_fee`: not all the value of the object storage cost is                               given back to user and there is a small fraction that                               is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
+        "description": "Summary of gas charges.\n\nStorage is charged independently of computation. There are 3 parts to the storage charges: - `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost of storage is the number of bytes of the objects being mutated multiplied by a variable storage cost per byte - `storage_rebate`: this is the amount a user gets back when manipulating an object. The `storage_rebate` is the `storage_cost` for an object minus fees. - `non_refundable_storage_fee`: not all the value of the object storage cost is given back to user and there is a small fraction that is kept by the system. This value tracks that charge.\n\nWhen looking at a gas cost summary the amount charged to the user is `computation_cost + storage_cost - storage_rebate` and that is the amount that is deducted from the gas coins. `non_refundable_storage_fee` is collected from the objects being mutated/deleted and it is tracked by the system in storage funds.\n\nObjects deleted, including the older versions of objects mutated, have the storage field on the objects added up to a pool of \"potential rebate\". This rebate then is reduced by the \"nonrefundable rate\" such that: `potential_rebate(storage cost of deleted/mutated objects) = storage_rebate + non_refundable_storage_fee`",
         "type": "object",
         "required": [
           "computationCost",
@@ -7599,43 +7397,23 @@
         "properties": {
           "computationCost": {
             "description": "Cost of computation/execution",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "computationCostBurned": {
             "description": "The burned component of the computation/execution costs",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "nonRefundableStorageFee": {
             "description": "The fee for the rebate. The portion of the storage rebate kept by the system.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageCost": {
             "description": "Storage cost, it's the sum of all storage cost for all objects created or mutated.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageRebate": {
             "description": "The amount of storage cost refunded to the user for all objects deleted or mutated in the transaction.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           }
         }
       },
@@ -7649,7 +7427,7 @@
         ],
         "properties": {
           "budget": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "owner": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -7661,75 +7439,14 @@
             }
           },
           "price": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       },
       "GenericSignature": {
-        "description": "Due to the incompatibility of [enum Signature] (which dispatches a trait that assumes signature and pubkey bytes for verification), here we add a wrapper enum where member can just implement a lightweight [trait AuthenticatorTrait]. This way MultiSig (and future Authenticators) can implement its own `verify`.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "MultiSig"
-            ],
-            "properties": {
-              "MultiSig": {
-                "$ref": "#/components/schemas/MultiSig"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Signature"
-            ],
-            "properties": {
-              "Signature": {
-                "$ref": "#/components/schemas/Signature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "deprecated": true,
-            "type": "object",
-            "required": [
-              "ZkLoginAuthenticatorDeprecated"
-            ],
-            "properties": {
-              "ZkLoginAuthenticatorDeprecated": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticatorDeprecated"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "PasskeyAuthenticator"
-            ],
-            "properties": {
-              "PasskeyAuthenticator": {
-                "$ref": "#/components/schemas/PasskeyAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "MoveAuthenticator"
-            ],
-            "properties": {
-              "MoveAuthenticator": {
-                "$ref": "#/components/schemas/MoveAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
+        "description": "Base64 encoded signature",
+        "type": "string",
+        "format": "base64"
       },
       "GetPastObjectRequest": {
         "type": "object",
@@ -7750,14 +7467,14 @@
             "description": "the version of the queried object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }
         }
       },
-      "Hex": {
-        "description": "Hex string encoding.",
+      "Identifier": {
+        "description": "Move identifier",
         "type": "string"
       },
       "InputObjectKind": {
@@ -7803,7 +7520,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumberBigInt"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   },
                   "mutable": {
                     "default": true,
@@ -7817,7 +7534,9 @@
         ]
       },
       "IotaAddress": {
-        "$ref": "#/components/schemas/Hex"
+        "description": "IOTA address as a hex string",
+        "type": "string",
+        "format": "hex"
       },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
@@ -7903,7 +7622,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7915,7 +7634,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumberBigInt"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   }
                 }
               },
@@ -7929,7 +7648,7 @@
                 ],
                 "properties": {
                   "initialSharedVersion": {
-                    "$ref": "#/components/schemas/SequenceNumberBigInt"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   },
                   "mutable": {
                     "type": "boolean"
@@ -7955,7 +7674,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Base58"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -7967,7 +7686,7 @@
                     ]
                   },
                   "version": {
-                    "$ref": "#/components/schemas/SequenceNumberBigInt"
+                    "$ref": "#/components/schemas/SequenceNumberString"
                   }
                 }
               }
@@ -8002,9 +7721,13 @@
               },
               "valueType": {
                 "default": null,
-                "type": [
-                  "string",
-                  "null"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TypeTag"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             }
@@ -8022,19 +7745,19 @@
         ],
         "properties": {
           "computation_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "epoch_start_timestamp_ms": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storage_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storage_rebate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       },
@@ -8050,10 +7773,10 @@
         ],
         "properties": {
           "computation_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "computation_charge_burned": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "eligible_active_validators": {
             "type": [
@@ -8061,14 +7784,14 @@
               "null"
             ],
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "epoch_start_timestamp_ms": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "scores": {
             "type": [
@@ -8076,14 +7799,14 @@
               "null"
             ],
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "storage_charge": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "storage_rebate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       },
@@ -8711,7 +8434,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -8734,7 +8461,7 @@
             ],
             "properties": {
               "StructType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -8797,7 +8524,7 @@
             ],
             "properties": {
               "Version": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -8900,7 +8627,7 @@
         ]
       },
       "IotaSystemStateSummaryV1": {
-        "description": "This is the JSON-RPC type for the [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateSummaryV1`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV1) object.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -8956,7 +8683,7 @@
                   "$ref": "#/components/schemas/IotaAddress"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -8965,27 +8692,15 @@
           },
           "epoch": {
             "description": "The current epoch ID, starting from 0.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochDurationMs": {
             "description": "The duration of an epoch, in milliseconds.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochStartTimestampMs": {
             "description": "Unix timestamp of the current epoch start",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "inactivePoolsId": {
             "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
@@ -8997,19 +8712,11 @@
           },
           "inactivePoolsSize": {
             "description": "Number of inactive staking pools.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "iotaTotalSupply": {
             "description": "The current IOTA supply.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "iotaTreasuryCapId": {
             "description": "The `TreasuryCap<IOTA>` object ID.",
@@ -9021,27 +8728,15 @@
           },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "minValidatorCount": {
             "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "minValidatorJoiningStake": {
             "description": "Lower-bound on the amount of stake required to become a validator.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingActiveValidatorsId": {
             "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
@@ -9053,34 +8748,22 @@
           },
           "pendingActiveValidatorsSize": {
             "description": "Number of new validators that will join at the end of the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingRemovals": {
             "description": "Removal requests from the validators. Each element is an index pointing to `active_validators`.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "protocolVersion": {
             "description": "The current protocol version, starting from 1.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "referenceGasPrice": {
             "description": "The reference gas price for the current epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeMode": {
             "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
@@ -9088,35 +8771,19 @@
           },
           "safeModeComputationRewards": {
             "description": "Amount of computation rewards accumulated (and not yet distributed) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeNonRefundableStorageFee": {
             "description": "Amount of non-refundable storage fee accumulated during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeStorageCharges": {
             "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeStorageRebates": {
             "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "stakingPoolMappingsId": {
             "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
@@ -9128,43 +8795,23 @@
           },
           "stakingPoolMappingsSize": {
             "description": "Number of staking pool mappings.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageFundNonRefundableBalance": {
             "description": "The non-refundable portion of the storage fund coming from non-refundable storage rebates and any leftover staking rewards.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageFundTotalObjectStorageRebates": {
             "description": "The storage rebates of all the objects on-chain stored in the storage fund.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "systemStateVersion": {
             "description": "The current version of the system state data structure type.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "totalStake": {
             "description": "Total amount of stake from all active validators at the beginning of the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorCandidatesId": {
             "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
@@ -9176,27 +8823,15 @@
           },
           "validatorCandidatesSize": {
             "description": "Number of preactive validators.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorLowStakeGracePeriod": {
             "description": "A validator can have stake below `validator_low_stake_threshold` for this many epochs before being kicked out.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorLowStakeThreshold": {
             "description": "Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake and will be escorted out of the validator set after being below this threshold for more than `validator_low_stake_grace_period` number of epochs.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorReportRecords": {
             "description": "A map storing the records of validator reporting each other.",
@@ -9220,16 +8855,12 @@
           },
           "validatorVeryLowStakeThreshold": {
             "description": "Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at epoch change, no grace period.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           }
         }
       },
       "IotaSystemStateSummaryV2": {
-        "description": "This is the JSON-RPC type for the [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateSummaryV2`](iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2) object.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -9287,7 +8918,7 @@
                   "$ref": "#/components/schemas/IotaAddress"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -9298,32 +8929,20 @@
             "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "epoch": {
             "description": "The current epoch ID, starting from 0.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochDurationMs": {
             "description": "The duration of an epoch, in milliseconds.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "epochStartTimestampMs": {
             "description": "Unix timestamp of the current epoch start",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "inactivePoolsId": {
             "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
@@ -9335,19 +8954,11 @@
           },
           "inactivePoolsSize": {
             "description": "Number of inactive staking pools.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "iotaTotalSupply": {
             "description": "The current IOTA supply.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "iotaTreasuryCapId": {
             "description": "The `TreasuryCap<IOTA>` object ID.",
@@ -9359,27 +8970,15 @@
           },
           "maxValidatorCount": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "minValidatorCount": {
             "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "minValidatorJoiningStake": {
             "description": "Lower-bound on the amount of stake required to become a validator.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingActiveValidatorsId": {
             "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
@@ -9391,34 +8990,22 @@
           },
           "pendingActiveValidatorsSize": {
             "description": "Number of new validators that will join at the end of the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingRemovals": {
             "description": "Removal requests from the validators. Each element is an index pointing to `active_validators`.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/BigInt_for_uint64"
+              "type": "string"
             }
           },
           "protocolVersion": {
             "description": "The current protocol version, starting from 1.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "referenceGasPrice": {
             "description": "The reference gas price for the current epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeMode": {
             "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
@@ -9426,43 +9013,23 @@
           },
           "safeModeComputationCharges": {
             "description": "Amount of computation charges accumulated (and not yet distributed) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeComputationChargesBurned": {
             "description": "Amount of burned computation charges accumulated during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeNonRefundableStorageFee": {
             "description": "Amount of non-refundable storage fee accumulated during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeStorageCharges": {
             "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "safeModeStorageRebates": {
             "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "stakingPoolMappingsId": {
             "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
@@ -9474,43 +9041,23 @@
           },
           "stakingPoolMappingsSize": {
             "description": "Number of staking pool mappings.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageFundNonRefundableBalance": {
             "description": "The non-refundable portion of the storage fund coming from non-refundable storage rebates and any leftover staking rewards.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "storageFundTotalObjectStorageRebates": {
             "description": "The storage rebates of all the objects on-chain stored in the storage fund.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "systemStateVersion": {
             "description": "The current version of the system state data structure type.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "totalStake": {
             "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorCandidatesId": {
             "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
@@ -9522,27 +9069,15 @@
           },
           "validatorCandidatesSize": {
             "description": "Number of preactive validators.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorLowStakeGracePeriod": {
             "description": "A validator can have stake below `validator_low_stake_threshold` for this many epochs before being kicked out.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorLowStakeThreshold": {
             "description": "Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake and will be escorted out of the validator set after being below this threshold for more than `validator_low_stake_grace_period` number of epochs.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "validatorReportRecords": {
             "description": "A map storing the records of validator reporting each other.",
@@ -9566,11 +9101,7 @@
           },
           "validatorVeryLowStakeThreshold": {
             "description": "Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at epoch change, no grace period.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           }
         }
       },
@@ -9822,25 +9353,16 @@
             "$ref": "#/components/schemas/Base64"
           },
           "commissionRate": {
-            "description": "The fee set by the validator for providing staking services.\n\nThis might be overridden by the protocol, that uses instead an effective commission rate. See more on the associated field.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "description": {
             "type": "string"
           },
           "effectiveCommissionRate": {
-            "description": "The effective fee charged by the validator for staking services.\n\nThis follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "default": null,
+            "type": [
+              "string",
+              "null"
             ]
           },
           "exchangeRatesId": {
@@ -9853,14 +9375,10 @@
           },
           "exchangeRatesSize": {
             "description": "Number of exchange rates in the table.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "gasPrice": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "imageUrl": {
             "type": "string"
@@ -9878,7 +9396,6 @@
             "$ref": "#/components/schemas/Base64"
           },
           "nextEpochAuthorityPubkeyBytes": {
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9889,10 +9406,10 @@
             ]
           },
           "nextEpochCommissionRate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "nextEpochGasPrice": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "nextEpochNetAddress": {
             "type": [
@@ -9901,7 +9418,6 @@
             ]
           },
           "nextEpochNetworkPubkeyBytes": {
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9924,7 +9440,6 @@
             ]
           },
           "nextEpochProofOfPossession": {
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9935,7 +9450,6 @@
             ]
           },
           "nextEpochProtocolPubkeyBytes": {
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9946,7 +9460,7 @@
             ]
           },
           "nextEpochStake": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "operationCapId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -9956,35 +9470,19 @@
           },
           "pendingPoolTokenWithdraw": {
             "description": "Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingStake": {
             "description": "Pending stake amount for this epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "pendingTotalIotaWithdraw": {
             "description": "Pending stake withdrawn during the current epoch, emptied at epoch boundaries.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "poolTokenBalance": {
             "description": "Total number of pool tokens issued by the pool.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "primaryAddress": {
             "type": "string"
@@ -10000,34 +9498,22 @@
           },
           "rewardsPool": {
             "description": "The epoch stake rewards will be added here at the end of each epoch.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "stakingPoolActivationEpoch": {
             "description": "The epoch at which this pool became active.",
             "default": null,
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "stakingPoolDeactivationEpoch": {
             "description": "The epoch at which this staking pool ceased to be active. `None` = {pre-active, active},",
             "default": null,
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "stakingPoolId": {
@@ -10040,68 +9526,10 @@
           },
           "stakingPoolIotaBalance": {
             "description": "The total number of IOTA tokens in this pool.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "votingPower": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
-      },
-      "MoveAuthenticator": {
-        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "V1"
-            ],
-            "properties": {
-              "V1": {
-                "$ref": "#/components/schemas/MoveAuthenticatorV1"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "MoveAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "MoveAuthenticatorV1": {
-        "description": "MoveAuthenticatorV1 is the first version of MoveAuthenticator.",
-        "type": "object",
-        "required": [
-          "call_args",
-          "object_to_authenticate",
-          "type_arguments"
-        ],
-        "properties": {
-          "call_args": {
-            "description": "Input objects or primitive values",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CallArg"
-            }
-          },
-          "object_to_authenticate": {
-            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CallArg"
-              }
-            ]
-          },
-          "type_arguments": {
-            "description": "Type arguments for the Move authenticate function",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+            "type": "string"
           }
         }
       },
@@ -10123,7 +9551,7 @@
                   "$ref": "#/components/schemas/MoveFunctionName"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -10140,7 +9568,7 @@
                   "$ref": "#/components/schemas/MoveFunctionName"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -10157,7 +9585,7 @@
                   "$ref": "#/components/schemas/MoveFunctionName"
                 },
                 {
-                  "$ref": "#/components/schemas/BigInt_for_uint"
+                  "type": "string"
                 }
               ],
               "maxItems": 2,
@@ -10270,7 +9698,7 @@
                 }
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -10348,77 +9776,10 @@
             }
           },
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/StructTag"
           },
           "variant": {
             "type": "string"
-          }
-        }
-      },
-      "MultiSig": {
-        "description": "The struct that contains signatures and public keys necessary for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "bitmap",
-          "multisig_pk",
-          "sigs"
-        ],
-        "properties": {
-          "bitmap": {
-            "description": "A bitmap that indicates the position of which public key the signature should be authenticated with.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "multisig_pk": {
-            "description": "The public key encoded with each public key with its signature scheme used along with the corresponding weight.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MultiSigPublicKey"
-              }
-            ]
-          },
-          "sigs": {
-            "description": "The plain signature encoded with signature scheme.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CompressedSignature"
-            }
-          }
-        }
-      },
-      "MultiSigPublicKey": {
-        "description": "The struct that contains the public key used for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "pk_map",
-          "threshold"
-        ],
-        "properties": {
-          "pk_map": {
-            "description": "A list of public key and its corresponding weight.",
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/PublicKey"
-                },
-                {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2
-            }
-          },
-          "threshold": {
-            "description": "If the total weight of the public keys corresponding to verified signatures is larger than threshold, the MultiSig is verified.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
           }
         }
       },
@@ -10436,19 +9797,11 @@
         "properties": {
           "currentCheckpoint": {
             "description": "Current checkpoint number",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "currentEpoch": {
             "description": "Current epoch number",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "currentTps": {
             "description": "Current TPS - Transaction Blocks per Second.",
@@ -10457,27 +9810,15 @@
           },
           "totalAddresses": {
             "description": "Total number of addresses seen in the network",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "totalObjects": {
             "description": "Total number of live objects in the network",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "totalPackages": {
             "description": "Total number of packages published in the network",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            ]
+            "type": "string"
           },
           "tps30Days": {
             "description": "Peak TPS in the past 30 days",
@@ -10485,88 +9826,6 @@
             "format": "double"
           }
         }
-      },
-      "ObjectArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "ImmOrOwnedObject"
-            ],
-            "properties": {
-              "ImmOrOwnedObject": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SharedObject"
-            ],
-            "properties": {
-              "SharedObject": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "initial_shared_version",
-                  "mutable"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  "mutable": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Receiving"
-            ],
-            "properties": {
-              "Receiving": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SequenceNumber"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ObjectDigest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
@@ -10583,7 +9842,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "modules": {
                 "type": "array",
@@ -10601,7 +9860,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10619,13 +9878,13 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "recipient": {
                 "$ref": "#/components/schemas/Owner"
@@ -10640,7 +9899,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10659,19 +9918,19 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
               },
               "previousVersion": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10683,7 +9942,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10702,7 +9961,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10714,7 +9973,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10733,7 +9992,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -10745,7 +10004,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10763,7 +10022,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
@@ -10784,7 +10043,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           },
@@ -10802,13 +10061,13 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -10823,7 +10082,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             }
           }
@@ -10863,7 +10122,7 @@
             "description": "Base64 string representing the object digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               }
             ]
           },
@@ -10896,7 +10155,7 @@
             "description": "The digest of the transaction that created or last mutated this object. Default to be None unless IotaObjectDataOptions. showPreviousTransaction is set to true",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               {
                 "type": "null"
@@ -10905,13 +10164,9 @@
           },
           "storageRebate": {
             "description": "The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each time the object is mutated based on the present storage gas price.",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "type": {
@@ -10925,7 +10180,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumberBigInt"
+                "$ref": "#/components/schemas/SequenceNumberString"
               }
             ]
           }
@@ -10971,11 +10226,10 @@
           }
         }
       },
-      "ObjectDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "ObjectID": {
-        "$ref": "#/components/schemas/Hex"
+        "description": "Object ID as a hex string",
+        "type": "string",
+        "format": "hex"
       },
       "ObjectRead": {
         "oneOf": [
@@ -11051,7 +10305,7 @@
                     "$ref": "#/components/schemas/ObjectID"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ],
                 "maxItems": 2,
@@ -11082,10 +10336,10 @@
                 ],
                 "properties": {
                   "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   },
                   "object_id": {
                     "$ref": "#/components/schemas/ObjectID"
@@ -11114,7 +10368,7 @@
             "description": "Base64 string representing the object digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Base58"
               }
             ]
           },
@@ -11130,7 +10384,7 @@
             "description": "Object version.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
@@ -11193,7 +10447,7 @@
                 "description": "Base64 string representing the object digest",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Base58"
                   }
                 ]
               },
@@ -11204,7 +10458,7 @@
                 "description": "Object version.",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "$ref": "#/components/schemas/SequenceNumberU64"
                   }
                 ]
               }
@@ -11297,6 +10551,7 @@
         }
       },
       "Owner": {
+        "description": "Enum of different types of ownership for an object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text owner = owner-address / owner-object / owner-shared / owner-immutable\n\nowner-address   = %x00 address owner-object    = %x01 object-id owner-shared    = %x02 u64 owner-immutable = %x03 ```",
         "oneOf": [
           {
             "description": "Object is exclusively owned by a single address, and is mutable.",
@@ -11341,7 +10596,7 @@
                     "description": "The version at which the object became shared",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/SequenceNumber"
+                        "$ref": "#/components/schemas/SequenceNumberU64"
                       }
                     ]
                   }
@@ -11359,7 +10614,7 @@
           }
         ]
       },
-      "Page_for_Checkpoint_and_BigInt_for_uint64": {
+      "Page_for_Checkpoint_and_String": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11377,13 +10632,9 @@
             "type": "boolean"
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -11446,7 +10697,7 @@
           }
         }
       },
-      "Page_for_EpochInfo_and_BigInt_for_uint64": {
+      "Page_for_EpochInfo_and_String": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11464,18 +10715,14 @@
             "type": "boolean"
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
       },
-      "Page_for_EpochMetrics_and_BigInt_for_uint64": {
+      "Page_for_EpochMetrics_and_String": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11493,13 +10740,9 @@
             "type": "boolean"
           },
           "nextCursor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -11562,7 +10805,7 @@
           }
         }
       },
-      "Page_for_TransactionBlockResponse_and_TransactionDigest": {
+      "Page_for_TransactionBlockResponse_and_Base58": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11582,7 +10825,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               {
                 "type": "null"
@@ -11605,32 +10848,6 @@
             "minimum": 0.0
           }
         }
-      },
-      "PasskeyAuthenticator": {
-        "description": "An passkey authenticator with parsed fields. See field definition below. Can be initialized from [struct RawPasskeyAuthenticator].",
-        "type": "object",
-        "required": [
-          "authenticator_data",
-          "client_data_json"
-        ],
-        "properties": {
-          "authenticator_data": {
-            "description": "`authenticatorData` is a bytearray that encodes [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned by the authenticator attestation response as is.",
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
-          },
-          "client_data_json": {
-            "description": "`clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed to the authenticator by the client during the authentication request (see [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))",
-            "type": "string"
-          }
-        }
-      },
-      "PasskeyAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
       },
       "ProtocolConfig": {
         "type": "object",
@@ -11681,7 +10898,7 @@
             ],
             "properties": {
               "u16": {
-                "$ref": "#/components/schemas/BigInt_for_uint16"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -11693,7 +10910,7 @@
             ],
             "properties": {
               "u32": {
-                "$ref": "#/components/schemas/BigInt_for_uint32"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -11705,7 +10922,7 @@
             ],
             "properties": {
               "u64": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -11737,7 +10954,8 @@
         ]
       },
       "ProtocolVersion": {
-        "$ref": "#/components/schemas/BigInt_for_uint64"
+        "description": "A schema type that defines the JSON representation of the [`ProtocolVersion`](iota_protocol_config::ProtocolVersion) type as a string and provides an alternate serialization usable via `#[serde_as]`.",
+        "type": "string"
       },
       "PtbInput": {
         "anyOf": [
@@ -11746,65 +10964,6 @@
           },
           {
             "$ref": "#/components/schemas/IotaJsonValue"
-          }
-        ]
-      },
-      "PublicKey": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "deprecated": true,
-            "type": "string",
-            "enum": [
-              "ZkLoginDeprecated"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
           }
         ]
       },
@@ -11857,10 +11016,10 @@
                 ]
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             }
           },
@@ -11903,65 +11062,21 @@
                 }
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             }
           }
         ]
       },
-      "Secp256k1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
+      "SequenceNumberString": {
+        "description": "Sequence number as a string",
+        "type": "string"
       },
-      "Secp256r1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "SequenceNumber": {
+      "SequenceNumberU64": {
+        "description": "Sequence number as a u64 integer",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
-      },
-      "SequenceNumberBigInt": {
-        "$ref": "#/components/schemas/BigInt_for_uint64"
-      },
-      "Signature": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519IotaSignature"
-            ],
-            "properties": {
-              "Ed25519IotaSignature": {
-                "$ref": "#/components/schemas/Ed25519IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1IotaSignature"
-            ],
-            "properties": {
-              "Secp256k1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256k1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1IotaSignature"
-            ],
-            "properties": {
-              "Secp256r1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256r1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "Stake": {
         "type": "object",
@@ -11988,7 +11103,7 @@
             ],
             "properties": {
               "estimatedReward": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "status": {
                 "type": "string",
@@ -12021,13 +11136,13 @@
         ],
         "properties": {
           "principal": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "stakeActiveEpoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "stakeRequestEpoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "stakedIotaId": {
             "description": "ID of the StakedIota receipt object.",
@@ -12039,6 +11154,10 @@
           }
         }
       },
+      "StructTag": {
+        "description": "Move struct tag, in the format 'address::module::name<type_params>'",
+        "type": "string"
+      },
       "Supply": {
         "type": "object",
         "required": [
@@ -12046,7 +11165,7 @@
         ],
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
       },
@@ -12075,7 +11194,7 @@
             ],
             "properties": {
               "estimatedReward": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "status": {
                 "type": "string",
@@ -12109,7 +11228,7 @@
         ],
         "properties": {
           "expirationTimestampMs": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "label": {
             "type": [
@@ -12118,13 +11237,13 @@
             ]
           },
           "principal": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "stakeActiveEpoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "stakeRequestEpoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           },
           "timelockedStakedIotaId": {
             "$ref": "#/components/schemas/ObjectID"
@@ -12243,14 +11362,14 @@
                 "description": "The set of transaction digests this transaction depends on.",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TransactionDigest"
+                  "$ref": "#/components/schemas/Base58"
                 }
               },
               "eventsDigest": {
                 "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionEventsDigest"
+                    "$ref": "#/components/schemas/Base58"
                   },
                   {
                     "type": "null"
@@ -12259,11 +11378,7 @@
               },
               "executedEpoch": {
                 "description": "The epoch when this transaction was executed.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/BigInt_for_uint64"
-                  }
-                ]
+                "type": "string"
               },
               "gasObject": {
                 "description": "The updated gas object reference. Have a dedicated field for convenient access. It's also included in mutated.",
@@ -12315,7 +11430,7 @@
                 "description": "The transaction digest",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionDigest"
+                    "$ref": "#/components/schemas/Base58"
                   }
                 ]
               },
@@ -12355,7 +11470,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "sequenceNumber": {
-            "$ref": "#/components/schemas/SequenceNumberBigInt"
+            "$ref": "#/components/schemas/SequenceNumberString"
           }
         }
       },
@@ -12403,16 +11518,16 @@
             ],
             "properties": {
               "commit_timestamp_ms": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
+                "$ref": "#/components/schemas/Base58"
               },
               "consensus_determined_version_assignments": {
                 "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
               },
               "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "kind": {
                 "type": "string",
@@ -12421,17 +11536,13 @@
                 ]
               },
               "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "sub_dag_index": {
                 "default": null,
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/BigInt_for_uint64"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "type": [
+                  "string",
+                  "null"
                 ]
               }
             }
@@ -12478,7 +11589,7 @@
             ],
             "properties": {
               "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               },
               "kind": {
                 "type": "string",
@@ -12495,7 +11606,7 @@
                 }
               },
               "randomness_round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               }
             }
           },
@@ -12540,13 +11651,9 @@
           },
           "checkpoint": {
             "description": "The checkpoint number when this transaction was included and hence finalized. This is only returned in the read api, not in the transaction execution api.",
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "confirmedLocalExecution": {
@@ -12556,7 +11663,7 @@
             ]
           },
           "digest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Base58"
           },
           "effects": {
             "anyOf": [
@@ -12609,13 +11716,9 @@
             ]
           },
           "timestampMs": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "transaction": {
@@ -12700,17 +11803,6 @@
           }
         }
       },
-      "TransactionDigest": {
-        "description": "A transaction will have a (unique) digest.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
-      "TransactionEventsDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "TransactionFilter": {
         "oneOf": [
           {
@@ -12721,7 +11813,7 @@
             ],
             "properties": {
               "Checkpoint": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -12898,7 +11990,7 @@
             ],
             "properties": {
               "Checkpoint": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
+                "type": "string"
               }
             },
             "additionalProperties": false
@@ -13104,11 +12196,19 @@
         "properties": {
           "datatype_name": {
             "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "module_name": {
             "description": "The name of the module the data type resides in.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package": {
             "description": "`Storage ID` of the package, where the given type first appeared.",
@@ -13121,6 +12221,7 @@
         }
       },
       "TypeTag": {
+        "description": "Move type tag as a string",
         "type": "string"
       },
       "UpgradeInfo": {
@@ -13143,7 +12244,7 @@
             "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SequenceNumber"
+                "$ref": "#/components/schemas/SequenceNumberU64"
               }
             ]
           }
@@ -13179,13 +12280,9 @@
             }
           },
           "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "type": "string"
           }
         }
-      },
-      "ZkLoginAuthenticatorDeprecated": {
-        "description": "Deprecated zkLogin authenticator — empty stub retained only so the [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles. Instances are never constructed; deserialization rejects the flag byte.",
-        "type": "null"
       }
     }
   }

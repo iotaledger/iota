@@ -5,10 +5,8 @@ use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
 use super::{
-    super::utils::setup_grpc_test,
-    common::{
-        assert_proto_conversion_error, assert_server_not_found, execute_transaction_and_get_digest,
-    },
+    super::utils::{execute_transaction_and_get_digest, setup_grpc_test},
+    common::{assert_proto_conversion_error, assert_server_not_found},
 };
 
 #[sim_test]

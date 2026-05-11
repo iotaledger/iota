@@ -5,8 +5,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::ArcSwap;
-use consensus_config::Committee as ConsensusCommittee;
 use iota_types::{base_types::AuthorityName, committee::Committee};
+use starfish_config::Committee as ConsensusCommittee;
 use tracing::{debug, instrument};
 
 use crate::{authority::AuthorityMetrics, consensus_types::AuthorityIndex};
@@ -92,9 +92,9 @@ mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use arc_swap::ArcSwap;
-    use consensus_config::{Committee as ConsensusCommittee, local_committee_and_keys};
     use iota_types::{committee::Committee, crypto::AuthorityPublicKeyBytes};
     use prometheus::Registry;
+    use starfish_config::{Committee as ConsensusCommittee, local_committee_and_keys};
 
     use crate::{authority::AuthorityMetrics, scoring_decision::update_low_scoring_authorities};
 

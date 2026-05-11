@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
@@ -18,8 +16,7 @@ use iota_indexer::{
     schema::{checkpoints, events},
 };
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress as NativeIotaAddress, ObjectID},
     event::Event as NativeEvent,
     parse_iota_struct_tag,
 };
@@ -110,7 +107,7 @@ impl Event {
         MoveModule::query(
             ctx,
             self.native.package_id.into(),
-            &self.native.transaction_module.to_string(),
+            self.native.module.as_str(),
             self.checkpoint_viewed_at,
         )
         .await
@@ -310,15 +307,14 @@ impl Event {
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
-        let transaction_module =
-            Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
+        let module = Identifier::new(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();
         Ok(Event {
             checkpointed_info: Some(checkpointed),
             native: NativeEvent {
                 sender,
                 package_id,
-                transaction_module,
+                module,
                 type_,
                 contents,
             },

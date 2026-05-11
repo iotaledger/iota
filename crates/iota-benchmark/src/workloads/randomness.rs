@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber},
     crypto::get_key_pair,
     object::Owner,
@@ -182,7 +181,7 @@ impl Workload<dyn Payload> for RandomnessWorkload {
             self.basics_package_id = Some(
                 publish_basics_package(gas.0, proxy.clone(), gas.1, &gas.2, gas_price)
                     .await
-                    .0,
+                    .object_id,
             );
             info!("Basics package id {:?}", self.basics_package_id);
         }
@@ -190,13 +189,10 @@ impl Workload<dyn Payload> for RandomnessWorkload {
         // Get randomness shared object initial version
         if self.randomness_initial_shared_version.is_none() {
             let obj = proxy
-                .get_object(IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_object(ObjectID::RANDOMNESS_STATE)
                 .await
                 .expect("Failed to get randomness object");
-            let Owner::Shared {
-                initial_shared_version,
-            } = obj.owner()
-            else {
+            let Owner::Shared(initial_shared_version) = obj.owner() else {
                 panic!("randomness object must be shared");
             };
             self.randomness_initial_shared_version = Some(*initial_shared_version);

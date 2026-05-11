@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, bail, ensure};
 use iota_stardust_types::block::output as stardust;
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -62,17 +61,14 @@ pub(super) fn verify_alias_output(
     )?;
 
     // Alias Owner
-    let expected_alias_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_alias_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_alias_obj.owner == expected_alias_owner,

@@ -46,7 +46,7 @@ pub(crate) fn validate_get_transaction_requests(
                     .nested_at("requests", idx)
             })?;
 
-            TransactionDigest::try_from(digest_bytes.as_slice()).map_err(|e| {
+            TransactionDigest::from_bytes(&digest_bytes).map_err(|e| {
                 FieldViolation::new("digest")
                     .with_description(format!("invalid digest: {e}"))
                     .with_reason(ErrorReason::FieldInvalid)

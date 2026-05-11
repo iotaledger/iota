@@ -22,17 +22,18 @@ use iota_stardust_types::block::output::{
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
-    coin_manager::{CoinManager, CoinManagerTreasuryCap},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext, TypeTag,
+    },
+    coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::{MovePackage, TypeOrigin, UpgradeCap},
+    move_package::{MovePackage, TypeOrigin},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
@@ -40,11 +41,10 @@ use iota_types::{
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
     transaction::{
-        Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
+        Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, InputObjects,
         ObjectReadResult, ProgrammableTransaction,
     },
 };
-use move_core_types::{ident_str, language_storage::StructTag};
 use move_vm_runtime_latest::move_vm::MoveVM;
 
 use crate::{
@@ -176,7 +176,7 @@ impl Executor {
         object_refs.into_iter().filter_map(|object_ref| {
             Some(ObjectReadResult::new(
                 InputObjectKind::ImmOrOwnedMoveObject(object_ref),
-                self.store.get_object(&object_ref.0)?.clone().into(),
+                self.store.get_object(&object_ref.object_id)?.clone().into(),
             ))
         })
     }
@@ -247,12 +247,13 @@ impl Executor {
             let deps = self.checked_system_packages();
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let upgrade_cap = builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
+                let upgrade_cap =
+                    builder.command(Command::new_publish(modules, PACKAGE_DEPS.into()));
                 // We make a dummy transfer because the `UpgradeCap` does
                 // not have the drop ability.
                 //
                 // We ignore it in the genesis, to render the package immutable.
-                builder.transfer_arg(Default::default(), upgrade_cap);
+                builder.transfer_arg(IotaAddress::ZERO, upgrade_cap);
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
@@ -264,7 +265,7 @@ impl Executor {
                     foundry_package = Some(
                         object
                             .data
-                            .try_as_package()
+                            .as_package_opt()
                             .expect("already verified this is a package"),
                     );
                     created_objects.set_package(object.id())?;
@@ -272,7 +273,7 @@ impl Executor {
                     native_token_coin_id = Some(object.id());
                     created_objects.set_native_token_coin(object.id())?;
                 } else if let Some(tag) = object.struct_tag() {
-                    if CoinManager::is_coin_manager(&tag) {
+                    if tag.is_coin_manager() {
                         created_objects.set_coin_manager(object.id())?;
                     } else if CoinManagerTreasuryCap::is_coin_manager_treasury_cap(&tag) {
                         created_objects.set_coin_manager_treasury_cap(object.id())?;
@@ -308,7 +309,9 @@ impl Executor {
                 written
                     .into_iter()
                     // We ignore the [`UpgradeCap`] objects.
-                    .filter(|(_, object)| object.struct_tag() != Some(UpgradeCap::type_()))
+                    .filter(|(_, object)| {
+                        object.struct_tag().is_none_or(|tag| !tag.is_upgrade_cap())
+                    })
                     .collect(),
             );
             res.push((header.output_id(), created_objects));
@@ -373,13 +376,13 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let alias_output_arg =
-                builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
-            let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+                builder.obj(CallArg::ImmutableOrOwned(move_alias_output_object_ref))?;
+            let alias_arg = builder.obj(CallArg::ImmutableOrOwned(move_alias_object_ref))?;
 
             builder.programmable_move_call(
-                STARDUST_PACKAGE_ID,
-                ident_str!("alias_output").into(),
-                ident_str!("attach_alias").into(),
+                ObjectID::STARDUST,
+                Identifier::from_static("alias_output"),
+                Identifier::from_static("attach_alias"),
                 vec![coin_type.to_type_tag()],
                 vec![alias_output_arg, alias_arg],
             );
@@ -454,7 +457,7 @@ impl Executor {
             // Nevertheless, we only store the contents of the object, and thus the
             // ownership metadata are irrelevant to us. This is a dummy transfer
             // then to satisfy the VM.
-            builder.transfer_arg(Default::default(), bag);
+            builder.transfer_arg(IotaAddress::ZERO, bag);
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
@@ -489,7 +492,7 @@ impl Executor {
         let bag = bcs::from_bytes(
             bag_object
                 .data
-                .try_as_move()
+                .as_struct_opt()
                 .expect("this should be a move object")
                 .contents(),
         )
@@ -719,12 +722,12 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let nft_output_arg =
-                builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_output_object_ref))?;
-            let nft_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_object_ref))?;
+                builder.obj(CallArg::ImmutableOrOwned(move_nft_output_object_ref))?;
+            let nft_arg = builder.obj(CallArg::ImmutableOrOwned(move_nft_object_ref))?;
             builder.programmable_move_call(
-                STARDUST_PACKAGE_ID,
-                ident_str!("nft_output").into(),
-                ident_str!("attach_nft").into(),
+                ObjectID::STARDUST,
+                Identifier::from_static("nft_output"),
+                Identifier::from_static("attach_nft"),
                 vec![coin_type.to_type_tag()],
                 vec![nft_output_arg, nft_arg],
             );
@@ -761,6 +764,8 @@ impl Executor {
 }
 
 mod pt {
+    use iota_types::base_types::Identifier;
+
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;
 
@@ -770,19 +775,19 @@ mod pt {
         token_type_tag: TypeTag,
         amount: u64,
     ) -> Result<Argument> {
-        let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
+        let foundry_coin_ref = builder.obj(CallArg::ImmutableOrOwned(foundry_coin_ref))?;
         let amount = builder.pure(amount)?;
         let coin = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("split").into(),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE,
+            Identifier::from_static("split"),
             vec![token_type_tag.clone()],
             vec![foundry_coin_ref, amount],
         );
         Ok(builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("into_balance").into(),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE,
+            Identifier::from_static("into_balance"),
             vec![token_type_tag],
             vec![coin],
         ))
@@ -796,12 +801,12 @@ mod pt {
         token_type: String,
     ) -> Result<()> {
         let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
-        let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
+        let value_type = StructTag::new_balance(token_type.parse::<TypeTag>()?);
         let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("add").into(),
+            ObjectID::FRAMEWORK,
+            Identifier::BAG_MODULE,
+            Identifier::from_static("add"),
             vec![key_type.into(), value_type.into()],
             vec![bag, bag_key_arg, balance],
         );
@@ -810,9 +815,9 @@ mod pt {
 
     pub fn bag_new(builder: &mut ProgrammableTransactionBuilder) -> Argument {
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("new").into(),
+            ObjectID::FRAMEWORK,
+            Identifier::BAG_MODULE,
+            Identifier::from_static("new"),
             vec![],
             vec![],
         )

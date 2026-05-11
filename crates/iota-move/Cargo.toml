@@ -14,7 +14,7 @@ colored.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 serde_yaml.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
 
 # internal dependencies

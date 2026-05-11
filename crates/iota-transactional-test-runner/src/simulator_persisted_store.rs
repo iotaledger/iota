@@ -9,10 +9,12 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber,
+    },
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, UserInputError},
     messages_checkpoint::{
@@ -198,7 +200,7 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn get_clock(&self) -> iota_types::clock::Clock {
-        SimulatorStore::get_object(self, &iota_types::IOTA_CLOCK_OBJECT_ID)
+        SimulatorStore::get_object(self, &ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -220,13 +222,16 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
-        Box::new(self.read_write.live_objects
-            .safe_iter()
-            .map(|result| result.expect("rocksdb iteration failed"))
-            .flat_map(|(id, version)| self.get_object_at_version(&id, version))
-            .filter(
-                move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
-            ))
+        Box::new(
+            self.read_write
+                .live_objects
+                .safe_iter()
+                .map(|result| result.expect("rocksdb iteration failed"))
+                .flat_map(|(id, version)| self.get_object_at_version(&id, version))
+                .filter(
+                    move |object| matches!(object.owner, Owner::Address(addr) if addr == owner),
+                ),
+        )
     }
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
@@ -305,12 +310,12 @@ impl SimulatorStore for PersistedStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
-        for (object_id, _, _) in deleted_objects {
+        for object_ref in deleted_objects {
             self.read_write
                 .live_objects
-                .remove(&object_id)
+                .remove(&object_ref.object_id)
                 .expect("Fatal: DB write failed");
         }
 
@@ -372,7 +377,7 @@ impl ChildObjectResolver for PersistedStore {
         };
 
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -401,7 +406,7 @@ impl ChildObjectResolver for PersistedStore {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 
@@ -428,12 +433,12 @@ impl ModuleResolver for PersistedStore {
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
-            .get_package_object(&ObjectID::from(*module_id.address()))?
+            .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
             .and_then(|package| {
                 package
                     .move_package()
                     .serialized_module_map()
-                    .get(module_id.name().as_str())
+                    .get(&Identifier::new_unchecked(module_id.name().as_str()))
                     .cloned()
             }))
     }
@@ -800,7 +805,7 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)

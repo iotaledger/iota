@@ -8,11 +8,10 @@ use anemo::{
     PeerId,
     types::{PeerAffinity, PeerInfo},
 };
-use consensus_config::{Authority, Committee as ConsensusCommittee};
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::ProtocolVersion;
 use serde::{Deserialize, Serialize};
-use starfish_config::{Authority as StarfishAuthority, Committee as StarfishCommittee};
+use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::{error, warn};
 
 use crate::{
@@ -35,7 +34,6 @@ pub trait EpochStartSystemStateTrait {
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
     fn get_consensus_committee(&self) -> ConsensusCommittee;
-    fn get_starfish_committee(&self) -> StarfishCommittee;
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
@@ -163,59 +161,6 @@ impl EpochStartSystemStateV1 {
         }
     }
 }
-// Helper macro to implement get_committee functions for different committee
-// types.
-macro_rules! impl_get_committee {
-    (
-        // function signature
-        fn $fn_name:ident -> $committee_ty:path,
-        // Committee authority type
-        authority = $authority_ty:ident,
-        // Config module where the committee authority public key types are defined
-        cfg = $cfg:ident,
-        // Label for logging purposes
-        label = $label:expr
-    ) => {
-        fn $fn_name(&self) -> $committee_ty {
-            let mut authorities: Vec<$authority_ty> =
-                Vec::with_capacity(self.committee_validators.len());
-
-            for validator in self.committee_validators.iter() {
-                authorities.push($authority_ty {
-                    stake: validator.voting_power as $cfg::Stake,
-                    address: validator.primary_address.clone(),
-                    hostname: validator.hostname.clone(),
-                    authority_key: <$cfg::AuthorityPublicKey>::new(
-                        validator.authority_pubkey.clone(),
-                    ),
-                    protocol_key: <$cfg::ProtocolPublicKey>::new(validator.protocol_pubkey.clone()),
-                    network_key: <$cfg::NetworkPublicKey>::new(validator.network_pubkey.clone()),
-                });
-            }
-
-            // Sort the authorities by their authority (public) key in ascending order, same
-            // as the order in the IOTA committee returned from get_iota_committee().
-            authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
-
-            for ((i, authority), iota_authority_name) in authorities
-                .iter()
-                .enumerate()
-                .zip(self.get_iota_committee().names())
-            {
-                if iota_authority_name.0 != authority.authority_key.to_bytes() {
-                    error!(
-                        "Mismatched authority order between IOTA and {}! \
-                        Index {}, {} authority {:?}\nIota authority name {}",
-                        $label, i, $label, authority, iota_authority_name
-                    );
-                }
-            }
-
-            <$committee_ty>::new(self.epoch as $cfg::Epoch, authorities)
-        }
-    };
-}
-
 impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     fn epoch(&self) -> EpochId {
         self.epoch
@@ -279,19 +224,45 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         Committee::new(self.epoch, voting_rights)
     }
 
-    impl_get_committee!(
-        fn get_consensus_committee -> ConsensusCommittee,
-        authority = Authority,
-        cfg = consensus_config,
-        label = "Mysticeti"
-    );
+    fn get_consensus_committee(&self) -> ConsensusCommittee {
+        let mut authorities: Vec<Authority> = Vec::with_capacity(self.committee_validators.len());
 
-    impl_get_committee!(
-        fn get_starfish_committee -> StarfishCommittee,
-        authority = StarfishAuthority,
-        cfg = starfish_config,
-        label = "Starfish"
-    );
+        for validator in self.committee_validators.iter() {
+            authorities.push(Authority {
+                stake: validator.voting_power as starfish_config::Stake,
+                address: validator.primary_address.clone(),
+                hostname: validator.hostname.clone(),
+                authority_key: <starfish_config::AuthorityPublicKey>::new(
+                    validator.authority_pubkey.clone(),
+                ),
+                protocol_key: <starfish_config::ProtocolPublicKey>::new(
+                    validator.protocol_pubkey.clone(),
+                ),
+                network_key: <starfish_config::NetworkPublicKey>::new(
+                    validator.network_pubkey.clone(),
+                ),
+            });
+        }
+
+        // Sort the authorities by their authority (public) key in ascending order, same
+        // as the order in the IOTA committee returned from get_iota_committee().
+        authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
+
+        for ((i, authority), iota_authority_name) in authorities
+            .iter()
+            .enumerate()
+            .zip(self.get_iota_committee().names())
+        {
+            if iota_authority_name.0 != authority.authority_key.to_bytes() {
+                error!(
+                    "Mismatched authority order between IOTA and Starfish! \
+                    Index {i}, Starfish authority {authority:?}\nIota authority name {iota_authority_name}"
+                );
+            }
+        }
+
+        ConsensusCommittee::new(self.epoch as starfish_config::Epoch, authorities)
+    }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.committee_validators
@@ -413,10 +384,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.get_consensus_committee()
     }
 
-    fn get_starfish_committee(&self) -> StarfishCommittee {
-        self.v1.get_starfish_committee()
-    }
-
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.v1.get_validator_as_p2p_peers(excluding_self)
     }
@@ -491,7 +458,7 @@ mod test {
     };
 
     #[test]
-    fn test_iota_and_mysticeti_committee_are_same() {
+    fn test_iota_and_consensus_committee_are_same() {
         // GIVEN
         let mut committee_validators = vec![];
 
@@ -559,7 +526,7 @@ mod test {
     }
 
     #[test]
-    fn test_v2_iota_and_mysticeti_committee_are_same() {
+    fn test_v2_iota_and_consensus_committee_are_same() {
         // GIVEN
         let mut committee_validators = vec![];
         let mut non_committee_validators = vec![];
