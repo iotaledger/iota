@@ -18,7 +18,6 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    hash::HashFunction,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use futures::{StreamExt, TryStreamExt};
@@ -58,7 +57,7 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
-    crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
+    crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
@@ -1885,9 +1884,9 @@ impl IotaClientCommands {
                 )?;
                 let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
-                let mut hasher = DefaultHash::default();
-                hasher.update(bcs::to_bytes(&intent_msg)?);
-                let digest = hasher.finalize().digest;
+                // let mut hasher = DefaultHash::default();
+                // hasher.update(bcs::to_bytes(&intent_msg)?);
+                let digest = intent_msg.signing_message();
 
                 let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
                     let client = context.get_client().await?;

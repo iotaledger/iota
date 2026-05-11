@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::crypto::PublicKey as SdkPublicKey;
 use iota_types::{
     crypto::{EncodeDecodeBase64, PublicKey, SignatureScheme},
-    multisig::MultiSigPublicKey,
+    multisig::{MultiSigPublicKey, MultisigMember},
 };
 
 /// Read a string as a Base64 encoded ED25519 public key.
@@ -27,6 +28,14 @@ pub(crate) fn combine_keys(keys: impl IntoIterator<Item = PublicKey>) -> Result<
             .into_values()
             .collect();
 
-    let weights = vec![1; dedupped.len()];
-    Ok(MultiSigPublicKey::new(dedupped, weights, 1)?)
+    let members = dedupped
+        .into_iter()
+        .map(|pk| {
+            let member_pk = SdkPublicKey::from_base64(&pk.encode_base64())
+                .map_err(|e| anyhow!("Failed to convert public key: {e}"))?;
+            Ok(MultisigMember::new(member_pk, 1))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(MultiSigPublicKey::new(members, 1)?)
 }
