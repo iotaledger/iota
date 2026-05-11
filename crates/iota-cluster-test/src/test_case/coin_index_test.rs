@@ -661,7 +661,7 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::Shared {..},
+            owner: Owner::Shared(_),
             object_type,
             ..
         } if object_type.name().as_str() == "PublicRedEnvelope")

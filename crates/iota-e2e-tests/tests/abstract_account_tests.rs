@@ -46,6 +46,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
@@ -2176,7 +2177,7 @@ fn abstract_account_from_all_changed_objects(
     all_changed_objects
         .iter()
         .find_map(|change| match change {
-            (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
+            (_, Owner::Shared(_), WriteKind::Create) => Some(change.0),
             _ => None,
         })
         .expect("Expected a shared object in the transaction response")

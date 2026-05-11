@@ -12,9 +12,12 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_storage::{FileCompression, StorageFormat};
-use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
+use iota_swarm_config::test_utils::{
+    CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
+};
 use iota_types::{
-    messages_checkpoint::CheckpointDigest,
+    committee::{Committee, EpochId},
+    messages_checkpoint::{CheckpointDigest, VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus::Registry;
@@ -28,15 +31,41 @@ use crate::{
     utils::build_network,
 };
 
+fn make_committee_and_checkpoints<F: Fn() -> VerifiedCheckpointContents>(
+    epoch: EpochId,
+    committee_size: usize,
+    number_of_checkpoints: usize,
+    previous_checkpoint: Option<VerifiedCheckpoint>,
+    content_generator: F,
+) -> (CommitteeFixture, MakeCheckpointResults) {
+    let committee = CommitteeFixture::generate(rand::rngs::OsRng, epoch, committee_size);
+    let results = committee.make_checkpoints(
+        number_of_checkpoints,
+        previous_checkpoint,
+        content_generator,
+    );
+    (committee, results)
+}
+
+fn store_with_genesis_state(
+    genesis_checkpoint: VerifiedCheckpoint,
+    genesis_contents: VerifiedCheckpointContents,
+    committee: Committee,
+) -> SharedInMemoryStore {
+    let store = SharedInMemoryStore::default();
+    store
+        .inner_mut()
+        .insert_genesis_state(genesis_checkpoint, genesis_contents, committee);
+    store
+}
+
 #[tokio::test]
 // Test that the server stores the pushed checkpoint summary and triggers the
 // sync job.
 async fn server_push_checkpoint() {
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
-        committee.make_empty_checkpoints(2, None);
-    let store = SharedInMemoryStore::default();
-    store.inner_mut().insert_genesis_state(
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 2, None, empty_contents);
+    let store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
         committee.committee().to_owned(),
@@ -103,19 +132,15 @@ async fn server_push_checkpoint() {
 
 #[tokio::test]
 async fn server_get_checkpoint() {
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
-    let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
-        committee.make_empty_checkpoints(3, None);
+    let (committee, (ordered_checkpoints, _, _, _)) =
+        make_committee_and_checkpoints(0, 4, 3, None, empty_contents);
 
-    let (builder, server) = Builder::new()
-        .store(SharedInMemoryStore::default())
-        .build_internal();
-
-    builder.store.inner_mut().insert_genesis_state(
+    let store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
         committee.committee().to_owned(),
     );
+    let (builder, server) = Builder::new().store(store).build_internal();
 
     // Requests for the Latest checkpoint should return the genesis checkpoint
     let response = server
@@ -186,31 +211,29 @@ async fn server_get_checkpoint() {
 
 #[tokio::test]
 async fn isolated_sync_job() {
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // Build mock data
-    let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
-        committee.make_empty_checkpoints(100, None);
+    let (committee, (ordered_checkpoints, _, sequence_number_to_digest, checkpoints)) =
+        make_committee_and_checkpoints(0, 4, 100, None, empty_contents);
 
-    // Build and connect two nodes
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    // Build and connect two nodes — genesis is initialized in each store before
+    // it is passed to the builder.
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
     let network_1 = build_network(|router| router.add_rpc_service(server));
     let (mut event_loop_1, _handle_1) = builder.build(network_1.clone());
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    let (builder, server) = Builder::new().store(store_2).build();
     let network_2 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
-
-    // Init the root committee in both nodes
-    event_loop_1.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    event_loop_2.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
 
     // Node 2 will have all the data
     {
@@ -271,10 +294,9 @@ async fn isolated_sync_job() {
 
 #[tokio::test]
 async fn test_state_sync_using_archive() -> anyhow::Result<()> {
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // Build mock data
-    let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
-        committee.make_empty_checkpoints(100, None);
+    let (committee, (ordered_checkpoints, _, sequence_number_to_digest, checkpoints)) =
+        make_committee_and_checkpoints(0, 4, 100, None, empty_contents);
     // Initialize archive store with all checkpoints
     let tmp_dir = iota_common::tempdir();
     let local_path = tmp_dir.path().join("local_dir");
@@ -294,13 +316,12 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
         remote_store_config.clone(),
         FileCompression::Zstd,
         StorageFormat::Blob,
-        Duration::from_secs(10),
+        Duration::from_secs(1),
         20,
         &Registry::default(),
     )
     .await?;
-    let test_store = SharedInMemoryStore::default();
-    test_store.inner_mut().insert_genesis_state(
+    let test_store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
         committee.committee().to_owned(),
@@ -337,29 +358,28 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     }
     // Build and connect two nodes where Node 1 will be given access to an archive
     // store Node 2 will prune older checkpoints, so Node 1 is forced to
-    // backfill from the archive
+    // backfill from the archive. Genesis is initialized in each store before it
+    // is passed to the builder.
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
     let (builder, server) = Builder::new()
-        .store(SharedInMemoryStore::default())
+        .store(store_1)
         .archive_readers(archive_readers)
         .build();
     let network_1 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_1, _handle_1) = builder.build(network_1.clone());
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    let (builder, server) = Builder::new().store(store_2).build();
     let network_2 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
-
-    // Init the root committee in both nodes
-    event_loop_1.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    event_loop_2.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
 
     // Node 2 will have all the data at first
     {
@@ -455,31 +475,28 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
 #[tokio::test]
 async fn sync_with_checkpoints_being_inserted() {
     telemetry_subscribers::init_for_testing();
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // Build mock data
-    let (ordered_checkpoints, _contents, sequence_number_to_digest, checkpoints) =
-        committee.make_empty_checkpoints(4, None);
+    let (committee, (ordered_checkpoints, _contents, sequence_number_to_digest, checkpoints)) =
+        make_committee_and_checkpoints(0, 4, 4, None, empty_contents);
 
-    // Build and connect two nodes
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    // Build two nodes — genesis must be in the store before passing to the
+    // builder so the cached genesis checkpoint is available.
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        empty_contents(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
     let network_1 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    let (builder, server) = Builder::new().store(store_2).build();
     let network_2 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
-    network_1.connect(network_2.local_addr()).await.unwrap();
-
-    // Init the root committee in both nodes
-    event_loop_1.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    event_loop_2.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
 
     // Get handles to each node's stores
     let store_1 = event_loop_1.store.clone();
@@ -497,6 +514,8 @@ async fn sync_with_checkpoints_being_inserted() {
     // Start both event loops
     tokio::spawn(event_loop_1.start());
     tokio::spawn(event_loop_2.start());
+
+    network_1.connect(network_2.local_addr()).await.unwrap();
 
     let mut subscriber_1 = handle_1.subscribe_to_synced_checkpoints();
     let mut subscriber_2 = handle_2.subscribe_to_synced_checkpoints();
@@ -585,35 +604,33 @@ async fn sync_with_checkpoints_being_inserted() {
 #[tokio::test]
 async fn sync_with_checkpoints_watermark() {
     telemetry_subscribers::init_for_testing();
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // Build mock data
-    let (ordered_checkpoints, contents, _sequence_number_to_digest, _checkpoints) =
-        committee.make_random_checkpoints(4, None);
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, random_contents);
     let last_checkpoint_seq = *ordered_checkpoints
         .last()
         .cloned()
         .unwrap()
         .sequence_number();
-    // Build and connect two nodes
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    // Build and connect two nodes — genesis is initialized in each store before
+    // it is passed to the builder.
+    let genesis_checkpoint_content = contents.first().cloned().unwrap();
+    let store_1 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        genesis_checkpoint_content.clone(),
+        committee.committee().to_owned(),
+    );
+    let store_2 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        genesis_checkpoint_content.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
     let network_1 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_1, handle_1) = builder.build(network_1.clone());
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    let (builder, server) = Builder::new().store(store_2).build();
     let network_2 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
-
-    // Init the root committee in both nodes
-    let genesis_checkpoint_content = contents.first().cloned().unwrap();
-    event_loop_1.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        genesis_checkpoint_content.clone(),
-        committee.committee().to_owned(),
-    );
-    event_loop_2.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        genesis_checkpoint_content.clone(),
-        committee.committee().to_owned(),
-    );
 
     // Get handles to each node's stores
     let store_1 = event_loop_1.store.clone();
@@ -757,29 +774,30 @@ async fn sync_with_checkpoints_watermark() {
         &last_checkpoint_seq
     );
 
-    // Add Peer 3
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    // Add Peer 3 — genesis is initialized in the store before it is passed to
+    // the builder so the store is ready for handshake.
+    let store_3 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        genesis_checkpoint_content.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_3).build();
     let network_3 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_3, handle_3) = builder.build(network_3.clone());
 
     let mut subscriber_3 = handle_3.subscribe_to_synced_checkpoints();
-    network_3.connect(network_1.local_addr()).await.unwrap();
-    network_3.connect(network_2.local_addr()).await.unwrap();
     let store_3 = event_loop_3.store.clone();
     let peer_heights_3 = event_loop_3.peer_heights.clone();
     peer_heights_3
         .write()
         .unwrap()
         .set_wait_interval_when_no_peer_to_sync_content(Duration::from_secs(1));
-    event_loop_3.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        genesis_checkpoint_content.clone(),
-        committee.committee().to_owned(),
-    );
     tokio::spawn(event_loop_3.start());
+    network_3.connect(network_1.local_addr()).await.unwrap();
+    network_3.connect(network_2.local_addr()).await.unwrap();
 
     // Peer 3 is able to sync checkpoint 1 with the help from Peer 2
-    timeout(Duration::from_secs(1), async {
+    timeout(Duration::from_secs(3), async {
         assert_eq!(
             subscriber_3.recv().await.unwrap().data(),
             ordered_checkpoints[1].data()
@@ -871,8 +889,14 @@ async fn sync_with_checkpoints_watermark() {
         .inner_mut()
         .set_lowest_available_checkpoint(a_very_high_checkpoint_seq);
 
-    // Start Peer 4
-    let (builder, server) = Builder::new().store(SharedInMemoryStore::default()).build();
+    // Start Peer 4 — genesis is initialized in the store before it is passed
+    // to the builder.
+    let store_4 = store_with_genesis_state(
+        ordered_checkpoints.first().cloned().unwrap(),
+        genesis_checkpoint_content,
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_4).build();
     let network_4 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_4, handle_4) = builder.build(network_4.clone());
 
@@ -883,11 +907,6 @@ async fn sync_with_checkpoints_watermark() {
         .write()
         .unwrap()
         .set_wait_interval_when_no_peer_to_sync_content(Duration::from_secs(1));
-    event_loop_4.store.inner_mut().insert_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        genesis_checkpoint_content,
-        committee.committee().to_owned(),
-    );
     tokio::spawn(event_loop_4.start());
     // Need to connect 4 to 1, 2, 3 manually, as it does not have discovery enabled
     network_4.connect(network_1.local_addr()).await.unwrap();

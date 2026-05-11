@@ -24,7 +24,7 @@ use iota_types::{
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::to_sender_signed_transaction,
 };
@@ -593,7 +593,7 @@ pub async fn publish_basics_package_and_make_counter(
         .unwrap()
         .created()
         .iter()
-        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared { .. }))
+        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared(_)))
         .unwrap()
         .reference;
     (package_ref, counter_ref)

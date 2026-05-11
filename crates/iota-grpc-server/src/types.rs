@@ -1147,8 +1147,7 @@ impl GrpcReader {
 
             let transaction_data = fields
                 .include_transaction
-                .then(|| transaction.transaction_data().clone().try_into())
-                .transpose()?;
+                .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
                 .include_signatures

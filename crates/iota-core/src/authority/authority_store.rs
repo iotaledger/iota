@@ -1684,6 +1684,7 @@ impl AuthorityStore {
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
             EPOCH_DURATION_MS_FOR_TESTING,
+            None,
         )
         .await;
         let _ = AuthorityStorePruner::compact(&self.perpetual_tables);

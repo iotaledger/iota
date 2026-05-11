@@ -258,6 +258,10 @@ jobs:
         run: |
           cargo doc --all-features --workspace --no-deps
 
+      - name: iota-grpc-client (no default features)
+        run: |
+          cargo nextest run --profile ci -p iota-grpc-client --no-default-features --no-tests=warn
+
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
 

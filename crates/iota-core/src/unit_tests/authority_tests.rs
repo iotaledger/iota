@@ -152,7 +152,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         if let Some(initial_shared_version) = initial_shared_version_override {
             shared_object
                 .data
-                .try_as_move_mut()
+                .as_struct_mut_opt()
                 .unwrap()
                 .increment_version_to(initial_shared_version);
             shared_object.owner = Owner::Shared(initial_shared_version);
@@ -343,7 +343,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
-        .try_as_move()
+        .as_struct_opt()
         .unwrap()
         .contents()
         .to_vec();
@@ -412,7 +412,7 @@ async fn test_dev_inspect_object_by_bytes() {
 
     // compare the bytes
     let updated_object = validator.get_object(&created_object_id).await.unwrap();
-    let updated_object_bytes = updated_object.data.try_as_move().unwrap().contents();
+    let updated_object_bytes = updated_object.data.as_struct_opt().unwrap().contents();
     assert_eq!(updated_object_bytes, updated_reference_bytes)
 }
 
@@ -516,7 +516,7 @@ async fn test_dev_inspect_dynamic_field() {
                 let created_object = validator.get_object(&created_object_id).await.unwrap();
                 created_object
                     .data
-                    .try_as_move()
+                    .as_struct_opt()
                     .unwrap()
                     .contents()
                     .to_vec()
@@ -544,7 +544,7 @@ async fn test_dev_inspect_dynamic_field() {
             vec![Argument::Input(0), Argument::Input(1)],
         )],
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let DevInspectResults { error, .. } = fullnode
         .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
         .await
@@ -623,7 +623,7 @@ async fn test_dev_inspect_return_values() {
     let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
-        .try_as_move()
+        .as_struct_opt()
         .unwrap()
         .contents()
         .to_vec();
@@ -783,7 +783,7 @@ async fn test_dev_inspect_gas_coin_argument() {
         builder.pay_iota(vec![recipient], vec![amount]).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let results = fullnode
         .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
         .await
@@ -832,7 +832,7 @@ async fn test_dev_inspect_gas_price() {
         builder.pay_iota(vec![recipient], vec![amount]).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let error = fullnode
         .dev_inspect_transaction_block(sender, kind.clone(), Some(1), None, None, None, None, None)
         .await
@@ -900,7 +900,7 @@ async fn test_dev_inspect_uses_unbound_object() {
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
 
     let result = fullnode
         .dev_inspect_transaction_block(
@@ -1055,7 +1055,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
             vec![Argument::Input(0)],
         )],
     };
-    let kind = TransactionKind::programmable(pt.clone());
+    let kind = TransactionKind::new_programmable(pt.clone());
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     // dev inspect
     let DevInspectResults { effects, .. } = fullnode
@@ -1110,7 +1110,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
             vec![Argument::Input(0), Argument::Input(1)],
         )],
     };
-    let kind = TransactionKind::programmable(pt.clone());
+    let kind = TransactionKind::new_programmable(pt.clone());
     // dev inspect
     let DevInspectResults { effects, .. } = fullnode
         .dev_inspect_transaction_block(sender, kind, Some(rgp + 100), None, None, None, None, None)
@@ -1438,7 +1438,7 @@ async fn test_handle_sponsored_transaction() {
             .unwrap();
         builder.finish()
     };
-    let tx_kind = TransactionKind::programmable(pt);
+    let tx_kind = TransactionKind::new_programmable(pt);
 
     let data = TransactionData::new_with_gas_data(
         tx_kind.clone(),
@@ -3100,7 +3100,7 @@ async fn test_genesis_iota_system_state_object() {
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
-    let move_object = wrapper.data.try_as_move().unwrap();
+    let move_object = wrapper.data.as_struct_opt().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
     assert!(move_object.struct_tag().is_iota_system_state());
@@ -4491,7 +4491,7 @@ pub async fn call_dev_inspect(
         type_arguments,
         arguments,
     ));
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     authority
         .dev_inspect_transaction_block(*sender, kind, Some(rgp), None, None, None, None, None)
@@ -5630,7 +5630,7 @@ async fn test_for_inc_201_dev_inspect() {
         modules,
         BuiltInFramework::all_package_ids(),
     ));
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let DevInspectResults { events, .. } = fullnode
         .dev_inspect_transaction_block(
             sender,
@@ -5672,7 +5672,7 @@ async fn test_for_inc_201_dry_run() {
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(modules, BuiltInFramework::all_package_ids());
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(
@@ -5724,7 +5724,7 @@ async fn test_function_not_found() {
             vec![],
         )
         .unwrap();
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(
@@ -5780,7 +5780,7 @@ async fn test_arity_mismatch() {
             vec![],
         )
         .unwrap();
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(
@@ -5854,7 +5854,7 @@ async fn test_publish_transitive_dependencies_ok() {
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(modules, vec![]);
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let txn_data = TransactionData::new_with_gas_coins(
         kind,
         sender,
@@ -5893,7 +5893,7 @@ async fn test_publish_transitive_dependencies_ok() {
 
     builder.publish_immutable(modules, vec![object_ref_c.object_id]); // Note: B depends on C
 
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let txn_data = TransactionData::new_with_gas_coins(
         kind,
         sender,
@@ -5939,7 +5939,7 @@ async fn test_publish_transitive_dependencies_ok() {
         vec![object_ref_b.object_id, object_ref_c.object_id],
     ); // Note: A depends on B and C.
 
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let txn_data = TransactionData::new_with_gas_coins(
         kind,
         sender,
@@ -5998,7 +5998,7 @@ async fn test_publish_transitive_dependencies_ok() {
     ]);
     builder.publish_immutable(modules, deps);
 
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
     let txn_data = TransactionData::new_with_gas_coins(
         kind,
         sender,
@@ -6041,7 +6041,7 @@ async fn test_publish_missing_dependency() {
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(modules, vec![ObjectID::FRAMEWORK]);
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(
@@ -6090,7 +6090,7 @@ async fn test_publish_missing_transitive_dependency() {
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(modules, vec![ObjectID::STD]);
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(
@@ -6142,7 +6142,7 @@ async fn test_publish_not_a_package_dependency() {
     // One of these things is not like the others
     deps.push(ObjectID::SYSTEM_STATE);
     builder.publish_immutable(modules, deps);
-    let kind = TransactionKind::programmable(builder.finish());
+    let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let txn_data = TransactionData::new_with_gas_coins(

@@ -11,13 +11,15 @@ use iota_types::{
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind},
+    transaction::{
+        Argument, CallArg, SharedObjectRef, TransactionData, TransactionDataAPI, TransactionKind,
+    },
 };
 
 use crate::TransactionBuilder;
 
 impl TransactionBuilder {
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
@@ -31,7 +33,7 @@ impl TransactionBuilder {
             builder.transfer_arg(sender, upgrade_cap);
             builder.finish()
         };
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Publish a new move package.
@@ -57,7 +59,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
@@ -121,7 +123,7 @@ impl TransactionBuilder {
             builder.finish()
         };
 
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Upgrade an existing move package.

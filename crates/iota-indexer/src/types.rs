@@ -309,7 +309,7 @@ pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<IotaAddress>) {
     match owner {
         Owner::Address(address) => (OwnerType::Address, Some(*address)),
         Owner::Object(object_id) => (OwnerType::Object, Some(*object_id.as_address())),
-        Owner::Shared { .. } => (OwnerType::Shared, None),
+        Owner::Shared(_) => (OwnerType::Shared, None),
         Owner::Immutable => (OwnerType::Immutable, None),
         _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
     }

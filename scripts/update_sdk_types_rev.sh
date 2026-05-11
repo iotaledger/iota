@@ -66,11 +66,6 @@ echo "Updated rev in Cargo.toml files."
 echo "Updating Cargo.lock for workspace..."
 run_with_timeout 5 cargo check
 
-echo "Updating Cargo.lock for examples/tic-tac-toe/cli..."
-cd examples/tic-tac-toe/cli
-run_with_timeout 5 cargo check
-cd ../../..
-
 echo "Updating Cargo.lock for docs/examples/rust..."
 cd docs/examples/rust
 run_with_timeout 5 cargo check

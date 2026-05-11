@@ -27,7 +27,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionKind,
+        TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
 
@@ -301,7 +301,7 @@ impl TestCheckpointDataBuilder {
             .expect("Mutating an object that does not exist");
         let coin_type = object.coin_type_opt().cloned().unwrap();
         // Withdraw balance from coin object.
-        let move_object = object.data.try_as_move_mut().unwrap();
+        let move_object = object.data.as_struct_mut_opt().unwrap();
         let old_balance = move_object.get_coin_value_unchecked();
         let new_balance = old_balance - amount;
         move_object.set_coin_value_unchecked(new_balance);
@@ -448,14 +448,7 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(
-            TransactionKind::ProgrammableTransaction(pt),
-            sender,
-            gas,
-            1,
-            1,
-        );
-
+        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
         let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
@@ -530,7 +523,7 @@ impl TestCheckpointDataBuilder {
             ))
             .map(|mut o| {
                 o.data
-                    .try_as_move_mut()
+                    .as_struct_mut_opt()
                     .unwrap()
                     .increment_version_to(lamport_version);
                 o
@@ -575,7 +568,7 @@ impl TestCheckpointDataBuilder {
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
-            TransactionKind::EndOfEpochTransaction(vec![tx_kind]),
+            TransactionKind::EndOfEpoch(vec![tx_kind]),
             IotaAddress::ZERO,
             random_object_ref(),
             1,
@@ -712,7 +705,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, TransactionDataAPI},
+        transaction::{Command, TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -983,7 +976,7 @@ mod tests {
         // with 100 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 100));
+            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 100));
 
         let tx = &checkpoint.transactions[1];
         let obj_id1 = TestCheckpointDataBuilder::derive_object_id(1);
@@ -991,12 +984,12 @@ mod tests {
         // Verify the original IOTA coin now has 90 NANOS after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 90));
+            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out IOTA coin has 10 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
             && obj.is_gas_coin()
-            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 10));
+            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]
@@ -1018,12 +1011,12 @@ mod tests {
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.coin_type_opt() == Some(&type_tag)
-            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 90));
+            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
             && obj.coin_type_opt() == Some(&type_tag)
-            && obj.data.try_as_move().unwrap().get_coin_value_unchecked() == 10));
+            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]

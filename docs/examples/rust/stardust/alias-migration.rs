@@ -25,6 +25,7 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
+use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -148,7 +149,7 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Create an NFT collection
-            let nft_collection_name = builder.pure(&"Collection name").unwrap();
+            let nft_collection_name = builder.pure("Collection name").unwrap();
 
             let nft_collection = builder.programmable_move_call(
                 custom_nft_package_id,
@@ -159,9 +160,9 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Mint a collection-related NFT
-            let nft_name = builder.pure(&"NFT name").unwrap();
-            let nft_description = builder.pure(&"NFT description").unwrap();
-            let nft_url_value = builder.pure(&"NFT URL").unwrap();
+            let nft_name = builder.pure("NFT name").unwrap();
+            let nft_description = builder.pure("NFT description").unwrap();
+            let nft_url_value = builder.pure("NFT URL").unwrap();
             let nft_url = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::URL_MODULE,

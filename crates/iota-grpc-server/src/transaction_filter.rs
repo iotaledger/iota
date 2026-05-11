@@ -21,21 +21,21 @@ const MAX_FILTER_DEPTH: usize = 10;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransactionKind {
-    /// The `SystemTransaction` variant can be used to filter for all types of
-    /// system transactions.
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
+    /// The `System` variant can be used to filter for all types of system
+    /// transactions.
+    System = 0,
+    Programmable = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    EndOfEpochTransaction = 5,
+    EndOfEpoch = 5,
     RandomnessStateUpdate = 6,
 }
 
 impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
     fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::ProgrammableTransaction(_) => {
-                TransactionKind::ProgrammableTransaction
+            iota_types::transaction::TransactionKind::Programmable(_) => {
+                TransactionKind::Programmable
             }
             iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
             iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
@@ -43,14 +43,15 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             }
             #[allow(deprecated)]
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                TransactionKind::SystemTransaction
+                TransactionKind::System
             }
-            iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
-                TransactionKind::EndOfEpochTransaction
-            }
+            iota_types::transaction::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
             iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -60,19 +61,13 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
 
     fn try_from(kind: proto_filter::TransactionKind) -> Result<Self, String> {
         match kind {
-            proto_filter::TransactionKind::SystemTransaction => {
-                Ok(TransactionKind::SystemTransaction)
-            }
-            proto_filter::TransactionKind::ProgrammableTransaction => {
-                Ok(TransactionKind::ProgrammableTransaction)
-            }
+            proto_filter::TransactionKind::System => Ok(TransactionKind::System),
+            proto_filter::TransactionKind::Programmable => Ok(TransactionKind::Programmable),
             proto_filter::TransactionKind::Genesis => Ok(TransactionKind::Genesis),
             proto_filter::TransactionKind::ConsensusCommitPrologueV1 => {
                 Ok(TransactionKind::ConsensusCommitPrologueV1)
             }
-            proto_filter::TransactionKind::EndOfEpochTransaction => {
-                Ok(TransactionKind::EndOfEpochTransaction)
-            }
+            proto_filter::TransactionKind::EndOfEpoch => Ok(TransactionKind::EndOfEpoch),
             proto_filter::TransactionKind::RandomnessStateUpdate => {
                 Ok(TransactionKind::RandomnessStateUpdate)
             }
@@ -328,9 +323,9 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
         TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
-        | TransactionKind::EndOfEpochTransaction
+        | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
-        TransactionKind::ProgrammableTransaction => false,
+        TransactionKind::Programmable => false,
         _ => panic!("Unhandled transaction kind"),
     }
 }
@@ -350,7 +345,7 @@ impl TransactionFilter {
             TransactionFilter::TransactionKind(kinds) => {
                 let actual_kind = TransactionKind::from(tx_data.kind());
                 kinds.iter().any(|kind| match kind {
-                    TransactionKind::SystemTransaction => is_system_transaction(&actual_kind),
+                    TransactionKind::System => is_system_transaction(&actual_kind),
                     _ => kind == &actual_kind,
                 })
             }
@@ -371,7 +366,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::ProgrammableTransaction(pt) => {
+                iota_types::transaction::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,

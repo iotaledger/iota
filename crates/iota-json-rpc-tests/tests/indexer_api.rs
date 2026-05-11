@@ -27,7 +27,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, TransactionData},
+    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -73,7 +73,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     };
     let nft_object = ObjectInner {
         owner: Owner::Address(address),
-        data: Data::Move(nft_move_object),
+        data: Data::Struct(nft_move_object),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };

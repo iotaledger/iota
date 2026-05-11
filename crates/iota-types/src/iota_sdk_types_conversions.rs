@@ -21,21 +21,18 @@ use iota_sdk_types::{
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
-        UnchangedSharedKind, UnchangedSharedObject,
+        UnchangedSharedObject,
     },
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, Object, ObjectData},
-    transaction::{
-        GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
-        TransactionKind, TransactionV1,
-    },
+    object::Object,
+    transaction::SignedTransaction,
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use tap::Pipe;
 
-use crate::{object::ObjectInner, transaction::TransactionDataAPI as _};
+use crate::object::ObjectInner;
 
 #[derive(Debug)]
 pub struct SdkTypeConversionError(pub String);
@@ -71,7 +68,7 @@ impl TryFrom<crate::object::Object> for Object {
 
     fn try_from(value: crate::object::Object) -> Result<Self, Self::Error> {
         Self {
-            data: value.data.clone().try_into()?,
+            data: value.data.clone(),
             owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
@@ -85,209 +82,11 @@ impl TryFrom<Object> for crate::object::Object {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         Self::from(ObjectInner {
-            data: value.data.try_into()?,
+            data: value.data,
             owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         })
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::object::Data> for ObjectData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::object::Data) -> Result<Self, Self::Error> {
-        match value {
-            crate::object::Data::Move(move_object) => Self::Struct(move_object),
-            crate::object::Data::Package(move_package) => Self::Package(move_package),
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<ObjectData> for crate::object::Data {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
-        match value {
-            ObjectData::Struct(move_object) => Self::Move(move_object),
-            ObjectData::Package(move_package) => Self::Package(move_package),
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
-        match value {
-            crate::transaction::TransactionData::V1(value) => value.try_into(),
-        }
-    }
-}
-
-impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
-        Ok(Self::V1(value.try_into()?))
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionData> for Transaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
-        match value {
-            crate::transaction::TransactionData::V1(value) => Ok(Self::V1(value.try_into()?)),
-        }
-    }
-}
-
-impl TryFrom<Transaction> for crate::transaction::TransactionData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
-        match value {
-            Transaction::V1(value) => value.try_into(),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
-        Self {
-            sender: value.sender(),
-            gas_payment: GasPayment {
-                objects: value.gas().to_vec(),
-                owner: value.gas_data().owner,
-                price: value.gas_data().price,
-                budget: value.gas_data().budget,
-            },
-            expiration: value.expiration,
-            kind: value.into_kind().try_into()?,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
-        Self {
-            kind: value.kind.try_into()?,
-            sender: value.sender,
-            gas_data: value.gas_payment,
-            expiration: value.expiration,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionKind) -> Result<Self, Self::Error> {
-        use crate::transaction::TransactionKind as InternalTxnKind;
-
-        match value {
-            InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
-                TransactionKind::ProgrammableTransaction(programmable_transaction)
-            }
-            InternalTxnKind::Genesis(genesis_transaction) => {
-                TransactionKind::Genesis(GenesisTransaction {
-                    objects: genesis_transaction
-                        .objects
-                        .into_iter()
-                        .map(|obj| match obj {
-                            crate::transaction::GenesisObject::RawObject { data, owner } => {
-                                match data.try_into() {
-                                    Ok(data) => Ok(GenesisObject { data, owner }),
-                                    Err(e) => Err(e),
-                                }
-                            }
-                        })
-                        .collect::<Result<_, _>>()?,
-                    events: genesis_transaction.events,
-                })
-            }
-            InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
-            }
-            #[allow(deprecated)]
-            InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                TransactionKind::AuthenticatorStateUpdateV1Deprecated
-            }
-            InternalTxnKind::EndOfEpochTransaction(vec) => TransactionKind::EndOfEpoch(vec),
-            InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
-                TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-                    epoch: randomness_state_update.epoch,
-                    randomness_round: randomness_state_update.randomness_round,
-                    random_bytes: randomness_state_update.random_bytes,
-                    randomness_obj_initial_shared_version: randomness_state_update
-                        .randomness_obj_initial_shared_version,
-                })
-            }
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionKind) -> Result<Self, Self::Error> {
-        match value {
-            TransactionKind::ProgrammableTransaction(programmable_transaction) => {
-                Self::ProgrammableTransaction(programmable_transaction)
-            }
-            TransactionKind::Genesis(genesis_transaction) => {
-                Self::Genesis(crate::transaction::GenesisTransaction {
-                    objects: genesis_transaction
-                        .objects
-                        .into_iter()
-                        .map(|obj| match obj.data.try_into() {
-                            Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
-                                data,
-                                owner: obj.owner,
-                            }),
-                            Err(e) => Err(e),
-                        })
-                        .collect::<Result<_, _>>()?,
-                    events: genesis_transaction.events,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                Self::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
-            }
-            #[allow(deprecated)]
-            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                Self::AuthenticatorStateUpdateV1Deprecated
-            }
-            TransactionKind::EndOfEpoch(vec) => Self::EndOfEpochTransaction(vec),
-            TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
-                Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
-                    epoch: randomness_state_update.epoch,
-                    randomness_round: randomness_state_update.randomness_round,
-                    random_bytes: randomness_state_update.random_bytes,
-                    randomness_obj_initial_shared_version: randomness_state_update
-                        .randomness_obj_initial_shared_version,
-                })
-            }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
         .pipe(Ok)
     }
 }
@@ -351,30 +150,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, kind)| UnchangedSharedObject {
                             object_id: id,
-                            kind: match kind {
-                                crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                    version,
-                                    digest,
-                                )) => UnchangedSharedKind::ReadOnlyRoot { version, digest },
-                                crate::effects::UnchangedSharedKind::MutateDeleted(
-                                    sequence_number,
-                                ) => UnchangedSharedKind::MutateDeleted {
-                                    version: sequence_number,
-                                },
-                                crate::effects::UnchangedSharedKind::ReadDeleted(
-                                    sequence_number,
-                                ) => UnchangedSharedKind::ReadDeleted {
-                                    version: sequence_number,
-                                },
-                                crate::effects::UnchangedSharedKind::Cancelled(sequence_number) => {
-                                    UnchangedSharedKind::Cancelled {
-                                        version: sequence_number,
-                                    }
-                                }
-                                crate::effects::UnchangedSharedKind::PerEpochConfig => {
-                                    UnchangedSharedKind::PerEpochConfig
-                                }
-                            },
+                            kind,
                         })
                         .collect(),
                     auxiliary_data_digest: effects.aux_data_digest,
@@ -467,33 +243,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                             .map(|obj| {
                                 (
                                     obj.object_id,
-                                    match obj.kind {
-                                        UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                                            crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                                version,
-                                                digest,
-                                            ))
-                                        }
-                                        UnchangedSharedKind::MutateDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::MutateDeleted(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::ReadDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::ReadDeleted(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::Cancelled { version } => {
-                                            crate::effects::UnchangedSharedKind::Cancelled(
-                                                version,
-                                            )
-                                        }
-                                        UnchangedSharedKind::PerEpochConfig => {
-                                            crate::effects::UnchangedSharedKind::PerEpochConfig
-                                        }
-                                        _ => unimplemented!("a new enum variant was added and needs to be handled"),
-                                    },
+                                    obj.kind,
                                 )
                             })
                             .collect(),
@@ -874,7 +624,7 @@ impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
         } = value.into_inner();
 
         Self {
-            transaction: intent_message.value.try_into()?,
+            transaction: intent_message.value,
             signatures: tx_signatures
                 .into_iter()
                 .map(TryInto::try_into)
@@ -894,7 +644,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
         } = value;
 
         Self::new(
-            transaction.try_into()?,
+            transaction,
             signatures
                 .into_iter()
                 .map(TryInto::try_into)
@@ -1032,38 +782,5 @@ impl From<crate::crypto::AuthorityPublicKeyBytes> for Bls12381PublicKey {
 impl From<Bls12381PublicKey> for crate::crypto::AuthorityPublicKeyBytes {
     fn from(value: Bls12381PublicKey) -> Self {
         Self::new(value.into_inner())
-    }
-}
-
-impl From<UnchangedSharedKind> for crate::effects::UnchangedSharedKind {
-    fn from(value: UnchangedSharedKind) -> Self {
-        match value {
-            UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                Self::ReadOnlyRoot((version, digest))
-            }
-            UnchangedSharedKind::MutateDeleted { version } => Self::MutateDeleted(version),
-            UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version),
-            UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version),
-            UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-    }
-}
-
-impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
-    fn from(value: crate::effects::UnchangedSharedKind) -> Self {
-        match value {
-            crate::effects::UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
-                Self::ReadOnlyRoot { version, digest }
-            }
-            crate::effects::UnchangedSharedKind::MutateDeleted(version) => {
-                Self::MutateDeleted { version }
-            }
-            crate::effects::UnchangedSharedKind::ReadDeleted(version) => {
-                Self::ReadDeleted { version }
-            }
-            crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled { version },
-            crate::effects::UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
-        }
     }
 }

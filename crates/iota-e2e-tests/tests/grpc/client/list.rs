@@ -2,14 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::ObjectId;
 
-use super::super::utils::setup_grpc_test;
-
-/// Get the first wallet address from a test cluster.
-fn first_sender(cluster: &test_cluster::TestCluster) -> Address {
-    cluster.wallet.get_addresses().first().copied().unwrap()
-}
+use super::super::utils::{first_sender, setup_grpc_test};
 
 // ==========================================================================
 // list_owned_objects

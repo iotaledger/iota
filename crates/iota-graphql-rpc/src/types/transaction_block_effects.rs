@@ -6,7 +6,10 @@ use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
 };
-use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
+use iota_indexer::{
+    models::transactions::{OptimisticTransaction, StoredTransaction},
+    optimistic_indexing::IngestionPath,
+};
 use iota_json_rpc_types::IotaExecutionStatus;
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
@@ -124,7 +127,7 @@ impl TransactionBlockEffects {
     /// human-readable form if possible, otherwise it will fall back to
     /// displaying the abort code and location.
     #[graphql(complexity = 0)]
-    async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
+    pub(crate) async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let status = IotaExecutionStatus::from_native_with_clever_error(
@@ -564,5 +567,18 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
             kind: block.try_into()?,
             checkpoint_viewed_at,
         })
+    }
+}
+
+impl TryFrom<IngestionPath> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(ingestion_path: IngestionPath) -> std::result::Result<Self, Self::Error> {
+        match ingestion_path {
+            IngestionPath::Optimistic(optimistic_tx) => optimistic_tx.try_into(),
+            IngestionPath::Checkpoint(checkpointed_tx) => {
+                TransactionBlock::try_from(checkpointed_tx)?.try_into()
+            }
+        }
     }
 }

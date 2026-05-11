@@ -310,7 +310,7 @@ where
     V: Serialize + DeserializeOwned,
 {
     let object = get_dynamic_field_object_from_store(object_store, parent_id, key)?;
-    let move_object = object.data.try_as_move().ok_or_else(|| {
+    let move_object = object.data.as_struct_opt().ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
             "Dynamic field {:?} is not a Move object",
             object.id()

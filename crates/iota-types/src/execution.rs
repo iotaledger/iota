@@ -118,7 +118,7 @@ impl ExecutionResultsV1 {
 
             // Update the version for the written object.
             match &mut obj.data {
-                Data::Move(obj) => {
+                Data::Struct(obj) => {
                     // Move objects all get the transaction's lamport timestamp
                     obj.increment_version_to(lamport_version);
                 }

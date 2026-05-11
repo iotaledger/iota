@@ -779,7 +779,7 @@ impl IndexerReader {
     ///  Retrieval order:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
-    async fn multi_get_transactions(
+    pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<StoredTransaction>> {
@@ -1088,7 +1088,7 @@ impl IndexerReader {
             .map(|(id, version)| {
                 format!(
                     "('\\x{}'::bytea, {}::bigint)",
-                    id.to_hex(),
+                    Hex::encode(id.into_bytes()),
                     version.as_u64()
                 )
             })
@@ -1975,7 +1975,7 @@ impl IndexerReader {
         }
 
         let object: Object = stored_object.try_into()?;
-        let Some(move_object) = object.data.try_as_move().cloned() else {
+        let Some(move_object) = object.data.as_struct_opt().cloned() else {
             return Err(IndexerError::ResolveMoveStruct(
                 "Object is not a MoveObject".to_string(),
             ));
@@ -2033,7 +2033,7 @@ impl IndexerReader {
                         ))
                     })?;
 
-                let object_type = object.data.type_().unwrap().clone();
+                let object_type = object.data.object_type().unwrap().clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,

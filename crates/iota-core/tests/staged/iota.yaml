@@ -275,16 +275,6 @@ ConsensusDeterminedVersionAssignments:
         NEWTYPE:
           SEQ:
             TYPENAME: CancelledTransaction
-Data:
-  ENUM:
-    0:
-      Move:
-        NEWTYPE:
-          TYPENAME: MoveStruct
-    1:
-      Package:
-        NEWTYPE:
-          TYPENAME: MovePackage
 DeleteKind:
   ENUM:
     0:
@@ -541,7 +531,7 @@ GenesisObject:
       RawObject:
         STRUCT:
           - data:
-              TYPENAME: Data
+              TYPENAME: ObjectData
           - owner:
               TYPENAME: Owner
 GenesisTransaction:
@@ -570,7 +560,7 @@ IntentMessage:
     - intent:
         TYPENAME: Intent
     - value:
-        TYPENAME: TransactionData
+        TYPENAME: Transaction
 MakeMoveVector:
   STRUCT:
     - type:
@@ -669,7 +659,7 @@ MultiSigPublicKey:
 Object:
   STRUCT:
     - data:
-        TYPENAME: Data
+        TYPENAME: ObjectData
     - owner:
         TYPENAME: Owner
     - previous_transaction:
@@ -692,6 +682,16 @@ ObjectArg:
       Receiving:
         NEWTYPE:
           TYPENAME: TupleObjectReference
+ObjectData:
+  ENUM:
+    0:
+      Struct:
+        NEWTYPE:
+          TYPENAME: MoveStruct
+    1:
+      Package:
+        NEWTYPE:
+          TYPENAME: MovePackage
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -854,22 +854,12 @@ SystemPackage:
     - dependencies:
         SEQ:
           TYPENAME: ObjectId
-TransactionData:
+Transaction:
   ENUM:
     0:
       V1:
         NEWTYPE:
-          TYPENAME: TransactionDataV1
-TransactionDataV1:
-  STRUCT:
-    - kind:
-        TYPENAME: TransactionKind
-    - sender:
-        TYPENAME: Address
-    - gas_data:
-        TYPENAME: GasPayment
-    - expiration:
-        TYPENAME: TransactionExpiration
+          TYPENAME: TransactionV1
 TransactionEffects:
   ENUM:
     0:
@@ -922,7 +912,7 @@ TransactionExpiration:
 TransactionKind:
   ENUM:
     0:
-      ProgrammableTransaction:
+      Programmable:
         NEWTYPE:
           TYPENAME: ProgrammableTransaction
     1:
@@ -936,7 +926,7 @@ TransactionKind:
     3:
       AuthenticatorStateUpdateV1Deprecated: UNIT
     4:
-      EndOfEpochTransaction:
+      EndOfEpoch:
         NEWTYPE:
           SEQ:
             TYPENAME: EndOfEpochTransactionKind
@@ -944,6 +934,16 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TransactionV1:
+  STRUCT:
+    - kind:
+        TYPENAME: TransactionKind
+    - sender:
+        TYPENAME: Address
+    - gas_payment:
+        TYPENAME: GasPayment
+    - expiration:
+        TYPENAME: TransactionExpiration
 TransferObjects:
   STRUCT:
     - objects:
@@ -1017,19 +1017,22 @@ UnchangedSharedKind:
   ENUM:
     0:
       ReadOnlyRoot:
-        NEWTYPE:
-          TUPLE:
-            - U64
-            - TYPENAME: Digest
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
     1:
       MutateDeleted:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     2:
       ReadDeleted:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     3:
       Cancelled:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     4:
       PerEpochConfig: UNIT
 Upgrade:

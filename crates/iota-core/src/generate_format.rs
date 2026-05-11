@@ -45,7 +45,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
-        Transaction, TransactionData, TransactionExpiration, TransactionKind,
+        Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -252,7 +252,7 @@ fn get_registry() -> Result<Registry> {
     // serde_reflection's tracing deserializer for map keys.
     let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &Data::Move(sample_move_obj))
+        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
         .unwrap();
     let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
         upgraded_id: ObjectID::ZERO,
@@ -360,38 +360,50 @@ fn get_registry() -> Result<Registry> {
         inputs: vec![CallArg::Pure(vec![0u8])],
         commands: vec![Command::new_make_move_vector(None, vec![])],
     };
-    let sample_genesis_obj = GenesisObject::RawObject {
-        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
-        owner: Owner::Address(IotaAddress::ZERO),
-    };
-    for tk in [
-        TransactionKind::ProgrammableTransaction(sample_pt),
-        TransactionKind::Genesis(GenesisTransaction {
-            objects: vec![sample_genesis_obj.clone()],
-            events: vec![event.clone()],
-        }),
-        TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
-            epoch: 0,
-            round: 0,
-            sub_dag_index: Some(0),
-            commit_timestamp_ms: 0,
-            consensus_commit_digest: ConsensusCommitDigest::default(),
-            consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: vec![],
-                },
-        }),
-        TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-            epoch: 0,
-            randomness_round: 0u64.into(),
-            random_bytes: vec![0u8],
-            randomness_obj_initial_shared_version: 0u64.into(),
-        }),
-        #[expect(deprecated)]
-        TransactionKind::AuthenticatorStateUpdateV1Deprecated,
-    ] {
-        tracer.trace_value(&mut samples, &tk).unwrap();
-    }
+    tracer
+        .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
+        .unwrap();
+    let sample_genesis_obj = GenesisObject::new(
+        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        Owner::Address(IotaAddress::ZERO),
+    );
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![sample_genesis_obj.clone()],
+                events: vec![event.clone()],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                epoch: 0,
+                round: 0,
+                sub_dag_index: Some(0),
+                commit_timestamp_ms: 0,
+                consensus_commit_digest: ConsensusCommitDigest::default(),
+                consensus_determined_version_assignments:
+                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                        cancelled_transactions: vec![],
+                    },
+            }),
+        )
+        .unwrap();
+    // EndOfEpochTransaction variant is already covered by sender_data below
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
+                epoch: 0,
+                randomness_round: 0u64.into(),
+                random_bytes: vec![0u8],
+                randomness_obj_initial_shared_version: 0u64.into(),
+            }),
+        )
+        .unwrap();
 
     // Trace GenesisObject (single-variant enum)
     tracer
@@ -403,7 +415,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,
@@ -513,7 +525,7 @@ fn get_registry() -> Result<Registry> {
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
-            TransactionKind::EndOfEpochTransaction(vec![EndOfEpochTransactionKind::ChangeEpoch(
+            TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
                     epoch: 0,
                     protocol_version: 0,

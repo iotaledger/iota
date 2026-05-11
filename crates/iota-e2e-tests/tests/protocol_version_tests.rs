@@ -83,7 +83,7 @@ mod sim_only_tests {
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
-            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -420,7 +420,7 @@ mod sim_only_tests {
             .created()
             .iter()
             .find_map(|(obj, owner)| {
-                if let Owner::Shared { .. } = owner {
+                if let Owner::Shared(_) = owner {
                     let is_framework_obj = [
                         ObjectID::SYSTEM_STATE,
                         ObjectID::CLOCK,
@@ -553,7 +553,7 @@ mod sim_only_tests {
             builder.command(Command::MoveCall(call));
             builder.finish()
         };
-        let txn = TransactionKind::programmable(pt);
+        let txn = TransactionKind::new_programmable(pt);
 
         let response = client
             .dev_inspect_transaction_block(

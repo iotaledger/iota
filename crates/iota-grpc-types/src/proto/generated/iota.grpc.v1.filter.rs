@@ -254,12 +254,12 @@ pub mod transaction_filter {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TransactionKind {
-    /// `SYSTEM_TRANSACTION` can be used to filter for all types of system transactions.
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
+    /// `SYSTEM` can be used to filter for all types of system transactions.
+    System = 0,
+    Programmable = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    EndOfEpochTransaction = 5,
+    EndOfEpoch = 5,
     RandomnessStateUpdate = 6,
 }
 impl TransactionKind {
@@ -269,22 +269,22 @@ impl TransactionKind {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::SystemTransaction => "SYSTEM_TRANSACTION",
-            Self::ProgrammableTransaction => "PROGRAMMABLE_TRANSACTION",
+            Self::System => "SYSTEM",
+            Self::Programmable => "PROGRAMMABLE",
             Self::Genesis => "GENESIS",
             Self::ConsensusCommitPrologueV1 => "CONSENSUS_COMMIT_PROLOGUE_V1",
-            Self::EndOfEpochTransaction => "END_OF_EPOCH_TRANSACTION",
+            Self::EndOfEpoch => "END_OF_EPOCH",
             Self::RandomnessStateUpdate => "RANDOMNESS_STATE_UPDATE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "SYSTEM_TRANSACTION" => Some(Self::SystemTransaction),
-            "PROGRAMMABLE_TRANSACTION" => Some(Self::ProgrammableTransaction),
+            "SYSTEM" => Some(Self::System),
+            "PROGRAMMABLE" => Some(Self::Programmable),
             "GENESIS" => Some(Self::Genesis),
             "CONSENSUS_COMMIT_PROLOGUE_V1" => Some(Self::ConsensusCommitPrologueV1),
-            "END_OF_EPOCH_TRANSACTION" => Some(Self::EndOfEpochTransaction),
+            "END_OF_EPOCH" => Some(Self::EndOfEpoch),
             "RANDOMNESS_STATE_UPDATE" => Some(Self::RandomnessStateUpdate),
             _ => None,
         }

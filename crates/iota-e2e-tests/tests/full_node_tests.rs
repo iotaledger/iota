@@ -37,7 +37,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionKind,
+        TransactionData, TransactionDataAPI, TransactionKind,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -148,7 +148,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.transfer_object(another_addr, object_ref).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let tx_data = TransactionData::new_with_gas_data(
         kind,
         sender,

@@ -251,7 +251,9 @@ fn dev_inspect_transaction_block() {
         let indexer_devinspect_results = client
             .dev_inspect_transaction_block(
                 sender,
-                Base64::from_bytes(&bcs::to_bytes(&TransactionKind::programmable(ptb)).unwrap()),
+                Base64::from_bytes(
+                    &bcs::to_bytes(&TransactionKind::new_programmable(ptb)).unwrap(),
+                ),
                 None,
                 None,
                 None,

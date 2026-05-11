@@ -17,7 +17,7 @@ use tokio::time::timeout;
 
 use super::super::utils::{
     BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_MINTED_EVENT, NFT_MODULE, NFT_PACKAGE,
-    publish_example_package, setup_grpc_test,
+    publish_example_package, setup_grpc_test, wait_for_executed_transactions_checkpointed,
 };
 
 /// Single test exercising multiple event filter scenarios.
@@ -41,7 +41,7 @@ use super::super::utils::{
 ///   E. All (AND) — sender_1 AND NFTMinted
 ///   F. Any (OR) — sender_1 OR NFTMinted
 #[sim_test]
-async fn test_event_filter_scenarios() {
+async fn event_filter_scenarios() {
     let (cluster, client) = setup_grpc_test(None, None).await;
 
     let sender_1 = cluster.get_address_0();
@@ -89,18 +89,10 @@ async fn test_event_filter_scenarios() {
     let signed_tx = cluster.sign_transaction(&clock_tx);
     cluster.execute_transaction(signed_tx).await;
 
-    // Wait for checkpoints
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    let latest_seq = wait_for_executed_transactions_checkpointed(&cluster, &client).await;
 
-    let latest_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
-        .await
-        .expect("get latest checkpoint")
-        .body()
-        .sequence_number();
-
-    // --- Helper: stream checkpoints with event filter and count events ---
-    let stream_and_count_events = |event_filter: grpc_filter::EventFilter| {
+    // --- Helper: stream checkpoints with event filter and collect events ---
+    let stream_and_collect_events = |event_filter: grpc_filter::EventFilter| {
         let client = client.clone();
         async move {
             let mut stream = client
@@ -114,17 +106,17 @@ async fn test_event_filter_scenarios() {
                 .await
                 .expect("Failed to create stream");
 
-            let mut event_count = 0usize;
+            let mut events: Vec<iota_grpc_types::v1::event::Event> = Vec::new();
             timeout(Duration::from_secs(10), async {
                 while let Some(result) = stream.body_mut().next().await {
                     let cp = result.expect("stream error");
-                    event_count += cp.events().len();
+                    events.extend(cp.events().iter().cloned());
                 }
             })
             .await
             .expect("stream timed out");
 
-            event_count
+            events
         }
     };
 
@@ -135,11 +127,23 @@ async fn test_event_filter_scenarios() {
             grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
         ),
     );
-    let count = stream_and_count_events(sender_1_filter.clone()).await;
+    let events = stream_and_collect_events(sender_1_filter.clone()).await;
     assert_eq!(
-        count, 2,
+        events.len(),
+        2,
         "Scenario A: sender_1 should have 2 events (NFTMinted)"
     );
+    for event in &events {
+        assert!(
+            event.bcs_contents.is_some(),
+            "Scenario A: BCS data must be valid"
+        );
+        assert_eq!(
+            event.sender.as_ref().unwrap().address.as_ref(),
+            sender_1.as_bytes(),
+            "Scenario A: events must come from sender_1"
+        );
+    }
 
     // --- Scenario B: MoveEventType filter (NFTMinted) ---
     // 3 NFTMinted events total (2 from sender_1, 1 from sender_2)
@@ -148,11 +152,23 @@ async fn test_event_filter_scenarios() {
             "{nft_package_id}::{NFT_MODULE}::{NFT_MINTED_EVENT}"
         )),
     );
-    let count = stream_and_count_events(nft_event_type_filter.clone()).await;
+    let events = stream_and_collect_events(nft_event_type_filter.clone()).await;
     assert_eq!(
-        count, 3,
+        events.len(),
+        3,
         "Scenario B: should match 3 NFTMinted events from both senders"
     );
+    for event in &events {
+        assert!(
+            event.bcs_contents.is_some(),
+            "Scenario B: BCS data must be valid"
+        );
+        assert_eq!(
+            event.package_id.as_ref().unwrap().object_id.as_ref(),
+            nft_package_id.as_bytes(),
+            "Scenario B: events must come from the NFT package"
+        );
+    }
 
     // --- Scenario C: MovePackageAndModule filter (basics::clock) ---
     // 1 TimeEvent from clock::access
@@ -164,21 +180,35 @@ async fn test_event_filter_scenarios() {
             )
             .with_module(CLOCK_MODULE.to_string()),
     );
-    let count = stream_and_count_events(basics_clock_filter).await;
+    let events = stream_and_collect_events(basics_clock_filter).await;
     assert_eq!(
-        count, 1,
+        events.len(),
+        1,
         "Scenario C: should match 1 event from basics::clock"
     );
 
     // --- Scenario D: Negation (NOT sender_1) ---
-    // 0x0 events: 1 DisplayCreated + 1 VersionUpdated = 2
-    // sender_2 events: 1 NFTMinted + 1 TimeEvent = 2
+    // Assert what the filter itself guarantees rather than the total event
+    // count: no sender_1 event may leak through, and the application events
+    // from sender_2 (1 NFTMinted + 1 TimeEvent) must be present.  System
+    // events emitted from 0x0 are intentionally not counted here so the test
+    // stays stable if the framework's set of system events changes.
     let not_sender_1_filter = grpc_filter::EventFilter::default()
         .with_negation(grpc_filter::NotEventFilter::default().with_filter(sender_1_filter.clone()));
-    let count = stream_and_count_events(not_sender_1_filter).await;
+    let events = stream_and_collect_events(not_sender_1_filter).await;
+    assert!(
+        events
+            .iter()
+            .all(|e| { e.sender.as_ref().map(|s| s.address.as_ref()) != Some(sender_1.as_ref()) }),
+        "Scenario D: NOT sender_1 must exclude every sender_1 event"
+    );
+    let sender_2_count = events
+        .iter()
+        .filter(|e| e.sender.as_ref().map(|s| s.address.as_ref()) == Some(sender_2.as_ref()))
+        .count();
     assert_eq!(
-        count, 4,
-        "Scenario D: NOT sender_1 should match 4 events from 0x0 and sender_2"
+        sender_2_count, 2,
+        "Scenario D: sender_2 should contribute 2 events (1 NFTMinted + 1 TimeEvent)"
     );
 
     // --- Scenario E: All (AND) — sender_1 AND NFTMinted ---
@@ -187,9 +217,10 @@ async fn test_event_filter_scenarios() {
         grpc_filter::AllEventFilter::default()
             .with_filters(vec![sender_1_filter.clone(), nft_event_type_filter.clone()]),
     );
-    let count = stream_and_count_events(sender_1_and_nft).await;
+    let events = stream_and_collect_events(sender_1_and_nft).await;
     assert_eq!(
-        count, 2,
+        events.len(),
+        2,
         "Scenario E: sender_1 AND NFTMinted should match 2 events"
     );
 
@@ -200,9 +231,25 @@ async fn test_event_filter_scenarios() {
         grpc_filter::AnyEventFilter::default()
             .with_filters(vec![sender_1_filter, nft_event_type_filter]),
     );
-    let count = stream_and_count_events(sender_1_or_nft).await;
+    let events = stream_and_collect_events(sender_1_or_nft).await;
     assert_eq!(
-        count, 3,
+        events.len(),
+        3,
         "Scenario F: sender_1 OR NFTMinted should match 3 events"
     );
+    for event in &events {
+        assert!(
+            event.bcs_contents.is_some(),
+            "Scenario F: BCS data must be valid"
+        );
+        let sender_matches =
+            event.sender.as_ref().map(|s| s.address.as_ref()) == Some(sender_1.as_ref());
+        let nft_matches = event.package_id.as_ref().map(|p| p.object_id.as_ref())
+            == Some(nft_package_id.as_ref());
+        assert!(
+            sender_matches || nft_matches,
+            "Scenario F: events must match at least one sub-filter: package_id={:?}",
+            event.package_id.as_ref().map(|p| &p.object_id)
+        );
+    }
 }

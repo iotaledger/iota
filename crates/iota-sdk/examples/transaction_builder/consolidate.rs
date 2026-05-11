@@ -15,7 +15,9 @@ use iota_sdk::{
     types::{
         base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, CallArg, Command, TransactionData, TransactionKind},
+        transaction::{
+            Argument, CallArg, Command, TransactionData, TransactionDataAPI, TransactionKind,
+        },
     },
 };
 use utils::{setup_for_write, sign_and_execute_transaction};
@@ -66,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
         let tx_data =

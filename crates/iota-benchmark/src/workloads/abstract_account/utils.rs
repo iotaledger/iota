@@ -13,7 +13,7 @@ use iota_types::{
     move_package::{PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use tracing::info;
 
@@ -92,7 +92,7 @@ pub async fn publish_aa_package_and_find_metadata(
 
         let (is_package, ty) = match &obj.data {
             iota_types::object::Data::Package(_) => (true, "<package>".to_string()),
-            iota_types::object::Data::Move(m) => (false, m.struct_tag().to_string()),
+            iota_types::object::Data::Struct(m) => (false, m.struct_tag().to_string()),
         };
 
         Ok((
@@ -211,7 +211,7 @@ pub async fn create_abstract_account(
         .created()
         .into_iter()
         .filter_map(|(r, o)| {
-            if matches!(o, Owner::Shared { .. }) {
+            if matches!(o, Owner::Shared(_)) {
                 Some(r)
             } else {
                 None

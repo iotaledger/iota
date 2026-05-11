@@ -99,7 +99,7 @@ impl AliasExt for Alias {
         };
 
         let move_alias_object = Object::new_from_genesis(
-            Data::Move(move_alias_object),
+            Data::Struct(move_alias_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the alias output object.
             owner,
@@ -163,7 +163,7 @@ impl AliasOutputExt for AliasOutput {
         };
 
         let move_alias_output_object = Object::new_from_genesis(
-            Data::Move(move_alias_output_object),
+            Data::Struct(move_alias_output_object),
             owner,
             tx_context.digest(),
         );

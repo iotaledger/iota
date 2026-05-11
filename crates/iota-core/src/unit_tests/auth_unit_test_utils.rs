@@ -6,7 +6,7 @@ use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_types::{
     crypto::Signature, move_package::UpgradePolicy,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    utils::to_sender_signed_transaction,
+    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;

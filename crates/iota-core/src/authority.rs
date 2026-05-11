@@ -66,10 +66,7 @@ use iota_types::{
         SequenceNumber, StructTag, TypeTag, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{
-        AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
-        default_hash,
-    },
+    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
@@ -161,6 +158,7 @@ use crate::{
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
@@ -808,7 +806,8 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     _pruner: AuthorityStorePruner,
-    _authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
     /// Take db checkpoints of different dbs
     db_checkpoint_config: DBCheckpointConfig,
@@ -1856,7 +1855,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "dry-exec does not support system transactions".to_string(),
             });
@@ -2079,7 +2078,7 @@ impl AuthorityState {
         mut transaction: TransactionData,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "simulate does not support system transactions".to_string(),
             });
@@ -2244,7 +2243,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction_kind.is_system_tx() {
+        if transaction_kind.is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "system transactions are not supported".to_string(),
             });
@@ -2265,7 +2264,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_data: GasData {
+            gas_payment: GasData {
                 objects: payment,
                 owner,
                 price,
@@ -2387,7 +2386,7 @@ impl AuthorityState {
             },
             transaction,
         );
-        let transaction_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let transaction_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
             self.get_backing_store().as_ref(),
             protocol_config,
@@ -2683,7 +2682,7 @@ impl AuthorityState {
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
-        let Some(move_object) = o.data.try_as_move().cloned() else {
+        let Some(move_object) = o.data.as_struct_opt().cloned() else {
             return Ok(None);
         };
 
@@ -2747,7 +2746,7 @@ impl AuthorityState {
                     (
                         object.version(),
                         object.digest(),
-                        object.data.type_().unwrap().clone(),
+                        object.data.object_type().unwrap().clone(),
                     )
                 } else {
                     // If not found, try to find it in the database.
@@ -2760,7 +2759,7 @@ impl AuthorityState {
                         })?;
                     let version = object.version();
                     let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
+                    let object_type = object.data.object_type().unwrap().clone();
                     (version, digest, object_type)
                 };
 
@@ -2930,7 +2929,7 @@ impl AuthorityState {
             })?;
 
         let layout = if let (LayoutGenerationOption::Generate, Some(move_obj)) =
-            (request.generate_layout, object.data.try_as_move())
+            (request.generate_layout, object.data.as_struct_opt())
         {
             Some(into_struct_layout(
                 epoch_store
@@ -3035,6 +3034,7 @@ impl AuthorityState {
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3051,10 +3051,13 @@ impl AuthorityState {
         ));
         let (tx_execution_shutdown, rx_execution_shutdown) = oneshot::channel();
 
-        let _authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
+        let authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
             epoch_store.get_parent_path(),
-            &config.authority_store_pruning_config,
-        );
+            config
+                .authority_store_pruning_config
+                .num_latest_epoch_dbs_to_retain,
+        )
+        .await;
         let _pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
@@ -3066,6 +3069,7 @@ impl AuthorityState {
             prometheus_registry,
             archive_readers,
             pruner_db,
+            checkpoint_progress_tracker.clone(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3087,7 +3091,8 @@ impl AuthorityState {
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
             _pruner,
-            _authority_per_epoch_pruner,
+            authority_per_epoch_pruner,
+            checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
             config,
             overload_info: AuthorityOverloadInfo::default(),
@@ -3111,6 +3116,10 @@ impl AuthorityState {
             .expect("Error indexing genesis objects.");
 
         state
+    }
+
+    pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
+        &self.authority_per_epoch_pruner
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3180,6 +3189,7 @@ impl AuthorityState {
             metrics,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
+            self.checkpoint_progress_tracker.as_ref(),
         )
         .await
     }
@@ -3742,7 +3752,7 @@ impl AuthorityState {
         T: DeserializeOwned,
     {
         let o = self.get_object_read(object_id)?.into_object()?;
-        if let Some(move_object) = o.data.try_as_move() {
+        if let Some(move_object) = o.data.as_struct_opt() {
             Ok(bcs::from_bytes(move_object.contents()).map_err(|e| {
                 IotaError::ObjectDeserialization {
                     error: format!("{e}"),
@@ -3834,7 +3844,7 @@ impl AuthorityState {
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
-            .try_as_move()
+            .as_struct_opt()
             .map(|object| {
                 into_struct_layout(
                     self.load_epoch_store_one_call_per_task()
@@ -3942,7 +3952,7 @@ impl AuthorityState {
                     version: Some(id.1),
                 })
             })?;
-            let move_object = object.data.try_as_move().ok_or_else(|| {
+            let move_object = object.data.as_struct_opt().ok_or_else(|| {
                 IotaError::from(UserInputError::MovePackageAsObject { object_id: id.0 })
             })?;
             move_objects.push(bcs::from_bytes(move_object.contents()).map_err(|e| {
@@ -5451,7 +5461,7 @@ impl AuthorityState {
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             let field_move_object = authenticator_function_ref_field_obj
                 .data
-                .try_as_move()
+                .as_struct_opt()
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =

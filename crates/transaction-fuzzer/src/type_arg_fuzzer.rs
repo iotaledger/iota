@@ -8,7 +8,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
+    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
@@ -157,7 +157,7 @@ pub fn run_pt_effects(
 ) -> Result<TransactionEffects, IotaError> {
     let gas_object = account.new_gas_object(exec);
     let gas_object_ref = gas_object.compute_object_reference();
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let tx_data = TransactionData::new(
         kind,
         account.initial_data.account.address,

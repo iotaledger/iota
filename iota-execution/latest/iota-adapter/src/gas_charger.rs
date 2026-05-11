@@ -144,7 +144,7 @@ pub mod checked {
                 .iter()
                 .map(|obj_ref| {
                     let obj = temporary_store.objects().get(&obj_ref.object_id).unwrap();
-                    let Data::Move(move_obj) = &obj.data else {
+                    let Data::Struct(move_obj) = &obj.data else {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));
@@ -186,7 +186,7 @@ pub mod checked {
             }
             primary_gas_object
                 .data
-                .try_as_move_mut()
+                .as_struct_mut_opt()
                 // unwrap should be safe because we checked that the primary gas object was a coin
                 // object above.
                 .unwrap_or_else(|| {

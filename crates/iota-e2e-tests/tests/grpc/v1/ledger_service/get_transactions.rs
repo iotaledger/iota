@@ -11,39 +11,18 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::Digest;
 use prost_types::FieldMask;
-use test_cluster::TestCluster;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
-
-/// Helper to create a test transaction and return its digest
-async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
-    let (sender, gas) = test_cluster
-        .wallet
-        .get_one_gas_object()
-        .await
-        .unwrap()
-        .unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let transaction_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, sender)
-        .build();
-    let signed_transaction = test_cluster.wallet.sign_transaction(&transaction_data);
-    let transaction_digest = *signed_transaction.digest();
-    test_cluster
-        .wallet
-        .execute_transaction_may_fail(signed_transaction)
-        .await
-        .unwrap();
-    transaction_digest
-}
+use crate::utils::{
+    assert_field_presence, comma_separated_field_mask_to_paths, execute_transaction_and_get_digest,
+    setup_grpc_test,
+};
 
 /// Helper function to make GetTransactions requests and validate responses..
 async fn assert_get_transactions_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
-    digests: Vec<TransactionDigest>,
+    digests: Vec<Digest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,
     expected_field_mask_paths: &[&str],
@@ -136,7 +115,7 @@ async fn get_transactions_readmask_scenarios() {
     let mut ledger_client = client.ledger_service_client();
 
     // Create a test transaction
-    let transaction_digest = create_test_transaction(&test_cluster).await;
+    let transaction_digest = execute_transaction_and_get_digest(&test_cluster).await;
 
     // Tests for single-transaction readmask scenarios
     // Note: When a parent field is specified without nested paths (e.g.,
@@ -231,7 +210,7 @@ async fn get_transactions_batch() {
     // Create multiple test transactions
     let mut digests = Vec::new();
     for _ in 0..3 {
-        let digest = create_test_transaction(&test_cluster).await;
+        let digest = execute_transaction_and_get_digest(&test_cluster).await;
         digests.push(digest);
     }
 
@@ -262,7 +241,7 @@ async fn get_transactions_streaming() {
     // Create multiple test transactions to have enough data for streaming
     let mut digests = Vec::new();
     for _ in 0..10 {
-        let digest = create_test_transaction(&test_cluster).await;
+        let digest = execute_transaction_and_get_digest(&test_cluster).await;
         digests.push(digest);
     }
 
@@ -352,8 +331,8 @@ async fn get_transactions_nonexistent() {
     let mut ledger_client = client.ledger_service_client();
 
     // Request non-existent transactions
-    let fake_digest1 = TransactionDigest::new([0u8; 32]);
-    let fake_digest2 = TransactionDigest::new([1u8; 32]);
+    let fake_digest1 = Digest::new([0u8; 32]);
+    let fake_digest2 = Digest::new([1u8; 32]);
 
     let request = GetTransactionsRequest::default().with_requests(
         TransactionRequests::default().with_requests(vec![
@@ -422,10 +401,10 @@ async fn get_transactions_mixed_valid_invalid() {
     let mut ledger_client = client.ledger_service_client();
 
     // Create a real transaction
-    let real_digest = create_test_transaction(&test_cluster).await;
+    let real_digest = execute_transaction_and_get_digest(&test_cluster).await;
 
     // Request mix of valid and invalid digests
-    let fake_digest = TransactionDigest::new([0u8; 32]);
+    let fake_digest = Digest::new([0u8; 32]);
 
     let request = GetTransactionsRequest::default()
         .with_requests(TransactionRequests::default().with_requests(vec![

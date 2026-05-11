@@ -1413,7 +1413,7 @@ mod checked {
         object: &Object,
     ) -> Result<ObjectValue, ExecutionError> {
         let ObjectInner {
-            data: Data::Move(object),
+            data: Data::Struct(object),
             ..
         } = object.as_inner()
         else {
@@ -1447,12 +1447,12 @@ mod checked {
         };
         // override_as_immutable ==> Owner::Shared
         assert_invariant!(
-            !override_as_immutable || matches!(obj.owner, Owner::Shared { .. }),
+            !override_as_immutable || matches!(obj.owner, Owner::Shared(_)),
             "override_as_immutable should only be set for shared objects"
         );
         let is_mutable_input = match obj.owner {
             Owner::Address(_) => true,
-            Owner::Shared { .. } => !override_as_immutable,
+            Owner::Shared(_) => !override_as_immutable,
             Owner::Immutable => false,
             Owner::Object(_) => {
                 // protected by transaction input checker
@@ -1577,9 +1577,11 @@ mod checked {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),
             ObjectContents::Raw(bytes) => bytes,
         };
-        let object_id = MoveObject::id_opt(&bytes).ok_or_else(|| {
-            ExecutionError::invariant_violation("No id for Raw object bytes".to_string())
-        })?;
+        let object_id =
+            ObjectID::from_bytes(bytes.get(..ObjectID::LENGTH).ok_or_else(|| {
+                ExecutionError::invariant_violation("No id for Raw object bytes")
+            })?)
+            .expect("ObjectID::LENGTH bytes is always a valid ObjectID");
         let additional_write = AdditionalWrite {
             recipient: owner,
             type_,
@@ -1626,7 +1628,8 @@ mod checked {
     ) -> Result<MoveObject, ExecutionError> {
         debug_assert_eq!(
             id,
-            MoveObject::id_opt(&contents).expect("object contents should start with an id")
+            ObjectID::from_bytes(&contents[..ObjectID::LENGTH])
+                .expect("object contents should start with an id")
         );
         let old_obj_ver = objects_modified_at
             .get(&id)

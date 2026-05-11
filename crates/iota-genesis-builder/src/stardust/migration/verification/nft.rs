@@ -62,7 +62,7 @@ pub(super) fn verify_nft_output(
     // If there is an expiration unlock condition, the NFT is shared.
     if output.unlock_conditions().expiration().is_some() {
         ensure!(
-            matches!(created_output_obj.owner, Owner::Shared { .. }),
+            matches!(created_output_obj.owner, Owner::Shared(_)),
             "nft output owner mismatch: found {:?}, expected Shared",
             created_output_obj.owner,
         );

@@ -45,12 +45,12 @@ impl TransactionKindMutator for ShuffleCommandInputs {
         }
 
         self.num_mutations_per_base_left -= 1;
-        if let TransactionKind::ProgrammableTransaction(mut p) = transaction_kind.clone() {
+        if let TransactionKind::Programmable(mut p) = transaction_kind.clone() {
             for command in &mut p.commands {
                 self.shuffle_command(command);
             }
             info!("Mutation: Shuffling command inputs");
-            Some(TransactionKind::ProgrammableTransaction(p))
+            Some(TransactionKind::Programmable(p))
         } else {
             // Other types not supported yet
             None
