@@ -3343,11 +3343,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    ensure!(
-        gas_sponsor.is_some()
-            || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
-        "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor."
-    );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
     } else {
@@ -3357,6 +3352,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let client = context.get_client().await?;
 
     let signer = sender.unwrap_or(signer);
+
+    ensure!(
+        gas_sponsor.is_some_and(|s| s != signer)
+            || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
+        "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
+    );
 
     if dev_inspect {
         return execute_dev_inspect(

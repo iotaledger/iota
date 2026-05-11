@@ -132,6 +132,10 @@ fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
             }
         };
 
+        if slot.is_some() {
+            bail!("Duplicate {arg} found");
+        }
+
         let mut values = Vec::new();
         while let Some(next) = iter.peek() {
             if next.starts_with("--") {
@@ -140,8 +144,8 @@ fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
             values.push(iter.next().unwrap().clone());
         }
 
-        if slot.is_some() {
-            bail!("Duplicate {arg} found");
+        if values.is_empty() {
+            bail!("{arg} requires at least one value");
         }
         *slot = Some(values);
     }
