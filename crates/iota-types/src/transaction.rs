@@ -339,12 +339,12 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
     }
 }
 
-mod move_call_ext {
+mod programmable_move_call_ext {
     pub trait Sealed {}
     impl Sealed for super::ProgrammableMoveCall {}
 }
 
-pub trait MoveCallExt: Sized + move_call_ext::Sealed {
+pub trait MoveCallExt: Sized + programmable_move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn is_input_arg_used(&self, arg: u16) -> bool;
