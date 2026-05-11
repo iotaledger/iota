@@ -261,8 +261,13 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
     }
 }
 
+mod call_arg_ext {
+    pub trait Sealed {}
+    impl Sealed for super::CallArg {}
+}
+
 /// Extension trait for [`CallArg`] providing helper methods.
-pub trait CallArgExt {
+pub trait CallArgExt: Sized + call_arg_ext::Sealed {
     /// Returns the input object kind for this argument, excluding receiving
     /// objects.
     fn input_object_kind(&self) -> Option<InputObjectKind>;
@@ -334,13 +339,18 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
     }
 }
 
-pub trait MoveCallExt {
+mod programmable_move_call_ext {
+    pub trait Sealed {}
+    impl Sealed for super::ProgrammableMoveCall {}
+}
+
+pub trait ProgrammableMoveCallExt: Sized + programmable_move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
-impl MoveCallExt for ProgrammableMoveCall {
+impl ProgrammableMoveCallExt for ProgrammableMoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         let mut packages = BTreeSet::from([self.package]);
         for type_argument in &self.type_arguments {
@@ -394,7 +404,12 @@ impl MoveCallExt for ProgrammableMoveCall {
     }
 }
 
-pub trait CommandExt {
+mod command_ext {
+    pub trait Sealed {}
+    impl Sealed for super::Command {}
+}
+
+pub trait CommandExt: Sized + command_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>>;
@@ -551,7 +566,12 @@ impl CommandExt for Command {
     }
 }
 
-pub trait ProgrammableTransactionExt {
+mod programmable_transaction_ext {
+    pub trait Sealed {}
+    impl Sealed for super::ProgrammableTransaction {}
+}
+
+pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
@@ -699,7 +719,12 @@ fn left_union_shared_input_objects(
     Ok(())
 }
 
-pub trait TransactionKindExt {
+mod transaction_kind_ext {
+    pub trait Sealed {}
+    impl Sealed for super::TransactionKind {}
+}
+
+pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     /// If this is an advance epoch transaction, returns (total gas charged,
     /// total gas rebated). TODO: We should use `GasCostSummary` directly in
     /// `ChangeEpoch` struct, and return that directly.
