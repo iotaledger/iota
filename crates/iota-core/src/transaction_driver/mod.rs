@@ -321,7 +321,8 @@ where
         // This operation feedback may be imprecise since submit_transaction
         // queries multiple validators and may return the name of a malicious validator.
         // Also, consensus operation results depend on the quorum of validators.
-        // Randomized validator selection by ValidatorClientMonitor should minimize negative effects.
+        // Randomized validator selection by ValidatorClientMonitor should minimize
+        // negative effects.
         let feedback_builder = OperationFeedback::builder(
             name,
             auth_agg.get_display_name(&name),
