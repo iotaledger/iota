@@ -2528,7 +2528,7 @@ async fn test_builtin_ed25519_authenticator_disabled_in_protocol_config()
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_builtin_move_authentications_for_testing(false);
+        config.set_enable_builtin_move_authenticators_for_testing(false);
         config
     });
 

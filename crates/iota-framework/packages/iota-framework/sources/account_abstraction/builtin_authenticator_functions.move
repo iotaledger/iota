@@ -38,14 +38,18 @@ module iota::builtin_authenticator_functions;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field as df;
+use iota::protocol_config;
 use iota::public_key::PublicKey;
 use std::ascii;
 
 // === Errors ===
 
 #[error(code = 0)]
+const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
+
+#[error(code = 10)]
 const EPublicKeyMissing: vector<u8> = b"Public key missing.";
-#[error(code = 1)]
+#[error(code = 11)]
 const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 
 // === Constants ===
@@ -79,9 +83,13 @@ public struct PublicKeyFieldName has copy, drop, store {}
 /// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
 /// `pk` is the 32-byte Ed25519 public key. The signature is verified against the address
 /// derived from the public key stored as a dynamic field on the account.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
+    check_builtin_authenticators_enabled();
+
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
@@ -103,9 +111,13 @@ public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
 /// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
 /// `pk` is the 33-byte compressed Secp256k1 public key. The signature is verified against the
 /// address derived from the public key stored as a dynamic field on the account.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun secp256k1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
+    check_builtin_authenticators_enabled();
+
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
@@ -127,9 +139,13 @@ public fun secp256k1_authenticator_function_ref_v1<Account: key>(): Authenticato
 /// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
 /// `pk` is the 33-byte compressed Secp256r1 public key. The signature is verified against the
 /// address derived from the public key stored as a dynamic field on the account.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun secp256r1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
+    check_builtin_authenticators_enabled();
+
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
@@ -150,9 +166,13 @@ public fun secp256r1_authenticator_function_ref_v1<Account: key>(): Authenticato
 /// The MultiSig wire bytes encode the bitmap of participating signers, their individual
 /// signatures, and the composite public key. The composite signature is verified against
 /// the address derived from the `MultiSigPublicKey` stored as a dynamic field on the account.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun multisig_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
+    check_builtin_authenticators_enabled();
+
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
@@ -176,9 +196,13 @@ public fun multisig_authenticator_function_ref_v1<Account: key>(): Authenticator
 /// must equal `Blake2b256(IntentMessage(Intent::iota_transaction(), TransactionData))`.
 /// The signature is verified against the address derived from the Secp256r1 public key stored
 /// as a dynamic field on the account.
+///
+/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
 public fun passkey_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
+    check_builtin_authenticators_enabled();
+
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
@@ -244,6 +268,14 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
 /// A utility function to construct the dynamic field name for the public key field.
 fun public_key_field_name(): PublicKeyFieldName {
     PublicKeyFieldName {}
+}
+
+/// Aborts if the built-in Move authenticators feature is disabled in the protocol config.
+fun check_builtin_authenticators_enabled() {
+    assert!(
+        protocol_config::is_feature_enabled(b"enable_builtin_move_authenticators"),
+        EBuiltinAuthenticatorsNotEnabled,
+    );
 }
 
 // === Test Functions ===

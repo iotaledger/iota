@@ -2054,7 +2054,7 @@ mod checked {
         gas_charger: &mut GasCharger,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        if !protocol_config.enable_builtin_move_authentications() {
+        if !protocol_config.enable_builtin_move_authenticators() {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
                     reason: "Built-in Move authenticators are not enabled on this network"
