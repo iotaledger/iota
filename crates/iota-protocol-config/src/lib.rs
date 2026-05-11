@@ -445,7 +445,7 @@ struct FeatureFlags {
 
     // If true, enables the authentication with built-in Move authenticators.
     #[serde(skip_serializing_if = "is_false")]
-    enable_builtin_move_authentications: bool,
+    enable_builtin_move_authenticators: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1632,20 +1632,20 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
-    pub fn enable_builtin_move_authentications(&self) -> bool {
-        let enable_builtin_move_authentications =
-            self.feature_flags.enable_builtin_move_authentications;
-        if enable_builtin_move_authentications {
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
             assert!(
                 self.enable_move_authentication(),
-                "enable_builtin_move_authentications requires enable_move_authentication to be set"
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
             );
             assert!(
                 self.builtin_move_authenticator_cost_base.is_some(),
-                "enable_builtin_move_authentications requires builtin_move_authenticator_cost_base to be set"
+                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
             );
         }
-        enable_builtin_move_authentications
+        enable_builtin_move_authenticators
     }
 
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
@@ -2778,7 +2778,7 @@ impl ProtocolConfig {
 
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
-                        cfg.feature_flags.enable_builtin_move_authentications = true;
+                        cfg.feature_flags.enable_builtin_move_authenticators = true;
                         // Set the cost for built-in Move authenticators to 0 for now.
                         cfg.builtin_move_authenticator_cost_base = Some(0);
                     }
@@ -3010,8 +3010,8 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
     }
 
-    pub fn set_enable_builtin_move_authentications_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_builtin_move_authentications = val;
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
