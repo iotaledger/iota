@@ -21,7 +21,7 @@ type Observation = Result<f64, f64>;
 ///
 /// Each new observation is weighted by α and the prior estimate by (1 − α):
 /// μ_t ​= α x_t​ + (1−α) μ_{t−1}​
-/// σ_t^2​ = (1−α) (σ_{t−1}^2 ​+ α (x_t​−μ_{t−1}​)^2)
+/// σ_t^2​ = (1−α) σ_{t−1}^2 ​+ α (x_t​−μ_{t−1}​)^2
 #[derive(Clone, Copy, Debug)]
 struct Ewma {
     /// Current mean estimate: μ_t.
