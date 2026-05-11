@@ -380,35 +380,6 @@ pub enum UserInputError {
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
 }
 
-#[derive(
-    Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash, AsRefStr, IntoStaticStr, Error,
-)]
-#[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
-pub enum IotaObjectResponseError {
-    #[error("Object {:?} does not exist", object_id)]
-    NotExists { object_id: ObjectID },
-    #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
-    DynamicFieldNotFound { parent_object_id: ObjectID },
-    #[error(
-        "Object has been deleted object_id: {:?} at version: {:?} in digest {:?}",
-        object_id,
-        version,
-        digest
-    )]
-    Deleted {
-        object_id: ObjectID,
-        /// Object version.
-        version: SequenceNumber,
-        /// Base64 string representing the object digest
-        digest: ObjectDigest,
-    },
-    #[error("Unknown Error")]
-    Unknown,
-    #[error("Display Error: {:?}", error)]
-    Display { error: String },
-    // TODO: also integrate IotaPastObjectResponse (VersionNotFound,  VersionTooHigh)
-}
-
 /// Custom error type for Iota.
 #[derive(
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
@@ -416,9 +387,6 @@ pub enum IotaObjectResponseError {
 pub enum IotaError {
     #[error("Error checking transaction input objects: {error}")]
     UserInput { error: UserInputError },
-
-    #[error("Error checking transaction object: {error}")]
-    IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("There are already {queue_len} transactions pending, above threshold of {threshold}")]
     TooManyTransactionsPendingExecution { queue_len: usize, threshold: usize },
@@ -858,12 +826,6 @@ impl TryFrom<IotaError> for UserInputError {
 impl From<UserInputError> for IotaError {
     fn from(error: UserInputError) -> Self {
         IotaError::UserInput { error }
-    }
-}
-
-impl From<IotaObjectResponseError> for IotaError {
-    fn from(error: IotaObjectResponseError) -> Self {
-        IotaError::IotaObjectResponse { error }
     }
 }
 
