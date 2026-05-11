@@ -231,6 +231,9 @@ struct ValidatorClientStats {
     stats_con: LogLatencyEwma,
 }
 
+/// The reference interval for Submit, Effects, and Consensus operations.
+const TAU: f64 = 60.0;
+
 impl ValidatorClientStats {
     fn new() -> Self {
         Self {
@@ -246,7 +249,6 @@ impl ValidatorClientStats {
         config: &ValidatorClientMonitorConfig,
         feedback: &OperationFeedback,
     ) {
-        const TAU: f64 = 60.0;
         const FAILURE_SUB: f64 = 5.0;
         const FAILURE_EFF: f64 = 10.0;
         const FAILURE_CON: f64 = FAILURE_SUB + FAILURE_EFF;
@@ -287,7 +289,6 @@ impl ValidatorClientStats {
     }
 
     fn performance_score(&self, config: &ValidatorClientMonitorConfig, now: Instant) -> (f64, f64) {
-        const TAU: f64 = 60.0;
         const MAX_INTERVAL: f64 = 3600.0;
         const VARIANCE_PENALTY_HC: f64 = 0.5;
         const VARIANCE_PENALTY_SUB: f64 = 2.0;
