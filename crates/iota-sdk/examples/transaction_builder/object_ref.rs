@@ -11,15 +11,12 @@ use iota_sdk::IotaClientBuilder;
 async fn main() -> Result<(), anyhow::Error> {
     let client = IotaClientBuilder::default().build_testnet().await?;
 
-    let object_ref = client
-        .transaction_builder()
-        .get_object_ref("0x8".parse()?)
-        .await?;
+    let object_ref = client.read_api().get_object_ref("0x8".parse()?).await?;
 
     println!("Single object ref: {object_ref:?}");
 
     let object_refs = client
-        .transaction_builder()
+        .read_api()
         .input_refs(&["0x5".parse()?, "0x8".parse()?])
         .await?;
 

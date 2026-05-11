@@ -21,6 +21,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
     },
 };
+use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::crypto::Intent;
 use utils::request_tokens_from_faucet;
 
@@ -42,14 +43,6 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Sender address: {address:?}");
 
     request_tokens_from_faucet(address, &client).await?;
-    let gas_coin = client
-        .coin_read_api()
-        .get_coins(address, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .expect("missing gas coin");
 
     let timelocked_objects = client
         .read_api()
@@ -86,16 +79,15 @@ async fn main() -> Result<(), anyhow::Error> {
     }
     .iota_address;
 
-    let tx_data = client
-        .transaction_builder()
-        .request_add_timelocked_stake(
-            address,
-            timelocked_object,
-            validator,
-            gas_coin.coin_object_id,
-            100_000_000,
+    let mut builder = TransactionBuilder::new(address).with_client(&client);
+    builder
+        .move_call(
+            iota_sdk_types::Address::SYSTEM,
+            "timelocked_staking",
+            "request_add_stake",
         )
-        .await?;
+        .arguments((timelocked_object, validator));
+    let tx_data = builder.finish().await?;
 
     let signature = keystore.sign_secure(&address, &tx_data, Intent::iota_transaction())?;
 
@@ -136,24 +128,15 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         })
     }) {
-        let gas_coin = client
-            .coin_read_api()
-            .get_coins(address, None, None, None)
-            .await?
-            .data
-            .into_iter()
-            .next()
-            .expect("missing gas coin");
-
-        let tx_data = client
-            .transaction_builder()
-            .request_withdraw_timelocked_stake(
-                address,
-                timelocked_staked_iota_id,
-                gas_coin.coin_object_id,
-                100_000_000,
+        let mut builder = TransactionBuilder::new(address).with_client(&client);
+        builder
+            .move_call(
+                iota_sdk_types::Address::SYSTEM,
+                "timelocked_staking",
+                "request_withdraw_stake",
             )
-            .await?;
+            .arguments(vec![timelocked_staked_iota_id]);
+        let tx_data = builder.finish().await?;
 
         let signature = keystore.sign_secure(&address, &tx_data, Intent::iota_transaction())?;
 

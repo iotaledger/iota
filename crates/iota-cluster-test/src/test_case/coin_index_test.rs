@@ -4,7 +4,6 @@
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Balance, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
@@ -13,13 +12,13 @@ use iota_sdk::PagedFn;
 use iota_sdk_types::StructTag;
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::TransactionData,
 };
 use jsonrpsee::rpc_params;
-use serde_json::json;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext};
@@ -152,26 +151,16 @@ impl TestCaseImpl for CoinIndexTest {
         info!("coin type: {coin_type_str}");
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
-        let args = vec![
-            IotaJsonValue::from_object_id(cap.object_id),
-            IotaJsonValue::new(json!("10000"))?,
-            IotaJsonValue::new(json!(account))?,
-        ];
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "mint",
-                vec![],
-                args,
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "mint",
+            vec![cap.object_id.into(), 10000u64.into(), account.into()],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "mint managed coin to self").await;
 
         let balance_changes = &response.balance_changes.unwrap();
@@ -234,25 +223,16 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(balances, expected_balances,);
 
         // 5. Mint another MANAGED coin to account, balance 10
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "mint",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.object_id),
-                    IotaJsonValue::new(json!("10"))?,
-                    IotaJsonValue::new(json!(account))?,
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "mint",
+            vec![cap.object_id.into(), 10u64.into(), account.into()],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "mint managed coin to self").await;
         assert!(response.status_ok().unwrap());
 
@@ -303,22 +283,16 @@ impl TestCaseImpl for CoinIndexTest {
         let managed_old_total_count = managed_balance.coin_object_count;
 
         // 7. take back the balance 10 MANAGED coin
-        let args = vec![IotaJsonValue::from_object_id(envelope.object_id)];
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "take_from_envelope",
-                vec![],
-                args,
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "take_from_envelope",
+            vec![MoveCallArg::SharedMutObjectId(envelope.object_id.into())],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx
             .sign_and_execute(txn, "take back managed coin from envelope")
             .await;
@@ -341,24 +315,19 @@ impl TestCaseImpl for CoinIndexTest {
         let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         // 9. Take from envelope and burn
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "take_from_envelope_and_burn",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.object_id),
-                    IotaJsonValue::from_object_id(envelope.object_id),
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "take_from_envelope_and_burn",
+            vec![
+                cap.object_id.into(),
+                MoveCallArg::SharedMutObjectId(envelope.object_id.into()),
+            ],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx
             .sign_and_execute(txn, "take back managed coin from envelope and burn")
             .await;
@@ -373,24 +342,16 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_balance.coin_object_count, managed_old_total_count);
 
         // 10. Burn the balance=10000 MANAGED coin
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "burn",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.object_id),
-                    IotaJsonValue::from_object_id(managed_coin_id_10k),
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "burn",
+            vec![cap.object_id.into(), managed_coin_id_10k.into()],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "burn coin").await;
         assert!(response.status_ok().unwrap());
         let managed_balance = client
@@ -441,26 +402,21 @@ impl TestCaseImpl for CoinIndexTest {
         );
 
         // 11. Mint 40 MANAGED coins with balance 5
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.object_id,
-                "managed",
-                "mint_multi",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.object_id),
-                    IotaJsonValue::new(json!("5"))?,  // balance = 5
-                    IotaJsonValue::new(json!("40"))?, // num = 40
-                    IotaJsonValue::new(json!(account))?,
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = build_move_call_tx(
+            &client,
+            account,
+            package.object_id,
+            "managed",
+            "mint_multi",
+            vec![
+                cap.object_id.into(),
+                5u64.into(),
+                40u64.into(),
+                account.into(),
+            ],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "multi mint").await;
         assert!(response.status_ok().unwrap());
 
@@ -680,27 +636,99 @@ async fn add_to_envelope(
     let account = ctx.get_wallet_address();
     let client = ctx.clone_fullnode_client();
     let rgp = ctx.get_reference_gas_price().await;
-    let txn = client
-        .transaction_builder()
-        .move_call(
-            account,
-            pkg_id,
-            "managed",
-            "add_to_envelope",
-            vec![],
-            vec![
-                IotaJsonValue::from_object_id(envelope),
-                IotaJsonValue::from_object_id(coin),
-            ],
-            None,
-            rgp * 2_000_000,
-            None,
-        )
-        .await
-        .unwrap();
+    let txn = build_move_call_tx(
+        &client,
+        account,
+        pkg_id,
+        "managed",
+        "add_to_envelope",
+        vec![MoveCallArg::SharedMutObjectId(envelope.into()), coin.into()],
+        rgp * 2_000_000,
+    )
+    .await;
     let response = ctx
         .sign_and_execute(txn, "add managed coin to envelope")
         .await;
     assert!(response.status_ok().unwrap());
     response
+}
+
+/// Helper enum to hold different argument types for move calls
+enum MoveCallArg {
+    ObjectId(iota_sdk_types::ObjectId),
+    SharedMutObjectId(iota_sdk_types::ObjectId),
+    U64(u64),
+    Address(iota_sdk_types::Address),
+}
+
+impl From<ObjectID> for MoveCallArg {
+    fn from(id: ObjectID) -> Self {
+        MoveCallArg::ObjectId(id)
+    }
+}
+
+impl From<u64> for MoveCallArg {
+    fn from(v: u64) -> Self {
+        MoveCallArg::U64(v)
+    }
+}
+
+impl From<IotaAddress> for MoveCallArg {
+    fn from(addr: IotaAddress) -> Self {
+        MoveCallArg::Address(addr)
+    }
+}
+
+/// Helper function to build a move call transaction using the new
+/// TransactionBuilder
+async fn build_move_call_tx(
+    client: &iota_sdk::IotaClient,
+    sender: IotaAddress,
+    package_id: ObjectID,
+    module: &str,
+    function: &str,
+    args: Vec<MoveCallArg>,
+    gas_budget: u64,
+) -> TransactionData {
+    use iota_sdk_transaction_builder::unresolved::Argument;
+
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(client);
+
+    // Pre-apply arguments to get the Argument values before calling move_call
+    let arguments: Vec<Argument> = args
+        .into_iter()
+        .map(|arg| match arg {
+            MoveCallArg::ObjectId(id) => builder.apply_argument(id),
+            MoveCallArg::SharedMutObjectId(id) => {
+                builder.apply_argument(iota_sdk_transaction_builder::SharedMut(id))
+            }
+            MoveCallArg::U64(v) => builder.apply_argument(v),
+            MoveCallArg::Address(addr) => builder.apply_argument(addr),
+        })
+        .collect();
+
+    builder
+        .move_call(package_id, module, function)
+        .arguments(arguments);
+
+    // Use a single explicit gas coin; without this, `finish()` would auto-add
+    // every IOTA coin the sender owns as gas inputs and merge the leftover
+    // into one output coin, breaking tests that observe `coin_object_count`.
+    let gas_coin = client
+        .coin_read_api()
+        .get_coins(sender, None, None, Some(1))
+        .await
+        .expect("failed to fetch gas coin")
+        .data
+        .into_iter()
+        .next()
+        .expect("sender has no gas coin");
+    builder.gas(vec![gas_coin.coin_object_id.into()]);
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct move call transaction")
 }

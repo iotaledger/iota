@@ -23,7 +23,9 @@ use fastcrypto::{
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_json::IotaJsonValue;
+use iota_json::{
+    IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_move_function_args,
+};
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
     IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
@@ -39,7 +41,7 @@ use iota_move_build::{
     implicit_deps,
 };
 use iota_package_management::{
-    LockCommand, PublishedAtError,
+    PublishedAtError,
     system_package_versions::{latest_system_packages, system_packages_for_protocol},
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -51,7 +53,14 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_transaction_builder::{
+    TransactionBuilder,
+    unresolved::{Command, MakeMoveVector},
+};
+use iota_sdk_types::{
+    Input, TypeTag as SdkTypeTag,
+    crypto::{Intent, IntentMessage},
+};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
@@ -68,18 +77,20 @@ use iota_types::{
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
-    move_package::{MovePackage, UpgradeCap},
-    object::Owner,
+    move_package::{MovePackage, MovePackageExt, UpgradeCap},
+    object::{Object, Owner},
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TransactionKindExt,
+        CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
 };
 use json_to_table::json_to_table;
-use move_binary_format::CompiledModule;
+use move_binary_format::{
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+};
 use move_bytecode_verifier_meter::Scope;
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
@@ -962,8 +973,6 @@ impl IotaClientCommands {
                 let compiled_modules =
                     compiled_package.get_package_bytes(with_unpublished_dependencies);
                 let package_id = compiled_package.published_at.clone()?;
-                let package_digest =
-                    compiled_package.get_package_digest(with_unpublished_dependencies);
                 let dep_ids = compiled_package.get_published_dependencies_ids();
 
                 if verify_compatibility {
@@ -1000,37 +1009,57 @@ impl IotaClientCommands {
                     .await?;
                 }
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .upgrade_tx_kind(
-                        package_id,
-                        compiled_modules,
-                        dep_ids,
-                        upgrade_capability,
-                        upgrade_policy,
-                        package_digest.to_vec(),
-                    )
-                    .await?;
+                let move_package_data = iota_sdk_types::MovePackageData::new(
+                    compiled_modules,
+                    dep_ids.into_iter().collect(),
+                );
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(sender)
+                    .with_client(&client);
+                builder
+                    // Authorize the upgrade by providing the upgrade cap object id to receive an
+                    // upgrade ticket
+                    .move_call(
+                        iota_sdk_types::Address::FRAMEWORK,
+                        "package",
+                        "authorize_upgrade",
+                    )
+                    .arguments((upgrade_capability, upgrade_policy, move_package_data.digest))
+                    .assign("upgrade_ticket")
+                    // Upgrade the package to receive an upgrade receipt
+                    .upgrade(
+                        package_id,
+                        move_package_data,
+                        iota_sdk_transaction_builder::assigned("upgrade_ticket"),
+                    )
+                    .assign("upgrade_receipt")
+                    // Commit the upgrade using the receipt
+                    .move_call(
+                        iota_sdk_types::Address::FRAMEWORK,
+                        "package",
+                        "commit_upgrade",
+                    )
+                    .arguments((
+                        upgrade_capability,
+                        iota_sdk_transaction_builder::assigned("upgrade_receipt"),
+                    ));
+
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
 
                 let result = dry_run_or_execute_or_serialize(
-                    sender,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    sender,
                 )
                 .await?;
 
                 if let IotaClientCommandResult::TransactionBlock(ref response) = result {
                     if let Err(e) = iota_package_management::update_lock_file(
                         context,
-                        LockCommand::Upgrade,
+                        iota_package_management::LockCommand::Upgrade,
                         build_config.install_dir,
                         build_config.lock_file,
                         response,
@@ -1129,28 +1158,38 @@ impl IotaClientCommands {
                     compiled_package.get_package_bytes(with_unpublished_dependencies);
                 let dep_ids = compiled_package.get_published_dependencies_ids();
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .publish_tx_kind(sender, compiled_modules, dep_ids)
-                    .await?;
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let move_package_data = iota_sdk_types::MovePackageData::new(
+                    compiled_modules,
+                    dep_ids.into_iter().collect(),
+                );
+
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(sender)
+                    .with_client(&client);
+                builder
+                    .publish(move_package_data)
+                    .assign("upgrade_cap")
+                    // Transfer the upgrade cap to the sender address
+                    .transfer_objects(
+                        sender,
+                        [iota_sdk_transaction_builder::assigned("upgrade_cap")],
+                    );
+
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
+
                 let result = dry_run_or_execute_or_serialize(
-                    sender,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    sender,
                 )
                 .await?;
 
                 if let IotaClientCommandResult::TransactionBlock(ref response) = result {
                     if let Err(e) = iota_package_management::update_lock_file(
                         context,
-                        LockCommand::Publish,
+                        iota_package_management::LockCommand::Publish,
                         build_config.install_dir,
                         build_config.lock_file,
                         response,
@@ -1310,35 +1349,108 @@ impl IotaClientCommands {
                     })
                     .collect::<Result<_, _>>()?;
 
-                let type_args = type_args
-                    .into_iter()
-                    .map(|arg| arg.into())
-                    .collect::<Vec<_>>();
+                let type_args = type_args.into_iter().collect::<Vec<_>>();
 
                 let client = context.get_client().await?;
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .move_call_tx_kind(package, &module, &function, type_args, args)
+                // Fetch the move package
+                let package_obj = client
+                    .read_api()
+                    .get_object_with_options(package, IotaObjectDataOptions::bcs_lossless())
                     .await?;
+                let bcs_data = package_obj
+                    .object()?
+                    .bcs
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("No BCS data"))?;
+                let package_data = match bcs_data {
+                    IotaRawData::Package(p) => p,
+                    _ => bail!("Not a move package"),
+                };
+                let compiled_package = package_data.to_move_package(
+                    ProtocolConfig::get_for_min_version().max_move_package_size(),
+                )?;
+                let module_compiled = compiled_package.deserialize_module(
+                    &Identifier::new(&*module)?,
+                    &BinaryConfig::standard(),
+                )?;
+
+                // Resolve function args
+                let json_args_and_tokens = resolve_move_function_args(
+                    &compiled_package,
+                    Identifier::new(&*module)?,
+                    Identifier::new(&*function)?,
+                    &type_args,
+                    args,
+                )?;
 
                 let sender = if let Some(sender) = processing.sender {
                     sender
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
+
+                // Create new builder
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(sender)
+                    .with_client(&client);
+
+                // Add inputs and build move call args
+                let mut move_call_args = Vec::new();
+                for (arg, expected_type) in json_args_and_tokens {
+                    let argument = match arg {
+                        ResolvedCallArg::Pure(p) => builder.pure_bytes(p),
+                        ResolvedCallArg::Object(id) => {
+                            let input = get_object_arg_for_call(
+                                &client,
+                                id,
+                                matches!(expected_type, SignatureToken::MutableReference(_))
+                                    || !expected_type.is_reference(),
+                                &module_compiled,
+                                &expected_type,
+                            )
+                            .await?;
+                            builder.input(input)
+                        }
+                        ResolvedCallArg::ObjVec(v) => {
+                            let mut obj_args = Vec::new();
+                            for id in v {
+                                let input = get_object_arg_for_call(
+                                    &client,
+                                    id,
+                                    false,
+                                    &module_compiled,
+                                    &expected_type,
+                                )
+                                .await?;
+                                obj_args.push(builder.input(input));
+                            }
+                            builder.command(Command::MakeMoveVector(MakeMoveVector {
+                                type_: None,
+                                elements: obj_args,
+                            }))
+                        }
+                    };
+                    move_call_args.push(argument);
+                }
+
+                // Add the move call
+                builder
+                    .move_call(package, &module, &function)
+                    .type_tags(
+                        type_args
+                            .into_iter()
+                            .map(|t| t.to_string().parse::<SdkTypeTag>().unwrap()),
+                    )
+                    .arguments(move_call_args);
 
                 dry_run_or_execute_or_serialize(
-                    sender,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    sender,
                 )
                 .await?
             }
@@ -1352,23 +1464,19 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_client().await?;
-                let tx_kind = client
-                    .transaction_builder()
-                    .transfer_object_tx_kind(object_id, to)
-                    .await?;
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+                builder.transfer_objects(to, vec![object_id]);
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1402,28 +1510,63 @@ impl IotaClientCommands {
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
-                let tx_kind = client
-                    .transaction_builder()
-                    .pay_tx_kind(input_coins.clone(), recipients.clone(), amounts.clone())
-                    .await?;
 
                 ensure!(
                     !payment.gas.iter().any(|gas| input_coins.contains(gas)),
                     "Gas coin is in input coins of `pay` command, use `pay-iota` instead!"
                 );
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                // If no gas coins are specified, select gas coins automatically
+                let gas_coins = if payment.gas.is_empty() {
+                    // Get all gas coins owned by the signer
+                    let all_gas_coins = context
+                        .get_gas_objects_owned_by_address(signer, None)
+                        .await?;
+                    // Select gas coins that are not input coins
+                    all_gas_coins
+                        .into_iter()
+                        .filter(|r| !input_coins.contains(&r.object_id))
+                        .take(1) // Take the first available gas coin
+                        .map(|r| r.object_id)
+                        .collect::<Vec<_>>()
+                } else {
+                    payment.gas.clone()
+                };
+
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+
+                // Merge all input coins into the first one
+                let coin_args: Vec<iota_sdk_types::ObjectId> = input_coins.to_vec();
+                let primary_coin = coin_args[0];
+                if coin_args.len() > 1 {
+                    builder.merge_coins(primary_coin, coin_args[1..].to_vec());
+                }
+
+                // Split the merged coin into the required amounts
+                builder.split_coins(primary_coin, amounts.clone()).assign(
+                    (0..amounts.len())
+                        .map(|i| format!("coin_{}", i))
+                        .collect::<Vec<_>>(),
+                );
+
+                // Transfer each split coin to the corresponding recipient
+                for (i, recipient) in recipients.iter().enumerate() {
+                    builder.transfer_objects(
+                        *recipient,
+                        vec![iota_sdk_transaction_builder::assigned(format!("coin_{i}"))],
+                    );
+                }
+
+                let gas_payment = client.read_api().input_refs(&gas_coins).await?;
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1458,9 +1601,6 @@ impl IotaClientCommands {
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_client().await?;
-                let tx_kind = client
-                    .transaction_builder()
-                    .pay_iota_tx_kind(recipients, amounts.clone())?;
 
                 let input_coins = if let Some(coins) = input_coins {
                     coins
@@ -1470,10 +1610,19 @@ impl IotaClientCommands {
                         gas_budget
                     } else {
                         let gas_price = context.get_reference_gas_price().await?;
+                        // Create a temporary builder to estimate gas
+                        let mut temp_builder =
+                            iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                                .with_client(&client);
+                        for (recipient, amount) in recipients.iter().zip(amounts.iter()) {
+                            temp_builder.send_iota(*recipient, *amount);
+                        }
+                        let temp_tx_data = temp_builder.finish().await?;
+                        let temp_tx_kind = temp_tx_data.into_kind();
                         estimate_gas_budget(
                             context,
                             signer,
-                            tx_kind.clone(),
+                            temp_tx_kind,
                             gas_price,
                             Vec::new(),
                             None,
@@ -1490,18 +1639,22 @@ impl IotaClientCommands {
                     .await?
                 };
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&input_coins)
-                    .await?;
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+
+                for (recipient, amount) in recipients.iter().zip(amounts.iter()) {
+                    builder.send_iota(*recipient, *amount);
+                }
+
+                let gas_payment = client.read_api().input_refs(&input_coins).await?;
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1518,20 +1671,26 @@ impl IotaClientCommands {
                 let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
-                let tx_kind = client.transaction_builder().pay_all_iota_tx_kind(recipient);
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&input_coins)
-                    .await?;
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+
+                // Transfer all gas to recipient (using Argument::Gas which refers to merged gas
+                // payment)
+                builder.transfer_objects(
+                    recipient,
+                    vec![iota_sdk_transaction_builder::unresolved::Argument::Gas],
+                );
+
+                let gas_payment = client.read_api().input_refs(&input_coins).await?;
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1664,46 +1823,57 @@ impl IotaClientCommands {
 
                 let client = context.get_client().await?;
                 let signer = context.get_object_owner(&coin_id).await?;
-                let gas_coins_page = client
-                    .coin_read_api()
-                    .get_coins(signer, None, None, None)
-                    .await?;
-                // If we only have a single coin, we have to split from the gas coin
-                let tx_kind = if gas_coins_page.data.len() == 1 {
-                    if let Some(amounts) = amounts {
-                        client
-                            .transaction_builder()
-                            .pay_iota_tx_kind(vec![signer; amounts.len()], amounts)?
-                    } else if let Some(count_to_compute) = count {
-                        let amount = gas_coins_page.data[0].balance / count_to_compute;
-                        // Reduce by 1 as the gas coin is not included in the split
-                        let count_to_split = count_to_compute.saturating_sub(1);
-                        client.transaction_builder().pay_iota_tx_kind(
-                            vec![signer; count_to_split as usize],
-                            vec![amount; count_to_split as usize],
-                        )?
-                    } else {
-                        unreachable!("amount or count must be provided")
-                    }
-                } else {
-                    client
-                        .transaction_builder()
-                        .split_coin_tx_kind(coin_id, amounts, count)
+
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+
+                // Determine amounts to split BEFORE setting gas coins
+                let amounts_to_split = if let Some(amounts) = amounts {
+                    amounts
+                } else if let Some(count_to_compute) = count {
+                    let coin_obj = client
+                        .read_api()
+                        .get_object_with_options(coin_id, IotaObjectDataOptions::full_content())
                         .await?
+                        .data
+                        .ok_or_else(|| anyhow!("Object not found"))?;
+                    let coin_balance = GasCoin::try_from(&coin_obj)
+                        .ok()
+                        .map(|gc| gc.value())
+                        .unwrap_or(0);
+                    let amount = coin_balance / count_to_compute;
+                    vec![amount; (count_to_compute - 1) as usize]
+                } else {
+                    unreachable!("amount or count must be provided")
                 };
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                // Set explicit gas coins to prevent the builder from merging other coins
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
+                if !payment.gas.is_empty() {
+                    builder.gas(gas_payment.iter().map(|r| r.object_id).collect::<Vec<_>>());
+                }
+
+                // Split the coin and transfer the split coins back to the signer
+                builder
+                    .split_coins(coin_id, amounts_to_split.clone())
+                    .transfer_objects(
+                        signer,
+                        (0..amounts_to_split.len())
+                            .map(|i| {
+                                iota_sdk_transaction_builder::unresolved::Argument::NestedResult(
+                                    0, i as u16,
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    );
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1717,23 +1887,19 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let signer = context.get_object_owner(&primary_coin).await?;
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .merge_coins_tx_kind(primary_coin, coin_to_merge)
-                    .await?;
+                let mut builder = iota_sdk_transaction_builder::TransactionBuilder::new(signer)
+                    .with_client(&client);
+                builder.merge_coins(primary_coin, vec![coin_to_merge]);
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    signer,
                 )
                 .await?
             }
@@ -1758,13 +1924,27 @@ impl IotaClientCommands {
                 };
                 let tx_kind = tx_data.into_kind();
 
+                let client = context.get_client().await?;
+                let mut builder = TransactionBuilder::new(sender).with_client(&client);
+                match tx_kind {
+                    TransactionKind::Programmable(pt) => {
+                        for input in pt.inputs {
+                            builder.input(input);
+                        }
+                        for command in pt.commands {
+                            builder.command(command.into());
+                        }
+                    }
+                    _ => bail!("Unsupported transaction kind"),
+                }
+
                 dry_run_or_execute_or_serialize(
-                    sender,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    sender,
                 )
                 .await?
             }
@@ -1788,18 +1968,30 @@ impl IotaClientCommands {
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let gas_payment = client.read_api().input_refs(&payment.gas).await?;
+
+                // Rehydrate into a builder so the shared dry-run / execute / serialize
+                // path below can be reused.
+                let mut builder = TransactionBuilder::new(sender).with_client(&client);
+                match tx_kind {
+                    TransactionKind::Programmable(pt) => {
+                        for input in pt.inputs {
+                            builder.input(input);
+                        }
+                        for command in pt.commands {
+                            builder.command(command.into());
+                        }
+                    }
+                    _ => bail!("Unsupported transaction kind"),
+                }
 
                 dry_run_or_execute_or_serialize(
-                    sender,
-                    tx_kind,
+                    builder,
                     context,
                     gas_payment,
                     gas_data,
                     processing,
+                    sender,
                 )
                 .await?
             }
@@ -3181,6 +3373,53 @@ fn format_balance(
     format!("{whole}.{fractional}{suffix}")
 }
 
+/// Helper function to calculate gas budget when not provided
+async fn calculate_gas_budget(
+    client: &IotaClient,
+    gas_budget_option: Option<u64>,
+    gas_payment: &[ObjectRef],
+    use_total: bool,
+) -> Result<u64, anyhow::Error> {
+    if gas_payment.is_empty() {
+        return Ok(gas_budget_option.unwrap_or(50_000_000_000));
+    }
+    let mut total_gas = 0u64;
+    let gas_coins = client
+        .read_api()
+        .multi_get_object_with_options(
+            gas_payment.iter().map(|r| r.object_id).collect(),
+            IotaObjectDataOptions::bcs_lossless(),
+        )
+        .await?;
+    for gas_coin in gas_coins {
+        total_gas += get_gas_balance(
+            &gas_coin
+                .into_object()?
+                .try_into()
+                .expect("couldn't convert gas coin into object"),
+        )?
+    }
+    if use_total {
+        Ok(total_gas)
+    } else {
+        match gas_budget_option {
+            Some(gb) => Ok(gb),
+            None => {
+                let max_gas_budget = max_gas_budget(client).await?;
+                let final_gas_budget = min(total_gas, max_gas_budget);
+                if final_gas_budget == total_gas {
+                    let warn_msg = format!(
+                        "Gas budget is equal to the total gas balance of the provided gas coins: {total_gas}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+                    );
+                    warn!(warn_msg);
+                    eprintln!("{}", warn_msg.yellow().bold());
+                }
+                Ok(final_gas_budget)
+            }
+        }
+    }
+}
+
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
@@ -3192,44 +3431,7 @@ pub async fn execute_dry_run(
     sponsor: Option<IotaAddress>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = match gas_budget {
-        Some(gas_budget) => gas_budget,
-        None => {
-            let max_gas_budget = max_gas_budget(&client).await?;
-            if gas_payment.is_empty() {
-                max_gas_budget
-            } else {
-                let mut gas_budget = 0;
-                let gas_coins = client
-                    .read_api()
-                    .multi_get_object_with_options(
-                        gas_payment
-                            .iter()
-                            .map(|object_ref| object_ref.object_id)
-                            .collect(),
-                        IotaObjectDataOptions::bcs_lossless(),
-                    )
-                    .await?;
-                for gas_coin in gas_coins {
-                    gas_budget += get_gas_balance(
-                        &gas_coin
-                            .into_object()?
-                            .try_into()
-                            .expect("couldn't convert gas coin into object"),
-                    )?
-                }
-                let final_gas_budget = min(gas_budget, max_gas_budget);
-                if final_gas_budget == gas_budget {
-                    let warn_msg = format!(
-                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
-                    );
-                    warn!(warn_msg);
-                    eprintln!("{}", warn_msg.yellow().bold());
-                }
-                final_gas_budget
-            }
-        }
-    };
+    let gas_budget = calculate_gas_budget(&client, gas_budget, &gas_payment, false).await?;
     debug!("Gas budget for dry run: {gas_budget}");
     let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
         kind,
@@ -3312,17 +3514,19 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 /// This basically extracts the logical code for each command that deals with
 /// dry run, executing, or serializing a transaction and puts it in a function
 /// to reduce code duplication.
-pub(crate) async fn dry_run_or_execute_or_serialize(
-    signer: IotaAddress,
-    tx_kind: TransactionKind,
+pub(crate) async fn dry_run_or_execute_or_serialize<
+    C: iota_sdk_transaction_builder::ClientMethods + Clone,
+>(
+    mut builder: TransactionBuilder<C>,
     context: &mut WalletContext,
     gas_payment: Vec<ObjectRef>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
+    signer: IotaAddress,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let GasDataArgs {
         gas_budget,
-        gas_price,
+        gas_price: _,
         gas_sponsor,
     } = gas_data;
 
@@ -3343,15 +3547,22 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    let gas_price = if let Some(gas_price) = gas_price {
+
+    let client = context.get_client().await?;
+
+    let gas_price = if let Some(gas_price) = gas_data.gas_price {
         gas_price
     } else {
         context.get_reference_gas_price().await?
     };
 
-    let client = context.get_client().await?;
-
+    // If `--sender` was supplied, it overrides the caller-provided signer.
+    // Keep the builder in sync so the resulting transaction's sender matches.
     let signer = sender.unwrap_or(signer);
+    builder.set_sender(signer);
+    if let Some(gas_sponsor) = gas_sponsor {
+        builder.sponsor(gas_sponsor);
+    }
 
     ensure!(
         gas_sponsor.is_some_and(|s| s != signer)
@@ -3360,84 +3571,79 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     );
 
     if dev_inspect {
-        return execute_dev_inspect(
+        // Set gas coins before dev_inspect
+        if !gas_payment.is_empty() {
+            builder.gas(gas_payment.iter().map(|r| r.object_id).collect::<Vec<_>>());
+        }
+        let gas_budget =
+            calculate_gas_budget(&client, gas_data.gas_budget, &gas_payment, true).await?;
+        // Set the budget on the builder so `finish()` skips its internal gas-budget
+        // estimation (which would run a dry run, and could fail for inputs that are
+        // still acceptable to `dev_inspect_transaction_block`).
+        builder.gas_budget(gas_budget);
+        let tx_data = builder.finish().await?;
+        let tx_kind = tx_data.kind();
+        let result = execute_dev_inspect(
             context,
             signer,
-            tx_kind,
-            gas_budget,
+            tx_kind.clone(),
+            Some(gas_budget),
             gas_price,
             gas_payment,
-            gas_sponsor,
+            gas_data.gas_sponsor,
             None,
         )
-        .await;
+        .await?;
+        return Ok(result);
     }
 
     if dry_run {
-        return execute_dry_run(
-            context,
-            signer,
-            tx_kind,
-            gas_budget,
-            gas_price,
-            gas_payment.clone(),
-            gas_sponsor,
-        )
-        .await;
+        // Set gas coins before dry_run
+        if !gas_payment.is_empty() {
+            builder.gas(gas_payment.iter().map(|r| r.object_id).collect::<Vec<_>>());
+        }
+        // Use `dry_run_transaction_block` (JSON-RPC) rather than `builder.dry_run()`:
+        // the CLI prints `DryRunTransactionBlockResponse`, which carries object/balance
+        // changes and events that the builder's trimmed `DryRunResult` does not.
+        let tx_data = builder.finish().await?;
+        let response = client.read_api().dry_run_transaction_block(tx_data).await?;
+        let resp = IotaClientCommandResult::DryRun(response)
+            .prerender_clever_errors(context)
+            .await;
+        return Ok(resp);
     }
 
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
         None => {
             debug!("Estimating gas budget");
-            let budget = estimate_gas_budget(
-                context,
-                signer,
-                tx_kind.clone(),
-                gas_price,
-                gas_payment.clone(),
-                gas_sponsor,
+            // Use the JSON-RPC dry run to estimate gas
+            let tx_data = builder.clone().finish().await?;
+            let response = client.read_api().dry_run_transaction_block(tx_data).await?;
+            let gas_cost_summary = response.effects.gas_cost_summary();
+            let rgp = client.read_api().get_reference_gas_price().await?;
+            estimate_gas_budget_from_gas_cost(
+                &crate::client_commands::GasCostSummary::new(
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                ),
+                rgp,
             )
-            .await?;
-            debug!("Finished estimating gas budget");
-            budget
         }
     };
 
-    let gas_payment = if !gas_payment.is_empty() {
-        gas_payment
-    } else {
-        let input_objects: Vec<_> = tx_kind
-            .input_objects()?
-            .iter()
-            .filter_map(|o| match o {
-                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
-                _ => None,
-            })
-            .collect();
+    // Set gas coins after determining gas budget
+    if !gas_payment.is_empty() {
+        builder.gas(gas_payment.iter().map(|r| r.object_id).collect::<Vec<_>>());
+    }
 
-        let gas_payment = client
-            .transaction_builder()
-            .select_gas(
-                gas_sponsor.unwrap_or(signer),
-                None,
-                gas_budget,
-                input_objects,
-                gas_price,
-            )
-            .await?;
+    builder.gas_budget(gas_budget);
 
-        vec![gas_payment]
-    };
     debug!("Preparing transaction data");
-    let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
-        tx_kind,
-        signer,
-        gas_payment,
-        gas_budget,
-        gas_price,
-        gas_sponsor.unwrap_or(signer),
-    );
+    let tx_data = builder.finish().await?;
     debug!("Finished preparing transaction data");
 
     if serialize_unsigned_transaction {
@@ -3900,13 +4106,43 @@ async fn create_move_authenticator_signature(
         MoveAuthenticator::new_v1(
             call_args,
             type_args,
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(iota_sdk_types::SharedObjectReference {
                 object_id: ObjectID::from(address),
                 initial_shared_version,
                 mutable: false,
             }),
         ),
     ))
+}
+
+async fn get_object_arg_for_call(
+    client: &IotaClient,
+    id: ObjectID,
+    is_mutable_ref: bool,
+    view: &CompiledModule,
+    arg_type: &move_binary_format::file_format::SignatureToken,
+) -> Result<Input, anyhow::Error> {
+    let response = client
+        .read_api()
+        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
+        .await?;
+    let obj: Object = response.into_object()?.try_into()?;
+    let obj_ref = obj.compute_object_reference();
+    let owner = obj.owner;
+    if is_receiving_argument(view, arg_type) {
+        return Ok(Input::Receiving(obj_ref));
+    }
+    Ok(match owner {
+        Owner::Shared(initial_shared_version) => {
+            Input::Shared(iota_sdk_types::SharedObjectReference {
+                object_id: id,
+                initial_shared_version,
+                mutable: is_mutable_ref,
+            })
+        }
+        Owner::Address(_) | Owner::Object(_) | Owner::Immutable => Input::ImmutableOrOwned(obj_ref),
+        _ => bail!("unsupported Owner variant"),
+    })
 }
 
 #[cfg(test)]

@@ -176,20 +176,26 @@ const result = await client.signAndExecuteTransaction({
 <TabItem label="Rust" value="rust">
 
 ```rust
-... // setup Rust SDK client as normal
-client
-  .transaction_builder()
-  .move_call(
-     sending_account,
-     example_package_id,
-     "account",
-     "accept_payment",
-     vec!["0x2::iota::IOTA"],
-     vec![
-       IotaJsonValue::from_object_id("0xcafe"),
-       IotaJsonValue::from_object_id("0xc0ffee") // 0xcoffee is turned into the `Receiving<...>` argument of `accept_payment` by the SDK
-     ])
-  ...
+use iota_sdk_transaction_builder::TransactionBuilder;
+use iota_sdk_types::{ObjectId, ObjectArg::Receiving};
+
+// setup Rust SDK client as normal
+let sending_account: Address = /* your address */;
+let example_package_id: ObjectId = /* package id */;
+
+let mut builder = TransactionBuilder::new(sending_account)
+    .with_client(&client);
+
+builder
+    .move_call(example_package_id, "account", "accept_payment")
+    .type_tags(["0x2::iota::IOTA".parse()?])
+    .arguments([
+        builder.input(ObjectArg::SharedMut("0xcafe".parse()?)),
+        builder.input(ObjectArg::Receiving("0xc0ffee".parse()?)), // 0xcoffee is turned into the `Receiving<...>` argument
+    ]);
+
+let tx_data = builder.finish().await?;
+// sign and execute...
 ```
 
 </TabItem>

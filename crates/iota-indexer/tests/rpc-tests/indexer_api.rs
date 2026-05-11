@@ -31,7 +31,7 @@ use iota_types::{
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -568,16 +568,15 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         for _ in 0..5 {
-            let tx_data = iota_client
-                .transaction_builder()
-                .split_coin_equal(
-                    address,
-                    coin_to_split.object_id,
-                    2,
-                    Some(gas_ref.object_id),
-                    10_000_000,
-                )
-                .await?;
+            let tx_data = split_coin_equal_tx(
+                &iota_client,
+                address,
+                coin_to_split.object_id,
+                2,
+                Some(gas_ref.object_id),
+                10_000_000,
+            )
+            .await;
 
             let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
@@ -684,16 +683,15 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     let mut expected_tx_digests = vec![];
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &iota_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -711,16 +709,15 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &iota_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -807,8 +804,8 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         let package_id = ObjectID::FRAMEWORK;
         let signer = address;
 
-        let tx_builder = iota_client.transaction_builder().clone();
-        let mut pt_builder = ProgrammableTransactionBuilder::new();
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(signer).with_client(&iota_client);
 
         let module = Identifier::from_static("pay");
         let function_1 = Identifier::from_static("split");
@@ -820,48 +817,17 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .map(|ty| ty.try_into())
             .collect::<Result<Vec<_>, _>>()?;
 
-        let iota_call_args_1 = call_args!(coin_1.object_id, 10)?;
-        let call_args_1 = tx_builder
-            .resolve_and_checks_json_args(
-                &mut pt_builder,
-                package_id,
-                &module,
-                &function_1,
-                &type_args,
-                iota_call_args_1,
-            )
-            .await?;
-        let cmd_1 = Command::new_move_call(
-            package_id,
-            module.to_owned(),
-            function_1.to_owned(),
-            type_args.clone(),
-            call_args_1.clone(),
-        );
+        builder
+            .move_call(package_id, &module, &function_1)
+            .type_tags(type_args.iter().cloned())
+            .arguments((coin_1.object_id, 10u64));
 
-        let iota_call_args_2 = call_args!(coin_2.object_id, 10)?;
-        let call_args_2 = tx_builder
-            .resolve_and_checks_json_args(
-                &mut pt_builder,
-                package_id,
-                &module,
-                &function_2,
-                &type_args,
-                iota_call_args_2,
-            )
-            .await?;
-        let cmd_2 = Command::new_move_call(
-            package_id,
-            module.to_owned(),
-            function_2.to_owned(),
-            type_args,
-            call_args_2,
-        );
-        pt_builder.command(cmd_1);
-        pt_builder.command(cmd_2);
-        let pt = pt_builder.finish();
+        builder
+            .move_call(package_id, &module, &function_2)
+            .type_tags(type_args.iter().cloned())
+            .arguments((coin_2.object_id, 10u64));
 
-        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+        let tx_data = builder.finish().await.unwrap();
 
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
@@ -1708,6 +1674,49 @@ async fn assert_paginated_events_ascending(
     }
 
     Ok(())
+}
+
+/// Helper function to split a coin into equal parts using the new
+/// TransactionBuilder. Returns the TransactionData ready to be signed.
+async fn split_coin_equal_tx(
+    iota_client: &iota_sdk::IotaClient,
+    sender: IotaAddress,
+    coin_to_split: ObjectID,
+    num_coins: u64,
+    gas_coin: Option<ObjectID>,
+    gas_budget: u64,
+) -> TransactionData {
+    // Fetch the coin balance
+    let coin_balance = iota_client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await
+        .expect("failed to get coins")
+        .data
+        .into_iter()
+        .find(|c| c.coin_object_id == coin_to_split)
+        .expect("coin not found")
+        .balance;
+
+    // Calculate equal split amounts: divide balance by num_coins
+    // Creates num_coins - 1 new coins, the original retains the remainder
+    let amount_per_split = coin_balance / num_coins;
+    let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
+
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(iota_client);
+
+    builder.split_coins(coin_to_split, split_amounts);
+
+    if let Some(gas) = gas_coin {
+        builder.gas([gas]);
+    }
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct split coin transaction")
 }
 
 async fn assert_paginated_events_descending(

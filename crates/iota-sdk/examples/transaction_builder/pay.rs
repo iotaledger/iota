@@ -9,6 +9,7 @@
 #[path = "../utils.rs"]
 mod utils;
 
+use iota_sdk_transaction_builder::TransactionBuilder;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -21,23 +22,12 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_coins(sender, None, None, None)
         .await?;
     let coin_object_id = coins.data[0].coin_object_id;
-    let gas_coin_object_id = coins.data[1].coin_object_id;
-
-    let gas_budget = 5_000_000;
 
     // Build the transaction data to transfer 1_000 from the provided coin to the
     // recipient address
-    let tx_data = client
-        .transaction_builder()
-        .pay(
-            sender,
-            vec![coin_object_id],
-            vec![recipient],
-            vec![1_000],
-            gas_coin_object_id,
-            gas_budget,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder.send_coins(vec![coin_object_id], recipient, 1_000u64);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 

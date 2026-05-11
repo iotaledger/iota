@@ -691,17 +691,33 @@ impl SimpleFaucet {
         amounts: &[u64],
         budget: u64,
     ) -> Result<TransactionData, anyhow::Error> {
-        let recipients = vec![recipient; amounts.len()];
         let client = self.wallet.get_client().await?;
-        client
-            .transaction_builder()
-            .pay_iota(signer, vec![coin_id], recipients, amounts.to_vec(), budget)
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "failed to build PayIota transaction for coin {coin_id:?}, with err {e:?}"
-                )
-            })
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(signer).with_client(&client);
+        // Split the gas coin into amounts for each recipient and transfer them
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                amounts.to_vec(),
+            )
+            .transfer_objects(
+                recipient,
+                (0..amounts.len())
+                    .map(|i| {
+                        iota_sdk_transaction_builder::unresolved::Argument::NestedResult(
+                            0, i as u16,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .gas(vec![coin_id])
+            .gas_budget(budget);
+        let tx_data = builder.finish().await.map_err(|e| {
+            anyhow::anyhow!(
+                "failed to build PayIota transaction for coin {coin_id:?}, with err {e:?}"
+            )
+        })?;
+        Ok(tx_data)
     }
 
     async fn check_and_map_transfer_gas_result(
@@ -1227,18 +1243,43 @@ mod tests {
             .await
             .unwrap();
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
+        let gas_coin = gas_coins.first().unwrap().object_id;
         let gas_budget = 50_000_000;
         let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+
+        // Split into 10 coins
+        let split_amount = 10_000_000_000u64;
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder.gas(vec![gas_coin]);
+        builder.gas_price(rgp);
+        builder.gas_budget(gas_budget);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![split_amount; 10],
+            )
+            .assign(vec![
+                "coin0", "coin1", "coin2", "coin3", "coin4", "coin5", "coin6", "coin7", "coin8",
+                "coin9",
+            ]);
+        builder.transfer_objects(
+            address,
+            vec![
+                iota_sdk_transaction_builder::assigned("coin0"),
+                iota_sdk_transaction_builder::assigned("coin1"),
+                iota_sdk_transaction_builder::assigned("coin2"),
+                iota_sdk_transaction_builder::assigned("coin3"),
+                iota_sdk_transaction_builder::assigned("coin4"),
+                iota_sdk_transaction_builder::assigned("coin5"),
+                iota_sdk_transaction_builder::assigned("coin6"),
+                iota_sdk_transaction_builder::assigned("coin7"),
+                iota_sdk_transaction_builder::assigned("coin8"),
+                iota_sdk_transaction_builder::assigned("coin9"),
+            ],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
 
         execute_tx(&mut context, tx_data).await.unwrap();
 
@@ -1359,24 +1400,42 @@ mod tests {
         let tmp_dir = iota_common::tempdir();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
-        let gas_coins = context
-            .get_all_gas_objects_owned_by_address(address)
-            .await
-            .unwrap();
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
         let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+        let gas_budget = 50_000_000;
 
+        // Split into 10 coins
+        let split_amount = 10_000_000_000u64;
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder.gas_price(rgp);
+        builder.gas_budget(gas_budget);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![split_amount; 10],
+            )
+            .assign(vec![
+                "coin0", "coin1", "coin2", "coin3", "coin4", "coin5", "coin6", "coin7", "coin8",
+                "coin9",
+            ]);
+        builder.transfer_objects(
+            address,
+            vec![
+                iota_sdk_transaction_builder::assigned("coin0"),
+                iota_sdk_transaction_builder::assigned("coin1"),
+                iota_sdk_transaction_builder::assigned("coin2"),
+                iota_sdk_transaction_builder::assigned("coin3"),
+                iota_sdk_transaction_builder::assigned("coin4"),
+                iota_sdk_transaction_builder::assigned("coin5"),
+                iota_sdk_transaction_builder::assigned("coin6"),
+                iota_sdk_transaction_builder::assigned("coin7"),
+                iota_sdk_transaction_builder::assigned("coin8"),
+                iota_sdk_transaction_builder::assigned("coin9"),
+            ],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
 
         let faucet = SimpleFaucet::new(
@@ -1420,6 +1479,7 @@ mod tests {
         }
 
         let mut status_results;
+        let mut max_retries = 100;
         loop {
             // Assert that all of these are SUCCEEDED
             status_results =
@@ -1440,6 +1500,14 @@ mod tests {
                 "Trying to get status again... current is: {:?}",
                 status_results[0].status
             );
+            max_retries -= 1;
+            if max_retries == 0 {
+                panic!("Exceeded max retries to get batch send status");
+            }
+            // The batch worker waits up to BATCH_TIMEOUT (10s) for a full batch
+            // before sending; without a sleep, 100 retries elapse in ~5s and the
+            // test panics before the transaction is even submitted.
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
         for status in status_results {
             assert_eq!(status.status, BatchSendStatusType::SUCCEEDED);
@@ -1525,17 +1593,12 @@ mod tests {
         let faucet: &mut SimpleFaucet = &mut Arc::try_unwrap(faucet).unwrap();
 
         // Now we transfer one gas out
-        let gas_budget = 50_000_000;
-        let tx_data = client
-            .transaction_builder()
-            .pay_all_iota(
-                address,
-                vec![bad_gas.object_id],
-                IotaAddress::random(),
-                gas_budget,
-            )
-            .await
-            .unwrap();
+        let gas_for_tx = *gas_coins.iter().next().unwrap();
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder.gas(vec![gas_for_tx]);
+        builder.transfer_objects(IotaAddress::random(), vec![bad_gas.object_id]);
+        let tx_data = builder.finish().await.unwrap();
         execute_tx(faucet.wallet_mut(), tx_data).await.unwrap();
 
         let number_of_coins = gas_coins.len();
@@ -1631,10 +1694,6 @@ mod tests {
         let test_cluster = TestClusterBuilder::new().build().await;
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
-        let gas_coins = context
-            .get_all_gas_objects_owned_by_address(address)
-            .await
-            .unwrap();
 
         // split out a coin that has a very small balance such that
         // this coin will be not used later on. This is the new default amount for
@@ -1642,22 +1701,22 @@ mod tests {
         let config = FaucetConfig::default();
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![tiny_value]),
-                None,
+
+        // Split a small amount
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![tiny_value],
             )
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+            .assign(vec!["tiny_coin"]);
+        builder.transfer_objects(
+            address,
+            vec![iota_sdk_transaction_builder::assigned("tiny_coin")],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
 
         let effects = execute_tx(&mut context, tx_data).await.unwrap();
 
@@ -1722,48 +1781,48 @@ mod tests {
         let test_cluster = TestClusterBuilder::new().build().await;
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
-        let gas_coins = context
-            .get_all_gas_objects_owned_by_address(address)
-            .await
-            .unwrap();
         let config = FaucetConfig::default();
 
         // The coin that is split off stays because we don't try to refresh the coin
         // vector
         let reasonable_value = (config.num_coins as u64 * config.amount) * 10;
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![reasonable_value]),
-                None,
+
+        // Split a reasonable amount
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![reasonable_value],
             )
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+            .assign(vec!["reasonable_coin"]);
+        builder.transfer_objects(
+            address,
+            vec![iota_sdk_transaction_builder::assigned("reasonable_coin")],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
+
+        // Refresh gas_coins after the split transaction
+        let gas_coins = context
+            .get_all_gas_objects_owned_by_address(address)
+            .await
+            .unwrap();
 
         let destination_address = IotaAddress::random();
         // Transfer all valid gases away except for 1
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
-            let tx_data = client
-                .transaction_builder()
-                .transfer_iota(
-                    address,
-                    gas.object_id,
-                    gas_budget,
-                    destination_address,
-                    None,
-                )
-                .await
-                .unwrap();
+            let mut builder =
+                iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+            builder.gas(vec![gas.object_id]);
+            builder.transfer_objects(
+                destination_address,
+                vec![iota_sdk_transaction_builder::unresolved::Argument::Gas],
+            );
+
+            let tx_data = builder.finish().await.unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
         }
 
@@ -1807,50 +1866,65 @@ mod tests {
         let test_cluster = TestClusterBuilder::new().build().await;
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
-        let gas_coins = context
-            .get_all_gas_objects_owned_by_address(address)
-            .await
-            .unwrap();
         let config = FaucetConfig::default();
 
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![tiny_value]),
-                None,
-            )
-            .await
-            .unwrap();
-
         let gas_budget = 50_000_000;
         let rgp = context.get_reference_gas_price().await.unwrap();
 
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
+        // Split a small amount
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder.gas_price(rgp);
+        builder.gas_budget(gas_budget);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![tiny_value],
+            )
+            .assign(vec!["tiny_coin"]);
+        builder.transfer_objects(
+            address,
+            vec![iota_sdk_transaction_builder::assigned("tiny_coin")],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
+
+        let effects = execute_tx(&mut context, tx_data).await.unwrap();
+
+        // Get the ObjectID of the tiny coin that was created
+        let tiny_coin_id = effects
+            .created()
+            .first()
+            .map(|obj_ref| obj_ref.reference.object_id)
+            .expect("Tiny coin should have been created");
+
+        // Refresh gas_coins after the split transaction
+        let gas_coins = context
+            .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
 
-        execute_tx(&mut context, tx_data).await.unwrap();
-
         let destination_address = IotaAddress::random();
 
-        // Transfer all valid gases away
+        // Transfer all valid gases away (excluding the tiny coin)
         for gas in gas_coins {
-            let tx_data = client
-                .transaction_builder()
-                .transfer_iota(
-                    address,
-                    gas.object_id,
-                    gas_budget,
-                    destination_address,
-                    None,
-                )
-                .await
-                .unwrap();
+            // Skip the tiny coin
+            if gas.object_id == tiny_coin_id {
+                continue;
+            }
+            let mut builder =
+                iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+            builder.gas(vec![gas.object_id]);
+            builder.gas_price(rgp);
+            builder.gas_budget(gas_budget);
+            builder.transfer_objects(
+                destination_address,
+                vec![iota_sdk_transaction_builder::unresolved::Argument::Gas],
+            );
+
+            let tx_data = builder.finish().await.unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
         }
 
@@ -1964,23 +2038,42 @@ mod tests {
         };
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
-        let gas_coins = context
-            .get_all_gas_objects_owned_by_address(address)
-            .await
-            .unwrap();
         let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
         let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+        let gas_budget = 50_000_000;
+
+        // Split into 10 coins
+        let split_amount = 10_000_000_000u64;
+        let mut builder =
+            iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+        builder.gas_price(rgp);
+        builder.gas_budget(gas_budget);
+        builder
+            .split_coins(
+                iota_sdk_transaction_builder::unresolved::Argument::Gas,
+                vec![split_amount; 10],
+            )
+            .assign(vec![
+                "coin0", "coin1", "coin2", "coin3", "coin4", "coin5", "coin6", "coin7", "coin8",
+                "coin9",
+            ]);
+        builder.transfer_objects(
+            address,
+            vec![
+                iota_sdk_transaction_builder::assigned("coin0"),
+                iota_sdk_transaction_builder::assigned("coin1"),
+                iota_sdk_transaction_builder::assigned("coin2"),
+                iota_sdk_transaction_builder::assigned("coin3"),
+                iota_sdk_transaction_builder::assigned("coin4"),
+                iota_sdk_transaction_builder::assigned("coin5"),
+                iota_sdk_transaction_builder::assigned("coin6"),
+                iota_sdk_transaction_builder::assigned("coin7"),
+                iota_sdk_transaction_builder::assigned("coin8"),
+                iota_sdk_transaction_builder::assigned("coin9"),
+            ],
+        );
+
+        let tx_data = builder.finish().await.unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
 
         let prom_registry = Registry::new();
@@ -2015,6 +2108,7 @@ mod tests {
         .collect::<Vec<BatchFaucetReceipt>>();
 
         let mut status_results;
+        let mut max_retries = 100;
         loop {
             // Assert that all of these are SUCCEEDED
             status_results =
@@ -2035,6 +2129,14 @@ mod tests {
                 "Trying to get status again... current is: {:?}",
                 status_results[0].status
             );
+            max_retries -= 1;
+            if max_retries == 0 {
+                panic!("Exceeded max retries to get batch send status");
+            }
+            // The batch worker waits up to BATCH_TIMEOUT (10s) for a full batch
+            // before sending; without a sleep, 100 retries elapse in ~5s and the
+            // test panics before the transaction is even submitted.
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
         for status in status_results {

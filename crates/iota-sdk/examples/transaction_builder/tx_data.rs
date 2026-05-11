@@ -10,35 +10,21 @@
 mod utils;
 
 use anyhow::bail;
-use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
+use iota_sdk_transaction_builder::TransactionBuilder;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let (client, sender, recipient) = setup_for_write().await?;
 
-    let gas_budget = 5_000_000;
-    let rgp = client.read_api().get_reference_gas_price().await.unwrap();
-
-    let tx_kind = client
-        .transaction_builder()
-        .pay_iota_tx_kind(vec![recipient], vec![1_000_000])?;
-
-    let tx_data = client
-        .transaction_builder()
-        .tx_data_for_dry_run(sender, tx_kind.clone(), gas_budget, rgp, None, None)
-        .await;
-    let dry_run_tx_resp = client.read_api().dry_run_transaction_block(tx_data).await?;
-    let IotaTransactionBlockEffects::V1(effects) = dry_run_tx_resp.effects;
-    // Error if the dry run failed to save gas
-    if let IotaExecutionStatus::Failure { error } = effects.status {
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder.send_iota(recipient, 1_000_000u64);
+    let dry_run_res = builder.clone().dry_run(false).await?;
+    if let Some(error) = dry_run_res.error {
         bail!(error);
     }
 
-    let tx_data = client
-        .transaction_builder()
-        .tx_data(sender, tx_kind, gas_budget, rgp, vec![], None)
-        .await?;
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 

@@ -14,6 +14,7 @@ use iota_sdk::{
     rpc_types::EventFilter,
     types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
 };
+use iota_sdk_transaction_builder::TransactionBuilder;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -21,15 +22,6 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get the IOTA client, the sender and recipient that we will use
     // for the transaction
     let (client, sender, _) = setup_for_write().await?;
-
-    // Get the coin we will use for the amount
-    let coins = client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?;
-    let coin = coins.data.into_iter().next().unwrap();
-
-    let gas_budget = 50_000_000;
 
     // Get a validator
     let validator = match client
@@ -44,18 +36,9 @@ async fn main() -> Result<(), anyhow::Error> {
     .iota_address;
 
     // Build the transaction data, to stake 1 IOTA
-    let tx_data = client
-        .transaction_builder()
-        .request_add_stake(
-            sender,
-            vec![coin.coin_object_id],
-            // Min delegation amount is 1 IOTA
-            1_000_000_000,
-            validator,
-            None,
-            gas_budget,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder.stake(1_000_000_000u64, validator);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 
@@ -79,10 +62,9 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         })
     }) {
-        let tx_data = client
-            .transaction_builder()
-            .request_withdraw_stake(sender, staked_iota_id, None, gas_budget)
-            .await?;
+        let mut builder = TransactionBuilder::new(sender).with_client(&client);
+        builder.unstake(staked_iota_id);
+        let tx_data = builder.finish().await?;
 
         let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 

@@ -4,7 +4,7 @@
 #[cfg(not(msim))]
 use std::str::FromStr;
 
-use iota_json::{call_args, type_args};
+use iota_json::type_args;
 use iota_json_rpc_api::IndexerApiClient;
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
@@ -13,6 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::TypeTag as SdkTypeTag;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -27,7 +28,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::CallArg,
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -282,10 +283,13 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
         // Make some transactions
         for obj in &objects[..objects.len() - 1] {
             let oref = obj.object().unwrap();
-            let data = client
-                .transaction_builder()
-                .transfer_object(address, oref.object_id, Some(gas_id), 1_000_000, address)
-                .await?;
+            let mut builder =
+                iota_sdk_transaction_builder::TransactionBuilder::new(address).with_client(&client);
+            builder
+                .transfer_objects(address, [oref.object_id])
+                .gas(vec![gas_id])
+                .gas_budget(1_000_000u64);
+            let data = builder.finish().await?;
             let tx = cluster.wallet.sign_transaction(&data);
 
             let response = client
@@ -458,9 +462,8 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     let coin_2 = &objects[1];
     let signer = cluster.wallet.active_address().unwrap();
 
-    let tx_builder = client.transaction_builder().clone();
-    let mut pt_builder = ProgrammableTransactionBuilder::new();
-    let gas = objects.last().unwrap().object().unwrap().object_ref();
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(signer).with_client(&client);
 
     let module = Identifier::from_str("pay")?;
     let function_1 = Identifier::from_str("split")?;
@@ -472,42 +475,25 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .map(|ty| ty.try_into())
         .collect::<Result<Vec<_>, _>>()?;
 
-    let iota_call_args_1 = call_args!(coin.data.clone().unwrap().object_id, 10)?;
-    let call_args_1 = tx_builder
-        .resolve_and_checks_json_args(
-            &mut pt_builder,
-            package_id,
-            &module,
-            &function_1,
-            &type_args,
-            iota_call_args_1,
+    builder
+        .move_call(package_id, module.as_str(), function_1.as_str())
+        .type_tags(
+            type_args
+                .iter()
+                .map(|t: &TypeTag| t.to_string().parse::<SdkTypeTag>().unwrap()),
         )
-        .await?;
-    let cmd_1 = Command::new_move_call(
-        package_id,
-        module.clone(),
-        function_1,
-        type_args.clone(),
-        call_args_1.clone(),
-    );
+        .arguments((coin.data.clone().unwrap().object_id, 10u64));
 
-    let iota_call_args_2 = call_args!(coin_2.data.clone().unwrap().object_id, 10)?;
-    let call_args_2 = tx_builder
-        .resolve_and_checks_json_args(
-            &mut pt_builder,
-            package_id,
-            &module,
-            &function_2,
-            &type_args,
-            iota_call_args_2,
+    builder
+        .move_call(package_id, module.as_str(), function_2.as_str())
+        .type_tags(
+            type_args
+                .iter()
+                .map(|t: &TypeTag| t.to_string().parse::<SdkTypeTag>().unwrap()),
         )
-        .await?;
-    let cmd_2 = Command::new_move_call(package_id, module, function_2, type_args, call_args_2);
-    pt_builder.command(cmd_1);
-    pt_builder.command(cmd_2);
-    let pt = pt_builder.finish();
+        .arguments((coin_2.data.clone().unwrap().object_id, 10u64));
 
-    let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let tx_data = builder.finish().await.unwrap();
     let signed_data = cluster.wallet.sign_transaction(&tx_data);
     let _response = client
         .quorum_driver_api()

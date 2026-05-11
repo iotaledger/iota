@@ -4,8 +4,9 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use anyhow::Result;
 use fastcrypto::encoding::Base64;
-use futures::{StreamExt, stream};
+use futures::{StreamExt, future::join_all, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
@@ -22,7 +23,7 @@ use iota_json_rpc_types::{
     TransactionBlocksPage, TransactionFilter,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
     iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -456,6 +457,25 @@ impl ReadApi {
             "Object {object_id:?} is not a MoveObject"
         )))?;
         Ok(raw_move_obj.bcs_bytes)
+    }
+
+    /// Get the object references for a list of object IDs
+    pub async fn input_refs(&self, obj_ids: &[ObjectID]) -> Result<Vec<ObjectRef>> {
+        let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
+        let obj_refs = join_all(handles)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<ObjectRef>>>()?;
+        Ok(obj_refs)
+    }
+
+    /// Get the latest object ref for an object.
+    pub async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef> {
+        let object = self
+            .get_object_with_options(object_id, IotaObjectDataOptions::new().with_type())
+            .await?
+            .into_object()?;
+        Ok(object.object_ref())
     }
 
     /// Get the total number of transaction blocks known to server.

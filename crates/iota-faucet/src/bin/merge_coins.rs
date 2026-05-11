@@ -9,6 +9,7 @@ use iota_faucet::FaucetError;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_transaction_builder::{TransactionBuilder, unresolved::Argument};
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::ObjectID, gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
@@ -51,10 +52,30 @@ async fn _split_coins_equally(
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
     let client = wallet.get_client().await?;
     let coin_object_id = ObjectID::from_str(gas_coin).unwrap();
-    let tx_data = client
-        .transaction_builder()
-        .split_coin_equal(active_address, coin_object_id, count, None, 50000000000)
+
+    // Get the coin balance to calculate equal split amounts
+    let coins = client
+        .coin_read_api()
+        .get_coins(active_address, None, None, None)
         .await?;
+    let coin_balance = coins
+        .data
+        .iter()
+        .find(|c| c.coin_object_id == coin_object_id)
+        .map(|c| c.balance)
+        .unwrap_or(0);
+    let amount_per_coin = coin_balance / count;
+
+    let mut builder = TransactionBuilder::new(active_address).with_client(&client);
+    builder
+        .split_coins(
+            Argument::Gas,
+            (0..count.saturating_sub(1))
+                .map(|_| amount_per_coin)
+                .collect::<Vec<_>>(),
+        )
+        .gas(vec![coin_object_id]);
+    let tx_data = builder.finish().await?;
 
     let signature = wallet
         .config()
@@ -104,13 +125,12 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
 
         // prepend big gas coin instance to vector
         coin_vector.insert(0, ObjectID::from_str(gas_coin).unwrap());
-        let target = vec![active_address];
-        let target_amount = vec![total_balance];
 
-        let tx_data = client
-            .transaction_builder()
-            .pay_iota(active_address, coin_vector, target, target_amount, 1000000)
-            .await?;
+        let mut builder = TransactionBuilder::new(active_address).with_client(&client);
+        builder
+            .send_iota(active_address, total_balance)
+            .gas(coin_vector.to_vec());
+        let tx_data = builder.finish().await?;
         let signature = wallet
             .config()
             .keystore()

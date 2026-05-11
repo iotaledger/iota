@@ -12,20 +12,13 @@ use std::path::PathBuf;
 
 use iota_move_build::BuildConfig;
 use iota_sdk::rpc_types::ObjectChange;
+use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let (client, sender, _) = setup_for_write().await?;
-
-    let coins = client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?;
-    let gas_coin_object_id = coins.data[0].coin_object_id;
-
-    let gas_budget = 50_000_000;
 
     let package_path = [
         env!("CARGO_MANIFEST_DIR"),
@@ -46,16 +39,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let module = build_config.clone().build(&package_path)?;
 
-    let tx_data = client
-        .transaction_builder()
-        .publish(
-            sender,
-            module.get_package_bytes(false),
-            module.get_dependency_storage_package_ids(),
-            gas_coin_object_id,
-            gas_budget,
-        )
-        .await?;
+    let move_package_data = iota_sdk_types::MovePackageData::new(
+        module.get_package_bytes(false),
+        module.get_dependency_storage_package_ids(),
+    );
+
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .publish(move_package_data)
+        .assign("upgrade_cap")
+        // Transfer the upgrade cap to the sender address
+        .transfer_objects(sender, [assigned("upgrade_cap")]);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 
@@ -101,19 +96,35 @@ async fn main() -> Result<(), anyhow::Error> {
     let deps = module.get_dependency_storage_package_ids();
     let package_bytes = module.get_package_bytes(false);
 
-    let tx_data = client
-        .transaction_builder()
-        .upgrade(
-            sender,
-            package_id,
-            package_bytes,
-            deps,
-            upgrade_capability,
-            0,
-            gas_coin_object_id,
-            gas_budget,
+    let move_package_data = iota_sdk_types::MovePackageData::new(package_bytes, deps);
+
+    let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
+    builder
+        // Authorize the upgrade by providing the upgrade cap object id to receive an upgrade
+        // ticket
+        .move_call(
+            iota_sdk_types::Address::FRAMEWORK,
+            "package",
+            "authorize_upgrade",
         )
-        .await?;
+        .arguments((
+            upgrade_capability,
+            iota_sdk_types::UpgradePolicy::Compatible as u8,
+            move_package_data.digest,
+        ))
+        .assign("upgrade_ticket")
+        // Upgrade the package to receive an upgrade receipt
+        .upgrade(package_id, move_package_data, assigned("upgrade_ticket"))
+        .assign("upgrade_receipt")
+        // Commit the upgrade using the receipt
+        .move_call(
+            iota_sdk_types::Address::FRAMEWORK,
+            "package",
+            "commit_upgrade",
+        )
+        .arguments((upgrade_capability, assigned("upgrade_receipt")));
+
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 

@@ -8,6 +8,7 @@
 #[path = "../utils.rs"]
 mod utils;
 
+use iota_sdk_transaction_builder::TransactionBuilder;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -21,14 +22,15 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let mut coins = coins_page.data.into_iter();
     let gas_coin = coins.next().expect("missing gas coin");
+    let coin_to_transfer = coins.next().expect("missing coin to transfer");
 
-    let gas_budget = 5_000_000;
+    // Build the transaction data to transfer a coin to the recipient address
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .transfer_objects(recipient, vec![coin_to_transfer.coin_object_id])
+        .gas(vec![gas_coin.coin_object_id]);
 
-    // Build the transaction data to transfer the gas coin to the recipient address
-    let tx_data = client
-        .transaction_builder()
-        .transfer_iota(sender, gas_coin.coin_object_id, gas_budget, recipient, None)
-        .await?;
+    let tx_data = builder.finish().await?;
 
     println!("Executing the transaction...");
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
@@ -40,21 +42,14 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Very similar to above, but works with any object, not just with IOTAs
-
     let object_to_transfer = coins.next().expect("missing coin");
-    let gas_coin = coins.next().expect("missing gas coin");
 
     // Build the transaction data to transfer the object to the recipient address
-    let tx_data = client
-        .transaction_builder()
-        .transfer_object(
-            sender,
-            object_to_transfer.coin_object_id,
-            gas_coin.coin_object_id,
-            gas_budget,
-            recipient,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .transfer_objects(recipient, vec![object_to_transfer.coin_object_id])
+        .gas(vec![gas_coin.coin_object_id]);
+    let tx_data = builder.finish().await?;
 
     println!("Executing the transaction...");
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;

@@ -621,24 +621,20 @@ impl Client {
 
         let tx_kind = TransactionKind::Programmable(tx);
 
-        // Gas Estimation
-        let tx_data = client
-            .transaction_builder()
-            .tx_data_for_dry_run(
-                sender,
-                tx_kind.clone(),
-                max_budget,
-                gas_price,
-                // gas_payment
-                None,
-                // gas_sponsor
-                None,
-            )
-            .await;
+        // Gas Estimation: build a TransactionData with the sender paying for itself
+        // and no gas payment coins so the full wallet balance is available during
+        // the dry run.
+        let tx_data_for_estimation = TransactionData::new_with_gas_coins(
+            tx_kind.clone(),
+            sender,
+            vec![],
+            max_budget,
+            gas_price,
+        );
 
         let DryRunTransactionBlockResponse { effects, .. } = client
             .read_api()
-            .dry_run_transaction_block(tx_data.clone())
+            .dry_run_transaction_block(tx_data_for_estimation)
             .await
             .context("Error estimating gas budget")?;
 

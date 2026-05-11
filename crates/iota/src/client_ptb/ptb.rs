@@ -9,11 +9,10 @@ use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::Address;
 use iota_types::{
-    digests::TransactionDigest,
-    gas::GasCostSummary,
-    transaction::{ProgrammableTransaction, TransactionKind},
+    digests::TransactionDigest, gas::GasCostSummary, transaction::ProgrammableTransaction,
 };
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
@@ -264,11 +263,14 @@ impl PTB {
             context.infer_sender(&gas).await?
         };
 
-        // build the tx kind
-        let tx_kind = TransactionKind::Programmable(ProgrammableTransaction {
-            inputs: ptb.inputs,
-            commands: ptb.commands,
-        });
+        // build the transaction builder
+        let mut builder = TransactionBuilder::new(sender).with_client(&client);
+        for input in &ptb.inputs {
+            builder.input(input.clone());
+        }
+        for command in &ptb.commands {
+            builder.command(command.clone().into());
+        }
 
         let gas_data = GasDataArgs {
             gas_budget: program_metadata.gas_budget.map(|x| x.value),
@@ -294,15 +296,15 @@ impl PTB {
             sponsor_auth_type_args,
         };
 
-        let gas_payment = client.transaction_builder().input_refs(&gas).await?;
+        let gas_payment = client.read_api().input_refs(&gas).await?;
 
         let transaction_response = dry_run_or_execute_or_serialize(
-            sender,
-            tx_kind,
+            builder,
             context,
             gas_payment,
             gas_data,
             processing,
+            sender,
         )
         .await?;
 

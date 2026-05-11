@@ -15,8 +15,11 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
+use iota_sdk_types::MovePackageData;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -886,20 +889,26 @@ pub async fn upgrade_package_with_wallet(
     let client = context.get_client().await.unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let transaction = {
-        let data = client
-            .transaction_builder()
-            .upgrade(
-                sender,
-                package_id,
-                all_module_bytes,
-                dep_ids,
-                upgrade_cap,
-                UpgradePolicy::COMPATIBLE,
-                None,
-                TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price,
-            )
-            .await
-            .unwrap();
+        let package_data = MovePackageData::new(all_module_bytes, dep_ids);
+
+        let mut builder = TransactionBuilder::new(sender).with_client(&client);
+        builder.gas_price(gas_price);
+        builder.gas_budget(TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price);
+
+        builder
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "package", "authorize_upgrade")
+            .arguments((upgrade_cap, UpgradePolicy::COMPATIBLE, package_data.digest))
+            .assign("ticket");
+
+        let receipt = builder
+            .upgrade(package_id, package_data, assigned("ticket"))
+            .arg();
+
+        builder
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "package", "commit_upgrade")
+            .arguments((upgrade_cap, receipt));
+
+        let data = builder.finish().await.unwrap();
 
         context.sign_transaction(&data)
     };

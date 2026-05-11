@@ -8,52 +8,18 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use iota_json::IotaJsonValue;
-use iota_sdk::types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
-};
-use serde_json::json;
+use iota_sdk_transaction_builder::TransactionBuilder;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (client, sender, recipient) = setup_for_write().await?;
+    let (client, sender, _recipient) = setup_for_write().await?;
 
-    let coins = client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?;
-    let coin = &coins.data[0];
-    let gas_coin = &coins.data[1];
-
-    let gas_budget = 5_000_000;
-    let gas_price = client.read_api().get_reference_gas_price().await?;
-
-    let mut ptb = ProgrammableTransactionBuilder::new();
-    client
-        .transaction_builder()
-        .single_move_call(
-            &mut ptb,
-            "0x2".parse()?,
-            "iota",
-            "transfer",
-            vec![],
-            vec![
-                IotaJsonValue::new(json!(coin.coin_object_id))?,
-                IotaJsonValue::new(json!(recipient))?,
-            ],
-        )
-        .await?;
-    let pt = ptb.finish();
-
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_coin.object_ref()],
-        pt,
-        gas_budget,
-        gas_price,
-    );
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .move_call(iota_sdk_types::Address::STD, "u8", "max")
+        .arguments((0u8, 1u8));
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 

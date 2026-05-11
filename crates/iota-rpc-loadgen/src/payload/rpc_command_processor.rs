@@ -729,11 +729,22 @@ async fn pay_iota(
     amounts: Vec<u64>,
 ) -> IotaTransactionBlockResponse {
     let sender = IotaAddress::from(&keypair.public());
-    let tx = client
-        .transaction_builder()
-        .pay(sender, input_coins, recipients, amounts, None, gas_budget)
+
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(client);
+
+    // Send coins to each recipient with their respective amount
+    for (recipient, amount) in recipients.iter().zip(amounts.iter()) {
+        builder.send_coins(input_coins.to_vec(), *recipient, *amount);
+    }
+
+    builder.gas_budget(gas_budget);
+
+    let tx = builder
+        .finish()
         .await
         .expect("failed to construct pay iota transaction");
+
     sign_and_execute(
         client,
         keypair,
@@ -751,17 +762,37 @@ async fn split_coins(
     num_coins: u64,
 ) -> Vec<ObjectID> {
     let sender = IotaAddress::from(&keypair.public());
-    let split_coin_tx = client
-        .transaction_builder()
-        .split_coin_equal(
-            sender,
-            coin_to_split,
-            num_coins,
-            Some(gas_payment),
-            DEFAULT_LARGE_GAS_BUDGET,
-        )
+
+    // Fetch the coin balance to calculate equal split amounts
+    let coin_balance = client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await
+        .expect("failed to get coins")
+        .data
+        .into_iter()
+        .find(|c| c.coin_object_id == coin_to_split)
+        .expect("coin not found")
+        .balance;
+
+    // Calculate equal split amounts: divide balance by num_coins
+    // The last coin (the original) will retain any remainder
+    let amount_per_split = coin_balance / num_coins;
+    let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
+
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(client);
+
+    builder.split_coins(coin_to_split, split_amounts);
+
+    builder.gas([gas_payment]);
+    builder.gas_budget(DEFAULT_LARGE_GAS_BUDGET);
+
+    let split_coin_tx = builder
+        .finish()
         .await
         .expect("failed to construct split coin transaction");
+
     sign_and_execute(
         client,
         keypair,

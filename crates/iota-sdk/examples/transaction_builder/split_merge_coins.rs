@@ -10,6 +10,7 @@ mod utils;
 
 use std::time::Duration;
 
+use iota_sdk_transaction_builder::{TransactionBuilder, assigned, unresolved::Argument};
 use tokio::time::sleep;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -23,13 +24,21 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let gas_coin = coins.data.into_iter().next().unwrap();
 
-    let gas_budget = 50_000_000;
-
-    // Split equal
-    let tx_data = client
-        .transaction_builder()
-        .split_coin_equal(sender, gas_coin.coin_object_id, 10, None, gas_budget)
-        .await?;
+    // Split equal (-1 IOTA to cover gas)
+    const SPLIT_COUNT: usize = 4;
+    let amount = (gas_coin.balance - 1_000_000_000) / SPLIT_COUNT as u64;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .split_coins(Argument::Gas, vec![amount; SPLIT_COUNT])
+        .transfer_objects(
+            sender,
+            (0..SPLIT_COUNT)
+                .map(|i| Argument::NestedResult(0, i as u16))
+                .collect::<Vec<_>>(),
+        )
+        .gas(vec![gas_coin.coin_object_id])
+        .gas_budget(1_000_000_000);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 
@@ -43,22 +52,12 @@ async fn main() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(3)).await;
 
     // Split specific amounts
-    let coins = client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?;
-    let gas_coin = coins.data.into_iter().next().unwrap();
-
-    let tx_data = client
-        .transaction_builder()
-        .split_coin(
-            sender,
-            gas_coin.coin_object_id,
-            vec![1_000, 1_000_000],
-            None,
-            gas_budget,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder
+        .split_coins(Argument::Gas, [1_000u64, 1_000_000])
+        .assign(vec!["coin0", "coin1"])
+        .transfer_objects(sender, [assigned("coin0"), assigned("coin1")]);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 
@@ -77,16 +76,9 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_coins(sender, None, None, None)
         .await?;
     let coin_object_ids: Vec<_> = coins.data.into_iter().map(|c| c.coin_object_id).collect();
-    let tx_data = client
-        .transaction_builder()
-        .merge_coins(
-            sender,
-            coin_object_ids[0],
-            coin_object_ids[1],
-            None,
-            gas_budget,
-        )
-        .await?;
+    let mut builder = TransactionBuilder::new(sender).with_client(&client);
+    builder.merge_coins(coin_object_ids[0], [coin_object_ids[1]]);
+    let tx_data = builder.finish().await?;
 
     let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
 
