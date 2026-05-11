@@ -344,13 +344,13 @@ mod programmable_move_call_ext {
     impl Sealed for super::ProgrammableMoveCall {}
 }
 
-pub trait MoveCallExt: Sized + programmable_move_call_ext::Sealed {
+pub trait ProgrammableMoveCallExt: Sized + programmable_move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
-impl MoveCallExt for ProgrammableMoveCall {
+impl ProgrammableMoveCallExt for ProgrammableMoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         let mut packages = BTreeSet::from([self.package]);
         for type_argument in &self.type_arguments {
