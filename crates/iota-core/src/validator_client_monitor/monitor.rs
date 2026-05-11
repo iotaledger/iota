@@ -163,9 +163,6 @@ impl ValidatorClientMonitor {
             .client_stats
             .read()
             .select_shuffled_preferred_validators(committee, now, rng);
-        self.metrics
-            .shuffled_validators
-            .observe(validators.len() as f64);
         validators
     }
 
