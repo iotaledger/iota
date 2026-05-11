@@ -32,6 +32,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
+    attestation::AttestedTransaction,
     transaction::{CertifiedTransaction, Transaction},
 };
 
@@ -248,6 +249,9 @@ pub enum ConsensusTransactionKind {
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
     UserTransactionV1(Box<Transaction>),
+    /// Attested user transaction. Carries a gas attestation produced either by
+    /// the proposing validator or a registered third-party attestor.
+    UserTransactionV2(Box<AttestedTransaction>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -262,7 +266,11 @@ impl ConsensusTransactionKind {
     }
 
     pub fn is_user_transaction(&self) -> bool {
-        matches!(self, ConsensusTransactionKind::UserTransactionV1(_))
+        matches!(
+            self,
+            ConsensusTransactionKind::UserTransactionV1(_)
+                | ConsensusTransactionKind::UserTransactionV2(_)
+        )
     }
 }
 
@@ -588,6 +596,17 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_attested_transaction(attested: AttestedTransaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        let tx_digest = attested.transaction.digest();
+        tx_digest.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested)),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -637,6 +656,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::UserTransactionV1(tx) => {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
+            }
+            ConsensusTransactionKind::UserTransactionV2(attested) => {
+                ConsensusTransactionKey::UserTransaction(*attested.transaction.digest())
             }
         }
     }
