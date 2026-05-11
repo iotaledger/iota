@@ -1114,9 +1114,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -2326,6 +2323,9 @@ validate_public_key
 validate_multisig_public_key
 	fun
 	0x2::public_key
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
 PublicKeyFieldName
 	public struct
 	0x2::builtin_authenticator_functions
@@ -2360,6 +2360,9 @@ borrow_public_key
 	public fun
 	0x2::builtin_authenticator_functions
 public_key_field_name
+	fun
+	0x2::builtin_authenticator_functions
+check_builtin_authenticators_enabled
 	fun
 	0x2::builtin_authenticator_functions
 Receiving
