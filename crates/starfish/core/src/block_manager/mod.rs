@@ -127,10 +127,8 @@ impl BlockManager {
         if gc_floor <= self.last_gc_floor_applied {
             return vec![];
         }
-        self.last_gc_floor_applied = gc_floor;
 
         let metrics = &self.context.metrics.node_metrics;
-        metrics.block_manager_gc_floor.set(gc_floor as i64);
 
         let pivot = BlockRef::new(
             gc_floor.saturating_add(1),
@@ -154,6 +152,9 @@ impl BlockManager {
         metrics
             .block_manager_gc_unsuspended_total
             .inc_by(outcome.unsuspended_headers.len() as u64);
+
+        self.last_gc_floor_applied = gc_floor;
+        metrics.block_manager_gc_floor.set(gc_floor as i64);
 
         outcome.unsuspended_headers
     }
