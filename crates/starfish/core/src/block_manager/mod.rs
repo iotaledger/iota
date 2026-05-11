@@ -309,10 +309,10 @@ impl BlockManager {
 
         if let Some(blocks) = blocks {
             // Mirrors the gate in `filter_out_already_processed_and_sort`: when
-            // the hardening flag is on, a block at or below the GC floor cannot
-            // be sequenced and its header is dropped on arrival. Suspending its
-            // transactions would leave them stranded until the floor advanced
-            // again, allowing the map to grow between sweeps.
+            // the `consensus_block_restrictions` flag is on, a block at or below the GC
+            // floor cannot be sequenced and its header is dropped on arrival.
+            // Suspending its transactions would leave them stranded until the
+            // floor advanced again, allowing the map to grow between sweeps.
             let gc_filter_round: Option<Round> =
                 if self.context.protocol_config.consensus_block_restrictions() {
                     Some(self.last_gc_floor_applied)
@@ -494,9 +494,10 @@ impl BlockManager {
         incoming_headers: Vec<VerifiedBlockHeader>,
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
-        // Off the hardening flag, every absent ancestor is treated as missing
-        // (legacy behavior). With the flag on, ancestors at or below the GC
-        // floor cannot affect any not-yet-sequenced block and are skipped.
+        // Off the `consensus_block_restrictions` flag, every absent ancestor is treated
+        // as missing (legacy behavior). With the flag on, ancestors at or below
+        // the GC floor cannot affect any not-yet-sequenced block and are
+        // skipped.
         let gc_filter_round: Option<Round> =
             if self.context.protocol_config.consensus_block_restrictions() {
                 Some(self.last_gc_floor_applied)
@@ -535,9 +536,9 @@ impl BlockManager {
         let mut filtered = block_headers
             .into_iter()
             .filter_map(|block_header| {
-                // With the hardening flag on, drop incoming headers whose own
-                // round is at or below the GC floor; nothing they carry can be
-                // sequenced anymore.
+                // With the `consensus_block_restrictions` flag on, drop incoming headers whose
+                // own round is at or below the GC floor; nothing they carry can
+                // be sequenced anymore.
                 if gc_filter_round.is_some_and(|f| block_header.round() <= f) {
                     self.context
                         .metrics
@@ -1211,9 +1212,10 @@ mod tests {
         }
     }
 
-    /// With the hardening flag on and a non-zero gc_floor, an incoming header
-    /// whose only missing ancestor is below the floor is accepted directly,
-    /// not suspended, and is not registered for fetching.
+    /// With the `consensus_block_restrictions` flag on and a non-zero gc_floor,
+    /// an incoming header whose only missing ancestor is below the floor is
+    /// accepted directly, not suspended, and is not registered for
+    /// fetching.
     #[tokio::test]
     async fn gc_eviction_accepts_header_with_only_old_missing_ancestors() {
         use gc_eviction_helpers::*;
@@ -1403,8 +1405,9 @@ mod tests {
         assert_eq!(block_manager.last_gc_floor_applied, first_floor);
     }
 
-    /// With the hardening flag off, the sweep is fully disabled: no eviction,
-    /// no floor advance, no filtering of low-round ancestors.
+    /// With the `consensus_block_restrictions` flag off, the sweep is fully
+    /// disabled: no eviction, no floor advance, no filtering of low-round
+    /// ancestors.
     #[tokio::test]
     async fn gc_eviction_disabled_when_flag_off() {
         use gc_eviction_helpers::*;
