@@ -149,14 +149,23 @@ impl BlockManager {
         metrics
             .block_manager_gc_evicted_fetch_entries_total
             .inc_by(outcome.fetch_entries_evicted as u64);
+
+        // Drop headers whose own round is at/below the floor — the regular
+        // path filters them in `filter_out_already_processed_and_sort`, so
+        // the GC-unsuspend path must match.
+        let unsuspended_headers: Vec<_> = outcome
+            .unsuspended_headers
+            .into_iter()
+            .filter(|h| h.round() > gc_floor)
+            .collect();
         metrics
             .block_manager_gc_unsuspended_total
-            .inc_by(outcome.unsuspended_headers.len() as u64);
+            .inc_by(unsuspended_headers.len() as u64);
 
         self.last_gc_floor_applied = gc_floor;
         metrics.block_manager_gc_floor.set(gc_floor as i64);
 
-        outcome.unsuspended_headers
+        unsuspended_headers
     }
 
     /// Does all the same things as try_accept_block_headers and additionally
@@ -1440,5 +1449,48 @@ mod tests {
         );
         assert_eq!(missing, BTreeSet::from([old_ancestor]));
         assert_eq!(block_manager.last_gc_floor_applied, 0);
+    }
+
+    /// A header suspended at an earlier (lower) gc_floor must not be promoted
+    /// once the floor advances past its own round. The cascade still cleans
+    /// up the suspender, but a stale-round header is what the regular
+    /// acceptance path drops in `filter_out_already_processed_and_sort` — the
+    /// GC-unsuspend path stays consistent with that.
+    #[tokio::test]
+    async fn gc_eviction_filters_stale_unsuspended_headers() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Floor is 0 — the header at round 50 with a missing ancestor at
+        // round 30 gets suspended via the normal path.
+        let stale_ancestor = block_ref(30, 0);
+        let stale_header = header(50, 1, vec![stale_ancestor]);
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![stale_header], DataSource::Test);
+        assert!(accepted.is_empty(), "header should be suspended initially");
+        assert_eq!(missing, BTreeSet::from([stale_ancestor]));
+
+        // Advance the floor past the stale header's own round.
+        plant_last_commit(&dag_state, &context, gc_depth * 2 + 200);
+
+        // Triggering the sweep with an empty input must NOT promote the
+        // stale header even though the suspender cascade-unsuspends it.
+        let (accepted, _) = block_manager.try_accept_block_headers(vec![], DataSource::Test);
+        assert!(
+            accepted.is_empty(),
+            "stale-round header must be filtered from the GC-unsuspend path"
+        );
+        // Suspender state is still cleaned up by the cascade.
+        assert!(block_manager.block_suspender.is_empty());
     }
 }
