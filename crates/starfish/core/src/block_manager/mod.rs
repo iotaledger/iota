@@ -25,12 +25,42 @@ pub(crate) mod block_suspender;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::{DagState, DataSource},
 };
+
+/// Combine headers accepted via the regular path with headers unsuspended by
+/// the GC sweep, deduplicating on `BlockRef` and returning the result in
+/// `BlockRef` ascending order (which is `(round, author, digest)`-ascending,
+/// preserving the public "round ascending" guarantee of `try_accept_*`).
+///
+/// Both inputs can name the same header: the regular path accepts a
+/// freshly-arrived copy at the same time the GC sweep promotes a
+/// previously-suspended copy. Producing the same header twice would corrupt
+/// downstream metrics and DagState's accept assertions.
+///
+/// Regular-path entries take precedence on duplicate keys (they're the
+/// version we just verified for this batch).
+fn merge_accepted_round_ascending(
+    regular: Vec<VerifiedBlockHeader>,
+    gc_unsuspended: Vec<VerifiedBlockHeader>,
+) -> Vec<VerifiedBlockHeader> {
+    if gc_unsuspended.is_empty() {
+        return regular;
+    }
+    let mut by_ref: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();
+    for h in gc_unsuspended {
+        by_ref.insert(h.reference(), h);
+    }
+    for h in regular {
+        by_ref.insert(h.reference(), h);
+    }
+    by_ref.into_values().collect()
+}
 
 /// Block manager suspends incoming blocks until they are connected to the
 /// existing graph, returning newly connected blocks.
@@ -42,13 +72,19 @@ pub(crate) struct BlockManager {
     dag_state: Arc<RwLock<DagState>>,
 
     /// Keeps VerifiedTransactions of blocks whose headers have been suspended.
-    /// TODO: this set can grow to become too big, need to add some eviction
+    /// Bounded by the GC sweep in `maybe_evict_below_gc_floor`: any entry whose
+    /// block round is at or below `gc_round_for_last_commit` cannot be
+    /// sequenced and is dropped.
     suspended_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     block_suspender: BlockSuspender,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
     /// and resets during restarts.
     received_block_rounds: Vec<Option<(Round, Round)>>,
+    /// Highest GC round floor we've already swept against. Initialized to 0;
+    /// monotonically non-decreasing. When `gc_round_for_last_commit()` advances
+    /// past this value, the next `try_accept_*` call runs an eviction sweep.
+    last_gc_floor_applied: Round,
 }
 
 impl BlockManager {
@@ -59,6 +95,7 @@ impl BlockManager {
             suspended_transactions: BTreeMap::new(),
             block_suspender: BlockSuspender::new(context.clone()),
             received_block_rounds: vec![None; context.committee.size()],
+            last_gc_floor_applied: 0,
         }
     }
 
@@ -68,6 +105,67 @@ impl BlockManager {
         self.suspended_transactions.clear();
         self.block_suspender.reinitialize();
         self.received_block_rounds = vec![None; self.context.committee.size()];
+        self.last_gc_floor_applied = 0;
+    }
+
+    /// Drops suspended state at or below the current GC floor and returns
+    /// any headers that became fully resolved as a result.
+    ///
+    /// The floor is `DagState::gc_round_for_last_commit()` — the same horizon
+    /// `DagState` itself uses for header eviction. Anything at or below it
+    /// cannot be sequenced and so cannot help any not-yet-accepted block.
+    ///
+    /// Cheap when the floor has not advanced since the last call: a single
+    /// read-locked field access on `DagState` and a comparison.
+    fn maybe_evict_below_gc_floor(&mut self) -> Vec<VerifiedBlockHeader> {
+        // Gated on `consensus_block_restrictions`. Off the flag, BlockManager
+        // retains its original "fetch every missing ancestor forever" behavior.
+        if !self.context.protocol_config.consensus_block_restrictions() {
+            return vec![];
+        }
+        let gc_floor = self.dag_state.read().gc_round_for_last_commit();
+        if gc_floor <= self.last_gc_floor_applied {
+            return vec![];
+        }
+
+        let metrics = &self.context.metrics.node_metrics;
+
+        let pivot = BlockRef::new(
+            gc_floor.saturating_add(1),
+            AuthorityIndex::MIN,
+            BlockHeaderDigest::MIN,
+        );
+        let kept_txs = self.suspended_transactions.split_off(&pivot);
+        let txs_evicted =
+            std::mem::replace(&mut self.suspended_transactions, kept_txs).len() as u64;
+        metrics
+            .block_manager_gc_evicted_suspended_transactions_total
+            .inc_by(txs_evicted);
+
+        let outcome = self.block_suspender.evict_below_round(gc_floor);
+        metrics
+            .block_manager_gc_evicted_missing_ancestors_total
+            .inc_by(outcome.ancestors_evicted as u64);
+        metrics
+            .block_manager_gc_evicted_fetch_entries_total
+            .inc_by(outcome.fetch_entries_evicted as u64);
+
+        // Drop headers whose own round is at/below the floor — the regular
+        // path filters them in `filter_out_already_processed_and_sort`, so
+        // the GC-unsuspend path must match.
+        let unsuspended_headers: Vec<_> = outcome
+            .unsuspended_headers
+            .into_iter()
+            .filter(|h| h.round() > gc_floor)
+            .collect();
+        metrics
+            .block_manager_gc_unsuspended_total
+            .inc_by(unsuspended_headers.len() as u64);
+
+        self.last_gc_floor_applied = gc_floor;
+        metrics.block_manager_gc_floor.set(gc_floor as i64);
+
+        unsuspended_headers
     }
 
     /// Does all the same things as try_accept_block_headers and additionally
@@ -79,6 +177,8 @@ impl BlockManager {
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
+        let gc_unsuspended = self.maybe_evict_below_gc_floor();
+
         let block_headers: Vec<_> = blocks
             .iter()
             .map(|b| b.verified_block_header.clone())
@@ -90,6 +190,8 @@ impl BlockManager {
             &present_header_and_ancestor_refs_in_dag_state,
             source,
         );
+        let block_headers_to_accept =
+            merge_accepted_round_ascending(block_headers_to_accept, gc_unsuspended);
         // collect suspended transactions for accepted headers.
         let accepted_transactions = self.resolve_transactions(
             &block_headers_to_accept,
@@ -119,6 +221,8 @@ impl BlockManager {
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
+        let gc_unsuspended = self.maybe_evict_below_gc_floor();
+
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
         let present_header_and_ancestor_refs_in_dag_state =
@@ -128,6 +232,8 @@ impl BlockManager {
             &present_header_and_ancestor_refs_in_dag_state,
             source,
         );
+        let block_headers_to_accept =
+            merge_accepted_round_ascending(block_headers_to_accept, gc_unsuspended);
         // collect transactions we already have for accepted headers.
         let accepted_transactions = self.resolve_transactions(
             &block_headers_to_accept,
@@ -211,13 +317,26 @@ impl BlockManager {
         }
 
         if let Some(blocks) = blocks {
+            // Mirrors the gate in `filter_out_already_processed_and_sort`: when
+            // the `consensus_block_restrictions` flag is on, a block at or below the GC
+            // floor cannot be sequenced and its header is dropped on arrival.
+            // Suspending its transactions would leave them stranded until the
+            // floor advanced again, allowing the map to grow between sweeps.
+            let gc_filter_round: Option<Round> =
+                if self.context.protocol_config.consensus_block_restrictions() {
+                    Some(self.last_gc_floor_applied)
+                } else {
+                    None
+                };
             let mut accepted_transactions_from_blocks = vec![];
             for block in blocks {
                 if block_refs_to_be_accepted.contains(&block.reference())
                     || present_headers_and_ancestor_refs_in_dag_state.contains(&block.reference())
                 {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
-                } else if block.verified_transactions.has_transactions() {
+                } else if block.verified_transactions.has_transactions()
+                    && gc_filter_round.is_none_or(|f| block.round() > f)
+                {
                     // optimization to avoid suspending 0 set verified transactions.
                     self.suspended_transactions
                         .insert(block.reference(), block.verified_transactions);
@@ -384,13 +503,24 @@ impl BlockManager {
         incoming_headers: Vec<VerifiedBlockHeader>,
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
+        // Off the `consensus_block_restrictions` flag, every absent ancestor is treated
+        // as missing (legacy behavior). With the flag on, ancestors at or below
+        // the GC floor cannot affect any not-yet-sequenced block and are
+        // skipped.
+        let gc_filter_round: Option<Round> =
+            if self.context.protocol_config.consensus_block_restrictions() {
+                Some(self.last_gc_floor_applied)
+            } else {
+                None
+            };
         let mut missing_ancestors = BTreeMap::new();
         for incoming_header in incoming_headers {
             let ancestors: &[BlockRef] = incoming_header.ancestors();
             let mut missing_ancestors_set = BTreeSet::new();
             for ancestor in ancestors {
                 let found = present_header_and_ancestor_refs_in_dag_state.contains(ancestor);
-                if !found {
+                let below_gc = gc_filter_round.is_some_and(|f| ancestor.round <= f);
+                if !found && !below_gc {
                     missing_ancestors_set.insert(*ancestor);
                 }
             }
@@ -406,9 +536,26 @@ impl BlockManager {
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> Vec<VerifiedBlockHeader> {
+        let gc_filter_round: Option<Round> =
+            if self.context.protocol_config.consensus_block_restrictions() {
+                Some(self.last_gc_floor_applied)
+            } else {
+                None
+            };
         let mut filtered = block_headers
             .into_iter()
             .filter_map(|block_header| {
+                // With the `consensus_block_restrictions` flag on, drop incoming headers whose
+                // own round is at or below the GC floor; nothing they carry can
+                // be sequenced anymore.
+                if gc_filter_round.is_some_and(|f| block_header.round() <= f) {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .block_manager_gc_evicted_old_headers_total
+                        .inc();
+                    return None;
+                }
                 let found = present_header_and_ancestor_refs_in_dag_state
                     .contains(&block_header.reference());
                 if found
@@ -445,8 +592,9 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
+        Round,
         block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
-        block_manager::BlockManager,
+        block_manager::{BlockManager, merge_accepted_round_ascending},
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
@@ -1020,5 +1168,328 @@ mod tests {
                 block.reference()
             );
         }
+    }
+
+    /// Helpers for the GC-eviction integration tests below.
+    mod gc_eviction_helpers {
+        use super::*;
+        use crate::{
+            Round,
+            block_header::{
+                BlockHeaderDigest, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
+            },
+            commit::{CommitDigest, TrustedCommit},
+        };
+
+        pub(super) fn header(
+            round: Round,
+            author: u8,
+            ancestors: Vec<BlockRef>,
+        ) -> VerifiedBlockHeader {
+            let bh = TestBlockHeader::new(round, author)
+                .set_ancestors(ancestors)
+                .build();
+            VerifiedBlockHeader::new_for_test(bh)
+        }
+
+        pub(super) fn block_ref(round: Round, author: u8) -> BlockRef {
+            BlockRef::new(round, author.into(), BlockHeaderDigest::default())
+        }
+
+        /// Plant a `last_commit` in DagState whose leader round is
+        /// `commit_leader_round`, so `gc_round_for_last_commit()` returns
+        /// `commit_leader_round - gc_depth*2`.
+        pub(super) fn plant_last_commit(
+            dag_state: &Arc<RwLock<DagState>>,
+            context: &Arc<Context>,
+            commit_leader_round: Round,
+        ) {
+            let leader = block_ref(commit_leader_round, 0);
+            let commit = TrustedCommit::new_for_test(
+                context,
+                // commit index
+                1,
+                CommitDigest::MIN,
+                // timestamp
+                0 as BlockTimestampMs,
+                leader,
+                vec![leader],
+                vec![],
+            );
+            dag_state.write().set_last_commit(commit);
+        }
+    }
+
+    /// With the `consensus_block_restrictions` flag on and a non-zero gc_floor,
+    /// an incoming header whose only missing ancestor is below the floor is
+    /// accepted directly, not suspended, and is not registered for
+    /// fetching.
+    #[tokio::test]
+    async fn gc_eviction_accepts_header_with_only_old_missing_ancestors() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Plant a commit with leader round large enough that gc_floor > 0.
+        let commit_leader_round = gc_depth * 2 + 200;
+        plant_last_commit(&dag_state, &context, commit_leader_round);
+        let gc_floor = dag_state.read().gc_round_for_last_commit();
+        assert!(gc_floor > 0);
+
+        let mut block_manager = BlockManager::new(context, dag_state);
+
+        // Header at gc_floor + 50 with one missing ancestor at gc_floor - 10.
+        let old_ancestor = block_ref(gc_floor.saturating_sub(10), 0);
+        let h = header(gc_floor + 50, 1, vec![old_ancestor]);
+
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![h.clone()], DataSource::Test);
+
+        assert_eq!(accepted, vec![h]);
+        assert!(
+            missing.is_empty(),
+            "old ancestor below gc_floor should not be reported as missing"
+        );
+        assert!(
+            block_manager.blocks_to_fetch().is_empty(),
+            "old ancestor below gc_floor should not be queued for fetching"
+        );
+    }
+
+    /// A full block whose own round is at or below the GC floor must not be
+    /// suspended in `suspended_transactions`: its header is dropped on arrival
+    /// (`filter_out_already_processed_and_sort`) and will never be accepted, so
+    /// the entry would sit forever and accumulate between sweeps.
+    #[tokio::test]
+    async fn gc_eviction_does_not_suspend_old_block_transactions() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let commit_leader_round = gc_depth * 2 + 200;
+        plant_last_commit(&dag_state, &context, commit_leader_round);
+
+        let mut block_manager = BlockManager::new(context, dag_state);
+
+        // Trigger the first sweep so `last_gc_floor_applied` is set without
+        // accepting anything.
+        block_manager.try_accept_block_headers(vec![], DataSource::Test);
+        let gc_floor = block_manager.last_gc_floor_applied;
+        assert!(gc_floor > 0);
+
+        // Now feed a full block at gc_floor (i.e. at the floor — too old).
+        // Build a header at that round and a non-empty transactions payload so
+        // the existing "skip empty" optimization isn't what saves us.
+        let h = header(gc_floor, 1, vec![]);
+        let txs = crate::block_header::VerifiedTransactions::new_for_test(
+            &h,
+            vec![crate::block_header::Transaction::new(vec![1u8; 16])],
+        );
+        let block = crate::block_header::VerifiedBlock::new(h, txs);
+        let (accepted, _) = block_manager.try_accept_blocks(vec![block], DataSource::Test);
+
+        assert!(accepted.is_empty(), "header at GC floor must be dropped");
+        assert_eq!(
+            block_manager.suspended_transactions.len(),
+            0,
+            "transactions for a too-old block must not be suspended"
+        );
+    }
+
+    /// `merge_accepted_round_ascending` deduplicates by `BlockRef` and emits
+    /// in round-ascending order, even when the GC-unsuspended list arrives
+    /// out of order and overlaps with the regular-path list.
+    #[test]
+    fn merge_accepted_round_ascending_dedups_and_sorts() {
+        use gc_eviction_helpers::*;
+
+        let h_round_5 = header(5, 0, vec![]);
+        let h_round_8 = header(8, 1, vec![]);
+        let h_round_3 = header(3, 2, vec![]);
+        let h_round_5_dup = h_round_5.clone();
+
+        // Regular-path output is already round-ascending per `process_block_headers`.
+        let regular = vec![h_round_3, h_round_5];
+        // GC-unsuspended is in stack-walk order — not sorted, and may overlap.
+        let gc = vec![h_round_8, h_round_5_dup];
+
+        let merged = merge_accepted_round_ascending(regular, gc);
+
+        let rounds: Vec<Round> = merged
+            .iter()
+            .map(|h: &VerifiedBlockHeader| h.round())
+            .collect();
+        assert_eq!(rounds, vec![3, 5, 8]);
+
+        // No duplicates by reference.
+        let mut refs: Vec<BlockRef> = merged
+            .iter()
+            .map(|h: &VerifiedBlockHeader| h.reference())
+            .collect();
+        let dedup_len = {
+            refs.sort();
+            refs.dedup();
+            refs.len()
+        };
+        assert_eq!(dedup_len, 3);
+    }
+
+    /// `suspended_transactions` entries with round below the floor are dropped
+    /// by the sweep when `gc_floor` advances.
+    #[tokio::test]
+    async fn gc_eviction_drops_suspended_transactions_below_floor() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Manually put an entry into suspended_transactions at a low round.
+        let stale_header = header(50, 0, vec![]);
+        let stale_ref = stale_header.reference();
+        block_manager.suspended_transactions.insert(
+            stale_ref,
+            crate::block_header::VerifiedTransactions::new_for_test(&stale_header, vec![]),
+        );
+        assert_eq!(block_manager.suspended_transactions.len(), 1);
+
+        // Advance the floor well past round 50 and trigger a sweep via
+        // try_accept_block_headers with an empty input.
+        let commit_leader_round = gc_depth * 2 + 500;
+        plant_last_commit(&dag_state, &context, commit_leader_round);
+        block_manager.try_accept_block_headers(vec![], DataSource::Test);
+
+        assert_eq!(block_manager.suspended_transactions.len(), 0);
+    }
+
+    /// The sweep is a no-op when `gc_floor` does not advance between calls.
+    #[tokio::test]
+    async fn gc_eviction_sweep_is_idempotent_when_floor_unchanged() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let commit_leader_round = gc_depth * 2 + 200;
+        plant_last_commit(&dag_state, &context, commit_leader_round);
+
+        let mut block_manager = BlockManager::new(context, dag_state);
+
+        // First call applies the floor.
+        block_manager.try_accept_block_headers(vec![], DataSource::Test);
+        let first_floor = block_manager.last_gc_floor_applied;
+        assert!(first_floor > 0);
+
+        // Second call at the same floor should not change anything.
+        block_manager.try_accept_block_headers(vec![], DataSource::Test);
+        assert_eq!(block_manager.last_gc_floor_applied, first_floor);
+    }
+
+    /// With the `consensus_block_restrictions` flag off, the sweep is fully
+    /// disabled: no eviction, no floor advance, no filtering of low-round
+    /// ancestors.
+    #[tokio::test]
+    async fn gc_eviction_disabled_when_flag_off() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(false);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let commit_leader_round = gc_depth * 2 + 200;
+        plant_last_commit(&dag_state, &context, commit_leader_round);
+
+        let mut block_manager = BlockManager::new(context, dag_state.clone());
+
+        // A header with a missing ancestor far below the would-be gc_floor
+        // should still be suspended (legacy behavior).
+        let gc_floor = dag_state.read().gc_round_for_last_commit();
+        assert!(gc_floor > 0);
+        let old_ancestor = block_ref(gc_floor.saturating_sub(10), 0);
+        let h = header(gc_floor + 50, 1, vec![old_ancestor]);
+
+        let (accepted, missing) = block_manager.try_accept_block_headers(vec![h], DataSource::Test);
+        assert!(
+            accepted.is_empty(),
+            "header should be suspended when flag off"
+        );
+        assert_eq!(missing, BTreeSet::from([old_ancestor]));
+        assert_eq!(block_manager.last_gc_floor_applied, 0);
+    }
+
+    /// A header suspended at an earlier (lower) gc_floor must not be promoted
+    /// once the floor advances past its own round. The cascade still cleans
+    /// up the suspender, but a stale-round header is what the regular
+    /// acceptance path drops in `filter_out_already_processed_and_sort` — the
+    /// GC-unsuspend path stays consistent with that.
+    #[tokio::test]
+    async fn gc_eviction_filters_stale_unsuspended_headers() {
+        use gc_eviction_helpers::*;
+
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_block_restrictions_for_testing(true);
+        let context = Arc::new(context);
+        let gc_depth = context.protocol_config.gc_depth();
+
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Floor is 0 — the header at round 50 with a missing ancestor at
+        // round 30 gets suspended via the normal path.
+        let stale_ancestor = block_ref(30, 0);
+        let stale_header = header(50, 1, vec![stale_ancestor]);
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![stale_header], DataSource::Test);
+        assert!(accepted.is_empty(), "header should be suspended initially");
+        assert_eq!(missing, BTreeSet::from([stale_ancestor]));
+
+        // Advance the floor past the stale header's own round.
+        plant_last_commit(&dag_state, &context, gc_depth * 2 + 200);
+
+        // Triggering the sweep with an empty input must NOT promote the
+        // stale header even though the suspender cascade-unsuspends it.
+        let (accepted, _) = block_manager.try_accept_block_headers(vec![], DataSource::Test);
+        assert!(
+            accepted.is_empty(),
+            "stale-round header must be filtered from the GC-unsuspend path"
+        );
+        // Suspender state is still cleaned up by the cascade.
+        assert!(block_manager.block_suspender.is_empty());
     }
 }
