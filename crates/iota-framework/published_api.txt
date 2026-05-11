@@ -2518,6 +2518,9 @@ borrow_public_key
 public_key_field_name
 	fun
 	0x2::builtin_authenticator_functions
+check_builtin_authenticators_enabled
+	fun
+	0x2::builtin_authenticator_functions
 Receiving
 	public struct
 	0x2::transfer
