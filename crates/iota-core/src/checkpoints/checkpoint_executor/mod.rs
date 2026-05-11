@@ -912,10 +912,14 @@ impl CheckpointExecutor {
             .tx_digests
             .last()
             .expect("end-of-epoch checkpoint always contains the AdvanceEpoch tx");
+        // In safe mode the AdvanceEpoch tx's normal execution is dropped and
+        // replaced by `advance_epoch_safe_mode`, which mutates the system-state
+        // object but emits no events — so the effects carry no `events_digest`
+        // and `get_events` legitimately returns `None`.
         let end_of_epoch_tx_events = self
             .transaction_cache_reader
             .get_events(last_tx_digest)
-            .expect("AdvanceEpoch tx events must be committed before write_epoch_info_entry");
+            .unwrap_or_default();
         let first_checkpoint = self
             .checkpoint_store
             .get_epoch_first_checkpoint(epoch)
