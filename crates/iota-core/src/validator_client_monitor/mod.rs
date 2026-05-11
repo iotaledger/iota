@@ -47,7 +47,7 @@ pub struct OperationFeedback {
     pub operation: OperationType,
     /// Result of the operation: Ok(latency) if successful, Err(()) if failed.
     pub result: Result<Duration, ()>,
-    /// The timestamp when the operation feedback was received.
+    /// The timestamp when the operation feedback was observed.
     pub timestamp: std::time::Instant,
 }
 
