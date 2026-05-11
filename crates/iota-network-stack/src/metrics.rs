@@ -35,6 +35,12 @@ pub trait MetricsCallbackProvider: Send + Sync + Clone + 'static {
     /// `grpc_status_code`: the grpc status code (see <https://github.com/grpc/grpc/blob/master/doc/statuscodes.md#status-codes-and-their-use-in-grpc>)
     fn on_response(&self, path: String, latency: Duration, status: u16, grpc_status_code: Code);
 
+    /// Called when a gRPC request completes with a non-OK status code.
+    /// The method path is not available at this layer (tower-http's `on_failure`
+    /// callback does not receive the response object); implementations should
+    /// record failure counts keyed by status code only.
+    fn on_error(&self, _latency: Duration, _grpc_status_code: Code) {}
+
     /// Called when request call is started
     fn on_start(&self, _path: &str) {}
 
@@ -100,10 +106,14 @@ impl<B, M: MetricsCallbackProvider> OnRequest<B> for MetricsHandler<M> {
 impl<M: MetricsCallbackProvider> OnFailure<GrpcFailureClass> for MetricsHandler<M> {
     fn on_failure(
         &mut self,
-        _failure_classification: GrpcFailureClass,
-        _latency: Duration,
+        failure_classification: GrpcFailureClass,
+        latency: Duration,
         _span: &Span,
     ) {
-        // just do nothing for now so we avoid printing unnecessary logs
+        let grpc_status_code = match failure_classification {
+            GrpcFailureClass::Code(code) => Code::from(code.get()),
+            GrpcFailureClass::Error(_) => Code::Internal,
+        };
+        self.metrics_provider.on_error(latency, grpc_status_code);
     }
 }

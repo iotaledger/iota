@@ -294,7 +294,7 @@ impl Settings {
     pub fn build_groups(&self) -> BuildGroups {
         let mut groups: BuildGroups = HashMap::new();
 
-        for name in ["iota", "iota-node", "stress"] {
+        for name in ["iota", "iota-localnet", "iota-node", "stress"] {
             let config = self.build_configs.get(name);
 
             let mut features = config.map(|c| c.features.clone()).unwrap_or_default();

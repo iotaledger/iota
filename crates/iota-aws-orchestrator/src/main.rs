@@ -118,6 +118,12 @@ pub enum Operation {
         #[arg(long, default_value = "8", global = true)]
         stress_num_server_threads: u64,
 
+        /// Rate mode for the stress client ("exact" or "flow").
+        /// "flow" catches up on missed ticks and is recommended for high-QPS
+        /// workloads where timer resolution would otherwise cap throughput.
+        #[arg(long, default_value = "exact", global = true)]
+        stress_rate_mode: String,
+
         /// The committee size to deploy.
         #[arg(long, value_name = "INT")]
         committee: usize,
@@ -245,6 +251,13 @@ pub enum Operation {
         /// after the run
         #[arg(long, value_name = "/home/ubuntu/benchmark_stats.json", global = true)]
         benchmark_stats_path: Option<String>,
+
+        /// Override max_auth_gas in the protocol config at genesis.
+        /// Injects IOTA_PROTOCOL_CONFIG_OVERRIDE_max_auth_gas into the genesis
+        /// environment, allowing different auth-gas caps without rebuilding.
+        /// Requires a full genesis re-run (new testbed or --force-genesis).
+        #[arg(long, global = true)]
+        genesis_max_auth_gas: Option<u64>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -512,9 +525,11 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             stress_in_flight_ratio,
             stress_num_client_threads,
             stress_num_server_threads,
+            stress_rate_mode,
             shared_counter_hotness_factor,
             num_shared_counters,
             benchmark_stats_path,
+            genesis_max_auth_gas,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -612,6 +627,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_stress_in_flight_ratio(stress_in_flight_ratio)
             .with_stress_client_threads(stress_num_client_threads)
             .with_stress_server_threads(stress_num_server_threads)
+            .with_stress_rate_mode(stress_rate_mode)
             .with_benchmark_stats_path(benchmark_stats_path.clone());
 
             if let Some(factor) = shared_counter_hotness_factor {
@@ -619,6 +635,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             }
             if let Some(counters) = num_shared_counters {
                 generator = generator.with_num_shared_counters(counters);
+            }
+            if let Some(max_auth_gas) = genesis_max_auth_gas {
+                generator = generator.with_genesis_max_auth_gas(max_auth_gas);
             }
 
             Orchestrator::new(

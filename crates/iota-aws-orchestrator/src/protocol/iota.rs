@@ -24,6 +24,25 @@ pub enum IotaBenchmarkType {
     SharedObjectsRatio(u16),
     /// Benchmark for Abstract Account functionality.
     AbstractAccountBench,
+    /// Resilience benchmark: one injector client sends targeted fault traffic
+    /// directly to the focal validator via DirectValidatorProxy while the
+    /// remaining client instances send honest baseline traffic via quorum.
+    ///
+    /// `fault_scenario` is passed verbatim to `--fault-scenario` (e.g.
+    /// `"auth-compute-heavy"` or `"std-invalid"`).
+    /// `injection_qps` is the TPS sent to the focal validator.
+    /// `focal_validator` selects the focal node; accepted forms:
+    ///   - an IPv4 address (e.g. `"3.124.187.12"`) — recommended for remote
+    ///     benchmarks; matched against genesis network addresses unambiguously.
+    ///   - a 0-based integer index into the BLS-key-sorted committee BTreeMap.
+    ///   - a key-prefix substring (e.g. `"8dcff6"`).
+    /// The `load` field of `BenchmarkParameters` is used as the total honest
+    /// baseline TPS split across all non-injector client instances.
+    ResilienceBench {
+        fault_scenario: String,
+        injection_qps: usize,
+        focal_validator: String,
+    },
 }
 
 impl Default for IotaBenchmarkType {
@@ -37,6 +56,14 @@ impl std::fmt::Debug for IotaBenchmarkType {
         match self {
             Self::SharedObjectsRatio(shared_objects_ratio) => write!(f, "{shared_objects_ratio}"),
             Self::AbstractAccountBench => write!(f, "abstract_account_bench"),
+            Self::ResilienceBench {
+                fault_scenario,
+                injection_qps,
+                focal_validator,
+            } => write!(
+                f,
+                "resilience_bench_{fault_scenario}_{injection_qps}tps_v{focal_validator}"
+            ),
         }
     }
 }
@@ -48,6 +75,14 @@ impl std::fmt::Display for IotaBenchmarkType {
                 write!(f, "bench ({}% shared objects)", shared_objects_ratio)
             }
             Self::AbstractAccountBench => write!(f, "abstract-account-bench"),
+            Self::ResilienceBench {
+                fault_scenario,
+                injection_qps,
+                focal_validator,
+            } => write!(
+                f,
+                "resilience-bench ({fault_scenario} @ {injection_qps} TPS → validator {focal_validator})"
+            ),
         }
     }
 }
@@ -63,10 +98,38 @@ impl FromStr for IotaBenchmarkType {
             return Ok(Self::SharedObjectsRatio(n.min(100)));
         }
 
+        // resilience-bench:<fault_scenario>:<injection_qps>:<focal_validator>
+        // focal_validator may be an integer index, an IPv4 address, or a key
+        // prefix — it is passed verbatim to the stress binary's
+        // --focal-validator flag.  IPv4 addresses contain dots and colons, so
+        // we use splitn(4, ':') only for the first three fields and take the
+        // remainder as the focal_validator string.
+        if s.trim().starts_with("resilience-bench:") {
+            let parts: Vec<&str> = s.trim().splitn(4, ':').collect();
+            if parts.len() == 4 {
+                let fault_scenario = parts[1].to_string();
+                let injection_qps = parts[2].parse::<usize>().map_err(|_| {
+                    format!("Invalid injection_qps '{}' in resilience-bench spec", parts[2])
+                })?;
+                let focal_validator = parts[3].to_string();
+                return Ok(Self::ResilienceBench {
+                    fault_scenario,
+                    injection_qps,
+                    focal_validator,
+                });
+            }
+            return Err(format!(
+                "Invalid resilience-bench spec '{s}'. \
+                 Expected: resilience-bench:<fault_scenario>:<injection_qps>:<focal_validator>"
+            ));
+        }
+
         match v.as_str() {
             "abstract-account-bench" => Ok(Self::AbstractAccountBench),
             _ => Err(format!(
-                "Unknown benchmark type '{s}'. Expected 0..=100 or abstract-account-bench"
+                "Unknown benchmark type '{s}'. \
+                 Expected: 0..=100, abstract-account-bench, or \
+                 resilience-bench:<fault_scenario>:<injection_qps>:<focal_validator>"
             )),
         }
     }
@@ -148,11 +211,14 @@ impl IotaProtocol {
             return vec![];
         };
         // TRACE_FILTER values can be implemented as params as well. For now, we keep
-        // them fixed to trace handle_transaction and process_certificate which are the
-        // most relevant spans for benchmarks.
+        // them fixed to the most relevant spans for benchmarks:
+        //   handle_transaction   — AuthorityState tx processing (aa-super-heavy Move VM cost)
+        //   process_certificate  — certificate processing latency
+        //   verify_transaction   — signature verification (only signal for std-invalid, which
+        //                          is rejected before AuthorityState::handle_transaction runs)
         vec![
             format!("export OTEL_EXPORTER_OTLP_ENDPOINT={}", otel.otlp_endpoint),
-            "export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace"
+            "export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace,[verify_transaction]=trace"
                 .to_string(),
             format!(
                 "export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT={}",
@@ -216,14 +282,21 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             parameters.additional_gas_accounts
         );
 
+        let mut genesis_setup: Vec<String> = vec![
+            // Set protocol config override to disable validator subsidies for benchmarks
+            "export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1".to_string(),
+            "export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0".to_string(),
+            format!("mkdir -p {working_dir}"),
+        ];
+        if let Some(max_auth_gas) = parameters.genesis_max_auth_gas {
+            genesis_setup.push(format!(
+                "export IOTA_PROTOCOL_CONFIG_OVERRIDE_max_auth_gas={max_auth_gas}"
+            ));
+        }
+
         let iota_command = self.run_binary_command(
-            "iota",
-            &[
-                // Set protocol config override to disable validator subsidies for benchmarks
-                "export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1",
-                "export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0",
-                &format!("mkdir -p {working_dir}")
-            ],
+            "iota-localnet",
+            &genesis_setup,
             &[
                 "genesis",
                 &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
@@ -279,6 +352,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     format!("export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1"),
                     format!("export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0"),
                 ];
+
+                if let Some(max_auth_gas) = parameters.genesis_max_auth_gas {
+                    setup.push(format!(
+                        "export IOTA_PROTOCOL_CONFIG_OVERRIDE_max_auth_gas={max_auth_gas}"
+                    ));
+                }
 
                 if self.enable_flamegraph {
                     setup.push("export TRACE_FLAMEGRAPH=1".to_string());
@@ -378,7 +457,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
 
         let committee_size = parameters.nodes;
         let clients: Vec<_> = instances.into_iter().collect();
-        let load_share = parameters.load / clients.len();
+        let clients_len = clients.len();
+        let load_share = parameters.load / clients_len;
         let metrics_port = Self::CLIENT_METRICS_PORT;
         // Get gas keys for all validators and clients
         let gas_keys =
@@ -399,9 +479,19 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let client_threads = parameters.stress_num_client_threads;
                 let server_threads = parameters.stress_num_server_threads;
 
+                // For ResilienceBench baseline clients, use 150 transfer
+                // accounts so they can sustain 30+ TPS over a 420s run without
+                // account exhaustion. The injector (i=0) only needs 2 — its
+                // transactions always fail so there is no account churn.
+                // For other bench types keep the existing value of 2.
+                let transfer_accounts = match &parameters.benchmark_type {
+                    IotaBenchmarkType::ResilienceBench { .. } if i > 0 => 150,
+                    _ => 2,
+                };
+
                 let mut stress_args: Vec<String> = vec![
                     format!("--num-client-threads {client_threads} --num-server-threads {server_threads}"),
-                    "--local false --num-transfer-accounts 2".to_string(),
+                    format!("--local false --num-transfer-accounts {transfer_accounts}"),
                     format!("--genesis-blob-path {genesis} --keystore-path {keystore}"),
                     format!("--primary-gas-owner-id {gas_address}"),
                     // Run interval param
@@ -414,9 +504,9 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     },
                 ];
 
-                match parameters.benchmark_type {
+                match &parameters.benchmark_type {
                     IotaBenchmarkType::SharedObjectsRatio(shared_objects_ratio) => {
-                        let transfer_objects = 100 - shared_objects_ratio;
+                        let transfer_objects = 100 - *shared_objects_ratio;
                         let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
                         stress_args.push("bench".to_string());
                         stress_args.push(format!("--target-qps {load_share}"));
@@ -439,6 +529,40 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         stress_args.push(format!("--split-amount {}", parameters.aa_split_amount));
                         if parameters.should_fail {
                             stress_args.push("--should-fail".to_string());
+                        }
+                    }
+
+                    IotaBenchmarkType::ResilienceBench {
+                        fault_scenario,
+                        injection_qps,
+                        focal_validator,
+                    } => {
+                        if i == 0 {
+                            // Injector: targets the focal validator directly via
+                            // DirectValidatorProxy. stress.rs builds the proxy
+                            // from the genesis file when --local false and
+                            // resilience-bench subcommand are combined.
+                            // --baseline-qps 0: all honest traffic comes from
+                            // the separate baseline client instances.
+                            stress_args.push("resilience-bench".to_string());
+                            stress_args.push(format!("--fault-scenario {fault_scenario}"));
+                            stress_args.push(format!("--injection-qps {injection_qps}"));
+                            stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                            stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
+                            stress_args.push("--baseline-qps 0".to_string());
+                            stress_args.push(format!("--rate-mode {}", parameters.stress_rate_mode));
+                            stress_args.push(format!("--focal-validator {focal_validator}"));
+                        } else {
+                            // Baseline clients: honest TransferObject traffic
+                            // through the full quorum. Load is split evenly
+                            // across all baseline clients (clients.len()-1).
+                            let baseline_clients = clients_len.saturating_sub(1).max(1);
+                            let baseline_share = parameters.load / baseline_clients;
+                            stress_args.push("bench".to_string());
+                            stress_args.push(format!("--target-qps {baseline_share}"));
+                            stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                            stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
+                            stress_args.push("--transfer-object 100".to_string());
                         }
                     }
                 }
@@ -483,8 +607,8 @@ impl IotaProtocol {
             })
             .collect();
 
-        // `u64::MAX - 1` is the max total supply value acceptable by
-        // `iota::balance::increase_supply`
+        // `u64::MAX - 1` is the max total supply value accepted by
+        // `iota::balance::increase_supply` (strict less-than check in genesis_config)
         let genesis_config = GenesisConfig::new_for_benchmarks(
             &ips,
             parameters.epoch_duration_ms,
@@ -525,7 +649,7 @@ impl ProtocolMetrics for IotaProtocol {
         // From GenesisConfig we only need validators' `metrics_address` port which is
         // computed from validator's offset in `ips`. The values of (the rest
         // of) the arguments are irrelevant.
-        GenesisConfig::new_for_benchmarks(&ips, None, None, None, u64::MAX)
+        GenesisConfig::new_for_benchmarks(&ips, None, None, None, u64::MAX - 1)
             .validator_config_info
             .expect("No validator in genesis")
             .iter()

@@ -137,6 +137,9 @@ pub struct BenchmarkParameters<T> {
     /// Stress server threads used for AA workload (bench keeps the old
     /// hardcoded behavior).
     pub stress_num_server_threads: u64,
+    /// Rate mode passed to the resilience-bench injector: "exact" drops missed
+    /// ticks (steady controlled load) or "flow" catches up (max throughput).
+    pub stress_rate_mode: String,
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication. When running the simulation
     /// in multiple regions, nodes need to use their public IPs to correctly
@@ -169,6 +172,11 @@ pub struct BenchmarkParameters<T> {
     /// Optional path to benchmark stats metadata for downloading stats after
     /// the run.
     pub benchmark_stats_path: Option<String>,
+    /// Override max_auth_gas in the protocol config at genesis.
+    /// When set, injects IOTA_PROTOCOL_CONFIG_OVERRIDE_max_auth_gas=VALUE into
+    /// the genesis environment so that each experiment can use a different cap
+    /// without rebuilding the binary.
+    pub genesis_max_auth_gas: Option<u64>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -189,6 +197,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             stress_in_flight_ratio: 10,
             stress_num_client_threads: 8,
             stress_num_server_threads: 8,
+            stress_rate_mode: "exact".to_string(),
             use_internal_ip_address: true,
             latency_topology: Some(TopologyLayout::Mainnet),
             perturbation_spec: PerturbationSpec::None,
@@ -201,6 +210,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             num_shared_counters: None,
             benchmark_dir: PathBuf::default(),
             benchmark_stats_path: None,
+            genesis_max_auth_gas: None,
         }
     }
 }
@@ -253,6 +263,7 @@ impl<T> BenchmarkParameters<T> {
         stress_in_flight_ratio: u64,
         stress_num_client_threads: u64,
         stress_num_server_threads: u64,
+        stress_rate_mode: String,
         use_internal_ip_address: bool,
         latency_topology: Option<TopologyLayout>,
         perturbation_spec: PerturbationSpec,
@@ -265,6 +276,7 @@ impl<T> BenchmarkParameters<T> {
         num_shared_counters: Option<usize>,
         benchmark_dir: PathBuf,
         benchmark_stats_path: Option<String>,
+        genesis_max_auth_gas: Option<u64>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -282,6 +294,7 @@ impl<T> BenchmarkParameters<T> {
             stress_in_flight_ratio,
             stress_num_client_threads,
             stress_num_server_threads,
+            stress_rate_mode,
             use_internal_ip_address,
 
             latency_topology,
@@ -295,6 +308,7 @@ impl<T> BenchmarkParameters<T> {
             num_shared_counters,
             benchmark_dir,
             benchmark_stats_path,
+            genesis_max_auth_gas,
         }
     }
 }
@@ -365,6 +379,8 @@ pub struct BenchmarkParametersGenerator<T> {
     /// Stress threads used for AA.
     stress_num_client_threads: u64,
     stress_num_server_threads: u64,
+    /// Rate mode for the resilience-bench injector ("exact" or "flow").
+    stress_rate_mode: String,
 
     /// The topology of private network latencies, RandomGeographical,
     /// RandomClustered, HardCodedClustered, or Mainnet
@@ -387,6 +403,8 @@ pub struct BenchmarkParametersGenerator<T> {
     num_shared_counters: Option<usize>,
     /// Path for the benchmark stats metadata to be downloaded after the run
     benchmark_stats_path: Option<String>,
+    /// Override max_auth_gas in protocol config at genesis (see BenchmarkParameters).
+    genesis_max_auth_gas: Option<u64>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -423,6 +441,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.stress_in_flight_ratio,
                 self.stress_num_client_threads,
                 self.stress_num_server_threads,
+                self.stress_rate_mode.clone(),
                 self.use_internal_ip_address,
                 self.latency_topology.clone(),
                 self.perturbation_spec.clone(),
@@ -435,6 +454,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.num_shared_counters,
                 PathBuf::default(),
                 self.benchmark_stats_path.clone(),
+                self.genesis_max_auth_gas,
             )
         })
     }
@@ -491,7 +511,9 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             aa_split_amount: 1_000,
             stress_num_client_threads: 8,
             stress_num_server_threads: 8,
+            stress_rate_mode: "exact".to_string(),
             benchmark_stats_path: None,
+            genesis_max_auth_gas: None,
         }
     }
 
@@ -532,6 +554,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_stress_server_threads(mut self, stress_num_server_threads: u64) -> Self {
         self.stress_num_server_threads = stress_num_server_threads;
+        self
+    }
+
+    pub fn with_stress_rate_mode(mut self, stress_rate_mode: String) -> Self {
+        self.stress_rate_mode = stress_rate_mode;
         self
     }
 
@@ -600,6 +627,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_benchmark_stats_path(mut self, path: Option<String>) -> Self {
         self.benchmark_stats_path = path;
+        self
+    }
+
+    pub fn with_genesis_max_auth_gas(mut self, max_auth_gas: u64) -> Self {
+        self.genesis_max_auth_gas = Some(max_auth_gas);
         self
     }
 

@@ -48,6 +48,10 @@ impl IotaNodeMetrics {
 pub struct GrpcMetrics {
     inflight_requests: IntGaugeVec,
     num_requests: IntCounterVec,
+    /// Counts gRPC requests that completed with a non-OK status code, by status
+    /// code. The method path is not available in `on_failure` (tower-http
+    /// limitation), so failures are labelled by status code only.
+    num_errors: IntCounterVec,
     request_latency: HistogramVec,
     /// Known gRPC method paths. Paths not in this set are labelled as `"SPAM"`
     /// to prevent unbounded metric cardinality from arbitrary HTTP traffic.
@@ -66,8 +70,15 @@ impl GrpcMetrics {
             .unwrap(),
             num_requests: register_int_counter_vec_with_registry!(
                 "authority_grpc_requests",
-                "Total authority gRPC requests per method and status code",
+                "Total authority gRPC requests that completed with OK status, per method and status code",
                 &["method", "status"],
+                registry,
+            )
+            .unwrap(),
+            num_errors: register_int_counter_vec_with_registry!(
+                "authority_grpc_errors",
+                "Total authority gRPC requests that completed with a non-OK status code, by status code (method path not available at this layer)",
+                &["status"],
                 registry,
             )
             .unwrap(),
@@ -104,6 +115,12 @@ impl MetricsCallbackProvider for GrpcMetrics {
         self.request_latency
             .with_label_values(&[method])
             .observe(latency.as_secs_f64());
+    }
+
+    fn on_error(&self, _latency: Duration, grpc_status_code: Code) {
+        self.num_errors
+            .with_label_values(&[grpc_code_to_str(grpc_status_code)])
+            .inc();
     }
 
     fn on_start(&self, path: &str) {
