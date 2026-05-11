@@ -700,6 +700,10 @@ where
             self.store
                 .try_update_highest_verified_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+
+            // INVARIANT: checkpoint contents must exist in the store for
+            // every checkpoint up to the synced watermark. The checkpoint
+            // executor will panic if it encounters missing contents.
             self.store
                 .try_update_highest_synced_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
@@ -1482,6 +1486,10 @@ async fn sync_checkpoint_contents<S>(
                     Ok(checkpoint) => {
                         let _: &VerifiedCheckpoint = &checkpoint;  // type hint
 
+                        // INVARIANT: checkpoint contents must exist in the store
+                        // for every checkpoint up to the synced watermark. The
+                        // checkpoint executor will panic if it encounters missing
+                        // contents.
                         store
                             .try_update_highest_synced_checkpoint(&checkpoint)
                             .expect("store operation should not fail");
@@ -1523,10 +1531,13 @@ async fn sync_checkpoint_contents<S>(
                                     last_pruned_log_time = tokio::time::Instant::now();
                                 }
 
-                                // Push to back (not front) — don't block progress.
-                                // On the next cycle the early-exit check picks up
-                                // any archive progress.
-                                checkpoint_contents_tasks.push_back(
+                                // Retry at front to block the synced watermark
+                                // from advancing past this checkpoint.
+                                // INVARIANT: checkpoint contents must exist in the
+                                // store for every checkpoint up to the synced
+                                // watermark. The checkpoint executor will panic if
+                                // it encounters missing contents.
+                                checkpoint_contents_tasks.push_front(
                                     sync_one_checkpoint_contents(
                                         network.clone(),
                                         &store,
@@ -1636,6 +1647,12 @@ where
     // Check if we already have produced this checkpoint locally (e.g. via
     // consensus output or archive sync). If so, we don't need to get it from
     // peers anymore.
+    //
+    // INVARIANT: checkpoint contents must exist in the store for every
+    // checkpoint up to the synced watermark. The checkpoint executor will
+    // panic if it encounters missing contents. This is maintained by
+    // retrying failed content syncs at the front of the queue, blocking
+    // the watermark from advancing past them.
     if store
         .try_get_highest_synced_checkpoint()
         .expect("store operation should not fail")
