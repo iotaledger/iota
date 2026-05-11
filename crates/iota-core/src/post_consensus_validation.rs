@@ -114,13 +114,17 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Only validate UserTransactionV1; pass everything else through
+        // Only validate UserTransactionV1/V2; pass everything else through
         // unchanged.
-        let transaction = match &tx.0.transaction {
+        let (transaction, is_attested) = match &tx.0.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => t,
+            }) => (t, false),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(a),
+                ..
+            }) => (&a.transaction, true),
             _ => continue,
         };
 
@@ -246,22 +250,31 @@ pub async fn validate_and_resolve_conflicts(
         // (2f+1 Byzantine/buggy validators), not something we can recover from
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
-        if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
-            .await
-        {
-            if e.is_storage_or_epoch_error() {
-                return Err(e);
+        //
+        // For `UserTransactionV2` (attested transactions), this check is skipped
+        // entirely. The attestor has already performed validation (including deny
+        // checks, gas, and ownership verification) before producing the
+        // attestation. Re-running these checks post-consensus would be redundant
+        // and could cause divergence if state changes between attestation time
+        // and execution time.
+        if !is_attested {
+            let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+            if let Err(e) = authority_state
+                .handle_transaction_validation_checks(&verified_tx, epoch_store)
+                .await
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV1 failed post-consensus deny checks, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
             }
-            warn!(
-                ?digest,
-                error = ?e,
-                "UserTransactionV1 failed post-consensus deny checks, dropping"
-            );
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
         }
 
         // All checks passed — acquire owned-object locks in local tracking.
@@ -296,8 +309,8 @@ pub async fn validate_and_resolve_conflicts(
     Ok((dropped, current_commit_locks, all_user_tx_digests))
 }
 
-/// Extracts owned input object references from a `UserTransactionV1`
-/// consensus transaction.
+/// Extracts owned input object references from a `UserTransactionV1` or
+/// `UserTransactionV2` consensus transaction.
 ///
 /// Returns only `ImmOrOwnedMoveObject` inputs (excludes shared objects and
 /// packages) — these are the objects that need lock conflict detection.
@@ -309,9 +322,13 @@ fn extract_owned_input_objects(
             kind: ConsensusTransactionKind::UserTransactionV1(transaction),
             ..
         }) => transaction.data(),
+        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV2(a),
+            ..
+        }) => a.data(),
         _ => {
             return Err(IotaError::GenericAuthority {
-                error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
+                error: "Expected UserTransactionV1 or UserTransactionV2 in extract_owned_input_objects".to_string(),
             });
         }
     };

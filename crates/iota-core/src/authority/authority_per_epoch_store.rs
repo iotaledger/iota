@@ -2907,6 +2907,10 @@ impl AuthorityPerEpochStore {
                 //  validation if the protocol feature flag is not set
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(_a),
+                ..
+            }) => {}
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
                 ..
             }) => {
@@ -4391,11 +4395,25 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                kind:
+                    ConsensusTransactionKind::UserTransactionV1(_)
+                    // TODO: adjust when UserTransactionV2 logic is added to sequencer
+                    | ConsensusTransactionKind::UserTransactionV2(_),
                 ..
             }) => {
+                let transaction: &Transaction = match &transaction {
+                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                        kind: ConsensusTransactionKind::UserTransactionV1(t),
+                        ..
+                    }) => t,
+                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                        kind: ConsensusTransactionKind::UserTransactionV2(a),
+                        ..
+                    }) => &a.transaction,
+                    _ => unreachable!(),
+                };
                 if transaction.is_system_tx() {
-                    warn!("UserTransactionV1 contains system transaction, ignoring");
+                    warn!("User transaction contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
                 if self.has_sent_end_of_publish(certificate_author)?
@@ -4405,7 +4423,7 @@ impl AuthorityPerEpochStore {
                     // transactions. Previously-deferred transactions are excluded because
                     // consensus may replay them and they should still be processed.
                     warn!(
-                        "[Byzantine authority] Authority {:?} sent a new UserTransactionV1 \
+                        "[Byzantine authority] Authority {:?} sent a new user transaction \
                          {:?} after it sent EndOfPublish message to consensus",
                         certificate_author.concise(),
                         transaction.digest()

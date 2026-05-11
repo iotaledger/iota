@@ -385,7 +385,8 @@ impl ConsensusAdapter {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     Some(certificate.digest())
                 }
-                ConsensusTransactionKind::UserTransactionV1(_) => {
+                ConsensusTransactionKind::UserTransactionV1(_)
+                | ConsensusTransactionKind::UserTransactionV2(_) => {
                     // White flag: no submit delay needed (number of submitting validators
                     // controlled through another mechanism)
                     None
@@ -587,6 +588,7 @@ impl ConsensusAdapter {
                         transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
                             | ConsensusTransactionKind::UserTransactionV1(_)
+                            | ConsensusTransactionKind::UserTransactionV2(_)
                     ),
                     IotaError::InvalidTxKindInSoftBundle
                 );
@@ -848,11 +850,12 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, `UserTransactionV1` kind corresponds
-                // to user transactions.
+                // In the certificate-less mode, `UserTransactionV1`/`UserTransactionV2`
+                // kinds correspond to user transactions.
                 matches!(
                     transactions[0].kind,
                     ConsensusTransactionKind::UserTransactionV1(_)
+                        | ConsensusTransactionKind::UserTransactionV2(_)
                 )
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds

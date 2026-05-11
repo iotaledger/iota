@@ -305,6 +305,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                         &transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
                             | ConsensusTransactionKind::UserTransactionV1(_)
+                            | ConsensusTransactionKind::UserTransactionV2(_)
                     ) {
                         self.last_consensus_stats
                             .stats
@@ -508,6 +509,13 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
                 "owned_user_transaction"
             }
         }
+        ConsensusTransactionKind::UserTransactionV2(a) => {
+            if a.transaction.contains_shared_object() {
+                "shared_user_transaction"
+            } else {
+                "owned_user_transaction"
+            }
+        }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
@@ -627,6 +635,7 @@ impl SequencedConsensusTransactionKind {
             SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
                 ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
                 ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV2(a) => Some(*a.digest()),
                 _ => None,
             },
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
@@ -677,6 +686,10 @@ impl SequencedConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(transaction),
                 ..
             }) => transaction.uses_randomness(),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(a),
+                ..
+            }) => a.transaction.uses_randomness(),
             _ => false,
         }
     }
@@ -691,6 +704,10 @@ impl SequencedConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(transaction),
                 ..
             }) if transaction.contains_shared_object() => Some(transaction.data()),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(a),
+                ..
+            }) if a.transaction.contains_shared_object() => Some(a.data()),
             SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
                 Some(txn.data())
             }
@@ -703,6 +720,9 @@ impl SequencedConsensusTransaction {
             &self.transaction,
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(_),
+                ..
+            }) | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(_),
                 ..
             })
         )

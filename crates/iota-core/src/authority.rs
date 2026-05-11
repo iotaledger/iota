@@ -704,7 +704,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
-                "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                "Number of UserTransactionV1/V2 transactions dropped by post-consensus validation",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(

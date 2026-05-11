@@ -120,6 +120,20 @@ impl IotaTxValidator {
                     user_tx_v1_count += 1;
                 }
 
+                ConsensusTransactionKind::UserTransactionV2(_a) => {
+                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "UserTransactionV2 not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+                    // For UserTransactionV2 (attested transactions), skip user signature
+                    // verification — we trust the attestor that the transaction has already
+                    // been validated before entering consensus. Only the attestor
+                    // signature needs to be checked.
+                    // TODO: verify the attestor signature on `_a.attestation`.
+                }
+
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
@@ -404,7 +418,8 @@ mod tests {
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
                 // Gated behind `enable_white_flag_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_) => {
+                ConsensusTransactionKind::UserTransactionV1(_)
+                | ConsensusTransactionKind::UserTransactionV2(_) => {
                     Some(config.enable_white_flag_flow())
                 }
 
