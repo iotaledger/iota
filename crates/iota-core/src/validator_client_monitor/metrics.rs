@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_metrics::{COUNT_BUCKETS, SUBSECOND_LATENCY_SEC_BUCKETS};
+use iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS;
 use prometheus::{
-    GaugeVec, Histogram, HistogramVec, IntCounterVec, Registry, register_gauge_vec_with_registry,
-    register_histogram_vec_with_registry, register_histogram_with_registry,
+    GaugeVec, HistogramVec, IntCounterVec, Registry, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry,
 };
 
@@ -27,9 +27,6 @@ pub struct ValidatorClientMetrics {
     /// Current exploration score per validator. It is based
     /// on the effective sample size.
     pub(super) exploration: GaugeVec,
-
-    /// Number of low latency validators that got shuffled.
-    pub(super) shuffled_validators: Histogram,
 }
 
 impl ValidatorClientMetrics {
@@ -72,14 +69,6 @@ impl ValidatorClientMetrics {
                 "validator_client_observed_exploration",
                 "Current client-observed exploration per validator.",
                 &["validator"],
-                registry,
-            )
-            .unwrap(),
-
-            shuffled_validators: register_histogram_with_registry!(
-                "validator_client_shuffled_validators",
-                "Number of low latency validators that got shuffled",
-                COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
