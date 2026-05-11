@@ -1549,7 +1549,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1687,7 +1687,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1825,7 +1825,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
+                .flat_map(|refe| refe.owner.as_opt_address().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()

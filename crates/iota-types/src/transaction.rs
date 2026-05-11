@@ -587,7 +587,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(|arg| arg.as_receiving_opt().copied())
+            .filter_map(|arg| arg.as_opt_receiving().copied())
             .collect()
     }
 
@@ -3141,7 +3141,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_struct_opt().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveObject::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,

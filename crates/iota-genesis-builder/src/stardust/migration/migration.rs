@@ -320,7 +320,7 @@ impl Extend<Object> for MigrationObjects {
             };
             let owner = *object
                 .owner
-                .as_address_opt()
+                .as_opt_address()
                 .expect("timelocks should have an address owner");
             owner_object_map
                 .entry(owner)

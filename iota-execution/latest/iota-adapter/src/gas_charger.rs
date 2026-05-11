@@ -186,7 +186,7 @@ pub mod checked {
             }
             primary_gas_object
                 .data
-                .as_struct_mut_opt()
+                .as_opt_mut_struct()
                 // unwrap should be safe because we checked that the primary gas object was a coin
                 // object above.
                 .unwrap_or_else(|| {

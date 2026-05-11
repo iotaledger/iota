@@ -334,7 +334,7 @@ impl std::fmt::Display for VerboseObjectOutput {
                             "  -- object: Move Object: {}",
                             resp.object
                                 .data
-                                .as_struct_opt()
+                                .as_opt_struct()
                                 .unwrap()
                                 .to_move_struct(layout)
                                 .unwrap()

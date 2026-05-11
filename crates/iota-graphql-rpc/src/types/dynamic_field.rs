@@ -268,7 +268,7 @@ impl TryFrom<MoveObject> for DynamicField {
             }
         };
 
-        let Some(object) = native.data.as_struct_opt() else {
+        let Some(object) = native.data.as_opt_struct() else {
             return Err(Error::Internal("DynamicField is not an object".to_string()));
         };
 

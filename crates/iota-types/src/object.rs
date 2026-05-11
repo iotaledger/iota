@@ -565,7 +565,7 @@ impl ObjectInner {
     }
 
     pub fn is_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
         } else {
             false
@@ -573,7 +573,7 @@ impl ObjectInner {
     }
 
     pub fn is_gas_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_gas_coin()
         } else {
             false
@@ -583,7 +583,7 @@ impl ObjectInner {
     // TODO: use `MoveObj::get_balance_unsafe` instead.
     // context: https://github.com/iotaledger/iota/pull/10679#discussion_r1165877816
     pub fn as_coin_maybe(&self) -> Option<Coin> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
             Some(coin)
         } else {
@@ -592,7 +592,7 @@ impl ObjectInner {
     }
 
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
@@ -600,7 +600,7 @@ impl ObjectInner {
     }
 
     pub fn coin_type_opt(&self) -> Option<&TypeTag> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().coin_type_opt()
         } else {
             None
@@ -613,7 +613,7 @@ impl ObjectInner {
     /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unchecked(&self) -> u64 {
         self.data
-            .as_struct_opt()
+            .as_opt_struct()
             .unwrap()
             .get_coin_value_unchecked()
     }
@@ -670,7 +670,7 @@ impl ObjectInner {
     }
 
     pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        self.data.as_struct_opt().and_then(|data| data.to_rust())
+        self.data.as_opt_struct().and_then(|data| data.to_rust())
     }
 }
 

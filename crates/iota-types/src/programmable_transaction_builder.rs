@@ -72,7 +72,7 @@ impl ProgrammableTransactionBuilder {
             .object_id_opt()
             .ok_or_else(|| anyhow::anyhow!("expected object CallArg, found pure argument"))?;
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
-            match (old_value.as_shared_opt(), obj_arg.as_shared_opt()) {
+            match (old_value.as_opt_shared(), obj_arg.as_opt_shared()) {
                 (
                     Some(&SharedObjectRef {
                         object_id: id1,

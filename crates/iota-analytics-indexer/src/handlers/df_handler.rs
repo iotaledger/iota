@@ -116,7 +116,7 @@ impl DynamicFieldHandler {
         all_written_objects: &HashMap<ObjectID, Object>,
         state: &mut State,
     ) -> Result<()> {
-        let move_obj_opt = object.data.as_struct_opt();
+        let move_obj_opt = object.data.as_opt_struct();
         // Skip if not a move object
         let Some(move_object) = move_obj_opt else {
             return Ok(());

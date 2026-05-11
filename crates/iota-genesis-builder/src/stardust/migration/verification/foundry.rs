@@ -98,7 +98,7 @@ pub(super) fn verify_foundry_output(
         .get_object(package_id)
         .ok_or_else(|| anyhow!("missing package"))?
         .data
-        .as_package_opt()
+        .as_opt_package()
         .ok_or_else(|| anyhow!("expected a package"))?;
 
     ensure!(
