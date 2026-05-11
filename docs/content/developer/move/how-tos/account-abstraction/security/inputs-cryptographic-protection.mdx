@@ -44,7 +44,7 @@ Here's an example of a **secure** authenticator that properly protects its input
 - The blacklist object ID (`object::id(blacklist)`)  
 - The raw value parameter
 
-The signature verification cryptographically binds all these inputs together:
+The helper that combines these inputs into the message hash used for signature verification:
 
 ```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-inputs-cryptographic-protection/sources/account.move#L79-L88
 ```
@@ -53,10 +53,12 @@ The signature verification cryptographically binds all these inputs together:
 
 Without proper input protection, an attacker could swap the blacklist:
 
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L410-L444
 ```
 
 Or swap the raw value parameter:
 
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L446-L476
 ```
 
 However, because the secure implementation cryptographically binds all inputs, these attacks will fail during signature verification.

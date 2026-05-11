@@ -48,11 +48,12 @@ The blacklist implementation:
 
 An attacker can exploit this vulnerability by swapping the shared object:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L192-L217
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L192-L219
 ```
 
 The swap function replaces the shared object reference in the transaction:
 
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L435-L463
 ```
 
 ## Secure Implementations
