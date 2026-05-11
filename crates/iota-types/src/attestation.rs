@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::{Deserialize, Serialize};
+// TODO: change the import once the AuthorityIndex refactor is ready
+use starfish_config::AuthorityIndex;
 
 use crate::{
     base_types::{IotaAddress, ObjectRef},
+    digests::TransactionDigest,
     signature::GenericSignature,
-    transaction::Transaction,
+    transaction::{SenderSignedData, Transaction},
 };
 
 /// A pre-consensus claim produced by a trusted actor certifying that a specific
@@ -23,7 +26,11 @@ use crate::{
 #[non_exhaustive]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Attestation {
-    Validator(AttestationData),
+    Validator {
+        data: AttestationData,
+        /// Index of the attesting validator in the current epoch's committee
+        attestor_index: AuthorityIndex,
+    },
     Explicit {
         data: AttestationData,
         attestor_address: IotaAddress,
@@ -70,4 +77,6 @@ impl AttestedTransaction {
             attestation,
         }
     }
+    pub fn digest(&self) -> &TransactionDigest { self.transaction.digest() }
+    pub fn data(&self) -> &SenderSignedData { self.transaction.data() }
 }

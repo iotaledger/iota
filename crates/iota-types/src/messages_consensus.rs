@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     digests::{Digest, MisbehaviorReportDigest},
@@ -32,7 +33,6 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    attestation::AttestedTransaction,
     transaction::{CertifiedTransaction, Transaction},
 };
 
@@ -658,7 +658,7 @@ impl ConsensusTransaction {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
             }
             ConsensusTransactionKind::UserTransactionV2(attested) => {
-                ConsensusTransactionKey::UserTransaction(*attested.transaction.digest())
+                ConsensusTransactionKey::UserTransaction(*attested.digest())
             }
         }
     }
