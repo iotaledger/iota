@@ -4589,4 +4589,75 @@ mod test {
             );
         }
     }
+
+    #[tokio::test]
+    async fn adaptive_ack_take_acknowledgments_skips_masked_authors() {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config.set_gc_depth_for_testing(20);
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        // Advance threshold_clock to round 5 — quorum (3 of 4) at round 4.
+        for author in 0..3u8 {
+            dag_state.threshold_clock.add_block_header(BlockRef::new(
+                4,
+                author.into(),
+                BlockHeaderDigest::MIN,
+            ));
+        }
+        assert_eq!(dag_state.threshold_clock_round(), 5);
+
+        let r =
+            |round: Round, author: u8| BlockRef::new(round, author.into(), BlockHeaderDigest::MIN);
+
+        // Eligible: rounds 1..=4 × 4 authors (16). Above clock: round 6 × 4 authors.
+        let mut seeded = Vec::new();
+        for round in 1..=4u32 {
+            for author in 0..4u8 {
+                seeded.push(r(round, author));
+            }
+        }
+        for author in 0..4u8 {
+            seeded.push(r(6, author));
+        }
+        dag_state.set_pending_acknowledgments(seeded);
+
+        // First call: mask authors 1 and 3.
+        let mut mask = AuthoritySet::new();
+        mask.insert(AuthorityIndex::from(1u8));
+        mask.insert(AuthorityIndex::from(3u8));
+        let taken = dag_state.take_acknowledgments(1024, mask);
+        assert_eq!(taken.len(), 8, "2 unmasked authors × 4 eligible rounds");
+        assert!(taken.iter().all(
+            |x| x.author == AuthorityIndex::from(0u8) || x.author == AuthorityIndex::from(2u8)
+        ));
+        assert!(taken.iter().all(|x| x.round < 5));
+
+        // Masked refs and round-6 refs stay pending.
+        for round in 1..=4u32 {
+            for author in [1u8, 3u8] {
+                assert!(
+                    dag_state
+                        .pending_acknowledgments
+                        .contains(&r(round, author))
+                );
+            }
+        }
+        for author in 0..4u8 {
+            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
+        }
+
+        // Empty mask + capped limit: exactly `limit` returned.
+        let taken_limited = dag_state.take_acknowledgments(3, AuthoritySet::new());
+        assert_eq!(taken_limited.len(), 3);
+
+        // Empty mask + no cap: drains the remaining 5 previously-skipped refs;
+        // round-6 refs stay pending (above clock_round).
+        let taken_rest = dag_state.take_acknowledgments(1024, AuthoritySet::new());
+        assert_eq!(taken_rest.len(), 5);
+        for author in 0..4u8 {
+            assert!(dag_state.pending_acknowledgments.contains(&r(6, author)));
+        }
+    }
 }
