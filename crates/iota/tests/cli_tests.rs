@@ -755,7 +755,7 @@ async fn publish_package_for_upgrade(
         .iter()
         .find_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
-                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None
