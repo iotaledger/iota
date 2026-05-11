@@ -3035,7 +3035,6 @@ dependencies = [
  "futures",
  "iota-macros",
  "iota-metrics",
- "iota-types",
  "once_cell",
  "parking_lot 0.12.5",
  "rand 0.8.6",
@@ -3092,6 +3091,7 @@ dependencies = [
  "move-trace-format",
  "move-vm-config",
  "move-vm-runtime",
+ "move-vm-types",
 ]
 
 [[package]]
@@ -3217,6 +3217,7 @@ dependencies = [
  "serde_with",
  "strum 0.27.2",
  "tabled",
+ "thiserror 1.0.69",
  "tracing",
 ]
 
@@ -3479,7 +3480,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779#0bb2128fc621c8323f1583f095a53564486ae779"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fced51b39ea5d5c942bc8c4b5825feb04abfe820#fced51b39ea5d5c942bc8c4b5825feb04abfe820"
 dependencies = [
  "base64ct",
  "bcs",
