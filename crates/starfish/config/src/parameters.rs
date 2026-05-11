@@ -132,6 +132,14 @@ pub struct Parameters {
     /// discovered, without affecting protocol-level endpoint availability.
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
+
+    /// Enable adaptive acknowledgment filtering for StarfishSpeed.
+    /// Local heuristic that drops acks for authorities persistently blamed
+    /// by recent strong-vote masks. Effective only when the protocol-level
+    /// `consensus_starfish_speed` flag is also on. Enabled by default;
+    /// operators can disable it locally without a protocol change.
+    #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
+    pub enable_starfish_speed_adaptive_acknowledgments: bool,
 }
 
 impl Parameters {
@@ -275,6 +283,10 @@ impl Parameters {
         // without waiting for a protocol upgrade.
         true
     }
+
+    pub(crate) fn default_enable_starfish_speed_adaptive_acknowledgments() -> bool {
+        true
+    }
 }
 
 impl Default for Parameters {
@@ -305,6 +317,8 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_starfish_speed_adaptive_acknowledgments:
+                Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
         }
     }
 }
