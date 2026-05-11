@@ -233,11 +233,12 @@ pub fn swap_recipient_in_transaction(
 ) -> Transaction {
     match &mut transaction.inner_mut().intent_message.value {
         TransactionData::V1(data) => match &mut data.kind {
-            TransactionKind::ProgrammableTransaction(ptb) => {
+            TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());
             }
             _ => panic!("Expected a programmable transaction"),
         },
+        _ => panic!("Expected a V1 transaction"),
     }
 
     transaction
