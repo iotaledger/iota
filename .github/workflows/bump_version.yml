@@ -39,6 +39,11 @@ jobs:
         with:
           ref: ${{ inputs.base_branch }}
 
+      - name: Get latest bump_version script from commit that triggered this workflow
+        run: |
+          git fetch origin ${{ github.sha }}
+          git checkout ${{ github.sha }} -- scripts/bump_version.sh
+
       - name: Run bump_version.sh
         run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
 
