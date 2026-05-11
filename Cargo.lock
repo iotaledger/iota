@@ -5861,7 +5861,7 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-sdk",
- "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=75e613070cfd45ac090bfb56c47a75cf3965fd7e)",
+ "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dfa76570897a4af6e3425f68364253c04aeb86e0)",
  "iota-sdk-grpc-client",
  "iota-sdk-grpc-types",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
@@ -7336,10 +7336,10 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=75e613070cfd45ac090bfb56c47a75cf3965fd7e#75e613070cfd45ac090bfb56c47a75cf3965fd7e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dfa76570897a4af6e3425f68364253c04aeb86e0#dfa76570897a4af6e3425f68364253c04aeb86e0"
 dependencies = [
  "ed25519-dalek",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=75e613070cfd45ac090bfb56c47a75cf3965fd7e)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dfa76570897a4af6e3425f68364253c04aeb86e0)",
  "k256",
  "p256",
  "rand_core 0.6.4",
@@ -7398,7 +7398,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=75e613070cfd45ac090bfb56c47a75cf3965fd7e#75e613070cfd45ac090bfb56c47a75cf3965fd7e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dfa76570897a4af6e3425f68364253c04aeb86e0#dfa76570897a4af6e3425f68364253c04aeb86e0"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7934,7 +7934,7 @@ dependencies = [
  "iota-network-stack",
  "iota-proc-macros",
  "iota-protocol-config",
- "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=75e613070cfd45ac090bfb56c47a75cf3965fd7e)",
+ "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dfa76570897a4af6e3425f68364253c04aeb86e0)",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "itertools 0.13.0",
  "lru 0.12.4",
