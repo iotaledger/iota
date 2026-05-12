@@ -97,6 +97,9 @@ fn verify_runtime_metadata(
                         }
                     }
                 }
+                IotaAttribute::View => {
+                    // TODO
+                }
             }
         }
     }
