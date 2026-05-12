@@ -1020,22 +1020,22 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
-    /// Dry-runs a verified transaction and returns `AttestationData` ready to
-    /// be wrapped in a validator attestation and attached to the transaction
-    /// before submitting it to consensus.
+    /// Dry-runs a verified transaction and returns `AttestationData` together
+    /// with the owned objects validated during execution, ready to be wrapped
+    /// in a validator attestation and attached to the transaction before
+    /// submitting it to consensus.
     ///
-    /// Follows the same pipeline as `handle_transaction_validation_checks`
-    /// — deny checks, object loading, input validation, coin deny list — but
-    /// replaces the final `authenticate_transaction` call with
+    /// Subsumes `handle_transaction_validation_checks`: it runs the same
+    /// pipeline — deny checks, object loading, input validation, coin deny
+    /// list — and then replaces the final `authenticate_transaction` call with
     /// `authenticate_then_execute_transaction_to_effects` so that Move
     /// authentication and transaction execution run together and produce full
     /// `TransactionEffects` including the accurate `computation_cost`.
     pub(crate) fn attest_transaction(
         &self,
         transaction: &VerifiedTransaction,
-        owned_objects: &[ObjectRef],
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<iota_types::attestation::AttestationData> {
+    ) -> IotaResult<(iota_types::attestation::AttestationData, Vec<ObjectRef>)> {
         use iota_types::attestation::AttestationData;
 
         let protocol_config = epoch_store.protocol_config();
@@ -1084,6 +1084,8 @@ impl AuthorityState {
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
         )?;
+
+        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
         let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
         let epoch_start_timestamp = epoch_store
@@ -1185,8 +1187,8 @@ impl AuthorityState {
         let estimated_computation_cost = effects.gas_cost_summary().computation_cost;
 
         // Collect all input object refs seen during execution. Start from the
-        // owned objects already validated by the caller, then add shared objects
-        // as recorded in effects (includes authenticator + deny-list objects),
+        // owned objects (extracted in step 5), then add shared objects as
+        // recorded in effects (includes authenticator + deny-list objects),
         // receiving objects, and gas payment objects.
         let mut seen_ids = std::collections::HashSet::new();
         let mut object_versions: Vec<ObjectRef> = Vec::new();
@@ -1195,7 +1197,7 @@ impl AuthorityState {
                 object_versions.push(oref);
             }
         };
-        for &oref in owned_objects {
+        for &oref in &owned_objects {
             push(oref);
         }
         for shared in effects.input_shared_objects() {
@@ -1208,10 +1210,13 @@ impl AuthorityState {
             push(oref);
         }
 
-        Ok(AttestationData::V1 {
-            estimated_computation_cost,
-            object_versions,
-        })
+        Ok((
+            AttestationData::V1 {
+                estimated_computation_cost,
+                object_versions,
+            },
+            owned_objects,
+        ))
     }
 
     /// This is a private method and should be kept that way. It doesn't check

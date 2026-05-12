@@ -220,17 +220,33 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
-        // Content validation: deny checks + owned object version validation.
-        let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
-            .await
-        {
-            Ok(objs) => objs,
-            Err(e) => {
-                let weight = normalize(&e);
-                return (TxStatusUpdate::Rejected { error: e }, weight);
-            }
-        };
+        // Produce owned objects and — when validator attestation is enabled —
+        // the attestation payload. The attestation path runs deny checks,
+        // object loading, input validation, coin deny list, and a full dry-run
+        // in a single call, so it replaces `handle_transaction_validation_checks`
+        // entirely. The legacy path calls the validation-only function.
+        let (attestation_data, owned_objects) =
+            if epoch_store.protocol_config().enable_validator_attestation() {
+                match state.attest_transaction(&verified_tx, epoch_store) {
+                    Ok((data, objs)) => (Some(data), objs),
+                    Err(e) => {
+                        let weight = normalize(&e);
+                        return (TxStatusUpdate::Rejected { error: e }, weight);
+                    }
+                }
+            } else {
+                match state
+                    .handle_transaction_validation_checks(&verified_tx, epoch_store)
+                    .await
+                {
+                    Ok(objs) => (None, objs),
+                    Err(e) => {
+                        let weight = normalize(&e);
+                        return (TxStatusUpdate::Rejected { error: e }, weight);
+                    }
+                }
+            };
+
         if let Err(e) = state
             .get_cache_writer()
             .validate_owned_object_versions(&owned_objects)
@@ -271,32 +287,12 @@ impl ValidatorService {
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
 
-        // Build the consensus transaction. When validator attestation is enabled,
-        // attest the transaction (dry-run + Move auth) and submit as V2; otherwise
-        // fall back to the legacy V1 path.
-        let consensus_tx = if epoch_store
-            .protocol_config()
-            .enable_validator_attestation()
-        {
+        // Build the consensus transaction.
+        let consensus_tx = if let Some(attestation_data) = attestation_data {
             use iota_types::{
                 attestation::{Attestation, AttestedTransaction},
                 iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
             };
-
-            let release_locks_and_reject = |e: IotaError| {
-                soft_locks.release(&tx_digest);
-                metrics
-                    .soft_lock_table_size
-                    .set(soft_locks.lock_count() as i64);
-                let weight = normalize(&e);
-                (TxStatusUpdate::Rejected { error: e }, weight)
-            };
-
-            let attestation_data =
-                match state.attest_transaction(&verified_tx, &owned_objects, epoch_store) {
-                    Ok(data) => data,
-                    Err(e) => return release_locks_and_reject(e),
-                };
 
             let committee = epoch_store.committee();
             let attestor_index = committee
@@ -320,9 +316,13 @@ impl ValidatorService {
                     ),
                 ),
                 None => {
-                    return release_locks_and_reject(IotaError::from(
-                        "validator not found in consensus committee",
-                    ));
+                    soft_locks.release(&tx_digest);
+                    metrics
+                        .soft_lock_table_size
+                        .set(soft_locks.lock_count() as i64);
+                    let error = IotaError::from("validator not found in consensus committee");
+                    let weight = normalize(&error);
+                    return (TxStatusUpdate::Rejected { error }, weight);
                 }
             }
         } else {
