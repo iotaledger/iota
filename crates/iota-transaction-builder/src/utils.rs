@@ -314,7 +314,8 @@ impl TransactionBuilder {
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 // Move View Functions can accept pure arguments.
-                ResolvedCallArg::Pure(p) => builder.pure(p),
+                // `p` is already BCS-encoded for the expected Move type.
+                ResolvedCallArg::Pure(p) => Ok(builder.pure_bytes(p, false)),
                 // Move View Functions can accept only immutable object references.
                 ResolvedCallArg::Object(id) => {
                     fp_ensure!(
