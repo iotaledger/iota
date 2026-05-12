@@ -3698,5 +3698,17 @@ mod test {
         add_block(7, 1, strong_vote);
         add_block(7, 2, strong_blame);
         assert!(!fixture.core.has_strong_vote_quorum(7, leader));
+
+        // 3 strong votes at round 8 pinned to a different leader -> the
+        // pinning filter rejects them and the quorum check returns false.
+        let other = AuthorityIndex::new_for_test(2);
+        let strong_vote_other = StrongVote {
+            leader_authority: other,
+            missing: AuthoritySet::new(),
+        };
+        for author in [0u8, 1, 2] {
+            add_block(8, author, strong_vote_other);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(8, leader));
     }
 }

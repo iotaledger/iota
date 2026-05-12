@@ -630,6 +630,43 @@ pub(crate) mod test {
             ));
         }
 
+        // Flag on + leader_authority >= committee.size() ->
+        // InvalidStrongVoteAuthority. Trips the leader_authority bound check
+        // before the leader-in-ancestors check below.
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(99),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + valid leader_authority but pinned leader not in ancestors
+        // at round-1 -> StrongVoteLeaderNotInAncestors. Authority 3 is in the
+        // base block's ancestors only at round 7, not at round 9
+        // (= leader_round).
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(3),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::StrongVoteLeaderNotInAncestors { .. })
+            ));
+        }
+
         // Flag on + well-formed strong_vote (empty missing, leader at R-1 in
         // ancestors) -> Ok.
         {
