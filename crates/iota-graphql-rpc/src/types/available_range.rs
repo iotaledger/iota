@@ -58,11 +58,12 @@ impl AvailableRange {
     /// traverse).
     const BACKWARD_HISTORY_MAX_LOOKBACK: u64 = 900;
 
-    /// Computes the backward-diff retention window and returns it iff
-    /// `checkpoint_viewed_at` falls inside it. The lower bound is the greater
-    /// of the backward history watermark (`min_available_cp`) and
-    /// `latest_checkpoint - BACKWARD_HISTORY_MAX_LOOKBACK`; the upper bound
-    /// is `checkpoint_viewed_at` itself, so the returned range never extends
+    /// Computes the backward-diff retention window. Returns `Some(range)`
+    /// when `checkpoint_viewed_at` falls inside it, `None` otherwise. The
+    /// lower bound is the greater of the backward history watermark
+    /// (`min_available_cp`) and `latest_checkpoint -
+    /// BACKWARD_HISTORY_MAX_LOOKBACK`; the upper bound is
+    /// `checkpoint_viewed_at` itself, so the returned range never extends
     /// past the request's captured watermark.
     pub(crate) fn result(conn: &mut Conn, checkpoint_viewed_at: u64) -> QueryResult<Option<Self>> {
         use checkpoints::dsl as cp;
