@@ -9,7 +9,7 @@ use crate::{
     base_types::{IotaAddress, ObjectRef},
     digests::TransactionDigest,
     signature::GenericSignature,
-    transaction::{SenderSignedData, Transaction},
+    transaction::Transaction,
 };
 
 /// A pre-consensus claim produced by a trusted actor certifying that a specific
@@ -78,4 +78,89 @@ impl AttestedTransaction {
         }
     }
     pub fn digest(&self) -> &TransactionDigest { self.transaction.digest() }
+}
+
+#[cfg(test)]
+mod tests {
+    use bcs;
+
+    use super::*;
+    use crate::{
+        base_types::{IotaAddress, random_object_ref},
+        crypto::{Ed25519IotaSignature, IotaSignature},
+        utils::create_fake_transaction,
+    };
+
+    fn make_attestation_data() -> AttestationData {
+        AttestationData::V1 {
+            estimated_computation_cost: 1_000_000,
+            object_versions: vec![random_object_ref()],
+        }
+    }
+
+    #[test]
+    fn attestation_data_bcs_round_trip() {
+        let data = make_attestation_data();
+        let encoded = bcs::to_bytes(&data).unwrap();
+        let decoded: AttestationData = bcs::from_bytes(&encoded).unwrap();
+        let AttestationData::V1 {
+            estimated_computation_cost,
+            object_versions,
+        } = decoded;
+        assert_eq!(estimated_computation_cost, 1_000_000);
+        assert_eq!(object_versions.len(), 1);
+    }
+
+    #[test]
+    fn attestation_validator_bcs_round_trip() {
+        let attestation = Attestation::Validator {
+            payload: make_attestation_data(),
+            attestor_index: AuthorityIndex::new_for_test(3),
+        };
+        let encoded = bcs::to_bytes(&attestation).unwrap();
+        let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
+        let Attestation::Validator {
+            attestor_index,
+            ..
+        } = decoded
+        else {
+            panic!("unexpected variant");
+        };
+        assert_eq!(attestor_index, AuthorityIndex::new_for_test(3));
+    }
+
+    #[test]
+    fn attestation_explicit_bcs_round_trip() {
+        let address = IotaAddress::random();
+        let attestation = Attestation::Explicit {
+            payload: make_attestation_data(),
+            attestor_address: address,
+            signature: GenericSignature::Signature(Ed25519IotaSignature::default().into()),
+        };
+        let encoded = bcs::to_bytes(&attestation).unwrap();
+        let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
+        let Attestation::Explicit {
+            attestor_address, ..
+        } = decoded
+        else {
+            panic!("unexpected variant");
+        };
+        assert_eq!(attestor_address, address);
+    }
+
+    #[test]
+    fn attested_transaction_bcs_round_trip() {
+        let tx = create_fake_transaction();
+        let digest = *tx.digest();
+        let attested = AttestedTransaction::new(
+            tx,
+            Attestation::Validator {
+                payload: make_attestation_data(),
+                attestor_index: AuthorityIndex::new_for_test(0),
+            },
+        );
+        let encoded = bcs::to_bytes(&attested).unwrap();
+        let decoded: AttestedTransaction = bcs::from_bytes(&encoded).unwrap();
+        assert_eq!(*decoded.digest(), digest);
+    }
 }
