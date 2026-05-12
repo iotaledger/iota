@@ -29,7 +29,6 @@ fastcrypto-tbls.workspace = true
 futures.workspace = true
 hex.workspace = true
 indexmap.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
@@ -59,6 +58,7 @@ iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-proc-macros.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
