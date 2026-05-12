@@ -1644,6 +1644,7 @@ mod tests {
     use std::sync::Arc;
 
     use fastcrypto::error::FastCryptoError;
+    use rstest::rstest;
 
     use crate::{
         BlockHeaderAPI,
@@ -1786,5 +1787,57 @@ mod tests {
         for ack in acknowledgments.iter() {
             assert!(compressed_acknowledgments.contains(ack));
         }
+    }
+
+    #[rstest]
+    #[test]
+    fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
+        use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
+        let rng = &mut rand::thread_rng();
+        let refs = vec![
+            BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 2.into(), BlockHeaderDigest::random(&mut *rng)),
+        ];
+        let build = |overlap_start: u8, overlap_end: u8| -> BlockHeader {
+            if use_v2 {
+                BlockHeader::V2(BlockHeaderV2 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            } else {
+                BlockHeader::V1(BlockHeaderV1 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            }
+        };
+
+        // Valid indices: 0 <= start <= end <= references.len().
+        build(1, 2).verify_references_indices().unwrap(); // overlap region
+        build(2, 2).verify_references_indices().unwrap(); // no overlap, interior split
+        build(3, 3).verify_references_indices().unwrap(); // no overlap, boundary at len
+
+        // overlap_end > references.len().
+        assert!(matches!(
+            build(0, 4).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > references.len().
+        assert!(matches!(
+            build(4, 4).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > overlap_end.
+        assert!(matches!(
+            build(2, 1).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
     }
 }
