@@ -227,7 +227,10 @@ module P0::fake {
 //# create-checkpoint
 
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
-# Outside available range
+# Backward-diff retention covers cp 2 even after the forward-diff snapshot
+# watermark has advanced past it; balance still serves historical data (700).
+# `availableRange.first` reflects the backward-history watermark and so
+# matches what balance can serve.
 {
   availableRange {
     first {
@@ -320,7 +323,8 @@ module P0::fake {
 //# create-checkpoint
 
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
-# Outside available range
+# Same as the cp 2 view above, several checkpoints later — still in
+# backward-diff range, balance keeps serving historical data.
 {
   availableRange {
     first {
@@ -351,7 +355,7 @@ module P0::fake {
 }
 
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
-# Outside available range
+# cp 3 view: in backward-diff range, returns the historical balance.
 {
   availableRange {
     first {
@@ -382,7 +386,7 @@ module P0::fake {
 }
 
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
-# Outside available range
+# cp 4 view: in backward-diff range, returns the historical balance.
 {
   availableRange {
     first {

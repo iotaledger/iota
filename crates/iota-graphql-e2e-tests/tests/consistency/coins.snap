@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 15 tasks
 
@@ -103,7 +104,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 1
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 2
@@ -183,7 +184,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -247,7 +248,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -298,7 +299,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -349,7 +350,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
