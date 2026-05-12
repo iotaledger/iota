@@ -450,9 +450,7 @@ pub enum IotaError {
         committee: Box<Committee>,
     },
     #[error(
-        "Validator {:?} responded multiple signatures for the same message, conflicting: {}",
-        signer,
-        conflicting_sig
+        "Validator {signer:?} responded multiple signatures for the same message, conflicting: {conflicting_sig}"
     )]
     StakeAggregatorRepeatedSigner {
         signer: AuthorityName,
@@ -460,10 +458,7 @@ pub enum IotaError {
     },
     // TODO: Used for distinguishing between different occurrences of invalid signatures, to allow
     // retries in some cases.
-    #[error(
-        "Signature is not valid, but a retry may result in a valid one: {}",
-        error
-    )]
+    #[error("Signature is not valid, but a retry may result in a valid one: {error}")]
     PotentiallyTemporarilyInvalidSignature { error: String },
 
     // Certificate verification and execution
@@ -500,9 +495,9 @@ pub enum IotaError {
     InvalidAuthenticator,
     #[error("Invalid address")]
     InvalidAddress,
-    #[error("Invalid transaction digest.")]
+    #[error("Invalid transaction digest")]
     InvalidTransactionDigest,
-    #[error("Invalid move authentication digest.")]
+    #[error("Invalid move authentication digest")]
     InvalidMoveAuthenticatorDigest,
 
     #[error("Invalid digest length. Expected {expected}, got {actual}")]
@@ -510,34 +505,34 @@ pub enum IotaError {
     #[error("Invalid DKG message size")]
     InvalidDkgMessageSize,
 
-    #[error("Unexpected message.")]
+    #[error("Unexpected message")]
     UnexpectedMessage,
 
-    #[error("Failed to execute the Move authenticator, reason: {error}.")]
+    #[error("Failed to execute the Move authenticator, reason: {error}")]
     MoveAuthenticatorExecutionFailure { error: String },
 
     // Move module publishing related errors
-    #[error("Failed to verify the Move module, reason: {error}.")]
+    #[error("Failed to verify the Move module, reason: {error}")]
     ModuleVerificationFailure { error: String },
-    #[error("Failed to deserialize the Move module, reason: {error}.")]
+    #[error("Failed to deserialize the Move module, reason: {error}")]
     ModuleDeserializationFailure { error: String },
     #[error("Failed to publish the Move module(s), reason: {error}")]
     ModulePublishFailure { error: String },
-    #[error("Failed to build Move modules: {error}.")]
+    #[error("Failed to build Move modules: {error}")]
     ModuleBuildFailure { error: String },
 
     // Move call related errors
-    #[error("Function resolution failure: {error}.")]
+    #[error("Function resolution failure: {error}")]
     FunctionNotFound { error: String },
-    #[error("Module not found in package: {module_name}.")]
+    #[error("Module not found in package: {module_name:?}")]
     ModuleNotFound { module_name: String },
-    #[error("Type error while binding function arguments: {error}.")]
+    #[error("Type error while binding function arguments: {error}")]
     Type { error: String },
     #[error("Circular object ownership detected")]
     CircularObjectOwnership,
 
     // Internal state errors
-    #[error("Attempt to re-initialize a transaction lock for objects {refs:?}.")]
+    #[error("Attempt to re-initialize a transaction lock for objects {refs:?}")]
     ObjectLockAlreadyInitialized { refs: Vec<ObjectRef> },
     #[error("Object {obj_ref:?} already locked by a different transaction: {pending_transaction}")]
     ObjectLockConflict {
@@ -553,14 +548,14 @@ pub enum IotaError {
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
-    #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}].")]
+    #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },
-    #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{:?}].", digests)]
+    #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{digests:?}]")]
     TransactionsNotFound { digests: Vec<TransactionDigest> },
-    #[error("Could not find the referenced transaction events [{digest}].")]
+    #[error("Could not find the referenced transaction events [{digest}]")]
     TransactionEventsNotFound { digest: TransactionDigest },
     #[error(
-        "Attempt to move to `Executed` state an transaction that has already been executed: {digest}."
+        "Attempt to move to `Executed` state an transaction that has already been executed: {digest}"
     )]
     TransactionAlreadyExecuted { digest: TransactionDigest },
     #[error("Object ID did not have the expected type")]
@@ -681,7 +676,7 @@ pub enum IotaError {
     #[error("Missing committee information for epoch {0}")]
     MissingCommitteeAtEpoch(EpochId),
 
-    #[error("Index store not available on this Fullnode.")]
+    #[error("Index store not available on this Fullnode")]
     IndexStoreNotAvailable,
 
     #[error("Failed to read dynamic field from table in the object store: {0}")]
@@ -709,7 +704,7 @@ pub enum IotaError {
     Storage(String),
 
     #[error(
-        "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds."
+        "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds"
     )]
     ValidatorOverloadedRetryAfter { retry_after_secs: u64 },
 
