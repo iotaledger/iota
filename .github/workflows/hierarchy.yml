@@ -102,14 +102,14 @@ jobs:
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
       isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
 
-  # move-ide:
-  #   needs:
-  #     - diff
-  #     - dprint-format
-  #     - license-check
-  #     - typos
-  #   if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
-  #   uses: ./.github/workflows/_move_ide.yml
+  move-ide:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
     needs:
