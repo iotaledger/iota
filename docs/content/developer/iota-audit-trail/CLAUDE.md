@@ -66,7 +66,7 @@ The `teams` field (e.g., `teams: [iotaledger/identity]`) is optional. Include it
 The introduction page is the product's front door. Pattern:
 
 1. Frontmatter with `sidebar_label: Introduction` and tags `[reference, audit-trail]`.
-2. Banner image: `![IOTA Audit Trail](/img/banner/banner_notarization.png)` (or a dedicated banner if available).
+2. Banner image: `![IOTA Audit Trail](/img/banner/banner_audit_trails.png)` (or a dedicated banner if available).
 3. One-paragraph product summary.
 4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to related products (e.g., Audit Trail vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
 5. No code on this page. Link out to getting-started and explanation pages instead.
