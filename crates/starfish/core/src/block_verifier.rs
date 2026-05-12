@@ -275,7 +275,8 @@ pub(crate) mod test {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader},
+        authority_set::AuthoritySet,
+        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
@@ -571,6 +572,70 @@ pub(crate) mod test {
                     starfish_speed: false,
                 })
             ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_block_strong_vote() {
+        let (context_off, keypairs) = Context::new_for_test(4);
+        let (mut context_on, _) = Context::new_for_test(4);
+        context_on
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let context_off = Arc::new(context_off);
+        let context_on = Arc::new(context_on);
+
+        let keypair = &keypairs[2].1;
+        let leader_authority = AuthorityIndex::new_for_test(0);
+        let verifier_off = SignedBlockVerifier::new(context_off, Arc::new(TxnSizeVerifier {}));
+        let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
+
+        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
+        let well_formed = StrongVote {
+            leader_authority,
+            missing: AuthoritySet::new(),
+        };
+
+        // Flag off + Some(strong_vote) -> UnexpectedStrongVote.
+        {
+            let block = base.clone().set_strong_vote(Some(well_formed)).build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_off.verify(&signed_block),
+                Err(ConsensusError::UnexpectedStrongVote)
+            ));
+        }
+
+        // Flag on + missing contains an index >= committee.size() ->
+        // InvalidStrongVoteAuthority.
+        {
+            let mut missing = AuthoritySet::new();
+            missing.insert(AuthorityIndex::new_for_test(99));
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority,
+                    missing,
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + well-formed strong_vote (empty missing, leader at R-1 in
+        // ancestors) -> Ok.
+        {
+            let block = base.set_strong_vote(Some(well_formed)).build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            verifier_on.verify(&signed_block).unwrap();
         }
     }
 }

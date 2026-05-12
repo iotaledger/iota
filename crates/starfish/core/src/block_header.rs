@@ -1484,6 +1484,7 @@ pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
+    strong_vote: Option<StrongVote>,
 }
 
 impl TestBlockHeader {
@@ -1500,6 +1501,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1527,6 +1529,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1558,6 +1561,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1601,7 +1605,27 @@ impl TestBlockHeader {
         self
     }
 
+    /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
+    /// `BlockHeader::V2`; otherwise a V1.
+    pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
+        self.strong_vote = strong_vote;
+        self
+    }
+
     pub fn build(mut self) -> BlockHeader {
+        if let Some(strong_vote) = self.strong_vote {
+            return BlockHeader::V2(BlockHeaderV2::new(
+                self.block_header.epoch,
+                self.block_header.round,
+                self.block_header.author,
+                self.block_header.timestamp_ms,
+                self.ancestors,
+                self.acknowledgments,
+                self.block_header.commit_votes,
+                self.block_header.transactions_commitment,
+                Some(strong_vote),
+            ));
+        }
         let (references, overlap_start_index, overlap_end_index) =
             BlockHeader::compress_references(self.ancestors, self.acknowledgments);
         self.block_header.references = references;
