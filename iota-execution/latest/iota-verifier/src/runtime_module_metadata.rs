@@ -116,12 +116,13 @@ fn verify_runtime_metadata(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use move_binary_format::file_format::{
         FunctionDefinition, FunctionHandle, IdentifierIndex, ModuleHandleIndex, Signature,
         SignatureIndex, Visibility, empty_module,
     };
     use move_core_types::metadata::Metadata;
+
+    use super::*;
 
     fn module_with_view_metadata(visibility: Visibility, returns: Signature) -> CompiledModule {
         let mut module = empty_module();

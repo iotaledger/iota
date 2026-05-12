@@ -195,11 +195,12 @@ fn type_arguments(signature_token: &SignatureToken) -> &[SignatureToken] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use move_binary_format::file_format::{
         Ability, DatatypeHandle, DatatypeHandleIndex, FunctionDefinition, FunctionHandle,
         IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, empty_module,
     };
+
+    use super::*;
 
     fn module_with_view_signature(
         visibility: Visibility,
