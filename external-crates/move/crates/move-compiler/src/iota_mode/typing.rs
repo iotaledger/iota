@@ -306,6 +306,11 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
     }
+    if let Some(sp!(view_loc, _)) =
+        attributes.get_(&iota_known_attributes::view::ViewAttribute.into())
+    {
+        view_signature(context, *view_loc, name, *visibility, signature);
+    }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
         attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
     {
@@ -589,6 +594,197 @@ fn invalid_otw_field_loc(fields: &Fields<(DocComment, Type)>) -> Option<InvalidO
     }
 
     None
+}
+
+//**************************************************************************************************
+// view types
+//**************************************************************************************************
+
+fn view_signature(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    visibility: Visibility,
+    signature: &FunctionSignature,
+) {
+    view_visibility(context, view_loc, name, visibility);
+
+    let FunctionSignature {
+        type_parameters: _,
+        parameters,
+        return_type,
+    } = signature;
+
+    for (mutability, param, param_ty) in parameters {
+        view_param_ty(context, view_loc, name, mutability, param, param_ty);
+    }
+
+    view_return_ty(context, view_loc, name, return_type);
+}
+
+fn is_valid_view_visibility(visibility: &Visibility) -> bool {
+    matches!(visibility, Visibility::Public(_))
+}
+
+fn view_visibility(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    visibility: Visibility,
+) {
+    if !is_valid_view_visibility(&visibility) {
+        let msg = format!("Invalid visibility for view function '{}'", name);
+        let vloc = match visibility {
+            Visibility::Friend(loc) | Visibility::Package(loc) => loc,
+            Visibility::Internal => name.loc(),
+            Visibility::Public(_) => unreachable!("Cannot be public at this point"),
+        };
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (vloc, "View functions must be declared as 'public'"),
+        ));
+    }
+}
+
+fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, return_type: &Type) {
+    match &return_type.value {
+        Type_::Unit => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    return_type.loc,
+                    "View functions must return at least one value"
+                ),
+            ));
+        }
+        _ if contains_reference_ty(return_type) => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (return_type.loc, "View functions cannot return references"),
+            ));
+        }
+        _ if contains_view_unsafe_by_value_ty(return_type) => {
+            let msg = format!("Invalid return type for view function '{}'", name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    return_type.loc,
+                    "View functions cannot return objects or values that could contain objects",
+                ),
+            ));
+        }
+        _ => (),
+    }
+}
+
+/// A valid view param type is
+/// - A primitive (including strings and non-object structs)
+/// - A vector of primitives (including nested vectors)
+/// - A non-mutable parameter binding
+/// - A non-mutable reference to a user defined struct type
+fn view_param_ty(
+    context: &mut Context,
+    view_loc: Loc,
+    name: FunctionName,
+    mutability: &Mutability,
+    param: &Var,
+    param_ty: &Type,
+) {
+    if let Mutability::Mut(mut_loc) = mutability {
+        let msg = format!("Invalid parameter mutability for view function '{}'", name);
+        let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+        context.add_diag(diag!(
+            VIEW_FUN_SIGNATURE_DIAG,
+            (view_loc, msg),
+            (
+                *mut_loc,
+                "View function parameters cannot be declared as mutable",
+            ),
+            (param.loc, &param_msg),
+        ));
+    }
+
+    match &param_ty.value {
+        _ if contains_mutable_reference_ty(param_ty) => {
+            let msg = format!("Invalid parameter type for view function '{}'", name);
+            let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    param_ty.loc,
+                    "View functions cannot accept mutable references",
+                ),
+                (param.loc, &param_msg)
+            ));
+        }
+        // TODO maybe add more detailed reporting
+        _ if contains_view_unsafe_by_value_ty(param_ty) => {
+            let msg = format!("Invalid parameter type for view function '{}'", name);
+            let param_msg = format!("Invalid view parameter '{}'", param.value.name);
+            context.add_diag(diag!(
+                VIEW_FUN_SIGNATURE_DIAG,
+                (view_loc, msg),
+                (
+                    param_ty.loc,
+                    "View functions cannot accept objects or values that could contain objects by value",
+                ),
+                (param.loc, &param_msg)
+            ));
+        }
+        _ => (),
+    }
+}
+
+fn contains_reference_ty(ty: &Type) -> bool {
+    contains_reference_ty_where(ty, |_| true)
+}
+
+fn contains_mutable_reference_ty(ty: &Type) -> bool {
+    contains_reference_ty_where(ty, |is_mut| is_mut)
+}
+
+fn contains_reference_ty_where(ty: &Type, matches_ref: fn(bool) -> bool) -> bool {
+    match &ty.value {
+        Type_::Ref(is_mut, inner) => {
+            matches_ref(*is_mut) || contains_reference_ty_where(inner, matches_ref)
+        }
+        Type_::Apply(_, _, targs) => targs
+            .iter()
+            .any(|targ| contains_reference_ty_where(targ, matches_ref)),
+        Type_::Param(_) => false,
+        Type_::Unit | Type_::UnresolvedError | Type_::Anything | Type_::Var(_) => false,
+        Type_::Fun(_, _) => false,
+    }
+}
+
+fn contains_view_unsafe_by_value_ty(param_ty: &Type) -> bool {
+    match &param_ty.value {
+        // References are not by-value. Mutable references are rejected separately.
+        Type_::Ref(_, _) => false,
+        Type_::Param(type_parameter) => {
+            !(type_parameter.abilities.has_ability_(Ability_::Copy)
+                || type_parameter.abilities.has_ability_(Ability_::Drop))
+        }
+        Type_::Apply(Some(abilities), _, targs) => {
+            abilities.has_ability_(Ability_::Key)
+                || !(abilities.has_ability_(Ability_::Copy)
+                    || abilities.has_ability_(Ability_::Drop))
+                || targs.iter().any(contains_view_unsafe_by_value_ty)
+        }
+        Type_::Apply(None, _, targs) => targs.iter().any(contains_view_unsafe_by_value_ty),
+        Type_::Unit
+        | Type_::UnresolvedError
+        | Type_::Anything
+        | Type_::Var(_)
+        | Type_::Fun(_, _) => false,
+    }
 }
 
 //**************************************************************************************************
