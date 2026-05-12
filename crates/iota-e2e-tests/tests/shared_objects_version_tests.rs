@@ -10,7 +10,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::{OBJECT_START_VERSION, Owner},
+    object::Owner,
     transaction::{CallArg, SharedObjectRef},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -28,7 +28,7 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     let (counter, _) = env.create_counter().await;
 
     let (counter, _) = env.increment_owned_counter(counter).await;
-    assert_ne!(counter.version, OBJECT_START_VERSION);
+    assert_ne!(counter.version, SequenceNumber::INITIAL);
 
     let ExecutionFailureStatus::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()

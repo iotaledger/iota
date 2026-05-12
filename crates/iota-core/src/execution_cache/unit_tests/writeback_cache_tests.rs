@@ -21,7 +21,7 @@ use iota_types::{
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Owner},
+    object::{MoveObject, MoveObjectExt, Owner},
     storage::ChildObjectResolver,
 };
 use prometheus::default_registry;
@@ -188,7 +188,7 @@ impl Scenario {
         let id = ObjectID::random();
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveObject::new_gas_coin(SequenceNumber::INITIAL, id, 100),
             Owner::Address(owner),
             TransactionDigest::ZERO,
         )
@@ -214,7 +214,7 @@ impl Scenario {
     fn new_child(owner: ObjectID) -> Object {
         let id = ObjectID::random();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveObject::new_gas_coin(SequenceNumber::INITIAL, id, 100),
             Owner::Object(owner),
             TransactionDigest::ZERO,
         )
@@ -1225,7 +1225,7 @@ async fn latest_object_cache_race_test() {
         let cache = cache.clone();
         let start = Instant::now();
         std::thread::spawn(move || {
-            let mut version = OBJECT_START_VERSION;
+            let mut version = SequenceNumber::INITIAL;
             while start.elapsed() < Duration::from_secs(2) {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
@@ -1303,7 +1303,7 @@ async fn latest_object_cache_race_test() {
         let cache = cache;
         let start = Instant::now();
         std::thread::spawn(move || {
-            let mut latest = OBJECT_START_VERSION;
+            let mut latest = SequenceNumber::INITIAL;
 
             while start.elapsed() < Duration::from_secs(2) {
                 let Some(cur) = cache
@@ -1407,7 +1407,7 @@ async fn concurrent_latest_object_cache_race_test() {
     let owner = IotaAddress::random();
 
     // write a new version on request
-    let mut write_version = OBJECT_START_VERSION;
+    let mut write_version = SequenceNumber::INITIAL;
     let mut writer = || {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
@@ -1426,7 +1426,7 @@ async fn concurrent_latest_object_cache_race_test() {
     };
 
     // check cache consistency, ie. it can't contain an older version
-    let mut checked_latest = OBJECT_START_VERSION;
+    let mut checked_latest = SequenceNumber::INITIAL;
     let mut checker = || {
         if let Some(cur) = cache
             .cached
@@ -1523,8 +1523,8 @@ async fn concurrent_latest_object_cache_collision_test() {
     let owner2 = IotaAddress::random();
 
     // write a new version on request
-    let mut write1_version = OBJECT_START_VERSION;
-    let mut write2_version = OBJECT_START_VERSION;
+    let mut write1_version = SequenceNumber::INITIAL;
+    let mut write2_version = SequenceNumber::INITIAL;
     let mut writer = |object_id: ObjectID| {
         let (write_version, owner) = if object_id == object1_id {
             (&mut write1_version, owner1)
@@ -1600,7 +1600,7 @@ async fn concurrent_latest_object_cache_collision_test() {
             .lock()
             .version()
             .unwrap(),
-        OBJECT_START_VERSION.next().unwrap()
+        SequenceNumber::INITIAL.next().unwrap()
     );
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());

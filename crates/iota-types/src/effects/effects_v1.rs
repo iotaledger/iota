@@ -22,7 +22,7 @@ use crate::{
     execution::SharedInput,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    object::{OBJECT_START_VERSION, Owner},
+    object::Owner,
 };
 
 /// The response from processing a transaction or a certified transaction
@@ -348,7 +348,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                 EffectsObjectChange {
                     input_state: ObjectIn::Exist((
                         (obj_ref.version, obj_ref.digest),
-                        Owner::Shared(OBJECT_START_VERSION),
+                        Owner::Shared(SequenceNumber::INITIAL),
                     )),
                     output_state: ObjectOut::ObjectWrite((
                         obj_ref.digest,

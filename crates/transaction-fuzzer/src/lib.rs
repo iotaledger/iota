@@ -14,11 +14,11 @@ use std::fmt::Debug;
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
@@ -26,7 +26,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
+        MoveObject::new_gas_coin(SequenceNumber::INITIAL, ObjectID::random(), balance),
         owner,
         TransactionDigest::GENESIS_MARKER,
     )

@@ -23,11 +23,11 @@ use iota_grpc_types::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, StructTag},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object, Owner},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
@@ -42,7 +42,7 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Objec
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     let move_obj = MoveObject::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
-        OBJECT_START_VERSION,
+        SequenceNumber::INITIAL,
         contents,
         256,
     )
@@ -65,7 +65,7 @@ fn make_large_gas_coin(
     contents.extend(vec![0u8; padding]);
     let move_obj = MoveObject::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
-        OBJECT_START_VERSION,
+        SequenceNumber::INITIAL,
         contents,
         u64::try_from(padding).unwrap() + 1024,
     )
@@ -91,7 +91,7 @@ fn make_owned_entry(
     let info = AccountOwnedObjectInfo {
         owner,
         object_id,
-        version: OBJECT_START_VERSION,
+        version: SequenceNumber::INITIAL,
         type_,
     };
     let cursor = OwnedObjectCursor {

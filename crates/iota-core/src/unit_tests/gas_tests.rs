@@ -655,7 +655,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::Shared(OBJECT_START_VERSION)
+            owner: Owner::Shared(SequenceNumber::INITIAL)
         }
     );
     assert_eq!(

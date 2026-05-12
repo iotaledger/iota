@@ -108,7 +108,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -1923,7 +1923,7 @@ impl AuthorityState {
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
-                    OBJECT_START_VERSION,
+                    SequenceNumber::INITIAL,
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
@@ -2123,7 +2123,7 @@ impl AuthorityState {
         let mock_gas_id = if transaction.gas().is_empty() {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
-                    OBJECT_START_VERSION,
+                    SequenceNumber::INITIAL,
                     ObjectID::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),

@@ -41,7 +41,6 @@ pub mod bounded_visitor;
 pub mod option_visitor;
 
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
-pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
@@ -693,7 +692,7 @@ impl Object {
         let data = Data::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
             )
             .unwrap(),
@@ -718,7 +717,7 @@ impl Object {
     /// Make a new random test shared object.
     pub fn shared_for_testing() -> Object {
         let id = ObjectID::random();
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 10);
+        let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
@@ -727,7 +726,7 @@ impl Object {
         let data = Data::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 GasCoin::new(id, gas).to_bcs_bytes(),
             )
             .unwrap(),
@@ -745,7 +744,7 @@ impl Object {
         let data = Data::Struct(
             MoveObject::new(
                 StructTag::new_treasury_cap(struct_tag).into(),
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
             )
             .unwrap(),
@@ -763,7 +762,7 @@ impl Object {
         let data = Data::Struct(
             MoveObject::new(
                 StructTag::new_coin_metadata(struct_tag).into(),
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 bcs::to_bytes(&metadata).expect("Failed to serialize"),
             )
             .unwrap(),
@@ -781,7 +780,7 @@ impl Object {
         let data = Data::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
             )
             .unwrap(),
@@ -829,7 +828,7 @@ impl Object {
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
     pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: IotaAddress) -> Self {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), value);
+        let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, ObjectID::random(), value);
         Object::new_move(
             obj,
             Owner::Address(owner),
@@ -999,17 +998,17 @@ impl Display for PastObjectRead {
 #[cfg(test)]
 mod tests {
     use crate::{
-        base_types::{IotaAddress, ObjectID, TransactionDigest},
+        base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
         gas_coin::GasCoin,
-        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+        object::{MoveObjectExt, Object, Owner},
     };
 
     // Ensure that object digest computation and bcs serialized format are not
     // inadvertently changed.
     #[test]
     fn test_object_digest_and_serialized_format() {
-        let g =
-            GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
+        let g = GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123)
+            .to_object(SequenceNumber::INITIAL);
         let o = Object::new_move(
             g,
             Owner::Address(IotaAddress::ZERO),
@@ -1040,7 +1039,7 @@ mod tests {
     #[test]
     fn test_get_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
+            let g = GasCoin::new_for_testing(v).to_object(SequenceNumber::INITIAL);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
         }
@@ -1061,11 +1060,11 @@ mod tests {
     #[test]
     fn test_set_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
+            let mut g = GasCoin::new_for_testing(u64::MAX).to_object(SequenceNumber::INITIAL);
             g.set_coin_value_unchecked(v);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
-            assert_eq!(g.version(), OBJECT_START_VERSION);
+            assert_eq!(g.version(), SequenceNumber::INITIAL);
             assert_eq!(g.contents().len(), 40);
         }
 

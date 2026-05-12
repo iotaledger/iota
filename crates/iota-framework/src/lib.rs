@@ -5,10 +5,10 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::TransactionDigest,
     move_package::{MovePackage, MovePackageExt},
-    object::{OBJECT_START_VERSION, Object},
+    object::Object,
     storage::ObjectStore,
 };
 use move_binary_format::{
@@ -73,7 +73,7 @@ impl SystemPackage {
 
     pub fn genesis_move_package(&self) -> MovePackage {
         MovePackage::new_system(
-            OBJECT_START_VERSION,
+            SequenceNumber::INITIAL,
             &self.modules(),
             self.dependencies.iter().copied(),
         )
@@ -82,7 +82,7 @@ impl SystemPackage {
     pub fn genesis_object(&self) -> Object {
         Object::new_system_package(
             &self.modules(),
-            OBJECT_START_VERSION,
+            SequenceNumber::INITIAL,
             self.dependencies.to_vec(),
             TransactionDigest::GENESIS_MARKER,
         )
@@ -201,9 +201,9 @@ pub async fn compare_system_package<S: ObjectStore>(
                 Object::new_system_package(
                     modules,
                     // note: execution_engine assumes any system package with version
-                    // OBJECT_START_VERSION is freshly created rather than
+                    // SequenceNumber::INITIAL is freshly created rather than
                     // upgraded
-                    OBJECT_START_VERSION,
+                    SequenceNumber::INITIAL,
                     dependencies,
                     // Genesis is fine here, we only use it to calculate an object ref that we can
                     // use for all validators to commit to the same bytes in

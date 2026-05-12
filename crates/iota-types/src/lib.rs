@@ -18,7 +18,6 @@ use move_binary_format::{
 };
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
-use object::OBJECT_START_VERSION;
 
 use crate::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
@@ -139,8 +138,8 @@ pub const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
     IotaAddress::STARDUST,
 ];
 
-pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
+pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = SequenceNumber::INITIAL;
+pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = SequenceNumber::INITIAL;
 
 const fn builtin_address(suffix: u16) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];

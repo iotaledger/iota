@@ -170,8 +170,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 mod move_authenticator {
     pub use crate::move_authenticator::MoveAuthenticator;
     use crate::{
-        base_types::IotaAddress,
-        object::OBJECT_START_VERSION,
+        base_types::{IotaAddress, SequenceNumber},
         signature::GenericSignature,
         transaction::{CallArg, SenderSignedData, SharedObjectRef, Transaction},
         utils::make_transaction_data,
@@ -187,7 +186,7 @@ mod move_authenticator {
         // `AuthorityState` used for testing.
         let self_call_arg = CallArg::Shared(SharedObjectRef {
             object_id: address.into(),
-            initial_shared_version: OBJECT_START_VERSION,
+            initial_shared_version: SequenceNumber::INITIAL,
             mutable: false,
         });
         let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(

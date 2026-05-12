@@ -16,13 +16,13 @@ use iota_json_rpc_types::{
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, StructTag},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -819,7 +819,7 @@ async fn create_cluster_with_timelocked_iota(
     let timelock_iota = {
         MoveObject::new_from_execution(
             StructTag::new_timelocked_gas_balance(),
-            OBJECT_START_VERSION,
+            SequenceNumber::INITIAL,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
                 iota_types::balance::Balance::new(principal),

@@ -20,12 +20,12 @@ use iota_grpc_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, StructTag, random_object_ref},
+    base_types::{ObjectID, SequenceNumber, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object, Owner},
     transaction::VerifiedTransaction,
 };
 use prost::Message;
@@ -43,7 +43,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     contents.extend(vec![0u8; padding_bytes_len]);
     let move_obj = MoveObject::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
-        OBJECT_START_VERSION,
+        SequenceNumber::INITIAL,
         contents,
         u64::try_from(padding_bytes_len).unwrap() + 1024,
     )

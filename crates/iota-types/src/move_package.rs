@@ -227,7 +227,7 @@ impl MovePackageExt for MovePackage {
         MovePackage::from_module_iter_with_type_origin_table(
             storage_id,
             runtime_id,
-            Version::OBJECT_START,
+            Version::INITIAL,
             modules,
             protocol_config,
             type_origin_table,
@@ -376,7 +376,7 @@ impl MovePackageExt for MovePackage {
     /// function will always return the `Package ID`/`Storage ID` of the first
     /// package version in the version chain.
     fn original_package_id(&self) -> ObjectID {
-        if self.version == SequenceNumber::OBJECT_START {
+        if self.version == SequenceNumber::INITIAL {
             // for a non-upgraded package, original ID is just the package ID
             return self.id;
         }

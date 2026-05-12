@@ -42,7 +42,7 @@ mod checked {
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
         move_authenticator::MoveAuthenticator,
-        object::{OBJECT_START_VERSION, Object, ObjectInner},
+        object::{Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
@@ -1805,7 +1805,7 @@ mod checked {
                 .map(|m| CompiledModule::deserialize_with_config(m, &binary_config).unwrap())
                 .collect();
 
-            if version == OBJECT_START_VERSION {
+            if version == SequenceNumber::INITIAL {
                 let package_id = deserialized_modules.first().unwrap().address();
                 info!("adding new system package {package_id}");
 

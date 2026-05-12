@@ -20,7 +20,8 @@ mod checked {
         auth_context,
         base_types::{
             Identifier, IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, SequenceNumber, StructTag, TxContext,
+            TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -34,7 +35,6 @@ mod checked {
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
-        object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
         transaction::{Command, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
@@ -598,7 +598,7 @@ mod checked {
                     &modules,
                     storage_id,
                     runtime_id,
-                    OBJECT_START_VERSION.as_u64(),
+                    SequenceNumber::INITIAL.as_u64(),
                 )?;
             }
 

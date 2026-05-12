@@ -38,7 +38,7 @@ use iota_types::{
         AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
         VersionAssignment,
     },
-    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
+    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -223,7 +223,7 @@ async fn test_dry_run_transaction_block() {
 
     // Make sure that objects are not mutated after dry run.
     let gas_object_version = fullnode.get_object(&gas_object_id).await.unwrap().version();
-    assert_eq!(gas_object_version, OBJECT_START_VERSION);
+    assert_eq!(gas_object_version, SequenceNumber::INITIAL);
     let shared_object_version = fullnode
         .get_object(&shared_object_id)
         .await
@@ -4593,7 +4593,7 @@ async fn prepare_authority_and_shared_object_cert()
 
     let shared_object_id = ObjectID::random();
     let shared_object = {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -4648,7 +4648,7 @@ async fn test_shared_object_transaction_ok() {
             }
         })
         .expect("shared object must be assigned a version");
-    assert_eq!(shared_object_version, OBJECT_START_VERSION);
+    assert_eq!(shared_object_version, SequenceNumber::INITIAL);
 
     // Finally (Re-)execute the contract should succeed.
     authority.execute_for_test(&certificate);
@@ -4678,7 +4678,7 @@ async fn test_consensus_commit_prologue_generation() {
     let gas_objects = create_gas_objects(2, sender);
     let shared_object_id = ObjectID::random();
     let shared_object = {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -4776,7 +4776,7 @@ async fn test_consensus_message_processed() {
     let shared_object_id = ObjectID::random();
     let shared_object = {
         use iota_types::object::MoveObject;
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -6182,7 +6182,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
     for _ in 0..num {
         let shared_object_id = ObjectID::random();
         let shared_object = {
-            let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+            let obj = MoveObject::new_gas_coin(SequenceNumber::INITIAL, shared_object_id, 10);
             let owner = Owner::Shared(obj.version());
             Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
         };
@@ -6268,7 +6268,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 } else {
                     shared_objects[1].id()
                 },
-                OBJECT_START_VERSION,
+                SequenceNumber::INITIAL,
                 true,
             )],
             &gas_object.compute_object_reference(),
@@ -6339,7 +6339,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             &sender,
             &keypair,
             &[],
-            &[(shared_objects[1].id(), OBJECT_START_VERSION, true)],
+            &[(shared_objects[1].id(), SequenceNumber::INITIAL, true)],
             &gas_object.compute_object_reference(),
             &[&authority],
             12345,
@@ -6481,7 +6481,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &sender,
             &keypair,
             &[],
-            &[(shared_objects[0].id(), OBJECT_START_VERSION, true)],
+            &[(shared_objects[0].id(), SequenceNumber::INITIAL, true)],
             &gas_object.compute_object_reference(),
             &[&authority],
             12345,
@@ -6501,8 +6501,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         &keypair,
         &owned_objects_cancelled_txn,
         &[
-            (shared_objects[0].id(), OBJECT_START_VERSION, true),
-            (shared_objects[1].id(), OBJECT_START_VERSION, true),
+            (shared_objects[0].id(), SequenceNumber::INITIAL, true),
+            (shared_objects[1].id(), SequenceNumber::INITIAL, true),
         ],
         &gas_objects_cancelled_txn[0].compute_object_reference(),
         &[&authority],

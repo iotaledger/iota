@@ -7,12 +7,12 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{Identifier, ObjectID},
+    base_types::{Identifier, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::ExecutionErrorKind,
     execution_status::PackageUpgradeError,
     move_package::{MovePackage, MovePackageExt, TypeOrigin, UpgradeInfo},
-    object::{Data, OBJECT_START_VERSION, Object},
+    object::{Data, Object},
 };
 use move_binary_format::file_format::CompiledModule;
 
@@ -72,15 +72,15 @@ fn test_new_initial() {
     assert_eq!(
         a_pkg.linkage_table(),
         &linkage_table! {
-            b_id1 => (b_id1, OBJECT_START_VERSION),
-            c_id1 => (c_id1, OBJECT_START_VERSION),
+            b_id1 => (b_id1, SequenceNumber::INITIAL),
+            c_id1 => (c_id1, SequenceNumber::INITIAL),
         }
     );
 
     assert_eq!(
         b_pkg.linkage_table(),
         &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
+            c_id1 => (c_id1, SequenceNumber::INITIAL),
         }
     );
 
@@ -130,7 +130,7 @@ fn test_upgraded() {
         )
         .unwrap();
 
-    let mut expected_version = OBJECT_START_VERSION;
+    let mut expected_version = SequenceNumber::INITIAL;
     expected_version.increment().unwrap();
     assert_eq!(expected_version, c_new.version());
 
@@ -218,7 +218,7 @@ fn test_upgrade_upgrades_linkage() {
     assert_eq!(
         b_pkg.linkage_table(),
         &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
+            c_id1 => (c_id1, SequenceNumber::INITIAL),
         },
     );
 
@@ -341,7 +341,7 @@ fn test_upgrade_downgrades_linkage() {
     assert_eq!(
         b_new.linkage_table(),
         &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
+            c_id1 => (c_id1, SequenceNumber::INITIAL),
         },
     );
 }
@@ -384,7 +384,7 @@ fn test_transitively_depending_on_upgrade() {
     assert_eq!(
         a_pkg.linkage_table(),
         &linkage_table! {
-            b_id1 => (b_id1, OBJECT_START_VERSION),
+            b_id1 => (b_id1, SequenceNumber::INITIAL),
             c_id1 => (c_id2, c_new.version()),
         },
     );
