@@ -79,11 +79,18 @@ jobs:
   rust-tests:
     name: Run rust tests
     needs: pre-check
+    # `action != 'ready_for_review'` prevents heavy tests from being
+    # cancelled-and-restarted when someone toggles a PR between draft and
+    # ready while heavy tests are still running. pre-check can't save us in
+    # that case because the previous run is still in progress (no recorded
+    # success yet) and would get cancelled by concurrency before pre-check
+    # even runs.
     if: >-
       (!cancelled() && needs.pre-check.outputs.should_skip != 'true'
       && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
       && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
-      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready')
+      && github.event.action != 'ready_for_review')
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -155,11 +162,13 @@ jobs:
   rust-simtests:
     name: Run rust simtests
     needs: pre-check
+    # See `rust-tests` above for the rationale behind `action != 'ready_for_review'`.
     if: >-
       (!cancelled() && needs.pre-check.outputs.should_skip != 'true'
       && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
       && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
-      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready')
+      && github.event.action != 'ready_for_review')
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:

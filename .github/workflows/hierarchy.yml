@@ -151,20 +151,26 @@ jobs:
       - license-check
       - typos
       - rust
+    # `action != 'ready_for_review'` prevents this from being cancelled-and-
+    # restarted on draft↔ready toggles while it's mid-run; see `_rust_tests.yml`
+    # for the full rationale.
     if: >-
       (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true'
       && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
       && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
-      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready')
+      && github.event.action != 'ready_for_review')
     uses: ./.github/workflows/_split_cluster.yml
 
   split-cluster-sync-check:
     needs:
       - diff
       - rust
+    # See `split-cluster` above for the rationale behind `action != 'ready_for_review'`.
     if: >-
       (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true'
       && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
       && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
-      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready')
+      && github.event.action != 'ready_for_review')
     uses: ./.github/workflows/_split_cluster_sync_check.yml
