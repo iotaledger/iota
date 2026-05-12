@@ -419,8 +419,7 @@ async fn execute_single_transaction(
     let digest = *effects.effects.transaction_digest();
 
     // Build the merged response
-    let sdk_transaction: iota_sdk_types::Transaction =
-        transaction.transaction_data().clone().try_into()?;
+    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction_data().clone();
     let signatures: Vec<iota_sdk_types::UserSignature> = transaction
         .tx_signatures()
         .to_owned()

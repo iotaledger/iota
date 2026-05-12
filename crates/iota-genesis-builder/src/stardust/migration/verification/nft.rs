@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure};
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::ObjectID,
+    base_types::{ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -63,7 +62,7 @@ pub(super) fn verify_nft_output(
     // If there is an expiration unlock condition, the NFT is shared.
     if output.unlock_conditions().expiration().is_some() {
         ensure!(
-            matches!(created_output_obj.owner, Owner::Shared { .. }),
+            matches!(created_output_obj.owner, Owner::Shared(_)),
             "nft output owner mismatch: found {:?}, expected Shared",
             created_output_obj.owner,
         );
@@ -77,17 +76,14 @@ pub(super) fn verify_nft_output(
     }
 
     // NFT Owner
-    let expected_nft_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_nft_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_nft_obj.owner == expected_nft_owner,

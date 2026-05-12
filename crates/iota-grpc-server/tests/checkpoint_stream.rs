@@ -14,14 +14,13 @@ use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
 use prost::Message;
 use tokio_stream::StreamExt;
 
@@ -596,7 +595,7 @@ async fn test_filter_checkpoints_validation() {
 
     // tx filter without transactions in read_mask should fail
     let (sender, _): (IotaAddress, AccountKeyPair) = get_key_pair();
-    let sender_bytes = sender.to_inner();
+    let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
             iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
@@ -629,7 +628,7 @@ async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
     let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
-    let sender_bytes = sender.to_inner();
+    let sender_bytes = sender.into_bytes();
 
     // Create a sender filter matching our known sender
     let make_tx_filter = || {
@@ -786,6 +785,89 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
 }
 
 #[tokio::test]
+async fn test_stream_checkpoints_subscriber_cap() {
+    // Configure a small cap so we can hit it in the test without opening
+    // dozens of streams. Storage has checkpoints 0..=5; each stream drains
+    // these and then parks in the live phase, keeping its broadcast
+    // receiver alive.
+    let (server_handle, client, _) = test_server_and_client_setup(
+        0..=5,
+        |config| {
+            config.max_concurrent_stream_subscribers = 2;
+        },
+        None,
+        None,
+    )
+    .await;
+
+    let range = (Some(0), None);
+
+    // Open two streams up to the cap.
+    let mut stream1 = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .expect("first subscribe should succeed");
+    stream1
+        .body_mut()
+        .next()
+        .await
+        .expect("first stream should yield an item")
+        .expect("first stream item should not be an error");
+
+    let mut stream2 = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .expect("second subscribe should succeed");
+    stream2
+        .body_mut()
+        .next()
+        .await
+        .expect("second stream should yield an item")
+        .expect("second stream item should not be an error");
+
+    // A third subscribe must be rejected with Unavailable.
+    match client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+    {
+        Err(iota_grpc_client::Error::Grpc(status)) => {
+            assert_eq!(status.code(), tonic::Code::Unavailable);
+        }
+        Err(other) => panic!("expected Unavailable, got: {other:?}"),
+        Ok(_) => panic!("expected Unavailable, got Ok"),
+    }
+
+    // Dropping a stream releases its subscriber slot. Retry until a fresh
+    // subscribe succeeds, to avoid depending on the drop order of locals
+    // inside the server-side stream generator.
+    drop(stream1);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let _stream3 = loop {
+        match client
+            .stream_checkpoints(range.0, range.1, None, None, None)
+            .await
+        {
+            Ok(s) => break s,
+            Err(iota_grpc_client::Error::Grpc(status))
+                if status.code() == tonic::Code::Unavailable =>
+            {
+                if tokio::time::Instant::now() >= deadline {
+                    panic!("subscriber slot did not free within timeout");
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    };
+
+    drop(stream2);
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
 async fn test_stream_checkpoint_pruned_start_returns_not_found() {
     // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
     let mock =
@@ -839,18 +921,18 @@ fn build_checkpoint_transactions_with_events(
         let events = if events_per_tx > 0 {
             let mut data = Vec::with_capacity(events_per_tx);
             for _ in 0..events_per_tx {
-                data.push(Event::new(
-                    &AccountAddress::ZERO,
-                    ident_str!("test_module"),
+                data.push(Event {
+                    package_id: ObjectID::ZERO,
+                    module: Identifier::from_static("test_module"),
                     sender,
-                    StructTag {
-                        address: AccountAddress::ZERO,
-                        module: ident_str!("test_module").into(),
-                        name: ident_str!("TestEvent").into(),
-                        type_params: vec![],
-                    },
-                    vec![0u8; 64], // 64 bytes of dummy content
-                ));
+                    type_: StructTag::new(
+                        IotaAddress::ZERO,
+                        Identifier::from_static("test_module"),
+                        Identifier::from_static("TestEvent"),
+                        vec![],
+                    ),
+                    contents: vec![0u8; 64], // 64 bytes of dummy content
+                });
             }
             Some(TransactionEvents { data })
         } else {
@@ -990,21 +1072,15 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     );
 
     // Every message must be within the limit.
-    for (i, msg) in all_messages.iter().enumerate() {
-        let size = msg.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&all_messages, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }
 
 #[tokio::test]
 async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
-    // 2 000 transactions × 5 events each → total event payload exceeds 4 MB.
-    let transactions = build_checkpoint_transactions_with_events(2_000, 5);
+    // 2 500 transactions × 5 events each → total event payload exceeds 4 MB.
+    let transactions = build_checkpoint_transactions_with_events(2_500, 5);
     let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
     let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
@@ -1071,13 +1147,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     );
 
     // Every message must be within the limit.
-    for (i, msg) in all_messages.iter().enumerate() {
-        let size = msg.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&all_messages, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }

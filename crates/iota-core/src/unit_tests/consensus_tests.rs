@@ -4,13 +4,11 @@
 
 use std::{collections::HashSet, time::Duration};
 
-use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{ExecutionDigests, ObjectID},
+    base_types::{ExecutionDigests, Identifier, ObjectID},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -19,14 +17,15 @@ use iota_types::{
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData,
+        CallArg, CertifiedTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TransactionData, TransactionDataAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
+use starfish_core::{BlockRef, BlockStatus};
 use tokio::time::sleep;
 
 use super::*;
@@ -62,11 +61,11 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = ObjectArg::SharedObject {
-        id: shared_object.id(),
+    let shared_object_arg = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object.id(),
         initial_shared_version: shared_object.version(),
         mutable: true,
-    };
+    });
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
         let gas_object = authority.get_object(&gas_object.id()).await.unwrap();
@@ -76,17 +75,17 @@ pub async fn test_certificates(
 
         let data = TransactionData::new_move_call(
             sender,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!(module).to_owned(),
-            ident_str!(function).to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::from_static(module),
+            Identifier::from_static(function),
             // type_args
             vec![],
             gas_object.compute_object_reference(),
             // args
             vec![
-                CallArg::Object(shared_object_arg),
+                shared_object_arg.clone(),
                 CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
             ],
             rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
             rgp,
@@ -243,10 +242,18 @@ async fn submit_transaction_to_consensus_adapter() {
 
     // Make a new consensus adapter instance.
     let block_status_receivers = vec![
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
-        with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::GarbageCollected(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
+        with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        )),
     ];
     let adapter = make_consensus_adapter_for_test(
         state.clone(),
@@ -295,7 +302,9 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         state.clone(),
         process_via_checkpoint,
         false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
     );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
@@ -332,7 +341,9 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         state.clone(),
         HashSet::new(),
         false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
     );
 
     let checkpoint_summary = CheckpointSummary::new(
@@ -437,7 +448,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
 /// are submitted instead of one.
 #[tokio::test]
 async fn submit_recovered_end_of_publish_crash_recovery() {
-    use consensus_core::{BlockRef, BlockStatus};
+    use starfish_core::{BlockRef, BlockStatus};
     use tokio::sync::Notify;
 
     use crate::mock_consensus::with_block_status;
@@ -463,7 +474,9 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             self.submitted.lock().extend_from_slice(transactions);
             self.notify.notify_one();
 
-            Ok(with_block_status(BlockStatus::Sequenced(BlockRef::MIN)))
+            Ok(with_block_status(BlockStatus::Sequenced(
+                starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+            )))
         }
     }
 

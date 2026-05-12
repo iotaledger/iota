@@ -15,7 +15,9 @@ use crate::{
         IotaSignature, Signature, SignatureScheme, get_key_pair,
     },
     object::Object,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+    },
 };
 
 #[test]
@@ -79,7 +81,7 @@ fn test_authority_signature_intent() {
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
-        tx.try_into_verified_for_testing(epoch, &Default::default())
+        tx.try_into_verified_for_testing(&Default::default())
             .is_ok()
     );
 

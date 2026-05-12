@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
+
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
@@ -52,6 +54,7 @@ use tokio::{
     sync::{Mutex, OnceCell},
     task::JoinHandle,
 };
+use tokio_util::sync::CancellationToken;
 
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -314,23 +317,30 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
     pg_store: &PgIndexerStore,
     expected_transactions_count: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    if tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
         loop {
-            let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
-            if optimistic_transactions_count == expected_transactions_count {
+            let count = get_optimistic_transactions_count(pg_store).await;
+            if count == expected_transactions_count {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await
-    .expect("timeout waiting for indexer to prune optimistic transactions");
+    .is_err()
+    {
+        let actual = get_optimistic_transactions_count(pg_store).await;
+        assert_eq!(
+            actual, expected_transactions_count,
+            "timed out waiting for optimistic transactions count"
+        );
+    }
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // check once again, to ensure match was not accidental
-    let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
-    assert_eq!(optimistic_transactions_count, expected_transactions_count);
+    let actual = get_optimistic_transactions_count(pg_store).await;
+    assert_eq!(actual, expected_transactions_count);
 }
 
 /// Wait for the indexer to prune the given checkpoint number
@@ -338,7 +348,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
         loop {
             let (min, _max) = pg_store
                 .get_available_checkpoint_range()
@@ -441,9 +451,17 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let store = create_pg_store(&db_url, false);
 
-    tokio::spawn(
-        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
-    );
+    tokio::spawn(async move {
+        Indexer::start_reader(
+            &config,
+            store,
+            &registry,
+            pool,
+            metrics,
+            CancellationToken::new(),
+        )
+        .await
+    });
     port
 }
 
@@ -612,7 +630,7 @@ pub async fn publish_test_move_package(
                     .with_object_changes()
                     .with_events(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();

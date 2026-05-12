@@ -5,7 +5,6 @@
 use std::{
     hash::{Hash, Hasher},
     str::FromStr,
-    sync::Arc,
 };
 
 pub use enum_dispatch::enum_dispatch;
@@ -20,19 +19,15 @@ use fastcrypto::{
 };
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
-    digests::ZKLoginInputsDigest,
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 
 #[cfg(test)]
@@ -47,7 +42,7 @@ pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
 /// The struct that contains signatures and public keys necessary for
 /// authenticating a MultiSig.
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MultiSig {
     /// The plain signature encoded with signature scheme.
     sigs: Vec<CompressedSignature>,
@@ -83,24 +78,11 @@ impl Hash for MultiSig {
 }
 
 impl AuthenticatorTrait for MultiSig {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch_id: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> Result<(), IotaError> {
-        // If there is any zkLogin signatures, filter and check epoch for each.
-        // TODO: call this on all sigs to avoid future lapses
-        self.get_zklogin_sigs()?.iter().try_for_each(|s| {
-            s.verify_user_authenticator_epoch(epoch_id, max_epoch_upper_bound_delta)
-        })
-    }
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
         multisig_address: IotaAddress,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -114,12 +96,6 @@ impl AuthenticatorTrait for MultiSig {
         if IotaAddress::from(&self.multisig_pk) != multisig_address {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid address derived from pks".to_string(),
-            });
-        }
-
-        if !self.get_zklogin_sigs()?.is_empty() && !verify_params.accept_zklogin_in_multisig {
-            return Err(IotaError::InvalidSignature {
-                error: "zkLogin sig not supported inside multisig".to_string(),
             });
         }
 
@@ -221,34 +197,11 @@ impl AuthenticatorTrait for MultiSig {
                         })?,
                     )
                 }
-                CompressedSignature::ZkLogin(z) => {
-                    if verify_params.additional_multisig_checks
-                        && !matches!(
-                            subsig_pubkey.scheme(),
-                            SignatureScheme::ZkLoginAuthenticator
-                        )
-                    {
-                        return Err(IotaError::InvalidSignature {
-                            error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                                subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
-                            ),
-                        });
-                    }
-                    let authenticator = ZkLoginAuthenticator::from_bytes(&z.0).map_err(|_| {
-                        IotaError::InvalidSignature {
-                            error: "Invalid zklogin authenticator bytes".to_string(),
-                        }
-                    })?;
-                    authenticator
-                        .verify_claims(
-                            value,
-                            IotaAddress::from(subsig_pubkey),
-                            verify_params,
-                            zklogin_inputs_cache.clone(),
-                        )
-                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+                #[allow(deprecated)]
+                CompressedSignature::ZkLoginDeprecated => {
+                    return Err(IotaError::InvalidSignature {
+                        error: "zkLogin is not supported".to_string(),
+                    });
                 }
                 CompressedSignature::Passkey(bytes) => {
                     let authenticator =
@@ -258,12 +211,7 @@ impl AuthenticatorTrait for MultiSig {
                             }
                         })?;
                     authenticator
-                        .verify_claims(
-                            value,
-                            IotaAddress::from(subsig_pubkey),
-                            verify_params,
-                            zklogin_inputs_cache.clone(),
-                        )
+                        .verify_claims(value, IotaAddress::from(subsig_pubkey), verify_params)
                         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 }
                 CompressedSignature::Move(_move_authenticator_as_bytes) => {
@@ -394,25 +342,6 @@ impl MultiSig {
         &self.sigs
     }
 
-    pub fn get_zklogin_sigs(&self) -> Result<Vec<ZkLoginAuthenticator>, IotaError> {
-        let authenticator_as_bytes: Vec<_> = self
-            .sigs
-            .iter()
-            .filter_map(|s| match s {
-                CompressedSignature::ZkLogin(z) => Some(z),
-                _ => None,
-            })
-            .collect();
-        authenticator_as_bytes
-            .iter()
-            .map(|z| {
-                ZkLoginAuthenticator::from_bytes(&z.0).map_err(|_| IotaError::InvalidSignature {
-                    error: "Invalid zklogin authenticator bytes".to_string(),
-                })
-            })
-            .collect()
-    }
-
     pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
         as_indices(self.bitmap)
     }
@@ -469,7 +398,7 @@ impl AsRef<[u8]> for MultiSig {
 }
 
 /// The struct that contains the public key used for authenticating a MultiSig.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiSigPublicKey {
     /// A list of public key and its corresponding weight.
     pk_map: Vec<(PublicKey, WeightUnit)>,

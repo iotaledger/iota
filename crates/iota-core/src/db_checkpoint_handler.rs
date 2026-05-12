@@ -26,6 +26,7 @@ use crate::{
         },
         authority_store_tables::AuthorityPerpetualTables,
     },
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
 };
@@ -80,6 +81,7 @@ pub struct DBCheckpointHandler {
     /// Pruning objects
     pruning_config: AuthorityStorePruningConfig,
     metrics: Arc<DBCheckpointMetrics>,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 }
 
 impl DBCheckpointHandler {
@@ -91,6 +93,7 @@ impl DBCheckpointHandler {
         pruning_config: AuthorityStorePruningConfig,
         registry: &Registry,
         state_snapshot_enabled: bool,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<Arc<Self>> {
         let input_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -112,6 +115,7 @@ impl DBCheckpointHandler {
             state_snapshot_enabled,
             pruning_config,
             metrics: DBCheckpointMetrics::new(registry),
+            checkpoint_progress_tracker,
         }))
     }
     pub fn new_for_test(
@@ -136,6 +140,7 @@ impl DBCheckpointHandler {
             state_snapshot_enabled,
             pruning_config: AuthorityStorePruningConfig::default(),
             metrics: DBCheckpointMetrics::new(&Registry::default()),
+            checkpoint_progress_tracker: None,
         }))
     }
 
@@ -290,6 +295,7 @@ impl DBCheckpointHandler {
             self.pruning_config.clone(),
             metrics,
             epoch_duration_ms,
+            self.checkpoint_progress_tracker.as_ref(),
         )
         .await?;
         info!(

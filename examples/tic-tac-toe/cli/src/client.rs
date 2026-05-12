@@ -19,19 +19,17 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionKind,
+        CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
+        TransactionData, TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
 };
-use move_core_types::language_storage::StructTag;
 
 use crate::{
     crypto::combine_keys,
@@ -118,11 +116,11 @@ impl Client {
             bail!("It is a package, not an object.");
         };
 
-        if raw.type_.name.as_str() != "Game" {
+        if raw.type_.name().as_str() != "Game" {
             bail!("It is not a Game object, it has type {}.", raw.type_);
         }
 
-        let package = ObjectID::from(raw.type_.address);
+        let package = ObjectID::new(raw.type_.address().into_bytes());
         if package != self.package {
             bail!(
                 "It is expected to be from package {} but is from package {}.",
@@ -132,7 +130,7 @@ impl Client {
         }
 
         // (3) Deserialize contents
-        let kind = match raw.type_.module.as_str() {
+        let kind = match raw.type_.module().as_str() {
             "shared" => GameKind::Shared(
                 bcs::from_bytes(&raw.bcs_bytes).context("Failed to deserialize contents.")?,
             ),
@@ -146,23 +144,22 @@ impl Client {
 
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
-        let g = if let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        {
-            builder.obj(ObjectArg::SharedObject {
-                id,
+        let g = if let Owner::Shared(initial_shared_version) = owner {
+            builder.obj(CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable: false,
-            })?
+            }))?
         } else {
-            builder.obj(ObjectArg::ImmOrOwnedObject((object_id, version, digest)))?
+            builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
+                object_id, version, digest,
+            )))?
         };
 
         builder.programmable_move_call(
             self.package,
-            raw.type_.module.clone(),
-            Identifier::new("ended").unwrap(),
+            raw.type_.module().clone(),
+            Identifier::from_static("ended"),
             vec![],
             vec![g],
         );
@@ -171,7 +168,7 @@ impl Client {
             .read_api()
             .dev_inspect_transaction_block(
                 IotaAddress::ZERO,
-                TransactionKind::ProgrammableTransaction(builder.finish()),
+                TransactionKind::Programmable(builder.finish()),
                 None,
                 None,
                 Some(DevInspectArgs {
@@ -218,14 +215,14 @@ impl Client {
     pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectRef> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;
-        let (game_id, _, _) = game.object_ref();
+        let game_id = game.object_ref().object_id;
 
-        let turn_cap_type = StructTag {
-            address: self.package.into(),
-            module: Identifier::new("owned").unwrap(),
-            name: Identifier::new("TurnCap").unwrap(),
-            type_params: vec![],
-        };
+        let turn_cap_type = StructTag::new(
+            self.package,
+            Identifier::from_static("owned"),
+            Identifier::from_static("TurnCap"),
+            vec![],
+        );
 
         let query = Some(IotaObjectResponseQuery::new(
             Some(IotaObjectDataFilter::StructType(turn_cap_type.clone())),
@@ -268,7 +265,7 @@ impl Client {
                     .context("INTERNAL ERROR: Failed to deserialize TurnCap.")?;
 
                 if turn_cap.game == game_id {
-                    return Ok((object_id, version, digest));
+                    return Ok(ObjectRef::new(object_id, version, digest));
                 }
             }
 
@@ -291,8 +288,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("new").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("new"),
             vec![],
             vec![x, o],
         );
@@ -329,8 +326,8 @@ impl Client {
 
         let game = builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("new").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("new"),
             vec![],
             vec![x, o, a],
         );
@@ -346,25 +343,22 @@ impl Client {
     pub async fn delete_shared_game(&mut self, game: &game::Shared, owner: Owner) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        else {
+        let Owner::Shared(initial_shared_version) = owner else {
             bail!("Game is not shared");
         };
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::SharedObject {
-            id: game.board.id,
+        let g = builder.obj(CallArg::Shared(SharedObjectRef {
+            object_id: game.board.id,
             initial_shared_version,
             mutable: true,
-        })?;
+        }))?;
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("burn").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("burn"),
             vec![],
             vec![g],
         );
@@ -387,12 +381,12 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::ImmOrOwnedObject(game_ref))?;
+        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("burn").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("burn"),
             vec![],
             vec![g],
         );
@@ -426,28 +420,25 @@ impl Client {
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        else {
+        let Owner::Shared(initial_shared_version) = owner else {
             bail!("Game is not shared");
         };
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::SharedObject {
-            id: game.board.id,
+        let g = builder.obj(CallArg::Shared(SharedObjectRef {
+            object_id: game.board.id,
             initial_shared_version,
             mutable: true,
-        })?;
+        }))?;
 
         let r = builder.pure(row)?;
         let c = builder.pure(col)?;
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("place_mark"),
             vec![],
             vec![g, r, c],
         );
@@ -475,14 +466,14 @@ impl Client {
         // First transaction sends the mark to the game.
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let t = builder.obj(ObjectArg::ImmOrOwnedObject(cap_ref))?;
+        let t = builder.obj(CallArg::ImmutableOrOwned(cap_ref))?;
         let r = builder.pure(row)?;
         let c = builder.pure(col)?;
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("send_mark").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("send_mark"),
             vec![],
             vec![t, r, c],
         );
@@ -512,15 +503,15 @@ impl Client {
                 return None;
             };
 
-            if ObjectID::from(object_type.address) != self.package {
+            if object_type.address().as_bytes() != self.package.as_bytes() {
                 return None;
             }
 
-            if object_type.name.as_str() != "Mark" {
+            if object_type.name().as_str() != "Mark" {
                 return None;
             }
 
-            Some((object_id, version, digest))
+            Some(ObjectRef::new(object_id, version, digest))
         }) else {
             bail!("Can't find Mark");
         };
@@ -529,13 +520,13 @@ impl Client {
         // admin.
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::ImmOrOwnedObject(game_ref))?;
-        let m = builder.obj(ObjectArg::Receiving(mark))?;
+        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
+        let m = builder.obj(CallArg::Receiving(mark))?;
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("place_mark"),
             vec![],
             vec![g, m],
         );
@@ -582,11 +573,11 @@ impl Client {
                 return None;
             };
 
-            if ObjectID::from(object_type.address) != self.package {
+            if object_type.address().as_bytes() != self.package.as_bytes() {
                 return None;
             }
 
-            if object_type.name.as_str() != "Game" {
+            if object_type.name().as_str() != "Game" {
                 return None;
             }
 
@@ -628,7 +619,7 @@ impl Client {
             .await
             .context("Error fetching reference gas price")?;
 
-        let tx_kind = TransactionKind::ProgrammableTransaction(tx);
+        let tx_kind = TransactionKind::Programmable(tx);
 
         // Gas Estimation
         let tx_data = client
@@ -697,7 +688,7 @@ impl Client {
             .input_objects()?
             .into_iter()
             .filter_map(|input| match input {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 InputObjectKind::MovePackage(_) => None,
                 InputObjectKind::SharedMoveObject { .. } => None,
             })

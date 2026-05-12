@@ -190,7 +190,7 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let g_arr = hasher.finalize();
     let mut res = [0u8; IOTA_ADDRESS_LENGTH];
     res.copy_from_slice(&AsRef::<[u8]>::as_ref(&g_arr)[..IOTA_ADDRESS_LENGTH]);
-    let address = IotaAddress::try_from(res.as_slice())?;
+    let address = IotaAddress::from_bytes(res.as_slice())?;
 
     assert_eq!(expected_address, address);
 

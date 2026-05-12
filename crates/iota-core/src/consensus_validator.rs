@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use consensus_core;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
@@ -94,9 +93,13 @@ impl IotaTxValidator {
                         });
                     }
                 }
-
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                    return Err(IotaError::UnsupportedFeature {
+                        error: "NewJWKFetched (zkLogin) is deprecated and not supported".into(),
+                    });
+                }
                 ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }
@@ -146,46 +149,27 @@ fn tx_from_bytes(tx: &[u8]) -> Result<ConsensusTransaction, eyre::Report> {
         .wrap_err("Malformed transaction (failed to deserialize)")
 }
 
-macro_rules! impl_tx_verifier_for {
-    (
-        // The type to implement the trait for
-        type = $impl_ty:path,
-        // The trait to implement
-        trait = $trait_path:path,
-        // The error type to use in the trait method
-        error = $err_path:path,
-    ) => {
-        impl $trait_path for $impl_ty {
-            #[instrument(level = "trace", skip_all)]
-            fn verify_batch(&self, batch: &[&[u8]]) -> core::result::Result<(), $err_path> {
-                let _scope = monitored_scope("ValidateBatch");
+impl starfish_core::TransactionVerifier for IotaTxValidator {
+    #[instrument(level = "trace", skip_all)]
+    fn verify_batch(
+        &self,
+        batch: &[&[u8]],
+    ) -> core::result::Result<(), starfish_core::ValidationError> {
+        let _scope = monitored_scope("ValidateBatch");
 
-                let txs = batch
-                    .iter()
-                    .map(|tx| {
-                        tx_from_bytes(tx)
-                            .map(|tx| tx.kind)
-                            .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-                    })
-                    .collect::<core::result::Result<Vec<_>, _>>()?;
+        let txs = batch
+            .iter()
+            .map(|tx| {
+                tx_from_bytes(tx)
+                    .map(|tx| tx.kind)
+                    .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+            })
+            .collect::<core::result::Result<Vec<_>, _>>()?;
 
-                self.validate_transactions(txs)
-                    .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-            }
-        }
-    };
+        self.validate_transactions(txs)
+            .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+    }
 }
-// Use it for both traits:
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = consensus_core::TransactionVerifier,
-    error = consensus_core::ValidationError,
-);
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = starfish_core::TransactionVerifier,
-    error = starfish_core::ValidationError,
-);
 
 pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
@@ -222,7 +206,6 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use consensus_core::TransactionVerifier as _;
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
     use iota_types::{
@@ -235,6 +218,7 @@ mod tests {
         object::Object,
         signature::GenericSignature,
     };
+    use starfish_core::TransactionVerifier as _;
 
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,
@@ -320,7 +304,6 @@ mod tests {
     /// so the developer must explicitly map each variant to its gating flag.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
-        use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
         use iota_protocol_config::ProtocolConfig;
         use iota_types::crypto::AuthorityPublicKeyBytes;
 
@@ -347,6 +330,7 @@ mod tests {
         // Returns the feature flag value that gates a variant, or `None` if the
         // variant is always allowed. The exhaustive match ensures this function
         // must be updated when new variants are added to ConsensusTransactionKind.
+        #[allow(deprecated)]
         fn is_feature_gated(
             kind: &ConsensusTransactionKind,
             config: &ProtocolConfig,
@@ -358,7 +342,6 @@ mod tests {
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
@@ -366,6 +349,11 @@ mod tests {
                 ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
                     Some(config.calculate_validator_scores())
                 }
+
+                // Always rejected: zkLogin JWK support was never enabled on
+                // IOTA and the variant is retained only for serialization
+                // compatibility.
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
             }
         }
 
@@ -374,26 +362,15 @@ mod tests {
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
         // gate check; their gating is verified by the exhaustive match above.
+        #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
                 "EndOfPublish",
                 ConsensusTransactionKind::EndOfPublish(authority),
             ),
             (
-                "NewJWKFetched",
-                ConsensusTransactionKind::NewJWKFetched(
-                    authority,
-                    JwkId {
-                        iss: "test".into(),
-                        kid: "test".into(),
-                    },
-                    JWK {
-                        kty: "RSA".into(),
-                        e: "AQAB".into(),
-                        n: "test".into(),
-                        alg: "RS256".into(),
-                    },
-                ),
+                "NewJWKFetchedDeprecated",
+                ConsensusTransactionKind::NewJWKFetchedDeprecated,
             ),
             (
                 "CapabilityNotificationV1",

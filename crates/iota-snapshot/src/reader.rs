@@ -40,8 +40,8 @@ use iota_storage::{
     },
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    global_state_hash::GlobalStateHash,
 };
 use object_store::path::Path;
 use tokio::{
@@ -56,7 +56,7 @@ use crate::{
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
 };
 
-pub type SnapshotChecksums = (DigestByBucketAndPartition, Accumulator);
+pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
 #[derive(Clone)]
 pub struct StateSnapshotReaderV1 {
@@ -220,7 +220,7 @@ impl StateSnapshotReaderV1 {
         &mut self,
         perpetual_db: &AuthorityPerpetualTables,
         abort_registration: AbortRegistration,
-        sender: Option<tokio::sync::mpsc::Sender<(Accumulator, u64)>>,
+        sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
     ) -> Result<()> {
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
@@ -279,7 +279,7 @@ impl StateSnapshotReaderV1 {
                         .context(format!("No part exists for bucket: {bucket}, part: {part}"))?;
 
                     for object_ref in ref_iter {
-                        hasher.update(object_ref.2.inner());
+                        hasher.update(object_ref.digest.inner());
                         empty = false;
                     }
 
@@ -319,7 +319,7 @@ impl StateSnapshotReaderV1 {
     /// then sends the accumulator to the sender.
     fn spawn_accumulation_tasks(
         &self,
-        sender: tokio::sync::mpsc::Sender<(Accumulator, u64)>,
+        sender: tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>,
         num_part_files: usize,
     ) -> JoinHandle<()> {
         // Spawns accumulation progress bar
@@ -385,14 +385,14 @@ impl StateSnapshotReaderV1 {
                             )
                             .expect("Failed to create object ref iter")
                         }
-                        .map(|obj_ref| obj_ref.2)
+                        .map(|obj_ref| obj_ref.digest)
                         .collect::<Vec<ObjectDigest>>();
 
                         // Spawns a task to accumulate the sha3 digests and send the accumulator
                         // to the sender.
                         let sender_clone = sender.clone();
                         tokio::spawn(async move {
-                            let mut partial_acc = Accumulator::default();
+                            let mut partial_acc = GlobalStateHash::default();
                             let num_objects = obj_digests.len();
                             partial_acc.insert_all(obj_digests);
                             sender_clone
@@ -638,10 +638,10 @@ impl ObjectRefIter {
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
-        let object_ref: ObjectRef = (
+        let object_ref = ObjectRef::new(
             ObjectID::from_bytes(object_id)?,
             SequenceNumber::from_u64(*sequence_number),
-            ObjectDigest::try_from(sha3_digest)?,
+            ObjectDigest::from_bytes(sha3_digest)?,
         );
         Ok(object_ref)
     }

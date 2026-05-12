@@ -63,15 +63,20 @@ impl InMemoryObjectStore {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.object_id, objref.version)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
                     let shared_version_assignments = shared_version_assignments_cell
                         .get_or_init(|| {
-                            epoch_store
-                                .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect())
+                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                |versions| {
+                                    versions
+                                        .into_iter()
+                                        .map(|v| (v.object_id, v.version))
+                                        .collect()
+                                },
+                            )
                         })
                         .as_ref()
                         .ok_or_else(|| IotaError::GenericAuthority {
@@ -145,9 +150,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         Ok(self.try_get_object(child)?.and_then(|o| {
-            if o.version() <= child_version_upper_bound
-                && o.owner == Owner::ObjectOwner((*parent).into())
-            {
+            if o.version() <= child_version_upper_bound && o.owner == Owner::Object(*parent) {
                 Some(o)
             } else {
                 None

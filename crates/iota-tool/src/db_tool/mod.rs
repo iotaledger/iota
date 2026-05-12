@@ -356,7 +356,6 @@ pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     //   genesis-file-location:  <path to genesis blob for the network>
     // authority-store-pruning-config:
     //   num-latest-epoch-dbs-to-retain: 3
-    //   epoch-db-pruning-period-secs: 3600
     //   num-epochs-to-retain: 18446744073709551615
     //   max-checkpoints-in-batch: 10
     //   max-transactions-in-batch: 1000
@@ -477,6 +476,18 @@ pub fn set_checkpoint_watermark(
         else {
             bail!("Checkpoint {highest_synced} not found");
         };
+        // Verify that checkpoint contents exist, since the checkpoint executor
+        // will panic if it tries to execute a checkpoint whose contents are
+        // missing from the store.
+        if checkpoint_db
+            .get_checkpoint_contents(&checkpoint.content_digest)?
+            .is_none()
+        {
+            bail!(
+                "Checkpoint contents not found for checkpoint {highest_synced}. \
+                 Setting highest_synced without contents would cause the executor to panic."
+            );
+        }
         checkpoint_db.update_highest_synced_checkpoint(&checkpoint)?;
     }
     Ok(())

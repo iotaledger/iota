@@ -9,17 +9,14 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::{Authenticator, Signer},
 };
-use iota_sdk::types::transaction::{
-    Argument, CallArg, Command, ObjectArg, ProgrammableTransaction,
-};
+use iota_sdk::types::transaction::{Argument, CallArg, Command, ProgrammableTransaction};
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::AccountKeyPair,
     move_authenticator::MoveAuthenticator,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{Transaction, TransactionData},
+    transaction::{SharedObjectRef, Transaction, TransactionData, TransactionDataAPI},
 };
 use tracing::{debug, error};
 
@@ -84,16 +81,22 @@ impl Payload for AbstractAccountPayload {
         // tx.
         //  Only applicable for OwnedObject payloads, as SharedObject payloads should
         // not be consuming the pay_coin.
-        let pay_id = self.pay_coin.0;
+        let pay_id = self.pay_coin.object_id;
 
-        if let Some((new_ref, _owner)) = effects.mutated().iter().find(|(oref, _)| oref.0 == pay_id)
+        if let Some((new_ref, _owner)) = effects
+            .mutated()
+            .iter()
+            .find(|(oref, _)| oref.object_id == pay_id)
         {
             self.pay_coin = *new_ref;
         } else {
             // 2) If it was deleted/consumed, do NOT keep using the old ref. If your
             //    ExecutionEffects exposes deleted(), handle it; otherwise log and fail
             //    fast.
-            let was_deleted = effects.deleted().iter().any(|oref| oref.0 == pay_id);
+            let was_deleted = effects
+                .deleted()
+                .iter()
+                .any(|oref| oref.object_id == pay_id);
 
             if was_deleted {
                 // At this point you need a replacement pay coin strategy:
@@ -116,7 +119,10 @@ impl Payload for AbstractAccountPayload {
         if !self.bench_objects.is_empty() {
             let mutated = effects.mutated();
             for obj in self.bench_objects.iter_mut() {
-                if let Some((new_ref, _)) = mutated.iter().find(|(oref, _)| oref.0 == obj.0) {
+                if let Some((new_ref, _)) = mutated
+                    .iter()
+                    .find(|(oref, _)| oref.object_id == obj.object_id)
+                {
                     *obj = *new_ref;
                 }
             }
@@ -144,8 +150,8 @@ impl Payload for AbstractAccountPayload {
         );
 
         // Build MoveAuthenticator args and signature
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: self.aa_object_id,
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
+            object_id: self.aa_object_id,
             initial_shared_version: self.aa_initial_shared_version,
             mutable: false,
         });
@@ -217,7 +223,7 @@ impl AbstractAccountPayload {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let pay_arg: Argument = builder
-                .obj(ObjectArg::ImmOrOwnedObject(self.pay_coin))
+                .obj(CallArg::ImmutableOrOwned(self.pay_coin))
                 .expect("pt builder: pay coin");
 
             let amt_arg: Argument = builder
@@ -227,9 +233,12 @@ impl AbstractAccountPayload {
             let recipient_arg: Argument =
                 builder.pure(self.recipient).expect("pt builder: recipient");
 
-            let new_coins = builder.command(Command::SplitCoins(pay_arg, vec![amt_arg]));
+            let new_coins = builder.command(Command::new_split_coins(pay_arg, vec![amt_arg]));
 
-            builder.command(Command::TransferObjects(vec![new_coins], recipient_arg));
+            builder.command(Command::new_transfer_objects(
+                vec![new_coins],
+                recipient_arg,
+            ));
 
             builder.finish()
         }
@@ -241,17 +250,17 @@ impl AbstractAccountPayload {
 
             let shared = self.shared_object.unwrap();
             let shared_obj_arg = b
-                .obj(ObjectArg::SharedObject {
-                    id: shared.0,
-                    initial_shared_version: shared.1,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: shared.object_id,
+                    initial_shared_version: shared.version,
                     mutable: true,
-                })
+                }))
                 .unwrap();
             // Move call: iota_system::request_add_stake(state, pay_coin,
             // validator_to_stake_address)
             b.programmable_move_call(
                 self.aa_package_id,
-                Identifier::new(AA_MODULE_NAME).unwrap(),
+                Identifier::from_static(AA_MODULE_NAME),
                 Identifier::new("touch").unwrap(),
                 vec![],
                 vec![shared_obj_arg],
@@ -303,7 +312,7 @@ fn build_move_auth_args(
             // These modes assume that bench_objects are already created and belong to the
             // AA address.
             for obj in bench_objects.iter() {
-                auth_args.push(CallArg::Object(ObjectArg::ImmOrOwnedObject(*obj)));
+                auth_args.push(CallArg::ImmutableOrOwned(*obj));
             }
         }
     }

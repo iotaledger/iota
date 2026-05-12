@@ -30,7 +30,7 @@ use iota_package_resolver::{
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
@@ -40,17 +40,13 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
     },
-    object::{Object, ObjectRead, PastObjectRead},
+    object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
 use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 
@@ -536,13 +532,13 @@ impl ReadApiServer for ReadApi {
                         display_fields,
                     )?))
                 }
-                ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                    IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                        object_id,
-                        version,
-                        digest,
-                    }),
-                ),
+                ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::Deleted {
+                        object_id: object_ref.object_id,
+                        version: object_ref.version,
+                        digest: object_ref.digest,
+                    },
+                )),
             }
         }
         .trace()
@@ -638,7 +634,7 @@ impl ReadApiServer for ReadApi {
                     ))
                 }
                 PastObjectRead::ObjectDeleted(oref) => {
-                    Ok(IotaPastObjectResponse::ObjectDeleted(oref.into()))
+                    Ok(IotaPastObjectResponse::ObjectDeleted(oref))
                 }
                 PastObjectRead::VersionNotFound(id, seq_num) => {
                     Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num))
@@ -1177,7 +1173,7 @@ async fn get_display_object_by_type(
         .state
         .query_events(
             kv_store,
-            EventFilter::MoveEventType(DisplayVersionUpdatedEvent::type_(object_type)),
+            EventFilter::MoveEventType(StructTag::new_display_version_updated(object_type.clone())),
             None,
             1,
             true,
@@ -1212,7 +1208,7 @@ fn get_move_struct(
 ) -> Result<MoveStruct, ObjectDisplayError> {
     let layout = layout.as_ref().ok_or_else(|| ObjectDisplayError::Layout)?;
     Ok(o.data
-        .try_as_move()
+        .as_struct_opt()
         .ok_or_else(|| ObjectDisplayError::MoveObject)?
         .to_move_struct(layout)?)
 }
@@ -1461,9 +1457,9 @@ fn calculate_checkpoint_numbers(
 
 #[async_trait]
 impl PackageStore for ReadApi {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

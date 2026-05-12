@@ -21,9 +21,9 @@ use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
-    AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIteratorItem, DynamicFieldKey,
-    EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
-    PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
+    OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
+    PackageVersionKey, ReadStore, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -32,7 +32,9 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::{
+        Identifier, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber,
+    },
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError, IotaResult},
@@ -172,7 +174,7 @@ impl<T: Storage + ChildObjectResolver> StorageView for T {}
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
 pub trait ChildObjectResolver {
-    /// `child` must have an `ObjectOwner` ownership equal to `owner`.
+    /// `child` must have an `Object` ownership equal to `parent`.
     fn read_child_object(
         &self,
         parent: &ObjectID,
@@ -180,7 +182,7 @@ pub trait ChildObjectResolver {
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
-    /// `receiving_object_id` must have an `AddressOwner` ownership equal to
+    /// `receiving_object_id` must have an `Address` ownership equal to
     /// `owner`. `get_object_received_at_version` must be the exact version
     /// at which the object will be received, and it cannot have been
     /// previously received at that version. NB: An object not existing at
@@ -248,7 +250,7 @@ impl PackageObject {
     }
 
     pub fn move_package(&self) -> &MovePackage {
-        self.package_object.data.try_as_package().unwrap()
+        self.package_object.data.as_package_opt().unwrap()
     }
 }
 
@@ -332,12 +334,12 @@ pub fn get_module(
     module_id: &ModuleId,
 ) -> Result<Option<Vec<u8>>, IotaError> {
     Ok(store
-        .get_package_object(&ObjectID::from(*module_id.address()))?
+        .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
         .and_then(|package| {
             package
                 .move_package()
                 .serialized_module_map()
-                .get(module_id.name().as_str())
+                .get(&Identifier::new_unchecked(module_id.name().as_str()))
                 .cloned()
         }))
 }
@@ -501,7 +503,7 @@ impl From<ObjectRef> for ObjectKey {
 
 impl From<&ObjectRef> for ObjectKey {
     fn from(object_ref: &ObjectRef) -> Self {
-        Self(object_ref.0, object_ref.1)
+        Self(object_ref.object_id, object_ref.version)
     }
 }
 

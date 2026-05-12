@@ -14,7 +14,7 @@ use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag},
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -27,6 +27,25 @@ use iota_types::{
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
+
+// ---------------------------------------------------------------------------
+// Stream invariant helpers
+// ---------------------------------------------------------------------------
+
+/// Assert that every message in `messages` has an encoded size within `limit`
+/// bytes.  Used by the chunking tests to enforce the per-message size invariant
+/// that `create_batching_stream!` and the checkpoint streaming pipeline must
+/// uphold.
+pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u32) {
+    let limit_usize = usize::try_from(limit).unwrap();
+    for (i, msg) in messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= limit_usize,
+            "Message {i} has encoded_len {size} which exceeds limit {limit}"
+        );
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Mock helpers
@@ -93,10 +112,11 @@ pub struct MockGrpcStateReader {
     pub objects: HashMap<ObjectID, Object>,
 
     // -- Owned objects (for list_owned_objects pagination tests) --
-    /// Pre-sorted in v2 key order. The iterator respects cursor-based seeking.
+    /// Pre-sorted in owner index key order. The iterator respects cursor-based
+    /// seeking.
     pub owned_objects: Vec<(
         iota_types::storage::AccountOwnedObjectInfo,
-        iota_types::storage::OwnedObjectV2Cursor,
+        iota_types::storage::OwnedObjectCursor,
     )>,
 
     // -- Transactions --
@@ -346,7 +366,7 @@ impl GrpcStateReader for MockGrpcStateReader {
 
     fn get_struct_layout(
         &self,
-        _type_tag: &move_core_types::language_storage::StructTag,
+        _type_tag: &StructTag,
     ) -> StorageResult<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         Ok(None)
     }
@@ -368,12 +388,12 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Ok(None)
     }
 
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
         owner: iota_types::base_types::IotaAddress,
-        cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectV2IteratorItem> + '_>>
+        cursor: Option<&iota_types::storage::OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
         // Find the start index: if cursor is provided, seek to its position
         // (inclusive — the GrpcReader wrapper handles skip(1)).
@@ -403,10 +423,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         let iter = self.owned_objects[start..]
             .iter()
             .filter(move |(info, _)| {
-                info.owner == owner_filter
-                    && type_filter.as_ref().is_none_or(|t| {
-                        move_core_types::language_storage::StructTag::from(info.type_.clone()) == *t
-                    })
+                info.owner == owner_filter && type_filter.as_ref().is_none_or(|t| info.type_ == *t)
             })
             .map(|(info, cursor)| {
                 Ok((
@@ -440,10 +457,10 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Ok(Box::new(std::iter::empty()))
     }
 
-    fn get_coin_v2_info(
+    fn get_coin_info(
         &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> StorageResult<Option<iota_types::storage::CoinInfoV2>> {
+        _coin_type: &StructTag,
+    ) -> StorageResult<Option<iota_types::storage::CoinInfo>> {
         Ok(None)
     }
 

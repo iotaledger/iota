@@ -1,9 +1,6 @@
 # Default fallback, if no other path below this matches
 * @iotaledger/sc-platform @iotaledger/core-protocol
 
-# Everything within the SDK folder
-/sdk/ @iotaledger/tooling
-
 /consensus/ @iotaledger/consensus
 
 # Crates
@@ -108,59 +105,29 @@
 # Docker
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
-/dev-tools/iota-private-network/fuzzer/ @iotaledger/consensus
+/dev-tools/grafana-local/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin @iotaledger/consensus
+/dev-tools/iota-private-network/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin @iotaledger/consensus
 /dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure
 /dev-tools/iota-data-ingestion/ @iotaledger/infrastructure
 /dev-tools/iota-rest-kv/ @iotaledger/infrastructure
 /dev-tools/pg-services-local/ @iotaledger/infrastructure
 /setups/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 
-# Frontend apps to be looked after by Boxfish Studio or the tooling team
-/apps/ @iotaledger/tooling
-/dapps/ @iotaledger/tooling
-/linting/ @iotaledger/tooling
-/.husky/ @iotaledger/tooling
-/.changeset/ @iotaledger/tooling
-AGENTS.md @iotaledger/tooling
-.eslintrc.js @iotaledger/tooling
-.lintstagedrc.json @iotaledger/tooling
-.npmrc @iotaledger/tooling
-.prettierignore @iotaledger/tooling
-graphql.config.ts @iotaledger/tooling
-package.json @iotaledger/tooling
-pnpm-workspace.yaml @iotaledger/tooling
-prettier.config.js @iotaledger/tooling
-turbo.json @iotaledger/tooling
-vercel.json @iotaledger/tooling
-
-# Needs to be after package.json ownership definition to override it
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
 
-# Docs and examples are for DevRel to approve upon
-/docs/ @iotaledger/devrel
-/examples/ @iotaledger/devrel
-
-# TS SDK docs are co-owned between tooling and devrel
-/docs/content/developer/ts-sdk/ @iotaledger/tooling @iotaledger/devrel
-
-# Override ownership of Boxfish Studio and the tooling team for the following files
-/docs/**/package.json @iotaledger/devrel
-/docs/**/vercel.json @iotaledger/devrel
-
 # CI Taskforce
-/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
-/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/actions/ @alexsporn @thibault-martinez @DaughterOfMars @muXxer
+/.github/workflows/ @alexsporn @thibault-martinez @DaughterOfMars @muXxer
 
 # Protect this CODEOWNERS file, with some fallback in case of unavailability
-/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn @muXxer
 
 # Scripts
 /scripts/cargo_sort/ @muXxer
 /scripts/ci_tests/ @iotaledger/node
 /scripts/codesearch/ @muXxer
 /scripts/generate_files/ @muXxer
-/scripts/tooling/ @iotaledger/tooling
 /scripts/utils/ @muXxer
 /scripts/release_notes/ @iotaledger/dev-tools
 
@@ -170,3 +137,7 @@ vercel.json @iotaledger/tooling
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml
+
+# Disable fallback code ownership for docs and examples
+/docs/
+/examples/

@@ -12,7 +12,6 @@ CLEANING=false
 
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
-DEFAULT_PROTOCOL="starfish"
 DEFAULT_BUILD=true
 DEFAULT_GEODISTRIBUTED=false
 DEFAULT_SEED=42
@@ -165,7 +164,7 @@ log() {
 
 # --- Usage ---
 usage() {
-  echo "Usage: $0 [-n num_validators(4..30)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
+  echo "Usage: $0 [-n num_validators(4..30)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-d restart_duration_seconds] [-r percent_restart(0..100)]"
   echo "          [-w restart_timeout_seconds] [-M restart_mode(preserve-consensus|full-reset|simple-restart)]"
@@ -175,7 +174,6 @@ usage() {
 
 # --- Default values ---
 NUM_VALIDATORS=$DEFAULT_NUM_VALIDATORS
-PROTOCOL=$DEFAULT_PROTOCOL
 BUILD=$DEFAULT_BUILD
 GEODISTRIBUTED=$DEFAULT_GEODISTRIBUTED
 SEED=$DEFAULT_SEED
@@ -194,10 +192,9 @@ SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
 SPAMMER_TYPE=$DEFAULT_SPAMMER_TYPE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:h" opt; do
+while getopts ":n:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
-    p) PROTOCOL="$OPTARG" ;;
     b) BUILD="$OPTARG" ;;
     g) GEODISTRIBUTED="$OPTARG" ;;
     s) SEED="$OPTARG" ;;
@@ -228,7 +225,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- Summary ---
 log "=== SUMMARY ==="
 log "Number of validators       : $NUM_VALIDATORS"
-log "Consensus protocol         : $PROTOCOL"
 log "Rebuild images             : $BUILD"
 log "Geodistributed network     : $GEODISTRIBUTED"
 log "Seed                       : $SEED"
@@ -290,7 +286,7 @@ fi
 (cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" -e "$EPOCH_DURATION_MS")
 
 # --- 3) Bring up docker network ---
-(cd .. && ./run.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL")
+(cd .. && ./run.sh -n "$NUM_VALIDATORS")
 
 
 log "Sleep 5s to boot validators..."

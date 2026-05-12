@@ -125,6 +125,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
         let mut builder = iota_http::Builder::new().config(http_config);
 
+        let has_tls = tls_config.is_some();
         if let Some(tls_config) = tls_config {
             builder = builder.tls_config(tls_config);
         }
@@ -136,7 +137,10 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             )
             .map_err(|e| eyre!(e))?;
 
-        let local_addr = update_tcp_port_in_multiaddr(addr, server_handle.local_addr().port());
+        let mut local_addr = update_tcp_port_in_multiaddr(addr, server_handle.local_addr().port());
+        if has_tls {
+            local_addr = local_addr.rewrite_http_to_https();
+        }
         Ok(Server {
             server_handle,
             local_addr,

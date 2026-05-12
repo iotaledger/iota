@@ -34,7 +34,7 @@ use iota_config::{
         StateDebugDumpConfig,
     },
 };
-use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
     IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
@@ -54,7 +54,6 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, TypeTag,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
@@ -62,15 +61,14 @@ use iota_types::{
             AuthenticatorFunctionRefV1,
         },
     },
-    authenticator_state::get_authenticator_state,
-    base_types::*,
-    committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{
-        AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
-        default_hash,
+    base_types::{
+        AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
+        SequenceNumber, StructTag, TypeTag, VersionNumber,
     },
+    committee::{Committee, EpochId, ProtocolVersion},
+    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, Digest},
+    digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
@@ -88,11 +86,11 @@ use iota_types::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    is_system_package,
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
@@ -110,7 +108,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -124,7 +122,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
+use move_core_types::{
+    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::ModuleId,
+};
 use parking_lot::Mutex;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -158,6 +158,7 @@ use crate::{
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
@@ -168,13 +169,13 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -314,8 +315,6 @@ pub struct AuthorityMetrics {
     /// bytecode verifier metrics for tracking timeouts
     pub bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
 
-    /// Count of zklogin signatures
-    pub zklogin_sig_count: IntCounter,
     /// Count of multisig signatures
     pub multisig_sig_count: IntCounter,
 
@@ -730,15 +729,9 @@ impl AuthorityMetrics {
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
-            zklogin_sig_count: register_int_counter_with_registry!(
-                "zklogin_sig_count",
-                "Count of zkLogin signatures",
-                registry,
-            )
-            .unwrap(),
             multisig_sig_count: register_int_counter_with_registry!(
                 "multisig_sig_count",
-                "Count of zkLogin signatures",
+                "Count of multisig signatures",
                 registry,
             )
             .unwrap(),
@@ -813,7 +806,8 @@ pub struct AuthorityState {
 
     pub metrics: Arc<AuthorityMetrics>,
     _pruner: AuthorityStorePruner,
-    _authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
     /// Take db checkpoints of different dbs
     db_checkpoint_config: DBCheckpointConfig,
@@ -1478,38 +1472,6 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
-            certificate.data().transaction_data().kind()
-        {
-            if let Some(err) = &execution_error_opt {
-                debug_fatal!("Authenticator state update failed: {:?}", err);
-            }
-            epoch_store.update_authenticator_state(auth_state);
-
-            // double check that the signature verifier always matches the authenticator
-            // state
-            if cfg!(debug_assertions) {
-                let authenticator_state = get_authenticator_state(self.get_object_store())
-                    .expect("Read cannot fail")
-                    .expect("Authenticator state must exist");
-
-                let mut sys_jwks: Vec<_> = authenticator_state
-                    .active_jwks
-                    .into_iter()
-                    .map(|jwk| (jwk.jwk_id, jwk.jwk))
-                    .collect();
-                let mut active_jwks: Vec<_> = epoch_store
-                    .signature_verifier
-                    .get_jwks()
-                    .into_iter()
-                    .collect();
-                sys_jwks.sort();
-                active_jwks.sort();
-
-                assert_eq!(sys_jwks, active_jwks);
-            }
-        }
-
         let elapsed = process_certificate_start_time.elapsed().as_micros() as f64;
         if elapsed > 0.0 {
             self.metrics
@@ -1591,10 +1553,8 @@ impl AuthorityState {
         input_object_count: usize,
         shared_object_count: usize,
     ) {
-        // count signature by scheme, for zklogin and multisig
-        if certificate.has_zklogin_sig() {
-            self.metrics.zklogin_sig_count.inc();
-        } else if certificate.has_upgraded_multisig() {
+        // count signature by scheme, for multisig
+        if certificate.has_upgraded_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 
@@ -1895,7 +1855,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "dry-exec does not support system transactions".to_string(),
             });
@@ -1967,12 +1927,12 @@ impl AuthorityState {
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
-                Owner::AddressOwner(sender),
-                TransactionDigest::genesis_marker(),
+                Owner::Address(sender),
+                TransactionDigest::GENESIS_MARKER,
             );
             let gas_object_ref = gas_object.compute_object_reference();
             // Add gas object to transaction gas payment
-            transaction.gas_data_mut().payment = vec![gas_object_ref];
+            transaction.gas_data_mut().objects = vec![gas_object_ref];
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -2069,9 +2029,9 @@ impl AuthorityState {
                     .map(|(oref, _)| (oref, WriteKind::Mutate)),
             )
             .map(|(oref, kind)| {
-                let obj = inner_temp_store.written.get(&oref.0).unwrap();
+                let obj = inner_temp_store.written.get(&oref.object_id).unwrap();
                 // TODO: Avoid clones.
-                (oref.0, (oref, obj.clone(), kind))
+                (oref.object_id, (oref, obj.clone(), kind))
             })
             .collect();
 
@@ -2118,7 +2078,7 @@ impl AuthorityState {
         mut transaction: TransactionData,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "simulate does not support system transactions".to_string(),
             });
@@ -2167,11 +2127,11 @@ impl AuthorityState {
                     ObjectID::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
-                Owner::AddressOwner(transaction.gas_data().owner),
-                TransactionDigest::genesis_marker(),
+                Owner::Address(transaction.gas_data().owner),
+                TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
-            transaction.gas_data_mut().payment = vec![mock_gas_object_ref];
+            transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
             Some(mock_gas_object.id())
         } else {
@@ -2283,7 +2243,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction_kind.is_system_tx() {
+        if transaction_kind.is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "system transactions are not supported".to_string(),
             });
@@ -2304,8 +2264,8 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_data: GasData {
-                payment,
+            gas_payment: GasData {
+                objects: payment,
                 owner,
                 price,
                 budget,
@@ -2355,7 +2315,7 @@ impl AuthorityState {
                     transaction.gas_owner(),
                 );
                 let gas_object_ref = dummy_gas_object.compute_object_reference();
-                transaction.gas_data_mut().payment = vec![gas_object_ref];
+                transaction.gas_data_mut().objects = vec![gas_object_ref];
                 input_objects.push(ObjectReadResult::new(
                     InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref),
                     dummy_gas_object.into(),
@@ -2386,7 +2346,7 @@ impl AuthorityState {
                     transaction.gas_owner(),
                 );
                 let gas_object_ref = dummy_gas_object.compute_object_reference();
-                transaction.gas_data_mut().payment = vec![gas_object_ref];
+                transaction.gas_data_mut().objects = vec![gas_object_ref];
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
                     reference_gas_price,
@@ -2426,7 +2386,7 @@ impl AuthorityState {
             },
             transaction,
         );
-        let transaction_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let transaction_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
             self.get_backing_store().as_ref(),
             protocol_config,
@@ -2593,16 +2553,16 @@ impl AuthorityState {
         let tx_digest = effects.transaction_digest();
         let mut deleted_owners = vec![];
         let mut deleted_dynamic_fields = vec![];
-        for (id, _, _) in effects.deleted().into_iter().chain(effects.wrapped()) {
-            let old_version = modified_at_version.get(&id).unwrap();
+        for object_ref in effects.deleted().into_iter().chain(effects.wrapped()) {
+            let old_version = modified_at_version.get(&object_ref.object_id).unwrap();
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
-            match self.get_owner_at_version(&id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}. Err: {e:?}"),
+            match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
+                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
-                Owner::AddressOwner(addr) => deleted_owners.push((addr, id)),
-                Owner::ObjectOwner(object_id) => {
-                    deleted_dynamic_fields.push((ObjectID::from(object_id), id))
+                Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
+                Owner::Object(object_id) => {
+                    deleted_dynamic_fields.push((object_id, object_ref.object_id))
                 }
                 _ => {}
             }
@@ -2612,7 +2572,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (oref, owner, kind) in effects.all_changed_objects() {
-            let id = &oref.0;
+            let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
             if let WriteKind::Mutate = kind {
@@ -2633,19 +2593,17 @@ impl AuthorityState {
                 };
                 if old_object.owner != owner {
                     match old_object.owner {
-                        Owner::AddressOwner(addr) => {
+                        Owner::Address(addr) => {
                             deleted_owners.push((addr, *id));
                         }
-                        Owner::ObjectOwner(object_id) => {
-                            deleted_dynamic_fields.push((ObjectID::from(object_id), *id))
-                        }
+                        Owner::Object(object_id) => deleted_dynamic_fields.push((object_id, *id)),
                         _ => {}
                     }
                 }
             }
 
             match owner {
-                Owner::AddressOwner(addr) => {
+                Owner::Address(addr) => {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
@@ -2653,12 +2611,12 @@ impl AuthorityState {
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let type_ = new_object
@@ -2670,26 +2628,26 @@ impl AuthorityState {
                         (addr, *id),
                         ObjectInfo {
                             object_id: *id,
-                            version: oref.1,
-                            digest: oref.2,
+                            version: oref.version,
+                            digest: oref.digest,
                             type_,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
                         },
                     ));
                 }
-                Owner::ObjectOwner(owner) => {
+                Owner::Object(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
                         || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let Some(df_info) = self
@@ -2703,7 +2661,7 @@ impl AuthorityState {
                             // Skip indexing for non dynamic field objects.
                             continue;
                         };
-                    new_dynamic_fields.push(((ObjectID::from(owner), *id), df_info))
+                    new_dynamic_fields.push(((owner, *id), df_info))
                 }
                 _ => {}
             }
@@ -2724,17 +2682,17 @@ impl AuthorityState {
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
-        let Some(move_object) = o.data.try_as_move().cloned() else {
+        let Some(move_object) = o.data.as_struct_opt().cloned() else {
             return Ok(None);
         };
 
         // We only index dynamic field objects
-        if !move_object.type_().is_dynamic_field() {
+        if !move_object.struct_tag().is_dynamic_field() {
             return Ok(None);
         }
 
         let layout = resolver
-            .get_annotated_layout(&move_object.type_().clone().into())?
+            .get_annotated_layout(move_object.struct_tag())?
             .into_layout();
 
         let field =
@@ -2745,7 +2703,7 @@ impl AuthorityState {
             })?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
@@ -2788,7 +2746,7 @@ impl AuthorityState {
                     (
                         object.version(),
                         object.digest(),
-                        object.data.type_().unwrap().clone(),
+                        object.data.object_type().unwrap().clone(),
                     )
                 } else {
                     // If not found, try to find it in the database.
@@ -2801,7 +2759,7 @@ impl AuthorityState {
                         })?;
                     let version = object.version();
                     let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
+                    let object_type = object.data.object_type().unwrap().clone();
                     (version, digest, object_type)
                 };
 
@@ -2947,16 +2905,15 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                let (_, seq, _) = self
-                    .try_get_object_or_tombstone(request.object_id)
+                self.try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
                             object_id: request.object_id,
                             version: None,
                         })
-                    })?;
-                seq
+                    })?
+                    .version
             }
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };
@@ -2972,13 +2929,13 @@ impl AuthorityState {
             })?;
 
         let layout = if let (LayoutGenerationOption::Generate, Some(move_obj)) =
-            (request.generate_layout, object.data.try_as_move())
+            (request.generate_layout, object.data.as_struct_opt())
         {
             Some(into_struct_layout(
                 epoch_store
                     .executor()
                     .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                    .get_annotated_layout(&move_obj.type_().clone().into())?,
+                    .get_annotated_layout(move_obj.struct_tag())?,
             )?)
         } else {
             None
@@ -3077,6 +3034,7 @@ impl AuthorityState {
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3093,10 +3051,13 @@ impl AuthorityState {
         ));
         let (tx_execution_shutdown, rx_execution_shutdown) = oneshot::channel();
 
-        let _authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
+        let authority_per_epoch_pruner = AuthorityPerEpochStorePruner::new(
             epoch_store.get_parent_path(),
-            &config.authority_store_pruning_config,
-        );
+            config
+                .authority_store_pruning_config
+                .num_latest_epoch_dbs_to_retain,
+        )
+        .await;
         let _pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
@@ -3108,6 +3069,7 @@ impl AuthorityState {
             prometheus_registry,
             archive_readers,
             pruner_db,
+            checkpoint_progress_tracker.clone(),
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
@@ -3129,7 +3091,8 @@ impl AuthorityState {
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
             _pruner,
-            _authority_per_epoch_pruner,
+            authority_per_epoch_pruner,
+            checkpoint_progress_tracker,
             db_checkpoint_config: db_checkpoint_config.clone(),
             config,
             overload_info: AuthorityOverloadInfo::default(),
@@ -3153,6 +3116,10 @@ impl AuthorityState {
             .expect("Error indexing genesis objects.");
 
         state
+    }
+
+    pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
+        &self.authority_per_epoch_pruner
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3184,8 +3151,8 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.reconfig_api
     }
 
-    pub fn get_accumulator_store(&self) -> &Arc<dyn AccumulatorStore> {
-        &self.execution_cache_trait_pointers.accumulator_store
+    pub fn get_global_state_hash_store(&self) -> &Arc<dyn GlobalStateHashStore> {
+        &self.execution_cache_trait_pointers.global_state_hash_store
     }
 
     pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
@@ -3222,6 +3189,7 @@ impl AuthorityState {
             metrics,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
+            self.checkpoint_progress_tracker.as_ref(),
         )
         .await
     }
@@ -3278,11 +3246,11 @@ impl AuthorityState {
             .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
         for o in genesis_objects.iter() {
             match o.owner {
-                Owner::AddressOwner(addr) => new_owners.push((
+                Owner::Address(addr) => new_owners.push((
                     (addr, o.id()),
                     ObjectInfo::new(&o.compute_object_reference(), o),
                 )),
-                Owner::ObjectOwner(object_id) => {
+                Owner::Object(object_id) => {
                     let id = o.id();
                     let info = match self.try_create_dynamic_field_info(
                         o,
@@ -3309,7 +3277,7 @@ impl AuthorityState {
                         }
                         Err(e) => return Err(e),
                     };
-                    new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
+                    new_dynamic_fields.push(((object_id, id), info));
                 }
                 _ => {}
             }
@@ -3366,7 +3334,7 @@ impl AuthorityState {
         supported_protocol_versions: SupportedProtocolVersions,
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
         epoch_last_checkpoint: CheckpointSequenceNumber,
@@ -3396,14 +3364,20 @@ impl AuthorityState {
             epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
             "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
         );
-        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint {
+        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint
+            || self.is_fullnode(cur_epoch_store)
+        {
             // if we built the last checkpoint locally (as opposed to receiving it from a
             // peer), then all shared_version_assignments except the one for the
             // ChangeEpoch transaction should have been removed
             let num_shared_version_assignments = cur_epoch_store.num_shared_version_assignments();
-            // Note that while 1 is the typical value, 0 is possible if the node restarts
-            // after committing the last checkpoint but before reconfiguring.
-            if num_shared_version_assignments > 1 {
+            // Due to (otherwise harmless) race conditions between CheckpointExecutor and
+            // ConsensusHandler, we actually can't guarantee that all
+            // shared_version_assignments have been removed. However,
+            // typically at most 2 or 3 are left over. We leave this check here in order to
+            // catch complete failure of cleanup which would cause a memory
+            // leak.
+            if num_shared_version_assignments > 10 {
                 // If this happens in prod, we have a memory leak, but not a correctness issue.
                 debug_fatal!(
                     "all shared_version_assignments should have been removed \
@@ -3423,7 +3397,7 @@ impl AuthorityState {
             .clear_state_end_of_epoch(&execution_lock);
         self.check_system_consistency(
             cur_epoch_store,
-            accumulator,
+            state_hasher,
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
@@ -3490,7 +3464,6 @@ impl AuthorityState {
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             &self.config.expensive_safety_check_config,
             self.checkpoint_store
                 .get_epoch_last_checkpoint(epoch_store.epoch())
@@ -3509,7 +3482,7 @@ impl AuthorityState {
     fn check_system_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
     ) -> IotaResult<()> {
@@ -3532,7 +3505,7 @@ impl AuthorityState {
                 cur_epoch_store.epoch()
             );
             self.expensive_check_is_consistent_state(
-                accumulator,
+                state_hasher,
                 cur_epoch_store,
                 cfg!(debug_assertions), // panic in debug mode only
             );
@@ -3540,7 +3513,7 @@ impl AuthorityState {
 
         if expensive_safety_check_config.enable_secondary_index_checks() {
             if let Some(indexes) = self.indexes.clone() {
-                verify_indexes(self.get_accumulator_store().as_ref(), indexes)
+                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
                     .expect("secondary indexes are inconsistent");
             }
         }
@@ -3550,15 +3523,15 @@ impl AuthorityState {
 
     fn expensive_check_is_consistent_state(
         &self,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set();
+        let live_object_set_hash = state_hasher.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
-            .get_accumulator_store()
-            .get_root_state_accumulator_for_epoch(cur_epoch_store.epoch())
+            .get_global_state_hash_store()
+            .get_root_state_hash_for_epoch(cur_epoch_store.epoch())
             .expect("Retrieving root state hash cannot fail")
             .expect("Root state hash for epoch must exist")
             .1
@@ -3582,7 +3555,7 @@ impl AuthorityState {
         }
 
         if !panic {
-            accumulator.set_inconsistent_state(is_inconsistent);
+            state_hasher.set_inconsistent_state(is_inconsistent);
         }
     }
 
@@ -3676,9 +3649,9 @@ impl AuthorityState {
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&IOTA_SYSTEM_ADDRESS.into())
+            .try_get_object(&ObjectID::SYSTEM)
             .await?
-            .expect("framework object should always exist")
+            .expect("system package should always exist")
             .compute_object_reference())
     }
 
@@ -3779,7 +3752,7 @@ impl AuthorityState {
         T: DeserializeOwned,
     {
         let o = self.get_object_read(object_id)?.into_object()?;
-        if let Some(move_object) = o.data.try_as_move() {
+        if let Some(move_object) = o.data.as_struct_opt() {
             Ok(bcs::from_bytes(move_object.contents()).map_err(|e| {
                 IotaError::ObjectDeserialization {
                     error: format!("{e}"),
@@ -3811,15 +3784,15 @@ impl AuthorityState {
             return Ok(PastObjectRead::ObjectNotExists(*object_id));
         };
 
-        if version > obj_ref.1 {
+        if version > obj_ref.version {
             return Ok(PastObjectRead::VersionTooHigh {
                 object_id: *object_id,
                 asked_version: version,
-                latest_version: obj_ref.1,
+                latest_version: obj_ref.version,
             });
         }
 
-        if version < obj_ref.1 {
+        if version < obj_ref.version {
             // Read past objects
             return Ok(match self.read_object_at_version(object_id, version)? {
                 Some((object, layout)) => {
@@ -3831,11 +3804,11 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.2.is_alive() {
+        if !obj_ref.digest.is_object_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
-        match self.read_object_at_version(object_id, obj_ref.1)? {
+        match self.read_object_at_version(object_id, obj_ref.version)? {
             Some((object, layout)) => Ok(PastObjectRead::VersionFound(obj_ref, object, layout)),
             None => {
                 error!(
@@ -3844,7 +3817,7 @@ impl AuthorityState {
                 );
                 Err(UserInputError::ObjectNotFound {
                     object_id: *object_id,
-                    version: Some(obj_ref.1),
+                    version: Some(obj_ref.version),
                 }
                 .into())
             }
@@ -3871,14 +3844,14 @@ impl AuthorityState {
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
         let layout = object
             .data
-            .try_as_move()
+            .as_struct_opt()
             .map(|object| {
                 into_struct_layout(
                     self.load_epoch_store_one_call_per_task()
                         .executor()
                         // TODO(cache) - must read through cache
                         .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                        .get_annotated_layout(&object.type_().clone().into())?,
+                        .get_annotated_layout(object.struct_tag())?,
                 )
             })
             .transpose()?;
@@ -3953,7 +3926,7 @@ impl AuthorityState {
     pub async fn get_move_objects<T>(
         &self,
         owner: IotaAddress,
-        type_: MoveObjectType,
+        tag: StructTag,
     ) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
@@ -3961,7 +3934,7 @@ impl AuthorityState {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
             .filter(|o| match &o.type_ {
-                ObjectType::Struct(s) => &type_ == s,
+                ObjectType::Struct(s) => *s == tag,
                 ObjectType::Package => false,
             })
             .map(|info| ObjectKey(info.object_id, info.version))
@@ -3979,7 +3952,7 @@ impl AuthorityState {
                     version: Some(id.1),
                 })
             })?;
-            let move_object = object.data.try_as_move().ok_or_else(|| {
+            let move_object = object.data.as_struct_opt().ok_or_else(|| {
                 IotaError::from(UserInputError::MovePackageAsObject { object_id: id.0 })
             })?;
             move_objects.push(bcs::from_bytes(move_object.contents()).map_err(|e| {
@@ -4198,7 +4171,7 @@ impl AuthorityState {
 
     #[instrument(level = "trace", skip_all)]
     pub fn find_publish_txn_digest(&self, package_id: ObjectID) -> IotaResult<TransactionDigest> {
-        if is_system_package(package_id) {
+        if package_id.is_system_package() {
             return self.find_genesis_txn_digest();
         }
         Ok(self
@@ -4329,7 +4302,10 @@ impl AuthorityState {
                 index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
-                let module_id = ModuleId::new(package.into(), module);
+                let module_id = ModuleId::new(
+                    AccountAddress::new(package.into_bytes()),
+                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                );
                 index_store.events_by_module_id(&module_id, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveEventType(struct_name) => index_store
@@ -4350,7 +4326,10 @@ impl AuthorityState {
                 .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
-                    &ModuleId::new(package.into(), module),
+                    &ModuleId::new(
+                        AccountAddress::new(package.into_bytes()),
+                        move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                    ),
                     tx_num,
                     event_num,
                     limit,
@@ -4660,7 +4639,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedAtDifferentVersion { locked_ref } => {
                 return Err(UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: *object_ref,
-                    current_version: locked_ref.1,
+                    current_version: locked_ref.version,
                 }
                 .into());
             }
@@ -4802,8 +4781,11 @@ impl AuthorityState {
         &self,
         system_packages: Vec<ObjectRef>,
         binary_config: &BinaryConfig,
-    ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
-        let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
+    ) -> Option<Vec<SystemPackage>> {
+        let ids: Vec<_> = system_packages
+            .iter()
+            .map(|object_ref| object_ref.object_id)
+            .collect();
         let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
@@ -4811,30 +4793,36 @@ impl AuthorityState {
             let prev_transaction = match object {
                 Some(cur_object) if cur_object.compute_object_reference() == system_package_ref => {
                     // Skip this one because it doesn't need to be upgraded.
-                    info!("Framework {} does not need updating", system_package_ref.0);
+                    info!(
+                        "Framework {} does not need updating",
+                        system_package_ref.object_id
+                    );
                     continue;
                 }
 
                 Some(cur_object) => cur_object.previous_transaction,
-                None => TransactionDigest::genesis_marker(),
+                None => TransactionDigest::GENESIS_MARKER,
             };
 
             #[cfg(msim)]
-            let SystemPackage {
+            let FrameworkSystemPackage {
                 id: _,
                 bytes,
                 dependencies,
-            } = framework_injection::get_override_system_package(&system_package_ref.0, self.name)
-                .unwrap_or_else(|| {
-                    BuiltInFramework::get_package_by_id(&system_package_ref.0).clone()
-                });
+            } = framework_injection::get_override_system_package(
+                &system_package_ref.object_id,
+                self.name,
+            )
+            .unwrap_or_else(|| {
+                BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone()
+            });
 
             #[cfg(not(msim))]
-            let SystemPackage {
+            let FrameworkSystemPackage {
                 id: _,
                 bytes,
                 dependencies,
-            } = BuiltInFramework::get_package_by_id(&system_package_ref.0).clone();
+            } = BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone();
 
             let modules: Vec<_> = bytes
                 .iter()
@@ -4843,7 +4831,7 @@ impl AuthorityState {
 
             let new_object = Object::new_system_package(
                 &modules,
-                system_package_ref.1,
+                system_package_ref.version,
                 dependencies.clone(),
                 prev_transaction,
             );
@@ -4856,7 +4844,11 @@ impl AuthorityState {
                 return None;
             }
 
-            res.push((system_package_ref.1, bytes, dependencies));
+            res.push(SystemPackage {
+                version: system_package_ref.version,
+                modules: bytes,
+                dependencies,
+            });
         }
 
         Some(res)
@@ -5037,42 +5029,6 @@ impl AuthorityState {
         total_weight
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_authenticator_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_jwk_consensus_updates() {
-            info!("authenticator state transactions not enabled");
-            return None;
-        }
-
-        let authenticator_state_exists = epoch_store.authenticator_state_exists();
-        let tx = if authenticator_state_exists {
-            let next_epoch = epoch_store.epoch().checked_add(1).expect("epoch overflow");
-            let min_epoch =
-                next_epoch.saturating_sub(epoch_store.protocol_config().max_age_of_jwk_in_epochs());
-            let authenticator_obj_initial_shared_version = epoch_store
-                .epoch_start_config()
-                .authenticator_obj_initial_shared_version()
-                .expect("initial version must exist");
-
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_expire(
-                min_epoch,
-                authenticator_obj_initial_shared_version,
-            );
-
-            info!(?min_epoch, "Creating AuthenticatorStateExpire tx",);
-
-            tx
-        } else {
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_create();
-            info!("Creating AuthenticatorStateCreate tx");
-            tx
-        };
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -5099,10 +5055,6 @@ impl AuthorityState {
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
-
-        if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
 
         let next_epoch = epoch_store.epoch() + 1;
 
@@ -5195,7 +5147,7 @@ impl AuthorityState {
             if config.pass_validator_scores_to_advance_epoch() {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
                     next_epoch,
-                    next_epoch_protocol_version,
+                    next_epoch_protocol_version.as_u64(),
                     gas_cost_summary.storage_cost,
                     gas_cost_summary.computation_cost,
                     gas_cost_summary.computation_cost_burned,
@@ -5210,7 +5162,7 @@ impl AuthorityState {
             } else {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
                     next_epoch,
-                    next_epoch_protocol_version,
+                    next_epoch_protocol_version.as_u64(),
                     gas_cost_summary.storage_cost,
                     gas_cost_summary.computation_cost,
                     gas_cost_summary.computation_cost_burned,
@@ -5226,7 +5178,7 @@ impl AuthorityState {
         {
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
                 next_epoch,
-                next_epoch_protocol_version,
+                next_epoch_protocol_version.as_u64(),
                 gas_cost_summary.storage_cost,
                 gas_cost_summary.computation_cost,
                 gas_cost_summary.computation_cost_burned,
@@ -5238,7 +5190,7 @@ impl AuthorityState {
         } else {
             txns.push(EndOfEpochTransactionKind::new_change_epoch(
                 next_epoch,
-                next_epoch_protocol_version,
+                next_epoch_protocol_version.as_u64(),
                 gas_cost_summary.storage_cost,
                 gas_cost_summary.computation_cost,
                 gas_cost_summary.storage_rebate,
@@ -5334,7 +5286,7 @@ impl AuthorityState {
         );
         epoch_store.record_checkpoint_builder_is_safe_mode_metric(system_obj.safe_mode());
         // The change epoch transaction cannot fail to execute.
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         Ok((system_obj, system_epoch_info_event, effects))
     }
 
@@ -5404,7 +5356,6 @@ impl AuthorityState {
             new_committee,
             epoch_start_configuration,
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             expensive_safety_check_config,
             epoch_last_checkpoint,
         )?;
@@ -5510,7 +5461,7 @@ impl AuthorityState {
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             let field_move_object = authenticator_function_ref_field_obj
                 .data
-                .try_as_move()
+                .as_struct_opt()
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
@@ -5658,7 +5609,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store()
+        self.get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
     }
 
@@ -5944,10 +5895,7 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_types::{
-        base_types::{AuthorityName, ObjectID},
-        is_system_package,
-    };
+    use iota_types::base_types::{AuthorityName, ObjectID};
     use move_binary_format::CompiledModule;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
@@ -6022,7 +5970,7 @@ pub mod framework_injection {
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
-        let dependencies = if is_system_package(*package_id) {
+        let dependencies = if package_id.is_system_package() {
             BuiltInFramework::get_package_by_id(package_id)
                 .dependencies
                 .to_vec()
@@ -6070,9 +6018,9 @@ impl ObjDumpFormat {
     fn new(object: Object) -> Self {
         let oref = object.compute_object_reference();
         Self {
-            id: oref.0,
-            version: oref.1,
-            digest: oref.2,
+            id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
             object,
         }
     }
@@ -6126,7 +6074,9 @@ impl NodeStateDump {
         for kind in effects.input_shared_objects() {
             match kind {
                 InputSharedObject::Mutate(obj_ref) | InputSharedObject::ReadOnly(obj_ref) => {
-                    if let Some(w) = object_store.try_get_object_by_key(&obj_ref.0, obj_ref.1)? {
+                    if let Some(w) =
+                        object_store.try_get_object_by_key(&obj_ref.object_id, obj_ref.version)?
+                    {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }

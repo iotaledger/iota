@@ -11,11 +11,6 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{StructTag, TypeTag},
-};
-use schemars::JsonSchema;
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -24,8 +19,8 @@ use serde::{
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
+    base_types::{IotaAddress, StructTag, TypeTag},
+    parse_iota_struct_tag, parse_iota_type_tag,
 };
 
 #[inline]
@@ -112,30 +107,31 @@ impl SerializeAs<StructTag> for IotaStructTag {
     }
 }
 
-const IOTA_ADDRESSES: [AccountAddress; 7] = [
-    AccountAddress::ZERO,
-    AccountAddress::ONE,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    STARDUST_ADDRESS,
-    IOTA_SYSTEM_STATE_ADDRESS,
-    IOTA_CLOCK_ADDRESS,
+const IOTA_ADDRESSES: [IotaAddress; 7] = [
+    IotaAddress::ZERO,
+    IotaAddress::STD,
+    IotaAddress::FRAMEWORK,
+    IotaAddress::SYSTEM,
+    IotaAddress::STARDUST,
+    IotaAddress::SYSTEM_STATE,
+    IotaAddress::CLOCK,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
     let mut f = String::new();
+    let address = value.address();
     // trim leading zeros if address is in IOTA_ADDRESSES
-    let address = if IOTA_ADDRESSES.contains(&value.address) {
-        value.address.short_str_lossless()
+    let address_str = if IOTA_ADDRESSES.contains(&address) {
+        address.to_short_hex()
     } else {
-        value.address.to_canonical_string(/* with_prefix */ false)
+        address.to_canonical_string(/* with_prefix */ true)
     };
 
-    write!(f, "0x{}::{}::{}", address, value.module, value.name)?;
-    if let Some(first_ty) = value.type_params.first() {
+    write!(f, "{}::{}::{}", address_str, value.module(), value.name())?;
+    if let Some(first_ty) = value.type_params().first() {
         write!(f, "<")?;
         write!(f, "{}", to_iota_type_tag_string(first_ty)?)?;
-        for ty in value.type_params.iter().skip(1) {
+        for ty in value.type_params().iter().skip(1) {
             write!(f, ", {}", to_iota_type_tag_string(ty)?)?;
         }
         write!(f, ">")?;
@@ -183,13 +179,35 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
     }
 }
 
+/// A marker for type tags that are serialized as strings. Normally, a
+/// type tag is serialized as a string for readable formats, and as a byte array
+/// for non-readable formats. This marker can be used to serialize a type tag as
+/// a string even in non-readable formats.
+pub struct TypeName;
+
+impl SerializeAs<TypeTag> for TypeName {
+    fn serialize_as<S>(value: &TypeTag, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.to_canonical_string(false);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, TypeTag> for TypeName {
+    fn deserialize_as<D>(deserializer: D) -> Result<TypeTag, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        parse_iota_type_tag(&s).map_err(D::Error::custom)
+    }
+}
+
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct BigInt<T>(
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    T,
-)
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct BigInt<T>(#[serde_as(as = "DisplayFromStr")] T)
 where
     T: Display + FromStr,
     <T as FromStr>::Err: Display;
@@ -262,9 +280,8 @@ where
     }
 }
 
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct SequenceNumber(u64);
 
 impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     fn serialize_as<S>(
@@ -274,7 +291,7 @@ impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     where
         S: Serializer,
     {
-        let s = value.value().to_string();
+        let s = value.to_string();
         s.serialize(serializer)
     }
 }
@@ -290,9 +307,9 @@ impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumb
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename = "ProtocolVersion")]
-pub struct AsProtocolVersion(#[schemars(with = "BigInt<u64>")] u64);
+pub struct AsProtocolVersion(u64);
 
 impl SerializeAs<ProtocolVersion> for AsProtocolVersion {
     fn serialize_as<S>(value: &ProtocolVersion, serializer: S) -> Result<S::Ok, S::Error>

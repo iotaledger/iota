@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::dbg_addr,
+    base_types::{address_from_iota_pub_key, dbg_addr},
     crypto::KeypairTraits,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, test_runner::TestCaseError};
@@ -21,7 +21,7 @@ fn test_with_random_gas_data(
 ) -> Result<(), TestCaseError> {
     let gas_data = gas_data_test.gas_data;
     let objects = gas_data_test.objects;
-    let sender = gas_data_test.sender_key.public().into();
+    let sender = address_from_iota_pub_key(gas_data_test.sender_key.public());
 
     // Insert the random gas objects into genesis.
     executor.add_objects(&objects);
@@ -31,7 +31,7 @@ fn test_with_random_gas_data(
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
     let tx = to_sender_signed_transaction(tx_data, &gas_data_test.sender_key);
 

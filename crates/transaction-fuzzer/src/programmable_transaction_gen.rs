@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp, str::FromStr};
+use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
-use move_core_types::identifier::Identifier;
 use once_cell::sync::Lazy;
 use proptest::{collection::vec, prelude::*};
 
@@ -21,7 +20,7 @@ prop_compose! {
     pub fn gen_transfer()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_to in gen_argument()) -> Command {
-                Command::TransferObjects(args, arg_to)
+                Command::new_transfer_objects(args, arg_to)
     }
 }
 
@@ -29,7 +28,7 @@ prop_compose! {
     pub fn gen_split_coins()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_to in gen_argument()) -> Command {
-                Command::SplitCoins(arg_to, args)
+                Command::new_split_coins(arg_to, args)
     }
 }
 
@@ -37,7 +36,7 @@ prop_compose! {
     pub fn gen_merge_coins()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_from in gen_argument()) -> Command {
-                Command::MergeCoins(arg_from, args)
+                Command::new_merge_coins(arg_from, args)
     }
 }
 
@@ -45,7 +44,7 @@ prop_compose! {
     pub fn gen_move_vec()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x)) -> Command {
-                Command::MakeMoveVec(None, args)
+                Command::new_make_move_vector(None, args)
     }
 }
 
@@ -72,7 +71,7 @@ pub fn gen_command() -> impl Strategy<Value = Command> {
 
 pub fn gen_argument() -> impl Strategy<Value = Argument> {
     prop_oneof![
-        Just(Argument::GasCoin),
+        Just(Argument::Gas),
         u16_with_boundaries_strategy().prop_map(Argument::Input),
         u16_with_boundaries_strategy().prop_map(Argument::Result),
         (
@@ -264,7 +263,7 @@ pub fn gen_transfer_input(
     );
     assert!(coins.len() == *args_len as usize);
 
-    let next_cmd = Command::TransferObjects(coins, builder.pure(recipient).unwrap());
+    let next_cmd = Command::new_transfer_objects(coins, builder.pure(recipient).unwrap());
     (next_cmd, cmd_inc)
 }
 
@@ -302,7 +301,7 @@ pub fn gen_split_coins_input(
     }
 
     let coin_arg = Argument::Result((prev_cmd_num + cmd_inc) as u16);
-    let next_cmd = Command::SplitCoins(coin_arg, split_args);
+    let next_cmd = Command::new_split_coins(coin_arg, split_args);
     (next_cmd, cmd_inc)
 }
 
@@ -377,7 +376,7 @@ pub fn gen_merge_coins_input(
         Argument::NestedResult((prev_cmd_num + cmd_inc) as u16, *coins_to_merge as u16)
     };
 
-    let next_cmd = Command::MergeCoins(output_coin, coins);
+    let next_cmd = Command::new_merge_coins(output_coin, coins);
     (next_cmd, cmd_inc)
 }
 
@@ -406,7 +405,7 @@ pub fn gen_move_vec_input(
         &mut coins,
     );
 
-    let next_cmd = Command::MakeMoveVec(None, coins);
+    let next_cmd = Command::new_make_move_vector(None, coins);
     (next_cmd, cmd_inc)
 }
 
@@ -527,13 +526,13 @@ fn create_input_calls(
     builder
         .move_call(
             package,
-            Identifier::from_str("coin_factory").unwrap(),
-            Identifier::from_str("mint_vec").unwrap(),
+            Identifier::from_static("coin_factory"),
+            Identifier::from_static("mint_vec"),
             vec![],
             vec![
-                CallArg::from(cap),
-                CallArg::from(coin_value),
-                CallArg::from(input_size),
+                CallArg::ImmutableOrOwned(cap),
+                CallArg::pure(&coin_value),
+                CallArg::pure(&input_size),
             ],
         )
         .unwrap();
@@ -548,8 +547,8 @@ fn create_unpack_call(
 ) {
     builder.programmable_move_call(
         package,
-        Identifier::from_str("coin_factory").unwrap(),
-        Identifier::from_str(format!("unpack_{input_size}").as_str()).unwrap(),
+        Identifier::from_static("coin_factory"),
+        Identifier::new(format!("unpack_{input_size}")).unwrap(),
         vec![],
         vec![Argument::Result(prev_cmd_num as u16)],
     );

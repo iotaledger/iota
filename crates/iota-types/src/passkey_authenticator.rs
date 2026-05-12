@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 use fastcrypto::{
     error::FastCryptoError,
@@ -17,19 +14,16 @@ use fastcrypto::{
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
-use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
     },
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
 };
 
 #[cfg(test)]
@@ -38,7 +32,7 @@ mod passkey_authenticator_test;
 
 /// An passkey authenticator with parsed fields. See field definition below. Can
 /// be initialized from [struct RawPasskeyAuthenticator].
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone)]
 pub struct PasskeyAuthenticator {
     /// `authenticatorData` is a bytearray that encodes
     /// [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data)
@@ -54,21 +48,17 @@ pub struct PasskeyAuthenticator {
 
     /// Normalized r1 signature returned by passkey.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     signature: Secp256r1Signature,
 
     /// Compact r1 public key upon passkey creation.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     pk: Secp256r1PublicKey,
 
     /// Decoded `client_data_json.challenge` which is expected to be the signing
     /// message `hash(Intent | bcs_message)`
-    #[serde(skip)]
     challenge: [u8; DefaultHash::OUTPUT_SIZE],
 
     /// Initialization of bytes for passkey in serialized form.
-    #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
 
@@ -232,21 +222,12 @@ impl Hash for PasskeyAuthenticator {
 }
 
 impl AuthenticatorTrait for PasskeyAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
-
     /// Verify an intent message of a transaction with an passkey authenticator.
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

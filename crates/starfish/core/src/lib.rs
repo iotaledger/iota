@@ -37,7 +37,7 @@ mod threshold_clock;
 mod transaction;
 #[cfg(msim)]
 pub mod transaction;
-mod transaction_ref;
+pub(crate) mod transaction_ref;
 mod transactions_synchronizer;
 
 mod universal_committer;
@@ -62,7 +62,9 @@ mod test_dag_parser;
 pub use authority_node::ConsensusAuthority;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
-pub use block_header::{BlockTimestampMs, TestBlockHeader, Transaction, VerifiedBlockHeader};
+pub use block_header::{
+    BlockTimestampMs, TestBlockHeader, Transaction, VerifiedBlockHeader, VerifiedTransactions,
+};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
@@ -74,3 +76,4 @@ pub use transaction::NoopTransactionVerifier;
 pub use transaction::{
     BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,
 };
+pub use transaction_ref::GenericTransactionRef;

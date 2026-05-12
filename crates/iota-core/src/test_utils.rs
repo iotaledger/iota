@@ -8,8 +8,8 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
-        random_object_ref,
+        AuthorityName, ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef,
+        TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{
@@ -19,18 +19,17 @@ use iota_types::{
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
     message_envelope::Message,
-    signature_verification::VerifiedDigestCache,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{authority::AuthorityState, state_accumulator::StateAccumulator};
+use crate::{authority::AuthorityState, global_state_hasher::GlobalStateHasher};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -61,8 +60,9 @@ pub async fn send_and_confirm_transaction(
     // wrong inside the VM
     //
     // We also check the incremental effects of the transaction on the live object
-    // set against StateAccumulator for testing and regression detection
-    let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
+    // set against GlobalStateHasher for testing and regression detection
+    let state_acc =
+        GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
@@ -229,16 +229,16 @@ pub fn make_transfer_object_move_transaction(
     gas_price: u64,
 ) -> Transaction {
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::ImmutableOrOwned(object_ref),
+        CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("transfer").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("transfer"),
             Vec::new(),
             gas_object_ref,
             args,
@@ -296,11 +296,7 @@ pub fn make_cert_with_large_committee(
         .collect();
 
     let cert = CertifiedTransaction::new(transaction.clone().into_data(), sigs, committee).unwrap();
-    cert.verify_signatures_authenticated(
-        committee,
-        &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
-    )
-    .unwrap();
+    cert.verify_signatures_authenticated(committee, &Default::default())
+        .unwrap();
     cert
 }

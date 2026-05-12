@@ -172,17 +172,7 @@ get_metrics "${CONFIGS[0]}" "$METRICS_DIR/node-0-before-node3.txt"
 INITIAL_COMMIT_INDEX=$(get_metric_value "$METRICS_DIR/node-0-before-node3.txt" "consensus_last_commit_index")
 echo "Initial commit index on node-0: $INITIAL_COMMIT_INDEX"
 
-# Detect consensus protocol (Starfish vs Mysticeti) from the release node log.
-# The consensus manager logs "Starting consensus protocol Mysticeti ..." or
-# "Starting consensus protocol Starfish ..." on every epoch start, making this
-# a reliable signal independent of any metric values.
-if grep -q "Starting consensus protocol Starfish" "$LOG_DIR/node-0.log" 2>/dev/null; then
-  CONSENSUS_TYPE="starfish"
-  echo "Detected consensus protocol: Starfish"
-else
-  CONSENSUS_TYPE="mysticeti"
-  echo "Detected consensus protocol: Mysticeti"
-fi
+echo "Consensus protocol: Starfish"
 
 echo -e "\n=== Phase 2: Late Start of Candidate Node ==="
 echo "Starting node-3 (candidate) - should trigger synchronization to catch up..."
@@ -208,30 +198,18 @@ fi
 
 NODE3_COMMIT_AFTER_JOIN=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_last_commit_index")
 
-if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-  # Starfish: commit_sync_fetched_commits is labeled by source (commit_sync, fast_commit_sync), so sum across labels
-  NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
-  NODE3_HEADER_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_fetched_block_headers_by_peer")
-  NODE3_TXN_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_transaction_synchronizer_fetched_transactions_by_peer")
-  NODE3_COMMIT_SYNC_TXN_SIZE=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_total_fetched_transactions_size")
-else
-  # Mysticeti: commit_sync_fetched_commits is labeled by authority, so sum across labels
-  NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
-  NODE3_BLOCK_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_fetched_blocks_by_peer")
-  NODE3_COMMIT_SYNC_BLOCKS=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_blocks")
-fi
+# Starfish: commit_sync_fetched_commits is labeled by source (commit_sync, fast_commit_sync), so sum across labels
+NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
+NODE3_HEADER_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_fetched_block_headers_by_peer")
+NODE3_TXN_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_transaction_synchronizer_fetched_transactions_by_peer")
+NODE3_COMMIT_SYNC_TXN_SIZE=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_total_fetched_transactions_size")
 
 echo "Node-3 metrics after initial sync:"
 echo "  last_commit_index: $NODE3_COMMIT_AFTER_JOIN"
 echo "  commit_sync_fetched_commits (sum): $NODE3_COMMIT_SYNC"
-if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-  echo "  synchronizer_fetched_block_headers_by_peer (sum): $NODE3_HEADER_SYNC"
-  echo "  commit_sync_total_fetched_transactions_size: $NODE3_COMMIT_SYNC_TXN_SIZE"
-  echo "  transaction_synchronizer_fetched_transactions_by_peer (sum): $NODE3_TXN_SYNC"
-else
-  echo "  synchronizer_fetched_blocks_by_peer (sum): $NODE3_BLOCK_SYNC"
-  echo "  commit_sync_fetched_blocks (sum): $NODE3_COMMIT_SYNC_BLOCKS"
-fi
+echo "  synchronizer_fetched_block_headers_by_peer (sum): $NODE3_HEADER_SYNC"
+echo "  commit_sync_total_fetched_transactions_size: $NODE3_COMMIT_SYNC_TXN_SIZE"
+echo "  transaction_synchronizer_fetched_transactions_by_peer (sum): $NODE3_TXN_SYNC"
 
 # Check 1: Node-3 caught up past initial commit index
 if [ "$NODE3_COMMIT_AFTER_JOIN" -le "$INITIAL_COMMIT_INDEX" ]; then
@@ -240,45 +218,25 @@ else
   echo "✓ Node-3 caught up past initial commit index"
 fi
 
-# Check 2: Synchronizer was active (protocol-specific)
-if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-  # Starfish has a dedicated block header synchronizer
-  if [ "$NODE3_HEADER_SYNC" -le 0 ]; then
-    FAILURES+=("FAIL: Header synchronizer was not active (consensus_synchronizer_fetched_block_headers_by_peer = $NODE3_HEADER_SYNC)")
-  else
-    echo "✓ Header synchronizer was active (fetched $NODE3_HEADER_SYNC block headers)"
-  fi
+# Check 2: Header synchronizer was active
+if [ "$NODE3_HEADER_SYNC" -le 0 ]; then
+  FAILURES+=("FAIL: Header synchronizer was not active (consensus_synchronizer_fetched_block_headers_by_peer = $NODE3_HEADER_SYNC)")
 else
-  # Mysticeti uses a block synchronizer (no separate header sync)
-  if [ "$NODE3_BLOCK_SYNC" -le 0 ]; then
-    FAILURES+=("FAIL: Block synchronizer was not active (consensus_synchronizer_fetched_blocks_by_peer = $NODE3_BLOCK_SYNC)")
-  else
-    echo "✓ Block synchronizer was active (fetched $NODE3_BLOCK_SYNC blocks)"
-  fi
+  echo "✓ Header synchronizer was active (fetched $NODE3_HEADER_SYNC block headers)"
 fi
 
-# Check 3: Commit syncer was active (applies to both protocols)
+# Check 3: Commit syncer was active
 if [ "$NODE3_COMMIT_SYNC" -le 0 ]; then
   FAILURES+=("FAIL: Commit syncer was not active (consensus_commit_sync_fetched_commits = $NODE3_COMMIT_SYNC)")
 else
   echo "✓ Commit syncer was active (fetched $NODE3_COMMIT_SYNC commits)"
 fi
 
-# Check 4: Data was fetched via commit syncer (protocol-specific)
-if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-  # Starfish: transactions can come from commit syncer or transaction synchronizer
-  if [ "$NODE3_COMMIT_SYNC_TXN_SIZE" -le 0 ] && [ "$NODE3_TXN_SYNC" -le 0 ]; then
-    FAILURES+=("FAIL: No transactions were fetched (commit_sync: $NODE3_COMMIT_SYNC_TXN_SIZE bytes, txn_sync: $NODE3_TXN_SYNC)")
-  else
-    echo "✓ Transactions were fetched (commit_sync: $NODE3_COMMIT_SYNC_TXN_SIZE bytes, txn_sync: $NODE3_TXN_SYNC transactions)"
-  fi
+# Check 4: Transactions can come from commit syncer or transaction synchronizer
+if [ "$NODE3_COMMIT_SYNC_TXN_SIZE" -le 0 ] && [ "$NODE3_TXN_SYNC" -le 0 ]; then
+  FAILURES+=("FAIL: No transactions were fetched (commit_sync: $NODE3_COMMIT_SYNC_TXN_SIZE bytes, txn_sync: $NODE3_TXN_SYNC)")
 else
-  # Mysticeti: no transaction synchronizer; check blocks fetched via commit sync
-  if [ "$NODE3_COMMIT_SYNC_BLOCKS" -le 0 ]; then
-    FAILURES+=("FAIL: No blocks were fetched via commit sync (consensus_commit_sync_fetched_blocks = $NODE3_COMMIT_SYNC_BLOCKS)")
-  else
-    echo "✓ Blocks were fetched via commit sync ($NODE3_COMMIT_SYNC_BLOCKS blocks)"
-  fi
+  echo "✓ Transactions were fetched (commit_sync: $NODE3_COMMIT_SYNC_TXN_SIZE bytes, txn_sync: $NODE3_TXN_SYNC transactions)"
 fi
 
 # Capture final metrics from all nodes
@@ -310,15 +268,10 @@ if [ ${#FAILURES[@]} -eq 0 ]; then
   echo "✓ All checks passed!"
   echo ""
   echo "Successfully verified:"
-  echo "  - Split-cluster with 3 release + 1 candidate node (consensus: $CONSENSUS_TYPE)"
+  echo "  - Split-cluster with 3 release + 1 candidate node (consensus: Starfish)"
   echo "  - Candidate node synchronized after late start (3 minute delay):"
-  if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-    echo "    • Header Synchronizer: fetched $NODE3_HEADER_SYNC block headers"
-    echo "    • Commit Syncer: fetched $NODE3_COMMIT_SYNC commits ($NODE3_COMMIT_SYNC_TXN_SIZE bytes txn, txn_sync: $NODE3_TXN_SYNC transactions)"
-  else
-    echo "    • Block Synchronizer: fetched $NODE3_BLOCK_SYNC blocks"
-    echo "    • Commit Syncer: fetched $NODE3_COMMIT_SYNC commits ($NODE3_COMMIT_SYNC_BLOCKS blocks)"
-  fi
+  echo "    • Header Synchronizer: fetched $NODE3_HEADER_SYNC block headers"
+  echo "    • Commit Syncer: fetched $NODE3_COMMIT_SYNC commits ($NODE3_COMMIT_SYNC_TXN_SIZE bytes txn, txn_sync: $NODE3_TXN_SYNC transactions)"
   echo "    • Caught up from commit $INITIAL_COMMIT_INDEX to $NODE3_COMMIT_AFTER_JOIN"
   echo "  - Synchronization protocols are compatible between release and candidate versions"
   echo ""

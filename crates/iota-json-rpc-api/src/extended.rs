@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, MoveCallMetrics, NetworkMetrics,
-    ParticipationMetrics,
+    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
+    NetworkMetrics, Page, ParticipationMetrics,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::iota_serde::BigInt;
@@ -18,9 +18,11 @@ pub trait ExtendedApi {
     /// Return a list of epoch info. Exclusively served by the indexer.
     #[rustfmt::skip]
     #[method(name = "getEpochs")]
+    #[schemars(with = "Page<EpochInfo, String>")]
     async fn get_epochs(
         &self,
         /// Optional paging cursor
+        #[schemars(with = "Option<String>")]
         cursor: Option<BigInt<u64>>,
         /// Maximum number of items per page
         limit: Option<usize>,
@@ -31,9 +33,11 @@ pub trait ExtendedApi {
     /// Return a list of epoch metrics, which is a subset of epoch info.
     /// Exclusively served by the indexer.
     #[method(name = "getEpochMetrics")]
+    #[schemars(with = "Page<EpochMetrics, String>")]
     async fn get_epoch_metrics(
         &self,
         /// Optional paging cursor
+        #[schemars(with = "Option<String>")]
         cursor: Option<BigInt<u64>>,
         /// Maximum number of items per page
         limit: Option<usize>,
@@ -71,6 +75,7 @@ pub trait ExtendedApi {
     /// Return the total number of transactions. Exclusively served by the
     /// indexer.
     #[method(name = "getTotalTransactions")]
+    #[schemars(with = "String")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
 
     /// Returns the participation metrics. Participation is defined as the total

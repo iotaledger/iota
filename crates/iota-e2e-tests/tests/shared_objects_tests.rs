@@ -22,7 +22,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::{CallArg, ObjectArg},
+    transaction::{CallArg, SharedObjectRef},
 };
 use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
@@ -59,9 +59,9 @@ async fn shared_object_deletion() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     // Make a transaction to delete the counter.
     let transaction = test_cluster
@@ -95,9 +95,9 @@ async fn shared_object_deletion_multiple_times() {
         .await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -157,9 +157,9 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
         .await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -230,9 +230,9 @@ async fn shared_object_deletion_multi_certs() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
 
     let accounts_and_gas = test_cluster
         .wallet
@@ -322,19 +322,19 @@ async fn shared_object_deletion_multi_certs() {
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let (package, counter) = publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let package_id = package.0;
-    let counter_id = counter.0;
-    let counter_initial_shared_version = counter.1;
-    let counter_object_arg = ObjectArg::SharedObject {
-        id: counter_id,
+    let package_id = package.object_id;
+    let counter_id = counter.object_id;
+    let counter_initial_shared_version = counter.version;
+    let counter_object_arg = CallArg::Shared(SharedObjectRef {
+        object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: true,
-    };
-    let counter_object_arg_imm = ObjectArg::SharedObject {
-        id: counter_id,
+    });
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef {
+        object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: false,
-    };
+    });
     let counter_creation_transaction = test_cluster
         .get_object_from_fullnode_store(&counter_id)
         .await
@@ -353,7 +353,7 @@ async fn call_shared_object_contract() {
                 "counter",
                 "assert_value",
                 vec![
-                    CallArg::Object(counter_object_arg_imm),
+                    counter_object_arg_imm.clone(),
                     CallArg::Pure(0u64.to_le_bytes().to_vec()),
                 ],
             )
@@ -417,11 +417,11 @@ async fn call_shared_object_contract() {
                 "counter",
                 "assert_value",
                 vec![
-                    CallArg::Object(if imm {
-                        counter_object_arg_imm
+                    if imm {
+                        counter_object_arg_imm.clone()
                     } else {
-                        counter_object_arg
-                    }),
+                        counter_object_arg.clone()
+                    },
                     CallArg::Pure(1u64.to_le_bytes().to_vec()),
                 ],
             )
@@ -449,7 +449,7 @@ async fn call_shared_object_contract() {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Object(counter_object_arg_imm)],
+            vec![counter_object_arg_imm],
         )
         .build();
     let effects = test_cluster
@@ -478,13 +478,18 @@ async fn call_shared_object_contract() {
 #[sim_test]
 async fn access_clock_object_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     let transaction = test_cluster.wallet.sign_transaction(
         &test_cluster
             .test_transaction_builder()
             .await
-            .move_call(package_id, "clock", "access", vec![CallArg::CLOCK_IMM])
+            .move_call(
+                package_id,
+                "clock",
+                "access",
+                vec![CallArg::CLOCK_IMMUTABLE],
+            )
             .build(),
     );
     let digest = *transaction.digest();
@@ -495,7 +500,7 @@ async fn access_clock_object_test() {
         .execute_transaction_return_raw_effects(transaction)
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     let finish = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -557,7 +562,7 @@ async fn shared_object_sync() {
         })
         .build()
         .await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     // Since we use submit_transaction_to_validators in this test, which does not go
     // through fullnode, we need to manage gas objects ourselves.
@@ -580,8 +585,8 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(create_counter_transaction.clone(), &slow_validators)
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
-    let ((counter_id, counter_initial_shared_version, _), _) = effects.created()[0];
+    assert!(effects.status().is_success());
+    let (counter_ref, _) = effects.created()[0];
 
     // Check that the counter object exists in at least one of the validators the
     // transaction was sent to.
@@ -591,7 +596,7 @@ async fn shared_object_sync() {
                 validator
                     .state()
                     .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
+                        counter_ref.object_id,
                         LayoutGenerationOption::None,
                     ))
                     .await
@@ -608,7 +613,7 @@ async fn shared_object_sync() {
                 validator
                     .state()
                     .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                        counter_id,
+                        counter_ref.object_id,
                         LayoutGenerationOption::None,
                     ))
                     .await
@@ -620,7 +625,7 @@ async fn shared_object_sync() {
     // Make a transaction to increment the counter.
     let increment_counter_transaction = test_cluster.wallet.sign_transaction(
         &TestTransactionBuilder::new(sender, objects.pop().unwrap(), rgp)
-            .call_counter_increment(package_id, counter_id, counter_initial_shared_version)
+            .call_counter_increment(package_id, counter_ref.object_id, counter_ref.version)
             .build(),
     );
 
@@ -630,7 +635,7 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(increment_counter_transaction.clone(), &validators[1..])
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Submit transactions to the out-of-date authority.
     // It will succeed because we share owned object certificates through consensus
@@ -638,7 +643,7 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(increment_counter_transaction, &validators[0..1])
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 /// Send a simple shared object transaction to IOTA and ensures the client gets
@@ -646,7 +651,7 @@ async fn shared_object_sync() {
 #[sim_test]
 async fn replay_shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let package_id = publish_basics_package(&test_cluster.wallet).await.0;
+    let package_id = publish_basics_package(&test_cluster.wallet).await.object_id;
 
     // Send a transaction to create a counter (only to one authority) -- twice.
     let create_counter_transaction = test_cluster.wallet.sign_transaction(

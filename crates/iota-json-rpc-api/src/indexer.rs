@@ -3,10 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaNameRecord, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
-    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    DynamicFieldNameSchema, DynamicFieldPage, EventFilter, EventPage, IotaDynamicFieldInfo,
+    IotaEvent, IotaEventID, IotaNameRecord, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
+    iota_primitives::{
+        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -32,13 +36,16 @@ pub trait IndexerApi {
     /// Please use iotax_queryObjects if this is a concern.
     #[rustfmt::skip]
     #[method(name = "getOwnedObjects")]
+    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
     async fn get_owned_objects(
         &self,
         /// the owner's IOTA address
+        #[schemars(with = "IotaAddressSchema")] 
         address: IotaAddress,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
+        #[schemars(with = "Option<ObjectIDSchema>")] 
         cursor: Option<ObjectID>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
@@ -47,6 +54,7 @@ pub trait IndexerApi {
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
     #[method(name = "queryTransactionBlocks", version <= "1.2.10")]
+    #[schemars(with = "Page<IotaTransactionBlockResponse, Base58>")]
     async fn query_transaction_blocks(
         &self,
         /// the transaction query criteria.
@@ -62,11 +70,13 @@ pub trait IndexerApi {
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
     #[method(name = "queryTransactionBlocks")]
+    #[schemars(with = "Page<IotaTransactionBlockResponse, Base58Schema>")]
     async fn query_transaction_blocks_v2(
         &self,
         /// the transaction query criteria.
         query: IotaTransactionBlockResponseQueryV2,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
+        #[schemars(with = "Option<Base58Schema>")]
         cursor: Option<TransactionDigest>,
         /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.
         limit: Option<usize>,
@@ -77,11 +87,13 @@ pub trait IndexerApi {
     /// Return list of events for a specified query criteria.
     #[rustfmt::skip]
     #[method(name = "queryEvents")]
+    #[schemars(with = "Page<IotaEvent, IotaEventID>")]
     async fn query_events(
         &self,
         /// The event query criteria. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
         query: EventFilter,
         /// optional paging cursor
+        #[schemars(with = "Option<IotaEventID>")]
         cursor: Option<EventID>,
         /// maximum number of items per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
@@ -105,11 +117,14 @@ pub trait IndexerApi {
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
     #[method(name = "getDynamicFields")]
+    #[schemars(with = "Page<IotaDynamicFieldInfo, ObjectIDSchema>")]
     async fn get_dynamic_fields(
         &self,
         /// The ID of the parent object
+        #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
+        #[schemars(with = "Option<ObjectIDSchema>")]
         cursor: Option<ObjectID>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
@@ -121,8 +136,10 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object(
         &self,
         /// The ID of the queried parent object
+        #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
         /// The Name of the dynamic field
+        #[schemars(with = "DynamicFieldNameSchema")]
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
 
@@ -133,8 +150,10 @@ pub trait IndexerApi {
     async fn get_dynamic_field_object_v2(
         &self,
         /// The ID of the queried parent object
+        #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
         /// The Name of the dynamic field
+        #[schemars(with = "DynamicFieldNameSchema")]
         name: DynamicFieldName,
         /// Options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
@@ -153,15 +172,17 @@ pub trait IndexerApi {
     async fn iota_names_reverse_lookup(
         &self,
         /// The address to resolve.
+        #[schemars(with = "IotaAddressSchema")]
         address: IotaAddress,
     ) -> RpcResult<Option<String>>;
 
     /// Find all registration NFTs for the given address.
     #[method(name = "iotaNamesFindAllRegistrationNFTs")]
+    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
     async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
+        #[schemars(with = "IotaAddressSchema")] address: IotaAddress,
+        #[schemars(with = "Option<ObjectIDSchema>")] cursor: Option<ObjectID>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage>;

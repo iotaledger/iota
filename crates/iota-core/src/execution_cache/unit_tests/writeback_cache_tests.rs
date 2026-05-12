@@ -17,11 +17,11 @@ use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
-    object::{MoveObject, OBJECT_START_VERSION, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Owner},
     storage::ChildObjectResolver,
 };
 use prometheus::default_registry;
@@ -47,6 +47,21 @@ impl<T> AssertInserted for Option<T> {
 impl AssertInserted for bool {
     fn assert_inserted(&self) {
         assert!(*self);
+    }
+}
+
+fn random_event() -> Event {
+    Event {
+        package_id: ObjectID::random(),
+        module: Identifier::new("test").unwrap(),
+        sender: IotaAddress::random(),
+        type_: StructTag::new(
+            IotaAddress::random(),
+            Identifier::new("test").unwrap(),
+            Identifier::new("test").unwrap(),
+            vec![],
+        ),
+        contents: vec![],
     }
 }
 
@@ -174,7 +189,7 @@ impl Scenario {
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -191,7 +206,7 @@ impl Scenario {
             .get_modules()
             .cloned()
             .collect();
-        let digest = TransactionDigest::genesis_marker();
+        let digest = TransactionDigest::GENESIS_MARKER;
         Object::new_package_for_testing(&modules, digest, BuiltInFramework::genesis_move_packages())
             .unwrap()
     }
@@ -200,7 +215,7 @@ impl Scenario {
         let id = ObjectID::random();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::ObjectOwner(owner.into()),
+            Owner::Object(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -210,9 +225,9 @@ impl Scenario {
         let mut inner = object.into_inner();
         inner
             .data
-            .try_as_move_mut()
+            .as_struct_mut_opt()
             .unwrap()
-            .increment_version_to(SequenceNumber::from_u64(version.value() + delta));
+            .increment_version_to(version + delta);
         inner.into()
     }
 
@@ -244,7 +259,7 @@ impl Scenario {
 
     pub fn with_events(&mut self) {
         let mut events: TransactionEvents = Default::default();
-        events.data.push(Event::random_for_testing());
+        events.data.push(random_event());
 
         let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
             .with_events_digest(events.digest())
@@ -294,7 +309,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.version.increment().unwrap();
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -308,7 +323,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.version.increment().unwrap();
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -787,8 +802,7 @@ async fn test_lt_or_eq_caching() {
                 .unwrap()
                 .lock()
                 .version()
-                .unwrap()
-                .value(),
+                .unwrap(),
             5
         );
 
@@ -1011,16 +1025,16 @@ async fn test_concurrent_readers() {
 
                 println!("parent: {parent_ref:?}");
                 loop {
-                    let parent = cache.get_object_by_key(&parent_ref.0, parent_ref.1);
+                    let parent = cache.get_object_by_key(&parent_ref.object_id, parent_ref.version);
                     if parent.is_none() {
                         tokio::task::yield_now().await;
                         continue;
                     }
-                    assert_eq!(parent.unwrap().version(), parent_ref.1);
+                    assert_eq!(parent.unwrap().version(), parent_ref.version);
                     break;
                 }
                 let child = cache
-                    .read_child_object(&parent_ref.0, &child_id, parent_ref.1)
+                    .read_child_object(&parent_ref.object_id, &child_id, parent_ref.version)
                     .unwrap();
                 assert!(child.is_none(), "Inconsistent child read detected");
             }
@@ -1204,7 +1218,7 @@ async fn latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let owner = IotaAddress::random();
 
     // a writer thread that keeps writing new versions
     let writer = {
@@ -1216,12 +1230,12 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 cache.write_object_entry(&object_id, version, object.into());
 
-                version = version.next();
+                version.increment().unwrap();
             }
         })
     };
@@ -1257,7 +1271,7 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     latest_version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 // because we obtained the ticket before reading the object, we will not write a
@@ -1390,7 +1404,7 @@ async fn concurrent_latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let owner = IotaAddress::random();
 
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
@@ -1398,12 +1412,12 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, write_version, object.into());
 
-        write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
@@ -1447,7 +1461,7 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             latest_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         // preempt the reader to update the latest version and invalidate the cache
@@ -1505,8 +1519,8 @@ async fn concurrent_latest_object_cache_collision_test() {
         key_generation_hash(&object2_id)
     );
 
-    let owner1 = IotaAddress::random_for_testing_only();
-    let owner2 = IotaAddress::random_for_testing_only();
+    let owner1 = IotaAddress::random();
+    let owner2 = IotaAddress::random();
 
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;
@@ -1520,12 +1534,12 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             *write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, *write_version, object.into());
 
-        *write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
@@ -1556,7 +1570,7 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object2 = Object::with_id_owner_version_for_testing(
             object2_id,
             latest2_version,
-            Owner::AddressOwner(owner2),
+            Owner::Address(owner2),
         );
 
         // preempt the reader
@@ -1586,7 +1600,7 @@ async fn concurrent_latest_object_cache_collision_test() {
             .lock()
             .version()
             .unwrap(),
-        OBJECT_START_VERSION.next()
+        OBJECT_START_VERSION.next().unwrap()
     );
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());

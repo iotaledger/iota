@@ -40,6 +40,7 @@ use typed_store::{
 use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables};
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::IndexStore,
@@ -204,7 +205,7 @@ impl AuthorityStorePruner {
                 }
                 None => {
                     let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, (max_version.value() + 1).into());
+                    let end_range = ObjectKey(object_id, max_version + 1);
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
                 }
             }
@@ -212,18 +213,17 @@ impl AuthorityStorePruner {
 
         // Instead of using range deletes, we
         // need to do a scan of all the keys for the deleted objects and then do
-        // point deletes to delete all the existing keys. This is because to improve
-        // read performance, we set `ignore_range_deletions` on all read
-        // options, and using range delete to delete tombstones may leak object
-        // (imagine a tombstone is compacted away, but earlier version is still not).
-        // Using point deletes guarantees that all earlier versions are deleted
-        // in the database.
+        // point deletes to delete all the existing keys. This is because using
+        // range delete to delete tombstones may leak objects (imagine a tombstone
+        // is compacted away, but earlier version is still not). Using point
+        // deletes guarantees that all earlier versions are deleted in the
+        // database.
         if !object_tombstones_to_prune.is_empty() {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
                 for result in perpetual_db.objects.safe_iter_with_bounds(
                     Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                    Some(ObjectKey(object_id, seq_number.next())),
+                    Some(ObjectKey(object_id, seq_number.next().unwrap())),
                 ) {
                     let (object_key, _) = result?;
                     assert_eq!(object_key.0, object_id);
@@ -283,7 +283,7 @@ impl AuthorityStorePruner {
             if let Some(event_digest) = effects.events_digest() {
                 perpetual_batch
                     .delete_batch(&perpetual_db.events_2, [effects.transaction_digest()])?;
-                if let Some(next_digest) = event_digest.next_lexicographical() {
+                if let Some(next_digest) = event_digest.next_lexicographical_opt() {
                     perpetual_batch.schedule_delete_range(
                         &perpetual_db.events,
                         &(*event_digest, 0),
@@ -341,6 +341,7 @@ impl AuthorityStorePruner {
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
         epoch_duration_ms: u64,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneObjectsForEligibleEpochs");
         let (mut max_eligible_checkpoint_number, epoch_id) = checkpoint_store
@@ -371,6 +372,7 @@ impl AuthorityStorePruner {
             max_eligible_checkpoint_number,
             config,
             metrics.clone(),
+            progress_tracker,
         )
         .await
     }
@@ -392,6 +394,7 @@ impl AuthorityStorePruner {
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
         epoch_duration_ms: u64,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneCheckpointsForEligibleEpochs");
         let pruned_checkpoint_number = checkpoint_store
@@ -440,6 +443,7 @@ impl AuthorityStorePruner {
             max_eligible_checkpoint,
             config,
             metrics.clone(),
+            progress_tracker,
         )
         .await
     }
@@ -457,6 +461,7 @@ impl AuthorityStorePruner {
         max_eligible_checkpoint: CheckpointSequenceNumber,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
+        progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneForEligibleEpochs");
 
@@ -469,6 +474,8 @@ impl AuthorityStorePruner {
         let mut checkpoints_to_prune = vec![];
         let mut checkpoint_content_to_prune = vec![];
         let mut effects_to_prune = vec![];
+
+        let mut pruning_start = Instant::now();
 
         loop {
             let Some(ckpt) = checkpoint_store
@@ -503,7 +510,7 @@ impl AuthorityStorePruner {
                 .effects
                 .multi_get(content.iter().map(|tx| tx.effects))?;
 
-            info!("scheduling pruning for checkpoint {:?}", checkpoint_number);
+            debug!("scheduling pruning for checkpoint {:?}", checkpoint_number);
             checkpoints_to_prune.push(*checkpoint.digest());
             checkpoint_content_to_prune.push(content);
             effects_to_prune.extend(effects.into_iter().flatten());
@@ -533,6 +540,19 @@ impl AuthorityStorePruner {
                         metrics.clone(),
                     )?,
                 };
+
+                // Report pruning time for this batch so the progress logger
+                // shows time alongside the checkpoint deltas it reads from the
+                // DB (which are already updated at this point).
+                if let Some(tracker) = progress_tracker {
+                    let elapsed = pruning_start.elapsed();
+                    match mode {
+                        PruningMode::Objects => tracker.add_object_pruning_time(elapsed),
+                        PruningMode::Checkpoints => tracker.add_checkpoint_pruning_time(elapsed),
+                    }
+                    pruning_start = Instant::now();
+                }
+
                 checkpoints_to_prune = vec![];
                 checkpoint_content_to_prune = vec![];
                 effects_to_prune = vec![];
@@ -564,7 +584,19 @@ impl AuthorityStorePruner {
                     metrics.clone(),
                 )?,
             };
+
+            // Report pruning time for this batch so the progress logger
+            // shows time alongside the checkpoint deltas it reads from the
+            // DB (which are already updated at this point).
+            if let Some(tracker) = progress_tracker {
+                let elapsed = pruning_start.elapsed();
+                match mode {
+                    PruningMode::Objects => tracker.add_object_pruning_time(elapsed),
+                    PruningMode::Checkpoints => tracker.add_checkpoint_pruning_time(elapsed),
+                }
+            }
         }
+
         Ok(())
     }
 
@@ -695,6 +727,7 @@ impl AuthorityStorePruner {
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         archive_readers: ArchiveReaderBalancer,
+        progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
@@ -754,12 +787,12 @@ impl AuthorityStorePruner {
             loop {
                 tokio::select! {
                     _ = objects_prune_interval.tick(), if config.num_epochs_to_retain != u64::MAX => {
-                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms, progress_tracker.as_ref()).await {
                             error!("Failed to prune objects: {:?}", err);
                         }
                     },
                     _ = checkpoints_prune_interval.tick(), if !matches!(config.num_epochs_to_retain_for_checkpoints(), None | Some(u64::MAX) | Some(0)) => {
-                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms, progress_tracker.as_ref()).await {
                             error!("Failed to prune checkpoints: {:?}", err);
                         }
                     },
@@ -788,6 +821,7 @@ impl AuthorityStorePruner {
         registry: &Registry,
         archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
+        progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
         {
@@ -813,6 +847,7 @@ impl AuthorityStorePruner {
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
                 archive_readers,
+                progress_tracker,
             ),
         }
     }
@@ -900,7 +935,7 @@ mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
         effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
@@ -963,8 +998,8 @@ mod tests {
         let (mut to_keep, mut to_delete, mut tombstones) = (vec![], vec![], vec![]);
         let mut batch = db.objects.batch();
 
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids.into())?;
-        for id in ids {
+        let mut id = ObjectID::ZERO;
+        for _ in 0..total_unique_object_ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
                 let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
@@ -990,6 +1025,7 @@ mod tests {
                 )?;
                 tombstones.push(tombstone_key);
             }
+            id = id.next_lexicographical();
         }
         batch.write().unwrap();
         assert_eq!(
@@ -1027,14 +1063,14 @@ mod tests {
             .unwrap();
             let mut effects = TransactionEffects::default();
             for object in to_delete {
-                effects.unsafe_add_deleted_live_object_for_testing((
+                effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
                 ));
             }
             for object in tombstones {
-                effects.unsafe_add_object_tombstone_for_testing((
+                effects.unsafe_add_object_tombstone_for_testing(ObjectRef::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
@@ -1081,9 +1117,9 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
+        let mut id = ObjectID::ZERO;
         let mut to_delete = vec![];
-        for id in ids {
+        for _ in 0..total_unique_object_ids {
             for i in (0..num_versions_per_object).rev() {
                 if i < num_versions_per_object - 2 {
                     to_delete.push((id, SequenceNumber::from(i)));
@@ -1093,6 +1129,7 @@ mod tests {
                     .objects
                     .insert(&ObjectKey(id, SequenceNumber::from(i)), &obj)?;
             }
+            id = id.next_lexicographical();
         }
 
         fn get_sst_size(path: &Path) -> u64 {
@@ -1119,7 +1156,7 @@ mod tests {
 
         let mut effects = TransactionEffects::default();
         for object in to_delete {
-            effects.unsafe_add_deleted_live_object_for_testing((
+            effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                 object.0,
                 object.1,
                 ObjectDigest::MIN,

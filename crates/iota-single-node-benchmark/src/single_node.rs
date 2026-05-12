@@ -17,8 +17,8 @@ use iota_core::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
-    state_accumulator::StateAccumulator,
 };
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
@@ -128,7 +128,7 @@ impl SingleValidator {
             .try_execute_immediately(&executable, None, &self.epoch_store)
             .unwrap()
             .0;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -141,7 +141,7 @@ impl SingleValidator {
             )
             .unwrap()
             .2;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -187,7 +187,7 @@ impl SingleValidator {
                 unreachable!()
             }
         };
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -229,7 +229,7 @@ impl SingleValidator {
                 *executable.digest(),
                 &mut None,
             );
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         store.commit_objects(inner_temp_store);
         effects
     }
@@ -280,8 +280,8 @@ impl SingleValidator {
             self.epoch_store.clone(),
             validator.get_checkpoint_store().clone(),
             validator.clone(),
-            Arc::new(StateAccumulator::new_for_tests(
-                validator.get_accumulator_store().clone(),
+            Arc::new(GlobalStateHasher::new_for_tests(
+                validator.get_global_state_hash_store().clone(),
             )),
         )
     }
@@ -289,7 +289,7 @@ impl SingleValidator {
     pub(crate) fn create_in_memory_store(&self) -> InMemoryObjectStore {
         let objects: HashMap<_, _> = self
             .get_validator()
-            .get_accumulator_store()
+            .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
             .map(|o| match o {
                 LiveObject::Normal(object) => (object.id(), object),

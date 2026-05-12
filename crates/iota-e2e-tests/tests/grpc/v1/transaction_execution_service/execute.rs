@@ -70,7 +70,7 @@ async fn execute_transaction_readmask_scenarios() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Read mask paths are relative to ExecutedTransaction
@@ -174,7 +174,7 @@ async fn execute_transaction_invalid_signatures() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     let txn =
@@ -265,7 +265,7 @@ async fn execute_transaction_batch() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Create two valid transactions
@@ -321,7 +321,7 @@ async fn execute_transaction_batch_partial_failure() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // First item: valid transaction
@@ -406,7 +406,7 @@ async fn execute_transaction_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     let txn =
@@ -462,7 +462,7 @@ async fn execute_transaction_without_checkpoint_timeout_has_no_checkpoint() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     let txn =
@@ -505,7 +505,7 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Create two valid transactions

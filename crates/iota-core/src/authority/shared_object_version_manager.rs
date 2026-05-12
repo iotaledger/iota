@@ -5,15 +5,15 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
+    messages_consensus::VersionAssignment,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedInputObject, TransactionKey},
+    transaction::{SenderSignedData, SharedObjectRef, TransactionKey},
 };
 use tracing::trace;
 
@@ -26,7 +26,7 @@ use crate::{
 
 pub struct SharedObjVerManager {}
 
-pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<(ObjectID, SequenceNumber)>)>;
+pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<VersionAssignment>)>;
 
 #[must_use]
 #[derive(Default)]
@@ -93,7 +93,10 @@ impl SharedObjVerManager {
             let cert_assigned_versions: Vec<_> = effects
                 .input_shared_objects()
                 .into_iter()
-                .map(|iso| iso.id_and_version())
+                .map(|iso| {
+                    let (object_id, version) = iso.id_and_version();
+                    VersionAssignment::new(object_id, version)
+                })
                 .collect();
             let tx_key = cert.key();
             trace!(
@@ -111,7 +114,7 @@ impl SharedObjVerManager {
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
         enable_gas_price_feedback: bool,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<VersionAssignment> {
         let tx_digest = cert.digest();
 
         // Check if the transaction is cancelled due to congestion.
@@ -143,7 +146,7 @@ impl SharedObjVerManager {
             // For cancelled transaction due to congestion, assign special versions to all
             // shared objects. Note that new lamport version does not depend on
             // any shared objects.
-            for SharedInputObject { id, .. } in shared_input_objects.iter() {
+            for SharedObjectRef { object_id: id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
                     Some(CancelConsensusCertificateReason::CongestionOnObjects {
                         congested_objects: _,
@@ -161,6 +164,7 @@ impl SharedObjVerManager {
                                             feedback is enabled.",
                                     ),
                                 )
+                                .unwrap()
                             } else {
                                 // WARN: do not remove this `else` branch even after
                                 // `congestion_control_gas_price_feedback_mechanism` is enabled
@@ -173,7 +177,7 @@ impl SharedObjVerManager {
                         }
                     }
                     Some(CancelConsensusCertificateReason::DkgFailed) => {
-                        if id == &IOTA_RANDOMNESS_STATE_OBJECT_ID {
+                        if id == &ObjectID::RANDOMNESS_STATE {
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         } else {
                             SequenceNumber::CANCELLED_READ
@@ -181,22 +185,31 @@ impl SharedObjVerManager {
                     }
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
-                assigned_versions.push((*id, assigned_version));
+                assigned_versions.push(VersionAssignment::new(*id, assigned_version));
                 is_mutable_input.push(false);
             }
         } else {
-            for (SharedInputObject { id, mutable, .. }, assigned_version) in shared_input_objects
-                .iter()
-                .map(|obj| (obj, *shared_input_next_versions.get(&obj.id()).unwrap()))
-            {
-                assigned_versions.push((*id, assigned_version));
+            for (
+                SharedObjectRef {
+                    object_id: id,
+                    mutable,
+                    ..
+                },
+                assigned_version,
+            ) in shared_input_objects.iter().map(|obj| {
+                (
+                    obj,
+                    *shared_input_next_versions.get(&obj.object_id).unwrap(),
+                )
+            }) {
+                assigned_versions.push(VersionAssignment::new(*id, assigned_version));
                 input_object_keys.push(ObjectKey(*id, assigned_version));
                 is_mutable_input.push(*mutable);
             }
         }
 
         let next_version =
-            SequenceNumber::lamport_increment(input_object_keys.iter().map(|obj| obj.1));
+            SequenceNumber::lamport_increment(input_object_keys.iter().map(|obj| obj.1)).unwrap();
         assert!(
             next_version.is_valid(),
             "Assigned version must be valid. Got {next_version:?}"
@@ -207,20 +220,20 @@ impl SharedObjVerManager {
             assigned_versions
                 .iter()
                 .zip(is_mutable_input)
-                .filter_map(|((id, _), mutable)| {
+                .filter_map(|(VersionAssignment { object_id, .. }, mutable)| {
                     if mutable {
-                        Some((*id, next_version))
+                        Some(VersionAssignment::new(*object_id, next_version))
                     } else {
                         None
                     }
                 })
-                .for_each(|(id, version)| {
+                .for_each(|VersionAssignment { object_id, version }| {
                     assert!(
                         version.is_valid(),
                         "Assigned version must be a valid version."
                     );
                     shared_input_next_versions
-                        .insert(id, version)
+                        .insert(object_id, version)
                         .expect("Object must exist in shared_input_next_versions.");
                 });
         }
@@ -246,7 +259,7 @@ fn get_or_init_versions<'a>(
         .flat_map(|tx| {
             tx.shared_input_objects()
                 .into_iter()
-                .map(|so| so.into_id_and_version())
+                .map(|so| (so.object_id, so.initial_shared_version))
         })
         .collect();
 
@@ -262,17 +275,16 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        base_types::{IotaAddress, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
         executable_transaction::{
             CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
         },
-        object::{Object, Owner},
+        object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{ObjectArg, SenderSignedData, VerifiedTransaction},
+        transaction::{CallArg, SenderSignedData, VerifiedTransaction},
     };
 
     use super::*;
@@ -286,13 +298,10 @@ mod tests {
     async fn test_assign_versions_from_consensus_basic() {
         let shared_object = Object::shared_for_testing();
         let id = shared_object.id();
-        let init_shared_version = match shared_object.owner {
-            Owner::Shared {
-                initial_shared_version,
-                ..
-            } => initial_shared_version,
-            _ => panic!("expected shared object"),
-        };
+        let init_shared_version = shared_object
+            .owner
+            .into_shared_opt()
+            .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
@@ -334,10 +343,22 @@ mod tests {
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (
+                    certs[0].key(),
+                    vec![VersionAssignment::new(id, init_shared_version)]
+                ),
+                (
+                    certs[1].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4))]
+                ),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4))]
+                ),
+                (
+                    certs[3].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(10))]
+                ),
             ]
         );
     }
@@ -361,7 +382,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[(
-                    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    ObjectID::RANDOMNESS_STATE,
                     randomness_obj_version,
                     // This can only be false since it's not allowed to use randomness object with
                     // mutable=true.
@@ -370,11 +391,7 @@ mod tests {
                 3,
             ),
             generate_shared_objs_tx_with_gas_version(
-                &[(
-                    IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                    randomness_obj_version,
-                    false,
-                )],
+                &[(ObjectID::RANDOMNESS_STATE, randomness_obj_version, false)],
                 5,
             ),
         ];
@@ -391,34 +408,43 @@ mod tests {
         // Check that the randomness object's next version is initialized.
         assert_eq!(
             epoch_store
-                .get_next_object_version(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_next_object_version(&ObjectID::RANDOMNESS_STATE)
                 .unwrap(),
             randomness_obj_version
         );
-        let next_randomness_obj_version = randomness_obj_version.next();
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
         assert_eq!(
             shared_input_next_versions,
             // Randomness object's version is only incremented by 1 regardless of lamport version.
-            HashMap::from([(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)])
+            HashMap::from([(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)])
         );
         assert_eq!(
             assigned_versions,
             vec![
                 (
                     certs[0].key(),
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, randomness_obj_version),]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
                 ),
                 (
                     certs[1].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
                 (
                     certs[2].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
             ]
         );
@@ -431,20 +457,14 @@ mod tests {
         let shared_object_2 = Object::shared_for_testing();
         let id1 = shared_object_1.id();
         let id2 = shared_object_2.id();
-        let init_shared_version_1 = match shared_object_1.owner {
-            Owner::Shared {
-                initial_shared_version,
-                ..
-            } => initial_shared_version,
-            _ => panic!("expected shared object"),
-        };
-        let init_shared_version_2 = match shared_object_2.owner {
-            Owner::Shared {
-                initial_shared_version,
-                ..
-            } => initial_shared_version,
-            _ => panic!("expected shared object"),
-        };
+        let init_shared_version_1 = shared_object_1
+            .owner
+            .into_shared_opt()
+            .expect("expected shared object");
+        let init_shared_version_2 = shared_object_2
+            .owner
+            .into_shared_opt()
+            .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(&[shared_object_1.clone(), shared_object_2.clone()])
             .build()
@@ -495,11 +515,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[
-                    (
-                        IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                        randomness_obj_version,
-                        false,
-                    ),
+                    (ObjectID::RANDOMNESS_STATE, randomness_obj_version, false),
                     (id2, init_shared_version_2, true),
                 ],
                 11,
@@ -551,7 +567,7 @@ mod tests {
             HashMap::from([
                 (id1, SequenceNumber::from_u64(5)), // determined by tx3
                 (id2, SequenceNumber::from_u64(4)), // determined by tx1
-                (IOTA_RANDOMNESS_STATE_OBJECT_ID, SequenceNumber::from_u64(1)), // not mutable
+                (ObjectID::RANDOMNESS_STATE, SequenceNumber::from_u64(1)), // not mutable
             ])
         );
 
@@ -561,41 +577,49 @@ mod tests {
             vec![
                 (
                     certs[0].key(),
-                    vec![(id1, init_shared_version_1), (id2, init_shared_version_2)]
+                    vec![
+                        VersionAssignment::new(id1, init_shared_version_1),
+                        VersionAssignment::new(id2, init_shared_version_2)
+                    ]
                 ),
                 (
                     certs[1].key(),
                     vec![
-                        (
+                        VersionAssignment::new(
                             id1,
                             SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
+                            .unwrap(),
                         ),
-                        (id2, SequenceNumber::CANCELLED_READ),
+                        VersionAssignment::new(id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
-                (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment::new(id1, SequenceNumber::from_u64(4))]
+                ),
                 (
                     certs[3].key(),
                     vec![
-                        (id1, SequenceNumber::CANCELLED_READ),
-                        (
+                        VersionAssignment::new(id1, SequenceNumber::CANCELLED_READ),
+                        VersionAssignment::new(
                             id2,
                             SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
+                            .unwrap(),
                         )
                     ]
                 ),
                 (
                     certs[4].key(),
                     vec![
-                        (
-                            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        VersionAssignment::new(
+                            ObjectID::RANDOMNESS_STATE,
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         ),
-                        (id2, SequenceNumber::CANCELLED_READ)
+                        VersionAssignment::new(id2, SequenceNumber::CANCELLED_READ)
                     ]
                 ),
             ]
@@ -606,13 +630,10 @@ mod tests {
     async fn test_assign_versions_from_effects() {
         let shared_object = Object::shared_for_testing();
         let id = shared_object.id();
-        let init_shared_version = match shared_object.owner {
-            Owner::Shared {
-                initial_shared_version,
-                ..
-            } => initial_shared_version,
-            _ => panic!("expected shared object"),
-        };
+        let init_shared_version = shared_object
+            .owner
+            .into_shared_opt()
+            .expect("expected shared object");
         let authority = TestAuthorityBuilder::new()
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
@@ -654,10 +675,22 @@ mod tests {
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (
+                    certs[0].key(),
+                    vec![VersionAssignment::new(id, init_shared_version),]
+                ),
+                (
+                    certs[1].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    certs[3].key(),
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(10)),]
+                ),
             ]
         );
     }
@@ -674,16 +707,16 @@ mod tests {
         for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
         {
             builder
-                .obj(ObjectArg::SharedObject {
-                    id: *shared_object_id,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: *shared_object_id,
                     initial_shared_version: *shared_object_init_version,
                     mutable: *shared_object_mutable,
-                })
+                }))
                 .unwrap();
         }
         let tx_data = TestTransactionBuilder::new(
             IotaAddress::ZERO,
-            (
+            ObjectRef::new(
                 ObjectID::random(),
                 SequenceNumber::from_u64(gas_object_version),
                 ObjectDigest::random(),

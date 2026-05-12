@@ -97,7 +97,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_starfish_committee();
+        let committee: Committee = system_state.get_consensus_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
@@ -118,10 +118,7 @@ impl ConsensusManagerTrait for StarfishManager {
 
         let parameters = Parameters {
             db_path: self.get_store_path(epoch),
-            ..consensus_config
-                .starfish_parameters
-                .clone()
-                .unwrap_or_default()
+            ..consensus_config.parameters.clone().unwrap_or_default()
         };
 
         let own_protocol_key = self.protocol_keypair.public();

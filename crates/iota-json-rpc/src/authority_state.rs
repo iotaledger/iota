@@ -23,7 +23,9 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{
+        IotaAddress, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag, TypeTag,
+    },
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -44,7 +46,6 @@ use iota_types::{
 };
 #[cfg(test)]
 use mockall::automock;
-use move_core_types::language_storage::TypeTag;
 use thiserror::Error;
 use tokio::task::JoinError;
 use typed_store::TypedStoreError;
@@ -394,7 +395,7 @@ impl StateRead for AuthorityState {
 
     async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
         Ok(self
-            .get_move_objects(owner, MoveObjectType::staked_iota())
+            .get_move_objects(owner, StructTag::new_staked_iota())
             .await?)
     }
 
@@ -403,7 +404,7 @@ impl StateRead for AuthorityState {
         owner: IotaAddress,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
         Ok(self
-            .get_move_objects(owner, MoveObjectType::timelocked_staked_iota())
+            .get_move_objects(owner, StructTag::new_timelocked_staked_iota())
             .await?)
     }
 

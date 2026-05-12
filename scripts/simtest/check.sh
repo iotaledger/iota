@@ -34,9 +34,9 @@ if [ -n "$LOCAL_MSIM_PATH" ]; then
 else
   cargo_patch_args=(
     --config 'patch.crates-io.tokio.git = "https://github.com/iotaledger/iota-sim.git"'
-    --config 'patch.crates-io.tokio.branch = "tokio-1.49.0"'
+    --config 'patch.crates-io.tokio.branch = "tokio-1.52.2"'
     --config 'patch.crates-io.futures-timer.git = "https://github.com/iotaledger/iota-sim.git"'
-    --config 'patch.crates-io.futures-timer.branch = "tokio-1.49.0"'
+    --config 'patch.crates-io.futures-timer.branch = "tokio-1.52.2"'
   )
 fi
 

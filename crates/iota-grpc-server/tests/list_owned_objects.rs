@@ -23,12 +23,12 @@ use iota_grpc_types::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
-    storage::{AccountOwnedObjectInfo, OwnedObjectV2Cursor},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
 use tonic::transport::Channel;
@@ -41,7 +41,7 @@ use tonic::transport::Channel;
 fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         256,
@@ -49,8 +49,8 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Objec
     .unwrap();
     Object::new_move(
         move_obj,
-        Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -64,7 +64,7 @@ fn make_large_gas_coin(
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding).unwrap() + 1024,
@@ -72,12 +72,12 @@ fn make_large_gas_coin(
     .unwrap();
     Object::new_move(
         move_obj,
-        Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
-/// Build an `(AccountOwnedObjectInfo, OwnedObjectV2Cursor)` entry for the
+/// Build an `(AccountOwnedObjectInfo, OwnedObjectCursor)` entry for the
 /// mock, with the cursor sorted by `(type_id_hash, params_hash,
 /// inverted_balance, object_id)`.
 fn make_owned_entry(
@@ -87,14 +87,14 @@ fn make_owned_entry(
     type_id_hash: u64,
     params_hash: u64,
     balance: Option<u64>,
-) -> (AccountOwnedObjectInfo, OwnedObjectV2Cursor) {
+) -> (AccountOwnedObjectInfo, OwnedObjectCursor) {
     let info = AccountOwnedObjectInfo {
         owner,
         object_id,
         version: OBJECT_START_VERSION,
         type_,
     };
-    let cursor = OwnedObjectV2Cursor {
+    let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,
         object_type_params: params_hash,
         inverted_balance: balance.map(|b| !b),
@@ -104,7 +104,7 @@ fn make_owned_entry(
 }
 
 fn owner_proto(addr: IotaAddress) -> ProtoAddress {
-    ProtoAddress::default().with_address(addr.to_vec())
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
 /// Connect a state-service client to the test server.
@@ -154,13 +154,13 @@ async fn paginate_all(
 
 /// Set up a mock with `count` gas-coin objects for a single owner.
 fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec<ObjectID>) {
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64; // arbitrary stable hash for Coin
     let params_hash = 99u64; // arbitrary stable hash for <IOTA>
 
     let mut ids: Vec<ObjectID> = (0..count).map(|_| ObjectID::random()).collect();
-    // Sort IDs so the v2 key ordering is deterministic (same type hash →
-    // sorted by inverted_balance then object_id).
+    // Sort IDs so the owner-index key ordering is deterministic (same type
+    // hash → sorted by inverted_balance then object_id).
     ids.sort();
 
     let mut objects = HashMap::new();
@@ -181,7 +181,8 @@ fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec
         ));
     }
 
-    // Sort owned_objects by v2 key order (type_id, params, inv_balance, id).
+    // Sort owned_objects by owner-index key order (type_id, params,
+    // inv_balance, id).
     owned_objects.sort_by(|(_, a), (_, b)| {
         (
             a.object_type_identifier,
@@ -396,7 +397,7 @@ async fn mismatched_owner_in_page_token() {
 async fn message_size_triggers_pagination() {
     let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
 
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64;
     let params_hash = 99u64;
 
@@ -478,7 +479,7 @@ async fn message_size_triggers_pagination() {
 async fn type_filter_with_pagination() {
     let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
 
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let coin_id_hash = 42u64;
     let coin_params_hash = 99u64;
 
@@ -559,7 +560,7 @@ async fn type_filter_with_pagination() {
     let filtered_base = ListOwnedObjectsRequest::default()
         .with_owner(owner_proto(owner))
         .with_page_size(2)
-        .with_object_type(GasCoin::type_().to_canonical_string(true))
+        .with_object_type(StructTag::new_gas_coin().to_canonical_string(true))
         .with_read_mask(FieldMask::from_str("reference.object_id"));
     let filtered_responses = paginate_all(&mut client, filtered_base).await;
     let total_filtered: usize = filtered_responses.iter().map(|r| r.objects.len()).sum();

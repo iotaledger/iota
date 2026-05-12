@@ -1068,6 +1068,23 @@ impl VerifiedTransactions {
         }
     }
 
+    /// Test-only constructor. Wraps `transactions` against the slot of
+    /// `header` so the resulting `VerifiedTransactions` can be dropped into a
+    /// test-constructed `CommittedSubDag`. Used by downstream crates'
+    /// consensus-handler tests; production code must go through
+    /// `VerifiedTransactions::new` during block reception.
+    pub fn new_for_test(header: &VerifiedBlockHeader, transactions: Vec<Transaction>) -> Self {
+        let serialized: Bytes = bcs::to_bytes(&transactions)
+            .expect("Serialization should not fail")
+            .into();
+        Self {
+            transactions,
+            transaction_ref: header.transaction_ref(),
+            block_digest: Some(header.digest()),
+            serialized,
+        }
+    }
+
     pub fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transaction_ref.transactions_commitment
     }

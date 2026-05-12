@@ -8,7 +8,6 @@ use std::{
     num::NonZeroUsize,
     ops,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -26,7 +25,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
     network_config_builder::{
-        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV1EnabledConfig,
+        CommitteeConfig, ConfigBuilder, GlobalStateHashV1EnabledConfig, ProtocolVersionsConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
@@ -60,7 +59,6 @@ pub struct SwarmBuilder<R = OsRng> {
     // Default to supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
     db_checkpoint_config: DBCheckpointConfig,
-    jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
@@ -71,7 +69,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
     fullnode_enable_grpc_api: bool,
@@ -97,7 +95,6 @@ impl SwarmBuilder {
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
             db_checkpoint_config: DBCheckpointConfig::default(),
-            jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
             execution_cache_type: None,
@@ -108,7 +105,7 @@ impl SwarmBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
             fullnode_enable_grpc_api: false,
@@ -136,7 +133,6 @@ impl<R> SwarmBuilder<R> {
             fullnode_supported_protocol_versions_config: self
                 .fullnode_supported_protocol_versions_config,
             db_checkpoint_config: self.db_checkpoint_config,
-            jwk_fetch_interval: self.jwk_fetch_interval,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
             execution_cache_type: self.execution_cache_type,
@@ -147,7 +143,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_config: self.state_accumulator_config,
+            global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
@@ -196,11 +192,6 @@ impl<R> SwarmBuilder<R> {
     pub fn with_num_unpruned_validators(mut self, n: usize) -> Self {
         assert!(self.network_config.is_none());
         self.num_unpruned_validators = Some(n);
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -274,8 +265,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
-        self.state_accumulator_config = c;
+    pub fn with_global_state_hash_v1_enabled_config(
+        mut self,
+        c: GlobalStateHashV1EnabledConfig,
+    ) -> Self {
+        self.global_state_hash_v1_enabled_config = c;
         self
     }
 
@@ -414,10 +408,6 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     config_builder.with_num_unpruned_validators(num_unpruned_validators);
             }
 
-            if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-                config_builder = config_builder.with_jwk_fetch_interval(jwk_fetch_interval);
-            }
-
             if let Some(authority_overload_config) = self.authority_overload_config {
                 config_builder =
                     config_builder.with_authority_overload_config(authority_overload_config);
@@ -453,7 +443,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
-                .with_state_accumulator_config(self.state_accumulator_config.clone())
+                .with_global_state_hash_v1_enabled_config(
+                    self.global_state_hash_v1_enabled_config.clone(),
+                )
                 .build();
             // Populate validator genesis by pointing to the blob
             let genesis_path = dir.join(IOTA_GENESIS_FILENAME);

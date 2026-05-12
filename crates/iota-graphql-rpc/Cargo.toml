@@ -24,7 +24,6 @@ const-str.workspace = true
 diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
 downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
 http.workspace = true

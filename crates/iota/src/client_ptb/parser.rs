@@ -4,7 +4,7 @@
 
 use std::iter::Peekable;
 
-use iota_types::{Identifier, base_types::ObjectID};
+use iota_types::base_types::{Identifier, ObjectID};
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
@@ -751,7 +751,9 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
     /// Parse a numeric address literal (must be prefixed by an `@` symbol) as
     /// an ObjectID.
     fn parse_object_id_literal(&mut self) -> PTBResult<Spanned<ObjectID>> {
-        Ok(self.parse_address_literal()?.map(|a| a.into_inner().into()))
+        Ok(self
+            .parse_address_literal()?
+            .map(|a| ObjectID::new(a.into_bytes())))
     }
 
     // Parse an array of arguments. Each element of the array is separated by a

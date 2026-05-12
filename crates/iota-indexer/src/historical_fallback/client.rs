@@ -6,7 +6,10 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures::stream::{self, StreamExt};
+use futures::{
+    TryStreamExt,
+    stream::{self, StreamExt},
+};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -121,6 +124,7 @@ pub(crate) trait KeyValueStoreClient {
     async fn multi_get_objects(
         &self,
         object_refs: &[(ObjectID, SequenceNumber)],
+        before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>>;
 }
 
@@ -133,6 +137,13 @@ pub(crate) struct HttpRestKVClient {
     /// Maximum number of concurrent batch requests
     max_concurrent_batches: usize,
     cache: MokaCache<Key, Bytes>,
+    /// Cache for before-version lookups, keyed by `ObjectKey`.
+    ///
+    /// Kept separate from `cache` because the cached value is the object at
+    /// some earlier version, not the exact-version match that `cache` stores.
+    /// Mixing them under the same key would let before-version results serve
+    /// exact-version requests (or vice versa).
+    cache_object_before_version: MokaCache<ObjectKey, Bytes>,
     metrics: HistoricalFallbackClientMetrics,
 }
 
@@ -162,6 +173,10 @@ impl HttpRestKVClient {
             .time_to_idle(CACHE_TIME_TO_IDLE)
             .build();
 
+        let cache_object_before_version = MokaCacheBuilder::new(cache_size)
+            .time_to_idle(CACHE_TIME_TO_IDLE)
+            .build();
+
         Ok(Self {
             base_url,
             client,
@@ -169,6 +184,7 @@ impl HttpRestKVClient {
             max_concurrent_batches,
             metrics,
             cache,
+            cache_object_before_version,
         })
     }
 
@@ -188,7 +204,7 @@ impl HttpRestKVClient {
 
         for (index, key) in keys.iter().enumerate() {
             if let Some(bytes) = self.cache.get(key) {
-                trace!("found cached data for url: {key:?}, len: {}", bytes.len());
+                trace!("found cached data for key: {key:?}, len: {}", bytes.len());
                 self.metrics.record_cache_hit(key.item_type());
                 results[index] = Some(bytes);
             } else {
@@ -210,12 +226,12 @@ impl HttpRestKVClient {
             .collect::<Result<Vec<MultiGetRequest>, IndexerError>>()?;
 
         let mut fetch_batch_stream = stream::iter(missing_chunks)
-            .map(|chunk| async move { self.fetch_batch(chunk).await })
+            .map(|chunk| self.fetch_batch(chunk))
             .buffered(self.max_concurrent_batches);
 
         let mut fetched_results = Vec::with_capacity(missing.len());
-        while let Some(batch_result) = fetch_batch_stream.next().await {
-            fetched_results.extend(batch_result?);
+        while let Some(batch_result) = fetch_batch_stream.try_next().await? {
+            fetched_results.extend(batch_result);
         }
 
         // process fetched results: for each missing key that was successfully fetched
@@ -260,6 +276,109 @@ impl HttpRestKVClient {
         let bytes = resp.bytes().await?;
         bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
+        })
+    }
+
+    async fn multi_fetch_objects_before_version(
+        &self,
+        keys: &[ObjectKey],
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // pre-allocate results with None. Cache hits will replace None with
+        // Some(value), and cache misses will remain None until we fetch them
+        // from the REST API.
+        let mut results = vec![None; keys.len()];
+        // track keys that missed the cache, preserving their original positions.
+        // Each entry is a tuple of (key, original_index) so we can merge fetched data
+        // back into the correct position in the results vector.
+        let mut missing = Vec::with_capacity(keys.len());
+
+        for (index, key) in keys.iter().enumerate() {
+            if let Some(bytes) = self.cache_object_before_version.get(key) {
+                trace!("found cached data for key: {key:?}, len: {}", bytes.len());
+                self.metrics.record_cache_object_before_version_hit();
+                results[index] = Some(bytes);
+            } else {
+                self.metrics.record_cache_object_before_version_miss();
+                missing.push((*key, index));
+            }
+        }
+
+        if missing.is_empty() {
+            return Ok(results);
+        }
+
+        let missing_chunks = missing
+            .chunks(self.batch_size)
+            .map(|chunk| {
+                let keys = chunk
+                    .iter()
+                    .map(|(key, _)| Key::ObjectKey(*key))
+                    .collect::<Vec<Key>>();
+                MultiGetRequest::try_from(keys.as_slice())
+            })
+            .collect::<Result<Vec<MultiGetRequest>, IndexerError>>()?;
+
+        let mut stream = stream::iter(missing_chunks)
+            .map(|chunk| self.fetch_objects_before_version_batch(chunk))
+            .buffered(self.max_concurrent_batches);
+
+        let mut fetched_results = Vec::with_capacity(missing.len());
+        while let Some(batch) = stream.try_next().await? {
+            fetched_results.extend(batch);
+        }
+
+        // process fetched results: for each missing key that was successfully fetched
+        // that has non empty bytes, update the cache with the new data and
+        // populate the corresponding slot in results at original index
+        // position.
+        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing) {
+            if let Some(bytes) = fetch_result.filter(|b| !b.is_empty()) {
+                self.cache_object_before_version.insert(key, bytes.clone());
+                results[index] = Some(bytes);
+            }
+        }
+
+        Ok(results)
+    }
+
+    async fn fetch_objects_before_version_batch(
+        &self,
+        request: MultiGetRequest,
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
+        let mut url = self.base_url.join(&request.item_type.to_string())?;
+        url.query_pairs_mut().append_pair("before_version", "true");
+
+        trace!(
+            "fetching batch of {} keys from url: {url}",
+            request.keys.len()
+        );
+
+        let resp = self.client.post(url.clone()).json(&request).send().await?;
+
+        trace!(
+            "got response {} for url: {url}, len: {:?}",
+            resp.status(),
+            resp.headers()
+                .get(CONTENT_LENGTH)
+                .unwrap_or(&HeaderValue::from_static("0"))
+        );
+
+        if !resp.status().is_success() {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "object_before_version request failed with status: {}",
+                resp.status()
+            )));
+        }
+
+        let bytes = resp.bytes().await?;
+        bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
+            IndexerError::Serde(format!(
+                "failed to deserialize before_version response: {e:?}"
+            ))
         })
     }
 }
@@ -475,19 +594,24 @@ impl KeyValueStoreClient for HttpRestKVClient {
     async fn multi_get_objects(
         &self,
         object_refs: &[(ObjectID, SequenceNumber)],
+        before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>> {
         let keys = object_refs
             .iter()
-            .map(|(object_id, version)| Key::ObjectKey(ObjectKey(*object_id, *version)))
-            .collect::<Vec<_>>();
+            .map(|(object_id, version)| ObjectKey(*object_id, *version));
 
-        let fetches = self.multi_fetch(keys).await?;
+        let fetches = if before_version {
+            let keys = keys.collect::<Vec<ObjectKey>>();
+            self.multi_fetch_objects_before_version(&keys).await?
+        } else {
+            self.multi_fetch(keys.map(Key::ObjectKey).collect()).await?
+        };
 
         let objects = fetches
             .iter()
             .zip(object_refs.iter())
             .map(|(fetch, object_ref)| fetch.as_ref().and_then(|bytes| deser(object_ref, bytes)))
-            .collect::<Vec<_>>();
+            .collect();
 
         Ok(objects)
     }

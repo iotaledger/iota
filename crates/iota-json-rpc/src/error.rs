@@ -161,6 +161,7 @@ impl From<Error> for RpcError {
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
+                    | QuorumDriverError::InvalidTransaction { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned::<()>(
@@ -288,7 +289,7 @@ mod tests {
     use super::*;
 
     fn test_object_ref() -> ObjectRef {
-        (
+        ObjectRef::new(
             ObjectID::ZERO,
             SequenceNumber::from_u64(0),
             ObjectDigest::new([0; 32]),
@@ -461,7 +462,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
         }
@@ -473,7 +474,7 @@ mod tests {
                     (
                         IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
-                                object_id: test_object_ref().0,
+                                object_id: test_object_ref().object_id,
                                 version: None,
                             },
                         },
@@ -494,7 +495,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Could not find the referenced object ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\") at version None"
             ];
             expected_message.assert_eq(error_object.message());
         }

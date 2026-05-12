@@ -11,14 +11,14 @@ use typed_store::traits::Map;
 
 use crate::{
     authority::authority_store_tables::LiveObject,
+    global_state_hasher::GlobalStateHashStore,
     jsonrpc_index::{CoinInfo, IndexStore},
-    state_accumulator::AccumulatorStore,
 };
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and
 /// recalculating these secondary indexes.
-pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) -> Result<()> {
+pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>) -> Result<()> {
     info!("Begin running index verification checks");
 
     let mut owner_index = BTreeMap::new();
@@ -29,7 +29,7 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
         let LiveObject::Normal(object) = object else {
             continue;
         };
-        let Owner::AddressOwner(owner) = object.owner else {
+        let Owner::Address(owner) = object.owner else {
             continue;
         };
 
@@ -40,7 +40,7 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
         owner_index.insert(owner_index_key, object_info);
 
         // Coin Index Calculation
-        if let Some(type_tag) = object.coin_type_maybe() {
+        if let Some(type_tag) = object.coin_type_opt() {
             let info =
                 CoinInfo::from_object(&object).expect("already checked that this is a coin type");
             let key = (owner, type_tag.to_string(), object.id());

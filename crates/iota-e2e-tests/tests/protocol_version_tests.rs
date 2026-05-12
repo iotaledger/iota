@@ -67,10 +67,9 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
-        MOVE_STDLIB_PACKAGE_ID,
-        base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{
+            ConciseableName, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+        },
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
@@ -83,12 +82,11 @@ mod sim_only_tests {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
-            CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
+            CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};
     use tracing::info;
@@ -401,7 +399,7 @@ mod sim_only_tests {
     async fn test_new_framework_package() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let iota_extra = ObjectID::from_single_byte(0x42);
+        let iota_extra = ObjectID::from_u16(0x42);
         framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
         let cluster = TestClusterBuilder::new()
@@ -422,15 +420,15 @@ mod sim_only_tests {
             .created()
             .iter()
             .find_map(|(obj, owner)| {
-                if let Owner::Shared { .. } = owner {
+                if let Owner::Shared(_) = owner {
                     let is_framework_obj = [
-                        IOTA_SYSTEM_STATE_OBJECT_ID,
-                        IOTA_CLOCK_OBJECT_ID,
-                        IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        ObjectID::SYSTEM_STATE,
+                        ObjectID::CLOCK,
+                        ObjectID::AUTHENTICATOR_STATE,
+                        ObjectID::RANDOMNESS_STATE,
                     ]
-                    .contains(&obj.0);
-                    (!is_framework_obj).then_some(obj.0)
+                    .contains(&obj.object_id);
+                    (!is_framework_obj).then_some(obj.object_id)
                 } else {
                     None
                 }
@@ -448,8 +446,8 @@ mod sim_only_tests {
                 &cluster,
                 ProgrammableMoveCall {
                     package: iota_extra,
-                    module: "msim_extra_1".to_owned(),
-                    function: "canary".to_owned(),
+                    module: Identifier::new_unchecked("msim_extra_1"),
+                    function: Identifier::new_unchecked("canary"),
                     type_arguments: vec![],
                     arguments: vec![],
                 }
@@ -477,9 +475,9 @@ mod sim_only_tests {
         dev_inspect_call(
             cluster,
             ProgrammableMoveCall {
-                package: IOTA_SYSTEM_PACKAGE_ID,
-                module: "msim_extra_1".to_owned(),
-                function: "canary".to_owned(),
+                package: ObjectID::SYSTEM,
+                module: Identifier::new_unchecked("msim_extra_1"),
+                function: Identifier::new_unchecked("canary"),
                 type_arguments: vec![],
                 arguments: vec![],
             },
@@ -492,9 +490,9 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    IOTA_SYSTEM_PACKAGE_ID,
-                    ident_str!("msim_extra_1").to_owned(),
-                    ident_str!("mint").to_owned(),
+                    ObjectID::SYSTEM,
+                    Identifier::new_unchecked("msim_extra_1"),
+                    Identifier::new_unchecked("mint"),
                     // type_arguments
                     vec![],
                     // call_args
@@ -513,12 +511,12 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    IOTA_SYSTEM_PACKAGE_ID,
-                    ident_str!("msim_extra_1").to_owned(),
-                    ident_str!("wrap").to_owned(),
+                    ObjectID::SYSTEM,
+                    Identifier::from_static("msim_extra_1"),
+                    Identifier::from_static("wrap"),
                     // type_arguments
                     vec![],
-                    vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(obj))],
+                    vec![CallArg::ImmutableOrOwned(obj)],
                 )
                 .unwrap();
             builder.finish()
@@ -541,10 +539,9 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.object_id == obj.0)
+        .find(|oref| oref.reference.object_id == obj.object_id)
         .unwrap()
         .reference
-        .to_object_ref()
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: ProgrammableMoveCall) -> u64 {
@@ -553,10 +550,10 @@ mod sim_only_tests {
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.command(Command::MoveCall(Box::new(call)));
+            builder.command(Command::MoveCall(call));
             builder.finish()
         };
-        let txn = TransactionKind::programmable(pt);
+        let txn = TransactionKind::new_programmable(pt);
 
         let response = client
             .dev_inspect_transaction_block(
@@ -586,7 +583,7 @@ mod sim_only_tests {
             .await
             .created()
             .iter()
-            .map(|oref| oref.reference.to_object_ref())
+            .map(|oref| oref.reference)
             .collect()
     }
 
@@ -624,17 +621,16 @@ mod sim_only_tests {
     async fn get_framework_upgrade_versions(
         cluster: &TestCluster,
     ) -> (Option<SequenceNumber>, Option<SequenceNumber>) {
-        let effects = get_framework_upgrade_effects(cluster, &IOTA_SYSTEM_PACKAGE_ID).await;
+        let effects = get_framework_upgrade_effects(cluster, &ObjectID::SYSTEM).await;
 
         let modified_at = effects
             .modified_at_versions()
             .iter()
-            .find_map(|(id, v)| (id == &IOTA_SYSTEM_PACKAGE_ID).then_some(*v));
+            .find_map(|(id, v)| (id == &ObjectID::SYSTEM).then_some(*v));
 
-        let mutated_to = effects
-            .mutated()
-            .iter()
-            .find_map(|((id, v, _), _)| (id == &IOTA_SYSTEM_PACKAGE_ID).then_some(*v));
+        let mutated_to = effects.mutated().iter().find_map(|(object_ref, _)| {
+            (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version)
+        });
 
         (modified_at, mutated_to)
     }
@@ -976,11 +972,11 @@ mod sim_only_tests {
     }
 
     fn override_iota_system_modules(path: &str) {
-        framework_injection::set_override(IOTA_SYSTEM_PACKAGE_ID, iota_system_modules(path));
+        framework_injection::set_override(ObjectID::SYSTEM, iota_system_modules(path));
     }
 
     fn override_iota_system_modules_cb(f: framework_injection::PackageUpgradeCallback) {
-        framework_injection::set_override_cb(IOTA_SYSTEM_PACKAGE_ID, f)
+        framework_injection::set_override_cb(ObjectID::SYSTEM, f)
     }
 
     /// Get compiled modules for IOTA System, built from fixture `fixture` in
@@ -996,12 +992,11 @@ mod sim_only_tests {
     fn iota_system_package_object(fixture: &str) -> Object {
         Object::new_package(
             &iota_system_modules(fixture),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
             &ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown),
             &[
-                BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
-                    .genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectID::STD).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectID::FRAMEWORK).genesis_move_package(),
             ],
         )
         .unwrap()

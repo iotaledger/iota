@@ -454,7 +454,7 @@ impl PgIndexerStore {
             .into_iter()
             .map(|removed_object| {
                 (
-                    removed_object.object_id().to_vec(),
+                    removed_object.object_id().as_bytes().to_vec(),
                     removed_object.version() as i64,
                     removed_object.transaction_digest.into_inner().to_vec(),
                 )
@@ -2210,7 +2210,7 @@ impl IndexerStore for PgIndexerStore {
         chain_id: Vec<u8>,
     ) -> Result<(), IndexerError> {
         let chain_id = ChainIdentifier::from(
-            CheckpointDigest::try_from(chain_id).expect("unable to convert chain id"),
+            CheckpointDigest::from_bytes(chain_id).expect("unable to convert chain id"),
         );
 
         let mut all_configs = vec![];
@@ -2508,7 +2508,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.object_version < version.value(),
+                    existing.object_version < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.object_version
                 );
@@ -2529,7 +2529,7 @@ fn retain_latest_indexed_objects(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object.version().value() < version,
+                    existing.object.version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object.version(),
                 );

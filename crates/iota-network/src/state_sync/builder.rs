@@ -151,10 +151,17 @@ where
         .pipe(RwLock::new)
         .pipe(Arc::new);
 
+        let genesis_checkpoint = Arc::new(
+            store
+                .get_checkpoint_by_sequence_number(0)
+                .expect("store should contain genesis checkpoint before building state sync"),
+        );
+
         let server = Server {
             store: store.clone(),
             peer_heights: peer_heights.clone(),
             sender: weak_sender,
+            genesis_checkpoint: genesis_checkpoint.clone(),
         };
 
         (
@@ -168,6 +175,7 @@ where
                 checkpoint_event_sender,
                 metrics,
                 archive_readers,
+                genesis_checkpoint,
             },
             server,
         )
@@ -184,6 +192,8 @@ pub struct UnstartedStateSync<S> {
     pub(super) checkpoint_event_sender: broadcast::Sender<VerifiedCheckpoint>,
     pub(super) metrics: Metrics,
     pub(super) archive_readers: ArchiveReaderBalancer,
+    /// Cached genesis checkpoint, shared with the RPC server.
+    pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
 
 impl<S> UnstartedStateSync<S>
@@ -201,6 +211,7 @@ where
             checkpoint_event_sender,
             metrics,
             archive_readers,
+            genesis_checkpoint,
         } = self;
 
         (
@@ -219,6 +230,7 @@ where
                 metrics,
                 archive_readers,
                 sync_checkpoint_from_archive_task: None,
+                genesis_checkpoint,
             },
             handle,
         )

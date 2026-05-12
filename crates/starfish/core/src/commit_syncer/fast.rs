@@ -4,7 +4,10 @@
 use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -39,6 +42,58 @@ use crate::{
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
 const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Which worker skipped a step because the fast commit syncer was active.
+/// Used as the `source` label on `syncer_paused_by_fast_sync`. All
+/// variants share a single metric; keeping them in one enum makes the
+/// label space disjoint and centrally visible.
+#[derive(Clone, Copy)]
+pub(crate) enum FastSyncPauseSource {
+    /// `RegularCommitSyncer::try_schedule_once` skipped adding new ranges
+    /// to `pending_fetches`.
+    RegularSchedule,
+    /// `RegularCommitSyncer::try_start_fetches` skipped moving ranges
+    /// from `pending_fetches` into `inflight_fetches`.
+    RegularStartFetches,
+    /// `HeaderSynchronizer` dropped a `FetchBlockHeaders` command
+    /// instead of dispatching it.
+    HeaderCommand,
+    /// `HeaderSynchronizer`'s periodic scheduler tick skipped starting
+    /// a new sync task.
+    HeaderScheduler,
+}
+
+impl FastSyncPauseSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::RegularSchedule => "regular_schedule",
+            Self::RegularStartFetches => "regular_start_fetches",
+            Self::HeaderCommand => "header_command",
+            Self::HeaderScheduler => "header_scheduler",
+        }
+    }
+}
+
+/// Returns true if the fast commit syncer is currently doing work and the
+/// caller should skip its gated step. Bumps the shared
+/// `syncer_paused_by_fast_sync` metric with the given source label when
+/// the gate fires. Returns false when fast sync is disabled at this
+/// deployment (`fast_sync_active` is `None`) — the call is then an
+/// unconditional pass-through with no metric mutation.
+pub(crate) fn paused_by_fast_sync(
+    fast_sync_active: Option<&Arc<AtomicBool>>,
+    metrics: &crate::metrics::NodeMetrics,
+    source: FastSyncPauseSource,
+) -> bool {
+    let paused = fast_sync_active.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    if paused {
+        metrics
+            .syncer_paused_by_fast_sync
+            .with_label_values(&[source.as_str()])
+            .inc();
+    }
+    paused
+}
 
 /// Output from fast sync fetch operations containing commits, subdags, and
 /// voting headers.
@@ -91,6 +146,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -102,6 +158,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             dag_state,
             header_synchronizer,
             sync_type: CommitSyncType::Fast,
+            fast_sync_active: Some(fast_sync_active),
         });
         let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
         info!(
@@ -222,6 +279,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     "[{}] Fast sync complete, staying active for potential reactivation",
                     self.inner.sync_type.as_str()
                 );
+            }
+
+            // Any of these being true means fast sync still has work; regular
+            // sync and the header synchronizer must stay paused.
+            let active = self.has_fetched_data
+                || self.close_to_quorum_mode
+                || !self.inflight_fetches.is_empty()
+                || !self.pending_fetches.is_empty()
+                || !self.fetched_ranges.is_empty();
+            if let Some(flag) = &self.inner.fast_sync_active {
+                flag.store(active, Ordering::Relaxed);
             }
         }
     }

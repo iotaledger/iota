@@ -16,7 +16,7 @@ once_cell.workspace = true
 proptest.workspace = true
 proptest-derive.workspace = true
 rand.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tracing.workspace = true
 
 # internal dependencies

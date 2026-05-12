@@ -50,7 +50,7 @@ impl SurferTask {
             .unwrap();
         let all_live_objects: Vec<_> = node.with(|node| {
             node.state()
-                .get_accumulator_store()
+                .get_global_state_hash_store()
                 .iter_cached_live_object_set_for_testing()
                 .collect()
         });
@@ -68,17 +68,15 @@ impl SurferTask {
                                     .or_default()
                                     .push(obj_ref);
                             }
-                            Owner::Shared {
-                                initial_shared_version,
-                            } => {
+                            Owner::Shared(initial_shared_version) => {
                                 shared_objects
                                     .write()
                                     .await
                                     .entry(struct_tag)
                                     .or_default()
-                                    .push((obj_ref.0, initial_shared_version));
+                                    .push((obj_ref.object_id, initial_shared_version));
                             }
-                            Owner::AddressOwner(address) => {
+                            Owner::Address(address) => {
                                 if let Some((gas_object, owned_objects)) =
                                     accounts.get_mut(&address)
                                 {
@@ -92,7 +90,10 @@ impl SurferTask {
                                     }
                                 }
                             }
-                            Owner::ObjectOwner(_) => (),
+                            Owner::Object(_) => (),
+                            _ => unimplemented!(
+                                "a new enum variant was added and needs to be handled"
+                            ),
                         }
                     }
                 }

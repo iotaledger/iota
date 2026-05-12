@@ -1,0 +1,53 @@
+name: Bump version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Which segment of the base version to bump"
+        type: choice
+        required: true
+        default: none
+        options:
+          - none
+          - minor
+          - patch
+      prerelease:
+        description: "Pre-release suffix to set (release = no suffix)"
+        type: choice
+        required: true
+        options:
+          - alpha
+          - beta
+          - rc
+          - release
+      base_branch:
+        description: "Branch to open the PR against"
+        type: string
+        required: true
+        default: develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.base_branch }}
+
+      - name: Run bump_version.sh
+        run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          base: ${{ inputs.base_branch }}
+          branch: release/bump-version-${{ env.IOTA_VERSION }}
+          title: "release: bump version to `${{ env.IOTA_VERSION }}`"
+          commit-message: "release: bump version to `${{ env.IOTA_VERSION }}`"
+          body: Automated version bump to `${{ env.IOTA_VERSION }}`.
+          delete-branch: true

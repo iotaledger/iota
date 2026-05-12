@@ -22,7 +22,7 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, Command, TransactionData},
+    transaction::{Argument, Command, TransactionData, TransactionDataAPI},
 };
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -46,14 +46,14 @@ async fn main() -> Result<(), anyhow::Error> {
     // 2) Split coin
     // The amount we want in the new coin, 1000 NANOS
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
+    ptb.command(Command::new_split_coins(
+        Argument::Gas,
         vec![split_coin_amount],
     ));
 
     // 3) Transfer the new coin to a different address
     let argument_address = ptb.pure(recipient)?;
-    ptb.command(Command::TransferObjects(
+    ptb.command(Command::new_transfer_objects(
         vec![Argument::Result(0)],
         argument_address,
     ));

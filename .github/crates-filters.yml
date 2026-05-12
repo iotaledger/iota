@@ -217,12 +217,6 @@ iota-move-natives-latest:
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
 
-# Mysticeti Consensus
-consensus-config:
-  - "consensus/config/**"
-consensus-core:
-  - "consensus/core/**"
-
 # Starfish Consensus
 starfish-config:
   - "crates/starfish/config/**"

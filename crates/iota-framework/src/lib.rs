@@ -5,10 +5,9 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
-    move_package::MovePackage,
+    move_package::{MovePackage, MovePackageExt},
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
 };
@@ -85,7 +84,7 @@ impl SystemPackage {
             &self.modules(),
             OBJECT_START_VERSION,
             self.dependencies.to_vec(),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
         )
     }
 }
@@ -124,24 +123,24 @@ impl BuiltInFramework {
         // TODO: Is it possible to derive dependencies from the bytecode instead of
         // manually specifying them?
         define_system_package_metadata!([
-            (MOVE_STDLIB_PACKAGE_ID, "MoveStdlib", "move-stdlib", []),
+            (ObjectID::STD, "MoveStdlib", "move-stdlib", []),
             (
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectID::FRAMEWORK,
                 "Iota",
                 "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
+                [ObjectID::STD]
             ),
             (
-                IOTA_SYSTEM_PACKAGE_ID,
+                ObjectID::SYSTEM,
                 "IotaSystem",
                 "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectID::STD, ObjectID::FRAMEWORK]
             ),
             (
-                STARDUST_PACKAGE_ID,
+                ObjectID::STARDUST,
                 "Stardust",
                 "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectID::STD, ObjectID::FRAMEWORK]
             ),
         ])
         .iter()
@@ -209,7 +208,7 @@ pub async fn compare_system_package<S: ObjectStore>(
                     // Genesis is fine here, we only use it to calculate an object ref that we can
                     // use for all validators to commit to the same bytes in
                     // the update
-                    TransactionDigest::genesis_marker(),
+                    TransactionDigest::GENESIS_MARKER,
                 )
                 .compute_object_reference(),
             );
@@ -224,7 +223,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     let cur_ref = cur_object.compute_object_reference();
     let cur_pkg = cur_object
         .data
-        .try_as_package()
+        .as_package_opt()
         .expect("Framework not package");
 
     let mut new_object = Object::new_system_package(
@@ -244,7 +243,7 @@ pub async fn compare_system_package<S: ObjectStore>(
 
     let new_pkg = new_object
         .data
-        .try_as_package_mut()
+        .as_package_mut_opt()
         .expect("Created as package");
 
     let pool = &mut normalized::RcPool::new();
@@ -268,6 +267,9 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     }
 
-    new_pkg.increment_version();
+    new_pkg
+        .increment_version()
+        .expect("package version should never overflow");
+
     Some(new_object.compute_object_reference())
 }

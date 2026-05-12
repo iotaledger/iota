@@ -12,15 +12,18 @@ use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_test_transaction_builder::{
-    batch_make_transfer_transactions, make_staking_transaction, make_transfer_iota_transaction,
+    TestTransactionBuilder, batch_make_transfer_transactions, make_staking_transaction,
+    make_transfer_iota_transaction,
 };
 use iota_types::{
+    base_types::ObjectRef,
     effects::TransactionEffectsAPI,
+    error::IotaError,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
     },
-    transaction::Transaction,
+    transaction::{Transaction, TransactionDataAPI, TransactionExpiration},
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
@@ -334,7 +337,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -349,9 +352,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
@@ -395,7 +398,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -410,10 +413,52 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectRef::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
+}
+
+// Submitting a transaction whose expiration epoch lies in the past must be
+// rejected by the orchestrator's `validity_check` before it ever reaches the
+// quorum driver. The expected surface error is `InvalidTransaction`, carrying
+// the inner `IotaError::TransactionExpired`.
+#[sim_test]
+async fn test_orchestrator_rejects_expired_transaction() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    // Advance to epoch >= 1 so a transaction marked as expiring at epoch 0
+    // is past its expiration window.
+    test_cluster.force_new_epoch().await;
+
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let mut data = TestTransactionBuilder::new(sender, gas_object, gas_price)
+        .transfer_iota(Some(1), sender)
+        .build();
+    *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(0);
+    let txn = context.sign_transaction(&data);
+
+    let err = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(txn),
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            None,
+        )
+        .await
+        .expect_err("expired transaction must be rejected by the orchestrator");
+
+    assert!(
+        matches!(
+            err,
+            QuorumDriverError::InvalidTransaction(IotaError::TransactionExpired)
+        ),
+        "expected InvalidTransaction(TransactionExpired), got {err:?}"
+    );
 }

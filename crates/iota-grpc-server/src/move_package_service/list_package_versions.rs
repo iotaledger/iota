@@ -6,7 +6,7 @@ use std::sync::Arc;
 use iota_grpc_types::v1::move_package_service::{
     ListPackageVersionsRequest, ListPackageVersionsResponse, PackageVersion,
 };
-use iota_types::base_types::ObjectID;
+use iota_types::{base_types::ObjectID, move_package::MovePackageExt};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +57,7 @@ pub(crate) fn list_package_versions(
 
             current_object
                 .data
-                .try_as_package()
+                .as_package_opt()
                 .ok_or_else(|| {
                     RpcError::new(
                         tonic::Code::Internal,

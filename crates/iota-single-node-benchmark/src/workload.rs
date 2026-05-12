@@ -53,13 +53,13 @@ impl Workload {
                 path.extend(["move_package"]);
                 let move_package = ctx.publish_package(PublishData::Source(path, false)).await;
                 let root_objects = ctx
-                    .preparing_dynamic_fields(move_package.0, *num_dynamic_fields)
+                    .preparing_dynamic_fields(move_package.object_id, *num_dynamic_fields)
                     .await;
                 let shared_objects = ctx
-                    .prepare_shared_objects(move_package.0, *num_shared_objects)
+                    .prepare_shared_objects(move_package.object_id, *num_shared_objects)
                     .await;
                 Arc::new(MoveTxGenerator::new(
-                    move_package.0,
+                    move_package.object_id,
                     *num_transfers,
                     *use_native_transfer,
                     *computation,

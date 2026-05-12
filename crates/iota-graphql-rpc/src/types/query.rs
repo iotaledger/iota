@@ -11,7 +11,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
-    TypeTag,
+    base_types::{ObjectRef, TypeTag},
     gas_coin::GAS,
     supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},
@@ -28,7 +28,6 @@ use crate::{
     types::{
         address::Address,
         available_range::AvailableRange,
-        base64::Base64 as GraphQLBase64,
         chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
@@ -51,9 +50,6 @@ use crate::{
         transaction_metadata::TransactionMetadata,
         type_filter::ExactTypeFilter,
         uint53::UInt53,
-        zklogin_verify_signature::{
-            ZkLoginIntentScope, ZkLoginVerifyResult, verify_zklogin_signature,
-        },
     },
 };
 
@@ -179,7 +175,13 @@ impl Query {
 
                 let gas_objects = gas_objects.map(|objs| {
                     objs.into_iter()
-                        .map(|obj| (obj.address.into(), obj.version.into(), obj.digest.into()))
+                        .map(|obj| {
+                            ObjectRef::new(
+                                obj.address.into(),
+                                obj.version.into(),
+                                obj.digest.into(),
+                            )
+                        })
                         .collect()
                 });
 
@@ -200,7 +202,7 @@ impl Query {
                     tx_data.clone().into_kind(),
                     Some(tx_data.gas_price().into()),
                     Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget().into()),
+                    Some(tx_data.gas_budget()),
                     Some(tx_data.gas().to_vec()),
                 )
             };
@@ -660,33 +662,6 @@ impl Query {
     ) -> Result<Option<CoinMetadata>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         CoinMetadata::query(ctx.data_unchecked(), coin_type.0, checkpoint)
-            .await
-            .extend()
-    }
-
-    /// Verify a zkLogin signature based on the provided transaction or personal
-    /// message based on current epoch, chain id, and latest JWKs fetched
-    /// on-chain. If the signature is valid, the function returns a
-    /// `ZkLoginVerifyResult` with success as true and an empty list of
-    /// errors. If the signature is invalid, the function returns
-    /// a `ZkLoginVerifyResult` with success as false with a list of errors.
-    ///
-    /// - `bytes` is either the personal message in raw bytes or transaction
-    ///   data bytes in BCS-encoded and then Base64-encoded.
-    /// - `signature` is a serialized zkLogin signature that is Base64-encoded.
-    /// - `intentScope` is an enum that specifies the intent scope to be used to
-    ///   parse bytes.
-    /// - `author` is the address of the signer of the transaction or personal
-    ///   msg.
-    async fn verify_zklogin_signature(
-        &self,
-        ctx: &Context<'_>,
-        bytes: GraphQLBase64,
-        signature: GraphQLBase64,
-        intent_scope: ZkLoginIntentScope,
-        author: IotaAddress,
-    ) -> Result<ZkLoginVerifyResult> {
-        verify_zklogin_signature(ctx, bytes, signature, intent_scope, author)
             .await
             .extend()
     }
