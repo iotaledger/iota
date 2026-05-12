@@ -8,12 +8,13 @@
 //! `objects_version` whose value is `<= parent_version`. The state row at
 //! `(object_id, target_version)` is then read from `checkpointed_objects` (if
 //! it's the current state) or `objects_backward_history` (if it's a prior
-//! state). When the target version is a tombstone, NYC marker, or synth
-//! WrappedOrDeleted, the row's `owner_id`/`df_kind`/etc. are NULL — the
+//! state). When the target version is a tombstone, `NotYetCreated` marker,
+//! or synth `WrappedOrDeleted` row, `owner_id`/`df_kind`/etc. are NULL — the
 //! `owner_id`/`df_kind` filter applied internally drops it.
 //!
-//! Mirrors the **earliest / produced-at** semantics of the original
-//! forward-diff `df.object_version <= parent_version` filter.
+//! Returned semantics: for each DF, the earliest state it had while the
+//! parent was at `parent_version`. Note that there can be multiple distinct DF
+//! states observable at the same `parent_version`, we return the first one.
 
 use iota_indexer::types::OwnerType;
 
