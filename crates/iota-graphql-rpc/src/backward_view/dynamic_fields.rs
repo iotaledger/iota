@@ -1,8 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Version-pinned consistent view of the dynamic fields of a parent at the
-//! moment the parent reached the requested `parent_version`.
+//! Consistent view of the dynamic fields of a parent at the moment the
+//! parent reached the requested `parent_version`.
 //!
 //! For each candidate DF, the target version is the largest version in
 //! `objects_version` whose value is `<= parent_version`. The state row at
@@ -28,8 +28,8 @@ use crate::{
     },
 };
 
-/// Builds a version-pinned consistent view of the dynamic fields owned by
-/// `parent` at `parent_version`. The DF-shape filter
+/// Builds a consistent view of the dynamic fields owned by `parent` at
+/// `parent_version`. The DF-shape filter
 /// (`owner_id = parent AND owner_type = Object AND df_kind IS NOT NULL`) is
 /// applied internally — it both narrows the candidate set and excludes
 /// non-Active rows (whose `owner_id`/`df_kind` are NULL).
@@ -37,8 +37,8 @@ pub(crate) fn query(parent: IotaAddress, parent_version: u64, page: &Page<Cursor
     let parent_version = parent_version as i64;
     let parent_filter = parent_dynamic_field_filter(parent);
     merge_and_deduplicate(vec![
-        version_pinned_checkpointed_objects(parent_version, page, &parent_filter),
-        version_pinned_historical_objects(parent_version, page, &parent_filter),
+        dynamic_fields_from_checkpointed_objects(parent_version, page, &parent_filter),
+        dynamic_fields_from_historical_objects(parent_version, page, &parent_filter),
     ])
 }
 
@@ -72,7 +72,7 @@ fn parent_dynamic_field_filter(parent: IotaAddress) -> impl Fn(RawQuery) -> RawQ
 /// writes. The merge step's `DISTINCT ON` only deduplicates within a page,
 /// so source-level disjointness is needed for correctness across page
 /// boundaries.
-fn version_pinned_checkpointed_objects(
+fn dynamic_fields_from_checkpointed_objects(
     parent_version: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
@@ -102,7 +102,7 @@ fn version_pinned_checkpointed_objects(
 /// the largest `objects_version` entry `<= parent_version` for that
 /// `object_id`. This row carries the prior-state data of the object as it
 /// was at `parent_version`.
-fn version_pinned_historical_objects(
+fn dynamic_fields_from_historical_objects(
     parent_version: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,

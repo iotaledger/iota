@@ -16,7 +16,7 @@ use iota_types::{
 };
 
 use crate::{
-    backward_view::{consistent, version_pinned},
+    backward_view::{consistent, dynamic_fields},
     data::{Db, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter,
@@ -211,7 +211,7 @@ impl DynamicField {
                 };
 
                 let query = match parent_version {
-                    Some(pv) => version_pinned::query(parent, pv, &page),
+                    Some(pv) => dynamic_fields::query(parent, pv, &page),
                     None => {
                         consistent::query(checkpoint_viewed_at, &page, |q| apply_filter(q, parent))
                     }
