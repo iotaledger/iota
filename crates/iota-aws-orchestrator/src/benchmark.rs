@@ -403,7 +403,8 @@ pub struct BenchmarkParametersGenerator<T> {
     num_shared_counters: Option<usize>,
     /// Path for the benchmark stats metadata to be downloaded after the run
     benchmark_stats_path: Option<String>,
-    /// Override max_auth_gas in protocol config at genesis (see BenchmarkParameters).
+    /// Override max_auth_gas in protocol config at genesis (see
+    /// BenchmarkParameters).
     genesis_max_auth_gas: Option<u64>,
 }
 

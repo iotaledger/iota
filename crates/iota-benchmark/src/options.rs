@@ -331,6 +331,7 @@ pub enum RunSpec {
         ///   - a key prefix that uniquely matches one validator's concise
         ///     authority key as printed in the log (e.g. `8dcff6` matches
         ///     `k#8dcff6d1..`)
+        ///
         /// Injection traffic is routed directly to that node's
         /// `handle_transaction` endpoint, bypassing quorum.
         #[arg(long, default_value = "0")]

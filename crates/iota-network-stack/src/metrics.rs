@@ -36,9 +36,10 @@ pub trait MetricsCallbackProvider: Send + Sync + Clone + 'static {
     fn on_response(&self, path: String, latency: Duration, status: u16, grpc_status_code: Code);
 
     /// Called when a gRPC request completes with a non-OK status code.
-    /// The method path is not available at this layer (tower-http's `on_failure`
-    /// callback does not receive the response object); implementations should
-    /// record failure counts keyed by status code only.
+    /// The method path is not available at this layer (tower-http's
+    /// `on_failure` callback does not receive the response object);
+    /// implementations should record failure counts keyed by status code
+    /// only.
     fn on_error(&self, _latency: Duration, _grpc_status_code: Code) {}
 
     /// Called when request call is started

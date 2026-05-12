@@ -36,6 +36,7 @@ pub enum IotaBenchmarkType {
     ///     benchmarks; matched against genesis network addresses unambiguously.
     ///   - a 0-based integer index into the BLS-key-sorted committee BTreeMap.
     ///   - a key-prefix substring (e.g. `"8dcff6"`).
+    ///
     /// The `load` field of `BenchmarkParameters` is used as the total honest
     /// baseline TPS split across all non-injector client instances.
     ResilienceBench {
@@ -109,7 +110,10 @@ impl FromStr for IotaBenchmarkType {
             if parts.len() == 4 {
                 let fault_scenario = parts[1].to_string();
                 let injection_qps = parts[2].parse::<usize>().map_err(|_| {
-                    format!("Invalid injection_qps '{}' in resilience-bench spec", parts[2])
+                    format!(
+                        "Invalid injection_qps '{}' in resilience-bench spec",
+                        parts[2]
+                    )
                 })?;
                 let focal_validator = parts[3].to_string();
                 return Ok(Self::ResilienceBench {
@@ -212,10 +216,11 @@ impl IotaProtocol {
         };
         // TRACE_FILTER values can be implemented as params as well. For now, we keep
         // them fixed to the most relevant spans for benchmarks:
-        //   handle_transaction   — AuthorityState tx processing (aa-super-heavy Move VM cost)
-        //   process_certificate  — certificate processing latency
-        //   verify_transaction   — signature verification (only signal for std-invalid, which
-        //                          is rejected before AuthorityState::handle_transaction runs)
+        //   handle_transaction   — AuthorityState tx processing (aa-super-heavy Move VM
+        // cost)   process_certificate  — certificate processing latency
+        //   verify_transaction   — signature verification (only signal for std-invalid,
+        // which                          is rejected before
+        // AuthorityState::handle_transaction runs)
         vec![
             format!("export OTEL_EXPORTER_OTLP_ENDPOINT={}", otel.otlp_endpoint),
             "export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace,[verify_transaction]=trace"

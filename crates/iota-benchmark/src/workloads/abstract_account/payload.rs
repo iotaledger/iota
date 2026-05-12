@@ -333,7 +333,7 @@ fn build_move_auth_args(
             auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded)?));
 
             for obj in bench_objects.iter() {
-                auth_args.push(CallArg::Object(ObjectArg::ImmOrOwnedObject(*obj)));
+                auth_args.push(CallArg::ImmutableOrOwned(*obj));
             }
         }
     }

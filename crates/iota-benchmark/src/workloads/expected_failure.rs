@@ -34,7 +34,6 @@ pub struct ExpectedFailurePayload {
     failure_type: ExpectedFailureType,
     transfer_object: ObjectRef,
     transfer_from: IotaAddress,
-    transfer_to: IotaAddress,
     gas: Vec<Gas>,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -89,7 +88,7 @@ impl Payload for ExpectedFailurePayload {
             // Use a fresh random address each call so every transaction has a unique
             // digest. The tx is rejected at signature verification and never executes,
             // so the recipient address has no effect on correctness.
-            IotaAddress::random_for_testing_only(),
+            IotaAddress::random(),
             self.system_state_observer
                 .state
                 .borrow()
@@ -268,12 +267,10 @@ impl Workload<dyn Payload> for ExpectedFailureWorkload {
         refs.iter()
             .map(|(g, t)| {
                 let from = t.1;
-                let to = g.iter().find(|x| x.1 != from).unwrap().1;
                 Box::new(ExpectedFailurePayload {
                     failure_type: self.expected_failure_cfg.failure_type,
                     transfer_object: t.0,
                     transfer_from: from,
-                    transfer_to: to,
                     gas: g.to_vec(),
                     system_state_observer: system_state_observer.clone(),
                 })

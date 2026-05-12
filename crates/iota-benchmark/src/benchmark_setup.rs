@@ -164,7 +164,7 @@ impl Env {
         let gas_info_path = std::path::Path::new("/tmp/iota-bench-gas.txt");
         if let Err(e) = std::fs::write(
             gas_info_path,
-            format!("{}\n{}\n", primary_gas_owner, primary_gas.0),
+            format!("{}\n{}\n", primary_gas_owner, primary_gas.object_id),
         ) {
             eprintln!("Warning: could not write gas info: {e}");
         } else {
