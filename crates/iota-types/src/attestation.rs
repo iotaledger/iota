@@ -27,12 +27,12 @@ use crate::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Attestation {
     Validator {
-        data: AttestationData,
+        payload: AttestationData,
         /// Index of the attesting validator in the current epoch's committee
         attestor_index: AuthorityIndex,
     },
     Explicit {
-        data: AttestationData,
+        payload: AttestationData,
         attestor_address: IotaAddress,
         /// Signs over `hash(transaction.digest() || BCS(data) ||
         /// attestor_address)`, binding the attestation to both the
@@ -78,5 +78,4 @@ impl AttestedTransaction {
         }
     }
     pub fn digest(&self) -> &TransactionDigest { self.transaction.digest() }
-    pub fn data(&self) -> &SenderSignedData { self.transaction.data() }
 }

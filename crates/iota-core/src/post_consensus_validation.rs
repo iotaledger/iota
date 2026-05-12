@@ -325,7 +325,7 @@ fn extract_owned_input_objects(
         SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV2(a),
             ..
-        }) => a.data(),
+        }) => a.transaction.data(),
         _ => {
             return Err(IotaError::GenericAuthority {
                 error: "Expected UserTransactionV1 or UserTransactionV2 in extract_owned_input_objects".to_string(),

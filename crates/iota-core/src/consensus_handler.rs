@@ -707,7 +707,7 @@ impl SequencedConsensusTransaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV2(a),
                 ..
-            }) if a.transaction.contains_shared_object() => Some(a.data()),
+            }) if a.transaction.contains_shared_object() => Some(a.transaction.data()),
             SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
                 Some(txn.data())
             }
