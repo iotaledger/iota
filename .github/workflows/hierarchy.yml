@@ -9,7 +9,7 @@ on:
       - "mainnet"
       - "releases/iota-*-release"
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 jobs:
   diff:
@@ -17,7 +17,14 @@ jobs:
     concurrency:
       group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    # Most light jobs skip on every `labeled` event (they already ran on
+    # the previous push), but `diff` is an exception: heavy tests downstream
+    # consume its outputs (isRust, isDoc, ...) and we want them to run on
+    # `labeled: ready`. So this filter allows `labeled` only when the added
+    # label is `ready`, and blocks all other label events (e.g. from bots).
+    if: >-
+      (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready')
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig }}
@@ -39,7 +46,9 @@ jobs:
     concurrency:
       group: release-notes-check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action != 'labeled'
     runs-on: [ubuntu-latest]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -52,14 +61,18 @@ jobs:
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    if: >-
+      (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled'
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check dprint formatting
         run: dprint check
 
   typos:
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    if: >-
+      (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled'
     uses: ./.github/workflows/_typos.yml
 
   license-check:
@@ -68,7 +81,10 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled')
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -78,12 +94,18 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled')
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled')
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
@@ -92,7 +114,15 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    # Same exception as `diff`: this wrapper must run on `labeled: ready`
+    # because the heavy `rust-tests` / `rust-simtests` are reached through
+    # the chain _rust.yml -> _rust_tests.yml. Light sub-jobs inside _rust.yml
+    # (rust-lints, execution-cut) have their own `action != 'labeled'`
+    # filter so they don't re-run pointlessly when only the label changed.
+    if: >-
+      (!cancelled() && !failure()
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
     with:
@@ -108,7 +138,10 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && github.event.action != 'labeled')
     uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
@@ -121,7 +154,8 @@ jobs:
     if: >-
       (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true'
       && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
-      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
     uses: ./.github/workflows/_split_cluster.yml
 
   split-cluster-sync-check:
@@ -131,5 +165,6 @@ jobs:
     if: >-
       (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true'
       && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
-      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
     uses: ./.github/workflows/_split_cluster_sync_check.yml

@@ -64,11 +64,31 @@ env:
   RESTART_POSTGRES: false
 
 jobs:
+  # Detects whether the same commit SHA has already had a successful run of
+  # the calling workflow (e.g. Hierarchy). If so, the heavy tests below skip
+  # — this protects against wasteful reruns when someone removes and re-adds
+  # the `ready` label, manually reruns the workflow, or otherwise retriggers
+  # for an already-tested SHA. `skip_after_successful_duplicate: 'true'`
+  # means we only skip on prior _success_ — failures (incl. flaky ones) are
+  # still rerun on retrigger.
+  pre-check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.check.outputs.should_skip }}
+    steps:
+      - id: check
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5.3.1
+        with:
+          skip_after_successful_duplicate: 'true'
+
   rust-tests:
     name: Run rust tests
+    needs: pre-check
     if: >-
-      (!cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
-      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
+      (!cancelled() && needs.pre-check.outputs.should_skip != 'true'
+      && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -139,9 +159,12 @@ jobs:
 
   rust-simtests:
     name: Run rust simtests
+    needs: pre-check
     if: >-
-      (!cancelled() && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
-      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
+      (!cancelled() && needs.pre-check.outputs.should_skip != 'true'
+      && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready'))
+      && (github.event.action != 'labeled' || github.event.label.name == 'ready'))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
