@@ -354,10 +354,10 @@ impl ReadApi {
                         }
                         None | Some(None) => {
                             error!(
-                                "failed to fetch events with event digest {events_digest:?} for txn {transaction_digest}"
+                                "failed to fetch events with event digest {events_digest} for txn {transaction_digest}"
                             );
                             cache_entry.errors.push(format!(
-                                "failed to fetch events with event digest {events_digest:?}",
+                                "failed to fetch events with event digest {events_digest}",
                             ))
                         }
                     }
@@ -606,7 +606,7 @@ impl ReadApiServer for ReadApi {
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
             .map_err(|e| {
-                error!("failed to call try_get_past_object for object: {object_id:?} version: {version:?} with error: {e:?}");
+                error!("failed to call try_get_past_object for object: {object_id} version: {version:?} with error: {e:?}");
                 Error::from(e)
             })}).await.map_err(Error::from)??;
             let options = options.unwrap_or_default();
@@ -820,7 +820,7 @@ impl ReadApiServer for ReadApi {
                 .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
-                    error!("failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
+                    error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
                     Error::from(e)
                 })?;
 
@@ -848,7 +848,7 @@ impl ReadApiServer for ReadApi {
                         .multi_get_events_by_tx_digests(&[digest])
                         .await
                         .map_err(|e| {
-                            error!("failed to call get transaction events for transaction: {digest:?} with error {e:?}");
+                            error!("failed to call get transaction events for transaction: {digest} with error {e:?}");
                             Error::from(e)
                         })
                     })
@@ -948,7 +948,7 @@ impl ReadApiServer for ReadApi {
                     .await
                     .map_err(
                         |e| {
-                            error!("failed to get transaction events for transaction {transaction_digest:?} with error: {e:?}");
+                            error!("failed to get transaction events for transaction {transaction_digest} with error: {e:?}");
                             Error::StateRead(e.into())
                         })?
                     .pop()

@@ -464,9 +464,9 @@ impl ValidatorProxy for FullNodeProxy {
         if let Some(iota_object) = response.data {
             iota_object.try_into()
         } else if let Some(error) = response.error {
-            bail!("Error getting object {:?}: {}", object_id, error)
+            bail!("Error getting object {}: {}", object_id, error)
         } else {
-            bail!("Object {:?} not found and no error provided", object_id)
+            bail!("Object {} not found and no error provided", object_id)
         }
     }
 

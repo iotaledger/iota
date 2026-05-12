@@ -292,7 +292,7 @@ where
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
     let object = object_store.try_get_object(&id)?.ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
-            "Dynamic field with key={key:?} and ID={id:?} not found on parent {parent_id:?}"
+            "Dynamic field with key={key:?} and ID={id} not found on parent {parent_id}"
         ))
     })?;
     Ok(object)

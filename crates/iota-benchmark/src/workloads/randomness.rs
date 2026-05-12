@@ -183,7 +183,10 @@ impl Workload<dyn Payload> for RandomnessWorkload {
                     .await
                     .object_id,
             );
-            info!("Basics package id {:?}", self.basics_package_id);
+            info!(
+                "Basics package id {:?}",
+                self.basics_package_id.map(|id| id.to_string())
+            );
         }
 
         // Get randomness shared object initial version

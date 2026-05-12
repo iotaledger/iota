@@ -615,7 +615,7 @@ impl RandomnessManager {
         };
         if *party_id != msg.sender() {
             warn!(
-                "ignoring equivocating DKG Message from authority {authority:?} pretending to be PartyId {party_id:?}"
+                "ignoring equivocating DKG Message from authority {authority:?} pretending to be PartyId {party_id}"
             );
             return Ok(());
         }
@@ -674,7 +674,7 @@ impl RandomnessManager {
         };
         if *party_id != conf.sender() {
             warn!(
-                "ignoring equivocating DKG Confirmation from authority {authority:?} pretending to be PartyId {party_id:?}"
+                "ignoring equivocating DKG Confirmation from authority {authority:?} pretending to be PartyId {party_id}"
             );
             return Ok(());
         }

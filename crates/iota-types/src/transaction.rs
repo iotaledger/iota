@@ -2816,7 +2816,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
                 write!(f, "Object({:?})", obj.compute_object_reference())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
-                write!(f, "DeletedSharedObject({seq}, {digest:?})")
+                write!(f, "DeletedSharedObject({seq}, {digest})")
             }
             ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
                 write!(f, "CancelledTransactionSharedObject({seq})")

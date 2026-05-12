@@ -165,7 +165,7 @@ impl DynamicFieldHandler {
             DynamicFieldType::DynamicObject => {
                 let object = all_written_objects.get(&object_id).ok_or(
                     IndexerError::Uncategorized(anyhow!(
-                        "failed to find object_id {object_id:?} when trying to create dynamic field info",
+                        "failed to find object_id {object_id} when trying to create dynamic field info",
 
                     )),
                 )?;

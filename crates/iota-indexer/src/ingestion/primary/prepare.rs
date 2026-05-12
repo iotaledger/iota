@@ -738,7 +738,7 @@ impl InMemTxChanges {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
+                panic!("checkpointed tx {tx_digest} has invalid input objects: {e}")
             }),
             None,
         )

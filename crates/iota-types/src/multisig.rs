@@ -128,7 +128,7 @@ impl AuthenticatorTrait for MultiSig {
                     {
                         return Err(IotaError::InvalidSignature {
                             error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                "Invalid sig for pk={} address={} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
                                 IotaAddress::from(subsig_pubkey)
                             ),
@@ -153,7 +153,7 @@ impl AuthenticatorTrait for MultiSig {
                     {
                         return Err(IotaError::InvalidSignature {
                             error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                "Invalid sig for pk={} address={} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
                                 IotaAddress::from(subsig_pubkey)
                             ),
@@ -178,7 +178,7 @@ impl AuthenticatorTrait for MultiSig {
                     {
                         return Err(IotaError::InvalidSignature {
                             error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                                "Invalid sig for pk={} address={} error=signature/pubkey type mismatch",
                                 subsig_pubkey.encode_base64(),
                                 IotaAddress::from(subsig_pubkey)
                             ),
@@ -225,7 +225,7 @@ impl AuthenticatorTrait for MultiSig {
             } else {
                 return res.map_err(|e| IotaError::InvalidSignature {
                     error: format!(
-                        "Invalid sig for pk={} address={:?} error={:?}",
+                        "Invalid sig for pk={} address={} error={:?}",
                         subsig_pubkey.encode_base64(),
                         IotaAddress::from(subsig_pubkey),
                         e.to_string()

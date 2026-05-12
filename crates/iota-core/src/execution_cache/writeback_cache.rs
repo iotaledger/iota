@@ -722,10 +722,10 @@ impl WritebackCache {
                         ?highest,
                         ?cache_entry,
                         ?tombstone_possibly_pruned,
-                        "object_by_id cache is incoherent for {:?}",
+                        "object_by_id cache is incoherent for {}",
                         object_id
                     );
-                    panic!("object_by_id cache is incoherent for {object_id:?}");
+                    panic!("object_by_id cache is incoherent for {object_id}");
                 }
             }
         }
@@ -1238,7 +1238,7 @@ impl WritebackCache {
         object: LatestObjectCacheEntry,
         ticket: Ticket,
     ) {
-        trace!("caching object by id: {:?} {:?}", object_id, object);
+        trace!("caching object by id: {} {:?}", object_id, object);
         if self
             .cached
             .object_by_id_cache
@@ -1286,7 +1286,7 @@ impl WritebackCache {
 
         for (object_id, object) in outputs.written.iter() {
             if object.is_package() {
-                info!("removing non-finalized package from cache: {:?}", object_id);
+                info!("removing non-finalized package from cache: {}", object_id);
                 self.packages.invalidate(object_id);
             }
             self.cached.object_by_id_cache.invalidate(object_id);
@@ -1372,7 +1372,7 @@ impl ObjectCacheRead for WritebackCache {
                     assert_eq!(
                         canonical_package.digest(),
                         p.object().digest(),
-                        "Package object cache is inconsistent for package {package_id:?}"
+                        "Package object cache is inconsistent for package {package_id}"
                     );
                 }
             }

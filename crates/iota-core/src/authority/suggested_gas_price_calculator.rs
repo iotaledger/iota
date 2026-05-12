@@ -150,7 +150,7 @@ impl SuggestedGasPriceCalculator {
                     debug_assert!(
                         prev_info.is_none(),
                         "Multiple transactions were scheduled at the same execution start time {} \
-                        for the same shared object {obj_id:?}",
+                        for the same shared object {obj_id}",
                         res.execution_start_time(),
                     );
                 }

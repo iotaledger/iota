@@ -226,7 +226,10 @@ impl Workload<dyn Payload> for SharedCounterWorkload {
                 .await
                 .object_id,
         );
-        info!("Basics package id {:?}", self.basics_package_id);
+        info!(
+            "Basics package id {:?}",
+            self.basics_package_id.map(|id| id.to_string())
+        );
         if !self.counters.is_empty() {
             // We already initialized the workload with some counters
             return;

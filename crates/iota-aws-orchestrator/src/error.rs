@@ -21,16 +21,16 @@ pub type SettingsResult<T> = Result<T, SettingsError>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SettingsError {
-    #[error("Failed to read settings file '{file:?}': {message}")]
+    #[error("Failed to read settings file '{file}': {message}")]
     InvalidSettings { file: String, message: String },
 
-    #[error("Failed to read token file '{file:?}': {message}")]
+    #[error("Failed to read token file '{file}': {message}")]
     InvalidTokenFile { file: String, message: String },
 
-    #[error("Failed to read ssh public key file '{file:?}': {message}")]
+    #[error("Failed to read ssh public key file '{file}': {message}")]
     InvalidSshPublicKeyFile { file: String, message: String },
 
-    #[error("Malformed repository url: {0:?}")]
+    #[error("Malformed repository url: {0}")]
     MalformedRepositoryUrl(Url),
 }
 

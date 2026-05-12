@@ -88,7 +88,7 @@ pub async fn publish_aa_package_and_find_metadata(
         let obj = proxy
             .get_object(r.object_id)
             .await
-            .with_context(|| format!("get_object({:?})", r.object_id))?;
+            .with_context(|| format!("get_object({})", r.object_id))?;
 
         let (is_package, ty) = match &obj.data {
             iota_types::object::Data::Package(_) => (true, "<package>".to_string()),
@@ -98,7 +98,7 @@ pub async fn publish_aa_package_and_find_metadata(
         Ok((
             is_package,
             ty.clone(),
-            format!("id={:?} owner={:?} type={}", r.object_id, owner, ty),
+            format!("id={} owner={:?} type={}", r.object_id, owner, ty),
         ))
     }
 
@@ -146,7 +146,7 @@ pub async fn publish_aa_package_and_find_metadata(
     })?;
 
     info!(
-        "[{WORKLOAD_LABEL}] publish done: package_id={:?}, package_metadata_ref={:?}",
+        "[{WORKLOAD_LABEL}] publish done: package_id={}, package_metadata_ref={:?}",
         package_id, metadata_ref
     );
 
@@ -253,7 +253,7 @@ pub async fn mint_owned_coins_to_address(
     amount: u64,
 ) -> Result<Vec<ObjectRef>> {
     info!(
-        "[{WORKLOAD_LABEL}] minting {} coins to AA address {:?}, amount={} each ...",
+        "[{WORKLOAD_LABEL}] minting {} coins to AA address {}, amount={} each ...",
         count, recipient, amount
     );
 

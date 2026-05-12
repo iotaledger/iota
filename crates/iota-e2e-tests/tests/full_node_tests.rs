@@ -922,7 +922,7 @@ async fn get_obj_read_from_node(
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
         Ok((obj_ref, object, layout))
     } else {
-        anyhow::bail!("Can't find object {object_id:?} on fullnode.")
+        anyhow::bail!("Can't find object {object_id} on fullnode.")
     }
 }
 
@@ -936,7 +936,7 @@ async fn get_past_obj_read_from_node(
     {
         Ok((obj_ref, object, layout))
     } else {
-        anyhow::bail!("Can't find object {object_id:?} with seq {seq_num:?} on fullnode.")
+        anyhow::bail!("Can't find object {object_id} with seq {seq_num} on fullnode.")
     }
 }
 
@@ -995,7 +995,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     // Now test get_object_read
     let object_ref_v3 = match node.state().get_object_read(&object_id)? {
         ObjectRead::Deleted(obj_ref) => obj_ref,
-        other => anyhow::bail!("Expect object {object_id:?} deleted but got {other:?}."),
+        other => anyhow::bail!("Expect object {object_id} deleted but got {other}."),
     };
 
     let read_ref_v3 = match node
@@ -1003,7 +1003,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
         .get_past_object_read(&object_id, object_ref_v3.version)?
     {
         PastObjectRead::ObjectDeleted(obj_ref) => obj_ref,
-        other => anyhow::bail!("Expect object {object_id:?} deleted but got {other:?}."),
+        other => anyhow::bail!("Expect object {object_id} deleted but got {other}."),
     };
     assert_eq!(object_ref_v3, read_ref_v3);
 
@@ -1034,9 +1034,9 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
             assert_eq!(asked_version, too_high_version);
             assert_eq!(latest_version, object_ref_v3.version);
         }
-        other => anyhow::bail!(
-            "Expect SequenceNumberTooHigh for object {object_id:?} but got {other:?}."
-        ),
+        other => {
+            anyhow::bail!("Expect SequenceNumberTooHigh for object {object_id} but got {other}.")
+        }
     };
 
     Ok(())
