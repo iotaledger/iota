@@ -4,16 +4,17 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::dbg_addr,
+    base_types::{Identifier, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     object::GAS_VALUE_FOR_TESTING,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::TransactionDataAPI,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use once_cell::sync::Lazy;
 
 use super::{
@@ -121,14 +122,14 @@ async fn publish_move_random_package(
     )
     .await;
     let effects = response.1.into_data();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     effects
         .created()
         .iter()
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0
+        .object_id
 }
 
 async fn check_oog_transaction<F>(
@@ -184,8 +185,8 @@ where
             .compute_object_reference();
         gas_coin_refs.push(coin_ref);
     }
-    let module = ident_str!("move_random").to_owned();
-    let function = ident_str!(function).to_owned();
+    let module = Identifier::from_static("move_random");
+    let function = Identifier::from_static(function);
     let data = TransactionData::new_move_call_with_gas_coins(
         sender,
         package,
@@ -213,7 +214,7 @@ where
         ExecutionFailureStatus::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
-    assert_eq!(gas_coin_ids[0], effects.gas_object().0.0);
+    assert_eq!(gas_coin_ids[0], effects.gas_object().0.object_id);
     //  gas at position 0 mutated
     assert_eq!(effects.mutated().len(), 1);
     // extra coins are deleted
@@ -223,11 +224,14 @@ where
             effects
                 .deleted()
                 .iter()
-                .any(|deleted| deleted.0 == *gas_coin_id)
+                .any(|deleted| deleted.object_id == *gas_coin_id)
         );
     }
     let gas_ref = effects.gas_object().0;
-    let gas_object = authority_state.get_object(&gas_ref.0).await.unwrap();
+    let gas_object = authority_state
+        .get_object(&gas_ref.object_id)
+        .await
+        .unwrap();
     let final_value = GasCoin::try_from(&gas_object)?.value();
     let summary = effects.gas_cost_summary();
 
@@ -277,7 +281,7 @@ async fn touch_gas_coins(
         builder.transfer_object(recipient, coin_ref).unwrap();
     }
     let pt = builder.finish();
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let gas_object_ref = authority_state
         .get_object(&gas_object_id)
         .await
@@ -390,10 +394,7 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         1,
@@ -422,10 +423,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         5,
@@ -454,10 +452,7 @@ async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaR
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         1,
@@ -571,7 +566,7 @@ async fn test_transfer_iota_insufficient_gas() {
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let data = TransactionData::new(
         kind,
         sender,
@@ -617,7 +612,7 @@ async fn test_invalid_gas_owners() {
     let immutable_object = init_object(Object::immutable_for_testing()).await;
     let id_owned_object = init_object(Object::with_object_owner_for_testing(
         ObjectID::random(),
-        gas_object3.0,
+        gas_object3.object_id,
     ))
     .await;
     let non_sender_owned_object =
@@ -636,7 +631,7 @@ async fn test_invalid_gas_owners() {
             builder.transfer_iota(recipient, None);
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let data = TransactionData::new_with_gas_coins(
             kind,
             sender,
@@ -660,9 +655,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::Shared {
-                initial_shared_version: OBJECT_START_VERSION
-            }
+            owner: Owner::Shared(OBJECT_START_VERSION)
         }
     );
     assert_eq!(
@@ -688,7 +681,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::ObjectOwner(gas_object3.0.into())
+            owner: Owner::Object(gas_object3.object_id)
         }
     );
     assert!(matches!(
@@ -757,8 +750,8 @@ async fn test_native_transfer_insufficient_gas_execution() {
     assert_eq!(gas_coin.value(), 0);
     // After a failed transfer, the version should have been incremented,
     // but the owner of the object should remain the same, unchanged.
-    let ((_, version, _), owner) = effects.mutated_excluding_gas()[0];
-    assert_eq!(version, gas_object.version());
+    let (object_ref, owner) = effects.mutated_excluding_gas()[0];
+    assert_eq!(object_ref.version, gas_object.version());
     assert_eq!(owner, gas_object.owner);
 
     assert_eq!(
@@ -849,15 +842,15 @@ async fn test_move_call_gas() -> IotaResult {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
-    let module = ident_str!("object_basics").to_owned();
-    let function = ident_str!("create").to_owned();
+    let module = Identifier::from_static("object_basics");
+    let function = Identifier::from_static("create");
     let args = vec![
         CallArg::Pure(16u64.to_le_bytes().to_vec()),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+        CallArg::pure(&AccountAddress::new(sender.into_bytes())),
     ];
     let data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         module.clone(),
         function.clone(),
         Vec::new(),
@@ -872,7 +865,7 @@ async fn test_move_call_gas() -> IotaResult {
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     let created_object_ref = effects.created()[0].0;
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.storage_cost > 0);
     assert_eq!(gas_cost.storage_rebate, 0);
@@ -890,14 +883,12 @@ async fn test_move_call_gas() -> IotaResult {
     // Execute object deletion, and make sure we have storage rebate.
     let data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         module.clone(),
-        ident_str!("delete").to_owned(),
+        Identifier::from_static("delete"),
         vec![],
         gas_object.compute_object_reference(),
-        vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
-            created_object_ref,
-        ))],
+        vec![CallArg::ImmutableOrOwned(created_object_ref)],
         *MAX_GAS_BUDGET,
         rgp,
     )
@@ -906,7 +897,7 @@ async fn test_move_call_gas() -> IotaResult {
     let transaction = to_sender_signed_transaction(data, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, transaction).await?;
     let effects = response.1.into_data();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let gas_cost = effects.gas_cost_summary();
     // storage_cost should be less than rebate because for object deletion, we only
     // rebate without charging.
@@ -970,15 +961,15 @@ async fn test_tx_gas_coins_input_coins() {
         // build the programmale transaction
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let coin_arg = builder.obj(ObjectArg::ImmOrOwnedObject(coin_ref)).unwrap();
+            let coin_arg = builder.obj(CallArg::ImmutableOrOwned(coin_ref)).unwrap();
             let coin_args = coin_refs
                 .iter()
-                .map(|obj_ref| builder.obj(ObjectArg::ImmOrOwnedObject(*obj_ref)).unwrap())
+                .map(|obj_ref| builder.obj(CallArg::ImmutableOrOwned(*obj_ref)).unwrap())
                 .collect::<Vec<_>>();
-            builder.command(Command::MergeCoins(coin_arg, coin_args));
+            builder.command(Command::new_merge_coins(coin_arg, coin_args));
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let data = TransactionData::new_with_gas_coins(
             kind,
             sender,
@@ -1005,7 +996,7 @@ async fn test_tx_gas_coins_input_coins() {
         rgp,
     )
     .await;
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 struct TransferResult {
@@ -1055,7 +1046,7 @@ async fn execute_transfer_with_price(
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let data = TransactionData::new(kind, sender, gas_object_ref, gas_budget, rgp);
     let tx = to_sender_signed_transaction(data, &sender_key);
 

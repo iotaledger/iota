@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.generate-tag.outputs.iota_ref }}
@@ -145,11 +145,11 @@ jobs:
 
       - name: Install protoc (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
-        uses: taiki-e/install-action@protoc
+        uses: taiki-e/install-action@c2316dd9f137fd4debf7defea65ed68c0d463be4 # protoc
 
       - name: Install protoc (MacOS arm64)
         if: ${{ matrix.os_type == 'macos-arm64' }}
-        uses: taiki-e/install-action@protoc
+        uses: taiki-e/install-action@c2316dd9f137fd4debf7defea65ed68c0d463be4 # protoc
 
       - name: Remove unused apps (MacOS arm64)
         if: ${{ matrix.os_type == 'macos-arm64' }}
@@ -192,7 +192,7 @@ jobs:
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
       - name: Upload artifacts for ${{ matrix.os_type }} platform
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.create-artifact.outputs.artifact_name }}
           if-no-files-found: error
@@ -201,7 +201,7 @@ jobs:
 
       - name: Attach artifacts to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
         if: ${{ github.event_name == 'release' }}
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
           files: |
@@ -216,7 +216,7 @@ jobs:
     needs: generate-tag
     steps:
       - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.generate-tag.outputs.iota_ref }}
@@ -250,7 +250,7 @@ jobs:
           cat ${{ env.RELEASE_NOTES_FILE }}
 
       - name: Add release notes to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
           body_path: ${{ env.RELEASE_NOTES_FILE }}
@@ -275,7 +275,7 @@ jobs:
         shell: bash
         run: |
           echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Get binary checksums
         uses: thewh1teagle/checksum@6577963a29f57d780d12a2e5495601298ba739d1 # v2
         with:

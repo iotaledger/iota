@@ -11,12 +11,11 @@ use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TypeTag},
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
-    transaction::{CallArg, TransactionData},
-    type_input::TypeInput,
+    transaction::{CallArg, SharedObjectRef, TransactionData},
 };
 use serde::Serialize;
 
@@ -72,7 +71,7 @@ pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
     signer_address: &IotaAddress,
-    auth_args: Option<(Vec<CallArg>, Vec<TypeInput>)>,
+    auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
 
@@ -84,8 +83,8 @@ pub(crate) async fn sign_transaction(
             MoveAuthenticator::new_v1(
                 auth_call_args,
                 auth_type_args,
-                CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                    id: ObjectID::from(*signer_address),
+                CallArg::Shared(SharedObjectRef {
+                    object_id: ObjectID::from(*signer_address),
                     initial_shared_version,
                     mutable: false,
                 }),
@@ -201,10 +200,7 @@ pub(crate) async fn get_shared_object_version(
     }
     let object = object_response.data.expect("missing object data");
 
-    if let Some(iota_types::object::Owner::Shared {
-        initial_shared_version,
-    }) = object.owner
-    {
+    if let Some(iota_types::object::Owner::Shared(initial_shared_version)) = object.owner {
         Ok(initial_shared_version)
     } else {
         bail!("signer_address {signer_address} is not a shared object")

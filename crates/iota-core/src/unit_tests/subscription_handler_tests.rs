@@ -4,15 +4,15 @@
 
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID, gas_coin::GasCoin,
+    base_types::{Identifier, ObjectID, StructTag},
+    gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::Identifier,
-    language_storage::StructTag,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -71,17 +71,17 @@ pub struct TestEvent {
 
 impl TestEvent {
     fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: ident_str!("IOTA").to_owned(),
-            name: ident_str!("new_foobar").to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new(
+            ObjectID::FRAMEWORK,
+            Identifier::from_static("IOTA"),
+            Identifier::from_static("new_foobar"),
+            vec![],
+        )
     }
 
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&Self::type_()),
             fields: vec![
                 MoveFieldLayout::new(ident_str!("creator").to_owned(), MoveTypeLayout::Address),
                 MoveFieldLayout::new(
@@ -120,16 +120,11 @@ impl From<&str> for UTF8String {
 
 impl UTF8String {
     fn type_() -> StructTag {
-        StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            name: Identifier::new("String").unwrap(),
-            module: Identifier::new("string").unwrap(),
-            type_params: vec![],
-        }
+        StructTag::new_string()
     }
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(),
+            type_: struct_tag_sdk_to_core(&Self::type_()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),

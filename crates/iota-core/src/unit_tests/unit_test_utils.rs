@@ -40,7 +40,7 @@ async fn init_genesis(
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let pkg = Object::new_package(
         &modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         &config,
         &genesis_move_packages,
     )

@@ -12,7 +12,7 @@ use iota_types::{base_types::IotaAddress, object::Owner};
 pub fn stardust_to_iota_address(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<IotaAddress> {
-    stardust_address.into().to_string().parse()
+    Ok(stardust_address.into().to_string().parse()?)
 }
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`] and then
@@ -21,5 +21,5 @@ pub fn stardust_to_iota_address(
 pub fn stardust_to_iota_address_owner(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<Owner> {
-    stardust_to_iota_address(stardust_address.into()).map(Owner::AddressOwner)
+    stardust_to_iota_address(stardust_address.into()).map(Owner::Address)
 }

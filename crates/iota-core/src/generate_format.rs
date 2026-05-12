@@ -3,59 +3,56 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, io::Write, str::FromStr};
+use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 
 use clap::*;
-use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
-use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
+use iota_sdk_types::{
+    ChangeEpoch,
+    crypto::{Intent, IntentMessage, PersonalMessage},
+};
 use iota_types::{
     base_types::{
-        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        TransactionDigest, TransactionEffectsDigest,
+        self, ExecutionData, Identifier, IotaAddress, ObjectDigest, ObjectID, StructTag,
+        TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, PublicKey, Signature, Signer, ZkLoginPublicIdentifier, get_key_pair,
-        get_key_pair_from_rng,
+        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
+    digests::ConsensusCommitDigest,
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEvents,
         UnchangedSharedKind,
     },
     event::Event,
     execution_status::{
-        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
-        TypeArgumentError,
+        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, MoveLocation,
+        PackageUpgradeError, TypeArgumentError,
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     messages_grpc::ObjectInfoRequestKind,
-    move_package::TypeOrigin,
+    move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, ObjectArg,
-        SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
+        ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
+        Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
     },
-    type_input::{StructInput, TypeInput},
-    utils::DEFAULT_ADDRESS_SEED,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
-use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
+use serde_reflection::{ContainerFormat, Format, Registry, Result, Samples, Tracer, TracerConfig};
 use typed_store::TypedStoreError;
 
 /// Generate a type format registry for IOTA types
@@ -87,7 +84,70 @@ fn get_registry() -> Result<Registry> {
     // with all the base types contained in messages, especially the ones with
     // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
-    let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
+    // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
+    // serde that requires valid sample values to be provided before types
+    // containing them are traced.
+    let sdk_identifier = iota_types::base_types::Identifier::from_static("sample_identifier");
+    tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
+    let struct_tag = StructTag::new_gas_coin();
+    tracer.trace_value(&mut samples, &struct_tag).unwrap();
+
+    // Trace all TypeTag variants since the SDK's TypeTag has custom serde
+    tracer.trace_value(&mut samples, &TypeTag::Bool).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U8).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U16).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U32).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U64).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U128).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U256).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Address).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Signer).unwrap();
+    tracer
+        .trace_value(&mut samples, &TypeTag::Vector(Box::new(TypeTag::U8)))
+        .unwrap();
+    let type_tag_struct = TypeTag::from(struct_tag.clone());
+    tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
+
+    // MoveObject.type_ uses MoveObjectType which has custom serde.
+    // Trace all variants so the schema is complete:
+    // Other (variant 0) - any non-special struct tag
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new(
+                iota_sdk_types::Address::ZERO,
+                iota_sdk_types::Identifier::from_static("m"),
+                iota_sdk_types::Identifier::from_static("T"),
+                Vec::new(),
+            )),
+        )
+        .unwrap();
+    // GasCoin (variant 1)
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_gas_coin()),
+        )
+        .unwrap();
+    // StakedIota (variant 2)
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_staked_iota()),
+        )
+        .unwrap();
+    // Coin (variant 3) - non-IOTA coin
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_coin(TypeTag::Bool)),
+        )
+        .unwrap();
+
+    let m = ModuleId::new(
+        AccountAddress::ZERO,
+        move_core_types::identifier::Identifier::new("foo").unwrap(),
+    );
     tracer.trace_value(&mut samples, &m).unwrap();
     tracer
         .trace_value(&mut samples, &Identifier::new("foo").unwrap())
@@ -118,17 +178,9 @@ fn get_registry() -> Result<Registry> {
         IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
     let kp3: IotaKeyPair =
         IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let pk_zklogin = PublicKey::ZkLogin(
-        ZkLoginPublicIdentifier::new(
-            &OIDCProvider::Twitch.get_config().iss,
-            &Bn254FrElement::from_str(DEFAULT_ADDRESS_SEED).unwrap(),
-        )
-        .unwrap(),
-    );
-
     let multisig_pk = MultiSigPublicKey::new(
-        vec![kp1.public(), kp2.public(), kp3.public(), pk_zklogin],
-        vec![1, 1, 1, 1],
+        vec![kp1.public(), kp2.public(), kp3.public()],
+        vec![1, 1, 1],
         2,
     )
     .unwrap();
@@ -141,14 +193,10 @@ fn get_registry() -> Result<Registry> {
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();
     let sig3: GenericSignature = Signature::new_secure(&msg, &kp3).into();
-    let sig4: GenericSignature = GenericSignature::from_str("BQNNMTczMTgwODkxMjU5NTI0MjE3MzYzNDIyNjM3MTc5MzI3MTk0Mzc3MTc4NDQyODI0MTAxODc5NTc5ODQ3NTE5Mzk5NDI4OTgyNTEyNTBNMTEzNzM5NjY2NDU0NjkxMjI1ODIwNzQwODIyOTU5ODUzODgyNTg4NDA2ODE2MTgyNjg1OTM5NzY2OTczMjU4OTIyODA5MTU2ODEyMDcBMQMCTDU5Mzk4NzExNDczNDg4MzQ5OTczNjE3MjAxMjIyMzg5ODAxNzcxNTIzMDMyNzQzMTEwNDcyNDk5MDU5NDIzODQ5MTU3Njg2OTA4OTVMNDUzMzU2ODI3MTEzNDc4NTI3ODczMTIzNDU3MDM2MTQ4MjY1MTk5Njc0MDc5MTg4ODI4NTg2NDk2Njg4NDAzMjcxNzA0OTgxMTcwOAJNMTA1NjQzODcyODUwNzE1NTU0Njk3NTM5OTA2NjE0MTA4NDAxMTg2MzU5MjU0NjY1OTcwMzcwMTgwNTg3NzAwNDEzNDc1MTg0NjEzNjhNMTI1OTczMjM1NDcyNzc1NzkxNDQ2OTg0OTYzNzIyNDI2MTUzNjgwODU4MDEzMTMzNDMxNTU3MzU1MTEzMzAwMDM4ODQ3Njc5NTc4NTQCATEBMANNMTU3OTE1ODk0NzI1NTY4MjYyNjMyMzE2NDQ3Mjg4NzMzMzc2MjkwMTUyNjk5ODQ2OTk0MDQwNzM2MjM2MDMzNTI1Mzc2Nzg4MTMxNzFMNDU0Nzg2NjQ5OTI0ODg4MTQ0OTY3NjE2MTE1ODAyNDc0ODA2MDQ4NTM3MzI1MDAyOTQyMzkwNDExMzAxNzQyMjUzOTAzNzE2MjUyNwExMXdpYVhOeklqb2lhSFIwY0hNNkx5OXBaQzUwZDJsMFkyZ3VkSFl2YjJGMWRHZ3lJaXcCMmV5SmhiR2NpT2lKU1V6STFOaUlzSW5SNWNDSTZJa3BYVkNJc0ltdHBaQ0k2SWpFaWZRTTIwNzk0Nzg4NTU5NjIwNjY5NTk2MjA2NDU3MDIyOTY2MTc2OTg2Njg4NzI3ODc2MTI4MjIzNjI4MTEzOTE2MzgwOTI3NTAyNzM3OTExCgAAAAAAAABhAG6Bf8BLuaIEgvF8Lx2jVoRWKKRIlaLlEJxgvqwq5nDX+rvzJxYAUFd7KeQBd9upNx+CHpmINkfgj26jcHbbqAy5xu4WMO8+cRFEpkjbBruyKE9ydM++5T/87lA8waSSAA==").unwrap();
-    let sig5: GenericSignature = GenericSignature::from_str("BiVYDmenOnqS+thmz5m5SrZnWaKXZLVxgh+rri6LHXs25B0AAAAAnQF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCAiY2hhbGxlbmdlIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTE3MyIsImNyb3NzT3JpZ2luIjpmYWxzZSwgInVua25vd24iOiAidW5rbm93biJ9YgJMwqcOmZI7F/N+K5SMe4DRYCb4/cDWW68SFneSHoD2GxKKhksbpZ5rZpdrjSYABTCsFQQBpLORzTvbj4edWKd/AsEBeovrGvHR9Ku7critg6k7qvfFlPUngujXfEzXd8Eg").unwrap();
+    let sig4: GenericSignature = GenericSignature::from_str("BiVYDmenOnqS+thmz5m5SrZnWaKXZLVxgh+rri6LHXs25B0AAAAAnQF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCAiY2hhbGxlbmdlIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTE3MyIsImNyb3NzT3JpZ2luIjpmYWxzZSwgInVua25vd24iOiAidW5rbm93biJ9YgJMwqcOmZI7F/N+K5SMe4DRYCb4/cDWW68SFneSHoD2GxKKhksbpZ5rZpdrjSYABTCsFQQBpLORzTvbj4edWKd/AsEBeovrGvHR9Ku7critg6k7qvfFlPUngujXfEzXd8Eg").unwrap();
 
-    let multi_sig = MultiSig::combine(
-        vec![sig1.clone(), sig2.clone(), sig3.clone(), sig4.clone()],
-        multisig_pk,
-    )
-    .unwrap();
+    let multi_sig =
+        MultiSig::combine(vec![sig1.clone(), sig2.clone(), sig3.clone()], multisig_pk).unwrap();
     tracer.trace_value(&mut samples, &multi_sig).unwrap();
 
     let generic_sig_multi = GenericSignature::MultiSig(multi_sig);
@@ -160,7 +208,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
     tracer.trace_value(&mut samples, &sig4).unwrap();
-    tracer.trace_value(&mut samples, &sig5).unwrap();
     // ObjectID and IotaAddress are the same length
     let oid: ObjectID = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
@@ -178,66 +225,284 @@ fn get_registry() -> Result<Registry> {
     let ccd = CheckpointContentsDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
-    let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
-    tracer.trace_value(&mut samples, &struct_tag).unwrap();
-
     let ccd = CheckpointDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
     let tot = TypeOrigin {
-        module_name: "module_name".to_string(),
-        datatype_name: "datatype_name".to_string(),
+        module_name: Identifier::from_static("module_name"),
+        datatype_name: Identifier::from_static("datatype_name"),
         package: ObjectID::random(),
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
-
-    let si = StructInput {
-        address: AccountAddress::ZERO,
-        module: "foo".to_owned(),
-        name: "bar".to_owned(),
-        type_params: vec![TypeInput::Bool],
-    };
-    tracer.trace_value(&mut samples, &si).unwrap();
 
     // We need Event sample here, because our GenesisTransaction contains an
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: Identifier::new("foo").unwrap(),
+        module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
 
-    // 2. Trace the main entry point(s) + every enum separately.
-    tracer.trace_type::<StructInput>(&samples).unwrap();
-    tracer.trace_type::<TypeInput>(&samples).unwrap();
-    tracer.trace_type::<Owner>(&samples).unwrap();
-    tracer.trace_type::<ExecutionStatus>(&samples).unwrap();
+    // Seed both Data variants. trace_type::<Data> is skipped because the SDK's
+    // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
+    // Identifier's custom serde (DisplayFromStr) is incompatible with
+    // serde_reflection's tracing deserializer for map keys.
+    let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0);
+    tracer
+        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
+        .unwrap();
+    let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
+        upgraded_id: ObjectID::ZERO,
+        upgraded_version: 1u64.into(),
+    };
+    tracer
+        .trace_value(&mut samples, &sample_upgrade_info)
+        .unwrap();
+    let sample_move_pkg = MovePackage {
+        id: ObjectID::ZERO,
+        version: 1u64.into(),
+        modules: BTreeMap::from([(Identifier::from_static("module"), vec![0u8])]),
+        type_origin_table: vec![tot.clone()],
+        linkage_table: BTreeMap::from([(ObjectID::ZERO, sample_upgrade_info)]),
+    };
+    tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
+    tracer
+        .trace_value(&mut samples, &Data::Package(sample_move_pkg))
+        .unwrap();
+
+    // Trace SDK types with custom serde (ExecutionStatus, ExecutionFailureStatus,
+    // CommandArgumentError, PackageUpgradeError). These delegate to internal
+    // Binary* helper types that serde_reflection cannot auto-discover through
+    // trace_type alone.
+    //
+    // Strategy: seed with trace_value for the types containing custom-serde
+    // fields (MoveLocation, both ExecutionStatus variants), then use repeated
+    // trace_type_once calls to let the deserializer discover remaining variants.
+    let move_location = MoveLocation {
+        package: ObjectID::ZERO,
+        module: Identifier::from_static("foo"),
+        function: 0,
+        instruction: 0,
+        function_name: Some(Identifier::from_static("foo")),
+    };
+    tracer.trace_value(&mut samples, &move_location).unwrap();
+    tracer.trace_type::<MoveLocation>(&samples).unwrap();
+
+    tracer
+        .trace_value(&mut samples, &ExecutionStatus::Success)
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::InsufficientGas,
+                command: Some(0),
+            },
+        )
+        .unwrap();
+
+    // Discover all remaining enum variants via deserialization. trace_type
+    // loops internally until all variants of the (internal Binary*) enum are
+    // found, using the samples we seeded above for custom-serde fields.
     tracer
         .trace_type::<ExecutionFailureStatus>(&samples)
         .unwrap();
+    tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
+    tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
+
+    // 2. Trace the main entry point(s) + every enum separately.
+    tracer.trace_type::<Owner>(&samples).unwrap();
+    // Trace all CallArg (= iota_sdk_types::Input) variants
+    tracer
+        .trace_value(&mut samples, &CallArg::Pure(vec![0u8]))
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::ZERO,
+                initial_shared_version: 1u64.into(),
+                mutable: false,
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
-    tracer.trace_type::<ObjectArg>(&samples).unwrap();
-    tracer.trace_type::<Data>(&samples).unwrap();
-    tracer.trace_type::<TypeTag>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)
         .unwrap();
-    tracer.trace_type::<TransactionKind>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType_>(&samples).unwrap();
+
+    // Trace all TransactionKind variants via trace_value
+    let sample_pt = ProgrammableTransaction {
+        inputs: vec![CallArg::Pure(vec![0u8])],
+        commands: vec![Command::new_make_move_vector(None, vec![])],
+    };
+    tracer
+        .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
+        .unwrap();
+    let sample_genesis_obj = GenesisObject::new(
+        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        Owner::Address(IotaAddress::ZERO),
+    );
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![sample_genesis_obj.clone()],
+                events: vec![event.clone()],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                epoch: 0,
+                round: 0,
+                sub_dag_index: Some(0),
+                commit_timestamp_ms: 0,
+                consensus_commit_digest: ConsensusCommitDigest::default(),
+                consensus_determined_version_assignments:
+                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                        cancelled_transactions: vec![],
+                    },
+            }),
+        )
+        .unwrap();
+    // EndOfEpochTransaction variant is already covered by sender_data below
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
+                epoch: 0,
+                randomness_round: 0u64.into(),
+                random_bytes: vec![0u8],
+                randomness_obj_initial_shared_version: 0u64.into(),
+            }),
+        )
+        .unwrap();
+
+    // Trace GenesisObject (single-variant enum)
+    tracer
+        .trace_value(&mut samples, &sample_genesis_obj)
+        .unwrap();
+
+    // Trace Object via trace_value. Object is a newtype wrapper around
+    // Arc<ObjectInner>, but ObjectInner has #[serde(rename = "Object")],
+    // so we need to trace ObjectInner directly to avoid a format conflict
+    // (Struct vs NewTypeStruct both named "Object").
+    let sample_obj_inner = ObjectInner {
+        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        owner: Owner::Address(IotaAddress::ZERO),
+        previous_transaction: TransactionDigest::default(),
+        storage_rebate: 0,
+    };
+    tracer.trace_value(&mut samples, &sample_obj_inner).unwrap();
+
+    // Trace TransactionEvents via trace_value
+    let sample_events = TransactionEvents {
+        data: vec![Event {
+            package_id: ObjectID::ZERO,
+            module: Identifier::from_static("foo"),
+            sender: IotaAddress::ZERO,
+            type_: struct_tag.clone(),
+            contents: vec![0],
+        }],
+    };
+    tracer.trace_value(&mut samples, &sample_events).unwrap();
+
     tracer
         .trace_type::<base_types::IotaAddress>(&samples)
         .unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
-    tracer.trace_type::<Command>(&samples).unwrap();
-    tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
+    // Trace all Command variants explicitly — MoveCall contains Identifier and
+    // TypeTag fields with custom serde, so trace_type alone cannot deserialize
+    // them.
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_move_call(
+                ObjectID::ZERO,
+                Identifier::from_static("foo"),
+                Identifier::from_static("bar"),
+                vec![TypeTag::U64],
+                vec![Argument::Gas],
+            ),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_transfer_objects(vec![Argument::Input(0)], Argument::Gas),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_split_coins(Argument::Gas, vec![Argument::Input(0)]),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_merge_coins(Argument::Gas, vec![Argument::Input(0)]),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_publish(vec![vec![0u8]], vec![ObjectID::ZERO]),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_make_move_vector(None, vec![Argument::Gas]),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_make_move_vector(Some(TypeTag::U64), vec![Argument::Input(0)]),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::new_upgrade(
+                vec![vec![0u8]],
+                vec![ObjectID::ZERO],
+                ObjectID::ZERO,
+                Argument::Input(0),
+            ),
+        )
+        .unwrap();
+    tracer.trace_type::<TransactionKind>(&samples).unwrap();
     tracer.trace_type::<TypeArgumentError>(&samples).unwrap();
-    tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
     tracer
         .trace_type::<TransactionExpiration>(&samples)
         .unwrap();
@@ -251,29 +516,39 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
     tracer.trace_type::<TransactionEffects>(&samples).unwrap();
 
-    tracer
-        .trace_type::<FullCheckpointContents>(&samples)
-        .unwrap();
     tracer.trace_type::<CheckpointContents>(&samples).unwrap();
     tracer.trace_type::<CheckpointSummary>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
-    tracer.trace_type::<GenesisObject>(&samples).unwrap();
     tracer
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
-            TransactionKind::EndOfEpochTransaction(Vec::new()),
+            TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
+                ChangeEpoch {
+                    epoch: 0,
+                    protocol_version: 0,
+                    storage_charge: 0,
+                    computation_charge: 0,
+                    storage_rebate: 0,
+                    non_refundable_storage_fee: 0,
+                    epoch_start_timestamp_ms: 0,
+                    system_packages: vec![],
+                },
+            )]),
             IotaAddress::ZERO,
-            Vec::new(),
+            vec![iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::default(),
+            )],
             0,
             0,
         ),
-        Vec::new(),
+        vec![sig1.clone()],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
-    tracer.trace_type::<TransactionData>(&samples).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,
@@ -286,16 +561,86 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<CertifiedCheckpointSummary>(&samples)
         .unwrap();
 
-    tracer.trace_type::<Object>(&samples).unwrap();
+    // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
+    // via trace_value (they transitively contain TypeTag).
+    let sample_transaction = Transaction::new(sender_data.clone());
+    let sample_effects = TransactionEffects::default();
+    let sample_exec_data = ExecutionData {
+        transaction: sample_transaction.clone(),
+        effects: sample_effects.clone(),
+    };
+    let sample_full_ckpt = FullCheckpointContents::new_with_causally_ordered_transactions(
+        std::iter::once(sample_exec_data),
+    );
+    tracer.trace_value(&mut samples, &sample_full_ckpt).unwrap();
 
-    tracer.trace_type::<TransactionEvents>(&samples).unwrap();
-    tracer
-        .trace_type::<CheckpointTransaction>(&samples)
-        .unwrap();
+    // Use empty vecs for input_objects/output_objects because
+    // Object(Arc<ObjectInner>) cannot be serialized through serde-reflection:
+    // both Object and ObjectInner use serde name "Object" but register as
+    // NewTypeStruct vs Struct respectively. The Object format is already
+    // registered via the ObjectInner trace above. After tracing, we patch the
+    // registry to replace Seq(Unknown) with Seq(TypeName("Object")) for these
+    // fields.
+    let sample_ckpt_tx = CheckpointTransaction {
+        transaction: sample_transaction,
+        effects: sample_effects,
+        events: Some(sample_events),
+        input_objects: vec![],
+        output_objects: vec![],
+    };
+    tracer.trace_value(&mut samples, &sample_ckpt_tx).unwrap();
 
-    tracer.trace_type::<CheckpointData>(&samples).unwrap();
+    let sample_ckpt_summary = CheckpointSummary {
+        epoch: 0,
+        sequence_number: 0,
+        network_total_transactions: 0,
+        content_digest: CheckpointContentsDigest::default(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: iota_sdk_types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
+        timestamp_ms: 0,
+        checkpoint_commitments: vec![],
+        end_of_epoch_data: None,
+        version_specific_data: vec![],
+    };
+    let sample_ckpt_data = CheckpointData {
+        checkpoint_summary: CertifiedCheckpointSummary::new_from_data_and_sig(
+            sample_ckpt_summary,
+            quorum_sig.clone(),
+        ),
+        checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests(vec![]),
+        transactions: vec![sample_ckpt_tx],
+    };
+    tracer.trace_value(&mut samples, &sample_ckpt_data).unwrap();
 
-    tracer.registry()
+    // Use registry_unchecked() because trace_type::<TransactionEffects>
+    // re-encounters ExecutionStatus during deserialization and marks it as
+    // incomplete, even though all variants were already discovered above.
+    let mut registry = tracer.registry_unchecked();
+
+    // Clean up spurious high-index variants injected by serde_reflection's
+    // deserializer when it re-encounters already-complete enums.
+    for container in registry.values_mut() {
+        if let ContainerFormat::Enum(variants) = container {
+            variants.retain(|idx, _| *idx < u32::MAX / 2);
+        }
+    }
+
+    // Patch CheckpointTransaction's input_objects and output_objects fields.
+    // These were traced with empty vecs (producing Seq(Unknown)) because
+    // Object(Arc<ObjectInner>) can't be serialized through serde-reflection
+    // without a name collision between the Object newtype and ObjectInner's
+    // #[serde(rename = "Object")]. The correct element type is already in the
+    // registry from tracing ObjectInner directly.
+    let object_seq = Format::Seq(Box::new(Format::TypeName("Object".into())));
+    if let Some(ContainerFormat::Struct(fields)) = registry.get_mut("CheckpointTransaction") {
+        for field in fields.iter_mut() {
+            if field.name == "input_objects" || field.name == "output_objects" {
+                field.value = object_seq.clone();
+            }
+        }
+    }
+
+    Ok(registry)
 }
 
 #[derive(Debug, Parser, Clone, Copy, ValueEnum)]
@@ -319,7 +664,13 @@ const FILE_PATH: &str = "iota-core/tests/staged/iota.yaml";
 
 fn main() {
     let options = Options::parse();
-    let registry = get_registry().unwrap();
+    let registry = match get_registry() {
+        Ok(registry) => registry,
+        Err(e) => {
+            eprintln!("Error generating registry: {}", e.explanation());
+            std::process::exit(1);
+        }
+    };
     match options.action {
         Action::Print => {
             let content = serde_yaml::to_string(&registry).unwrap();

@@ -12,15 +12,13 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    base_types::TypeTag,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     event::Event,
     transaction::SenderSignedData,
 };
-use move_core_types::{
-    annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
-    language_storage::TypeTag,
-};
+use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
 use serde::Deserialize;
 
@@ -265,7 +263,7 @@ impl StoredTransaction {
     ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
         let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
+            TransactionDigest::from_bytes(self.transaction_digest.as_slice()).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} as tx_digest. Error: {e}",
                     self.transaction_digest
@@ -471,7 +469,7 @@ pub async fn tx_events_to_iota_tx_events(
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
-                .type_layout(TypeTag::Struct(Box::new(tx_event.type_.clone())))
+                .type_layout(TypeTag::Struct(Box::new(tx_event.type_)))
                 .await
         }));
     }

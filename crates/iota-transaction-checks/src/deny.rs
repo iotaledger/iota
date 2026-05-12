@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_types::{
     base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
+    transaction::{
+        Command, InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt,
+    },
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -57,10 +58,15 @@ fn check_receiving_objects(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
         "Receiving objects is temporarily disabled".to_string()
     );
-    for (id, _, _) in receiving_objects {
+    for receiving_object in receiving_objects {
         deny_if_true!(
-            filter_config.get_object_deny_set().contains(id),
-            format!("Access to object {:?} is temporarily disabled", id)
+            filter_config
+                .get_object_deny_set()
+                .contains(&receiving_object.object_id),
+            format!(
+                "Access to object {:?} is temporarily disabled",
+                receiving_object.object_id
+            )
         );
     }
     Ok(())
@@ -78,19 +84,9 @@ fn check_disabled_features(
     );
 
     tx_signatures.iter().try_for_each(|s| {
-        if let GenericSignature::ZkLoginAuthenticator(z) = s {
-            deny_if_true!(
-                filter_config.zklogin_sig_disabled(),
-                "zkLogin authenticator is temporarily disabled"
-            );
-            deny_if_true!(
-                filter_config.zklogin_disabled_providers().contains(
-                    &OIDCProvider::from_iss(z.get_iss())
-                        .map_err(|_| IotaError::UnexpectedMessage)?
-                        .to_string()
-                ),
-                "zkLogin OAuth provider is temporarily disabled"
-            )
+        #[allow(deprecated)]
+        if let GenericSignature::ZkLoginAuthenticatorDeprecated(_) = s {
+            deny_if_true!(true, "zkLogin is not supported");
         } else if let GenericSignature::MoveAuthenticator(_) = s {
             deny_if_true!(
                 filter_config.move_authenticator_disabled(),
@@ -173,23 +169,23 @@ fn check_package_dependencies(
     let mut dependencies = vec![];
     for command in tx_data.kind().iter_commands() {
         match command {
-            Command::Publish(_, deps) => {
+            Command::Publish(cmd) => {
                 // It is possible that the deps list is inaccurate since it's provided
                 // by the user. But that's OK because this publish transaction will fail
                 // to execute in the end. Similar reasoning for Upgrade.
-                dependencies.extend(deps.iter().copied());
+                dependencies.extend(cmd.dependencies.iter().copied());
             }
-            Command::Upgrade(_, deps, package_id, _) => {
-                dependencies.extend(deps.iter().copied());
+            Command::Upgrade(cmd) => {
+                dependencies.extend(cmd.dependencies.iter().copied());
                 // It's crucial that we don't allow upgrading a package in the deny list,
                 // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(*package_id);
+                dependencies.push(cmd.package);
             }
-            Command::MoveCall(call) => {
-                let package = package_store.get_package_object(&call.package)?.ok_or(
+            Command::MoveCall(cmd) => {
+                let package = package_store.get_package_object(&cmd.package)?.ok_or(
                     IotaError::UserInput {
                         error: UserInputError::ObjectNotFound {
-                            object_id: call.package,
+                            object_id: cmd.package,
                             version: None,
                         },
                     },
@@ -209,9 +205,10 @@ fn check_package_dependencies(
                 dependencies.push(package.move_package().id());
             }
             Command::TransferObjects(..)
-            | &Command::SplitCoins(..)
-            | &Command::MergeCoins(..)
-            | &Command::MakeMoveVec(..) => {}
+            | Command::SplitCoins(..)
+            | Command::MergeCoins(..)
+            | Command::MakeMoveVector(..) => {}
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
     for dep in dependencies {

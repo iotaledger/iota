@@ -4,12 +4,12 @@
 
 use std::{fs, path::PathBuf, time::Duration};
 
-use consensus_config::Epoch;
 use iota_metrics::spawn_logged_monitored_task;
 use prometheus::{
     IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
+use starfish_config::Epoch;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::{error, info, warn};
 use typed_store::rocks::safe_drop_db;

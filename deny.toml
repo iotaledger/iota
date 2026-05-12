@@ -59,6 +59,12 @@ ignore = [
   "RUSTSEC-2025-0056",
   # bincode is unmaintained
   "RUSTSEC-2025-0141",
+  # soundness flaw in lru::IterMut. We do not call
+  # LruCache::iter_mut anywhere in the workspace as of 5.5.26.
+  # Bumping to >=0.16.3 pulls in foldhash via hashbrown 0.16+, whose per-hasher
+  # seed derives from the stack pointer and cannot be controlled by msim,
+  # breaking simtest determinism (e.g. test_passive_reconfig_determinism).
+  "RUSTSEC-2026-0002",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -82,6 +88,7 @@ allow = [
   "BSD-2-Clause",
   "BSD-3-Clause",
   "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
   "MPL-2.0",
   "ISC",
   "CC0-1.0",
@@ -182,8 +189,9 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-
-  # { name = "ansi_term", version = "=0.11.0" },
+  # Many in-tree crates still depend on toml 0.7; iota-sdk uses 0.8 and
+  # diesel_migrations uses 0.9. Deduplication would require a workspace-wide bump.
+  { name = "toml", version = "=0.7.8" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
@@ -193,7 +201,13 @@ skip-tree = [
   { name = "anemo", version = "=0.0" },
   { name = "iota-sdk" },
   { name = "owo-colors", version = "=3.5" },
-  # { name = "ansi_term", version = "=0.11.0", depth = 20 },
+  { name = "darling" },
+  # russh's ml-kem dep pins hybrid-array 0.2; rest of the workspace is on 0.4
+  # via the digest/aws-sigv4 chain.
+  { name = "ml-kem" },
+  # cynic-parser pulls in logos 0.14 (logos-codegen, logos-derive); rest of the
+  # workspace is on 0.15 via protox.
+  { name = "cynic-parser" },
 ]
 
 # This section is considered when running `cargo deny check sources`.
@@ -218,7 +232,6 @@ allow-git = [
   "https://github.com/nextest-rs/datatest-stable.git",
   "https://github.com/zhiburt/tabled.git",
   "https://github.com/iotaledger/iota-rust-sdk.git",
-  "https://github.com/bmwill/openapiv3.git",
   "https://github.com/iotaledger/iota-bigtable.git",
   "https://github.com/iotaledger/flamegraph-svg.git",
 ]

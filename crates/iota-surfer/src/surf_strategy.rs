@@ -5,11 +5,11 @@
 use std::time::Duration;
 
 use iota_types::{
-    base_types::ObjectRef,
-    transaction::{CallArg, ObjectArg},
+    base_types::{ObjectRef, StructTag},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_binary_format::normalized;
-use move_core_types::language_storage::StructTag;
 use rand::{Rng, seq::SliceRandom};
 use tokio::time::Instant;
 use tracing::debug;
@@ -69,15 +69,15 @@ impl SurfStrategy {
         let mut failed = false;
         for param in params {
             let arg = match param {
-                Type::Bool => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<bool>()).unwrap()),
-                Type::U8 => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<u8>()).unwrap()),
-                Type::U16 => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<u16>()).unwrap()),
-                Type::U32 => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<u32>()).unwrap()),
-                Type::U64 => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<u64>()).unwrap()),
-                Type::U128 => CallArg::Pure(bcs::to_bytes(&state.rng.gen::<u128>()).unwrap()),
-                Type::Address => CallArg::Pure(
-                    bcs::to_bytes(&state.cluster.get_addresses().choose(&mut state.rng)).unwrap(),
-                ),
+                Type::Bool => CallArg::pure(&state.rng.gen::<bool>()),
+                Type::U8 => CallArg::pure(&state.rng.gen::<u8>()),
+                Type::U16 => CallArg::pure(&state.rng.gen::<u16>()),
+                Type::U32 => CallArg::pure(&state.rng.gen::<u32>()),
+                Type::U64 => CallArg::pure(&state.rng.gen::<u64>()),
+                Type::U128 => CallArg::pure(&state.rng.gen::<u128>()),
+                Type::Address => {
+                    CallArg::pure(&state.cluster.get_addresses().choose(&mut state.rng))
+                }
                 ty @ Type::Datatype(_) => {
                     match Self::choose_object_call_arg(
                         state,
@@ -145,6 +145,7 @@ impl SurfStrategy {
             }
         };
         drop(pool);
+        let type_tag = struct_tag_core_to_sdk(&type_tag);
         let owned = state.matching_owned_objects_count(&type_tag);
         let shared = state.matching_shared_objects_count(&type_tag).await;
         let immutable = state.matching_immutable_objects_count(&type_tag).await;
@@ -161,19 +162,19 @@ impl SurfStrategy {
         if n < owned {
             let obj_ref = state.choose_nth_owned_object(&type_tag, n);
             chosen_owned_objects.push((type_tag, obj_ref));
-            return Some(CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)));
+            return Some(CallArg::ImmutableOrOwned(obj_ref));
         }
         n -= owned;
         if n < shared {
             let (id, initial_shared_version) = state.choose_nth_shared_object(&type_tag, n).await;
-            return Some(CallArg::Object(ObjectArg::SharedObject {
-                id,
+            return Some(CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable: matches!(kind, InputObjectPassKind::MutRef),
             }));
         }
         n -= shared;
         let obj_ref = state.choose_nth_immutable_object(&type_tag, n).await;
-        Some(CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)))
+        Some(CallArg::ImmutableOrOwned(obj_ref))
     }
 }

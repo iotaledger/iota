@@ -1230,11 +1230,25 @@ impl Core {
 
         let quorum_round = clock_round.saturating_sub(1);
 
+        // Skip ancestors too old to ever be linearized once our block is
+        // committed. If we are a leader at `clock_round`, a successful commit
+        // of our own block uses `gc_round = clock_round - gc_depth`; otherwise
+        // the earliest leader that could commit our block is at
+        // `clock_round + 1`, giving `gc_round = clock_round - (gc_depth - 1)`.
+        // Any ancestor below that bound would be filtered by the linearizer
+        // anyway — dropping it here avoids pointless header-synchronizer
+        // fetches by other validators. Gated by the fast commit sync protocol
+        // flag so behavior is unchanged on networks without it.
+        let min_ancestor_round = self.min_ancestor_round(clock_round);
+
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
         let included_ancestors = iter::once(self.last_proposed_block_header())
             .chain(all_ancestors.into_iter().flat_map(|(ancestor, _)| {
                 if ancestor.author() == self.context.own_index {
+                    return None;
+                }
+                if ancestor.round() < min_ancestor_round {
                     return None;
                 }
                 if let Some(last_block_ref) = self.last_included_ancestors[ancestor.author()] {
@@ -1289,6 +1303,29 @@ impl Core {
             .into_iter()
             .map(|authority_index| Slot::new(round, authority_index))
             .collect()
+    }
+
+    /// Lowest ancestor round we are willing to reference from a block we
+    /// propose at `clock_round`. Ancestors strictly below this round are
+    /// dropped — the linearizer would filter them out anyway, so keeping
+    /// them only costs other validators header-synchronizer round-trips.
+    /// Returns `GENESIS_ROUND` when the `consensus_fast_commit_sync` protocol
+    /// flag is disabled, so the filter is a no-op on networks without it.
+    fn min_ancestor_round(&self, clock_round: Round) -> Round {
+        if !self.context.protocol_config.consensus_fast_commit_sync() {
+            return GENESIS_ROUND;
+        }
+        let gc_depth = self.context.protocol_config.gc_depth();
+        let depth = if self
+            .leaders(clock_round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index)
+        {
+            gc_depth
+        } else {
+            gc_depth.saturating_sub(1)
+        };
+        clock_round.saturating_sub(depth)
     }
 
     /// Returns the 1st leader of the round.
@@ -2033,6 +2070,105 @@ mod test {
         let last_commit = store.read_last_commit().unwrap();
         assert!(last_commit.is_none());
         assert_eq!(dag_state.read().last_commit_index(), 0);
+    }
+
+    /// Validates `min_ancestor_round`, the helper driving
+    /// `ancestors_to_propose`'s drop-too-old filter.
+    ///
+    /// Three properties are checked:
+    ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
+    ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
+    ///      genesis/quorum-round ancestors can never be accidentally dropped.
+    ///   2. Well above `gc_depth`, the returned value is either `clock_round -
+    ///      gc_depth` (leader at `clock_round`, uses its own commit's
+    ///      `gc_round`) or `clock_round - (gc_depth - 1)` (non- leader, uses
+    ///      the tighter `gc_round` of the leader at `clock_round + 1`). These
+    ///      are the only two valid outcomes; any other value would indicate a
+    ///      regression in the leader-awareness or the depth arithmetic.
+    ///   3. When the `consensus_fast_commit_sync` protocol flag is off the
+    ///      helper returns `GENESIS_ROUND = 0` unconditionally — the filter
+    ///      becomes a no-op, preserving backwards compatibility on networks
+    ///      without the flag.
+    #[tokio::test]
+    async fn test_min_ancestor_round() {
+        telemetry_subscribers::init_for_testing();
+        let (context, _) = Context::new_for_test(4);
+        let gc_depth = context.protocol_config.gc_depth();
+        assert!(
+            context.protocol_config.consensus_fast_commit_sync(),
+            "test assumes consensus_fast_commit_sync is enabled at max version"
+        );
+
+        let fixture = CoreTextFixture::new(
+            context.clone(),
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+        );
+        let core = &fixture.core;
+
+        // (1) saturating_sub clamps small clock_rounds to 0.
+        for clock_round in 0..=1 {
+            assert_eq!(
+                core.min_ancestor_round(clock_round),
+                GENESIS_ROUND,
+                "min_ancestor_round({clock_round}) should clamp to GENESIS_ROUND",
+            );
+        }
+
+        // (2) Well above gc_depth, the value is either the leader bound
+        // (clock_round - gc_depth) or the non-leader bound
+        // (clock_round - (gc_depth - 1)). We sample multiple rounds to
+        // cover both leader and non-leader cases given an arbitrary schedule.
+        let leader_bound = |r: Round| r - gc_depth;
+        let non_leader_bound = |r: Round| r - (gc_depth - 1);
+        let mut saw_leader = false;
+        let mut saw_non_leader = false;
+        for clock_round in (gc_depth + 2)..(gc_depth + 20) {
+            let got = core.min_ancestor_round(clock_round);
+            let l = leader_bound(clock_round);
+            let nl = non_leader_bound(clock_round);
+            assert!(
+                got == l || got == nl,
+                "min_ancestor_round({clock_round}) = {got}; \
+                 expected leader={l} or non-leader={nl} (gc_depth={gc_depth})"
+            );
+            if got == l {
+                saw_leader = true;
+            }
+            if got == nl {
+                saw_non_leader = true;
+            }
+        }
+        // Over a window of ~gc_depth rounds we expect the leader schedule to
+        // put us in both the leader and non-leader position at least once.
+        assert!(
+            saw_leader && saw_non_leader,
+            "expected to observe both leader (gc_depth) and non-leader \
+             (gc_depth - 1) bounds over the sampled range; \
+             saw_leader={saw_leader}, saw_non_leader={saw_non_leader}",
+        );
+
+        // (3) Flag off → no-op. Build a fresh fixture with the flag disabled
+        // and confirm the helper returns GENESIS_ROUND for a round well
+        // above gc_depth (where otherwise the bound would be non-zero).
+        let mut context_off = context;
+        context_off
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(false);
+        let fixture_off = CoreTextFixture::new(
+            context_off,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+        );
+        assert_eq!(
+            fixture_off.core.min_ancestor_round(1000),
+            GENESIS_ROUND,
+            "flag-off should return GENESIS_ROUND regardless of clock_round"
+        );
     }
 
     #[tokio::test]

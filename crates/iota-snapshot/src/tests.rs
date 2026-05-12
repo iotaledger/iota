@@ -10,11 +10,11 @@ use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
-    state_accumulator::StateAccumulator,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_types::{
-    accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
-    object::Object,
+    base_types::ObjectID, global_state_hash::GlobalStateHash,
+    messages_checkpoint::ECMHLiveObjectSetDigest, object::Object,
 };
 
 use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
@@ -23,10 +23,11 @@ pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
 ) -> Result<(), anyhow::Error> {
-    let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
-    for id in ids {
+    let mut id = ObjectID::ZERO;
+    for _ in 0..total_unique_object_ids {
         let object = Object::immutable_with_id_for_testing(id);
         db.insert_object_test_only(object)?;
+        id = id.next_lexicographical();
     }
     Ok(())
 }
@@ -47,10 +48,10 @@ fn compare_live_objects(
     Ok(())
 }
 
-fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Accumulator {
-    let mut acc = Accumulator::default();
+fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> GlobalStateHash {
+    let mut acc = GlobalStateHash::default();
     perpetual_db.iter_live_object_set().for_each(|live_object| {
-        StateAccumulator::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
     });
     acc
 }

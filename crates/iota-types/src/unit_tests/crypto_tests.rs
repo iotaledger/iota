@@ -41,8 +41,6 @@ fn serde_round_trip_authority_quorum_sign_info() {
     };
     let ser = serde_json::to_string(&info).unwrap();
     println!("{ser}");
-    let schema = schemars::schema_for!(AuthorityQuorumSignInfo<true>);
-    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
 
     let bytes = bcs::to_bytes(&info).unwrap();
     let info2: AuthorityQuorumSignInfo<true> = bcs::from_bytes(&bytes).unwrap();

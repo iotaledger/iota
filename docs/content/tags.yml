@@ -204,6 +204,10 @@ address:
   label: Address
   description: Identifier for a wallet.
 
+account-abstraction:
+  label: Account Abstraction
+  description: Account Abstraction.
+
 api:
   label: API
   description: Application Programming Interface.

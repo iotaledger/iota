@@ -1,0 +1,161 @@
+---
+description: "How to properly protect authenticator input parameters with cryptographic verification to prevent input tampering attacks"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
+---
+
+# Cryptographic Protection for Authenticator Inputs
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains the importance of cryptographically protecting all authenticator input parameters, not just the transaction digest, to prevent attackers from tampering with inputs after authentication.
+
+## The Vulnerability
+
+The content of a transaction can be cryptographically verified using the transaction digest (see [Function digest](../../../../references/framework/iota/tx_context.mdx#function-digest)). However, when this digest is created, the authenticator inputs are not included. 
+When implementing custom authenticator functions that accept additional input parameters (beyond just verifying the transaction), it's critical to include **all inputs** in the cryptographic verification. If an authenticator only verifies the transaction digest but doesn't cryptographically bind other input parameters (such as shared objects or raw values) to the signature, an attacker can swap those inputs after the signature was created.
+
+## Attack Scenario
+
+Consider an authenticator that uses a shared `Blacklist` object to reject transactions from blocked accounts. The `Blacklist` stores account addresses that are not allowed to authenticate transactions, and the authenticator checks the current account against that object before allowing the transaction to proceed.
+
+If the `Blacklist` object is passed as an authenticator input, the authenticator must verify that it is the intended blacklist. Otherwise, if the signature only covers the transaction digest, an attacker can:
+
+1. Create a legitimate transaction from the account with specific input parameters
+2. Sign the transaction with the authenticator (signature covers transaction digest)
+3. **Swap the blacklist shared object** with a different one (e.g., an empty blacklist)
+4. **Or change the raw value parameter** to a different value
+5. Submit the modified transaction, which will pass signature verification because the transaction digest hasn't changed
+
+## Secure Implementation
+
+Here's an example of a **secure** authenticator that properly protects its inputs:
+
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-inputs-cryptographic-protection/sources/account.move#L41-L67
+```
+
+**Why this is secure**: The authenticator computes a message hash that includes:
+- The transaction digest (`ctx.digest()`)
+- The blacklist object ID (`object::id(blacklist)`)  
+- The raw value parameter
+
+The helper that combines these inputs into the message hash used for signature verification:
+
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-inputs-cryptographic-protection/sources/account.move#L79-L88
+```
+
+## Exploitation Example (Why Protection is Necessary)
+
+Without proper input protection, an attacker could swap the blacklist:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L410-L444
+```
+
+Or swap the raw value parameter:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L446-L476
+```
+
+However, because the secure implementation cryptographically binds all inputs, these attacks will fail during signature verification.
+
+## Implementation Pattern
+
+When creating authenticators with additional input parameters, always follow this pattern:
+
+### Step 1: Define Your Inputs
+
+Identify all parameters your authenticator needs to verify:
+
+```move
+#[authenticator]
+public fun authenticate(
+    account: &Account,
+    blacklist: &Blacklist,  // Shared object input
+    raw_value: u64,         // Raw value input
+    signature: vector<u8>,  // Signature covering ALL the inputs
+    _: &AuthContext,
+    ctx: &TxContext,
+) {
+    // Authentication logic
+}
+```
+
+### Step 2: Compute Message Hash Including All Inputs
+
+Create a helper function that combines all inputs into the message to be signed:
+
+```move
+fun compute_message(blacklist: &Blacklist, raw_value: u64, ctx: &TxContext): vector<u8> {
+    let mut message = vector::empty();
+    
+    // 1. Include transaction digest
+    message.append(*ctx.digest());
+    
+    // 2. Include shared object ID
+    message.append(object::id(blacklist).id_to_bytes());
+    
+    // 3. Include raw value
+    message.append(bcs::to_bytes(&raw_value));
+    
+    // Hash the combined message
+    hash::sha2_256(message)
+}
+```
+
+### Step 3: Verify Signature Against Complete Message
+
+Use the computed message in signature verification:
+
+```move
+assert!(
+    ed25519::ed25519_verify(
+        &decode(signature),
+        account.public_key(),
+        &compute_message(blacklist, raw_value, ctx),  // Verify against ALL the inputs
+    ),
+    EEd25519VerificationFailed,
+);
+```
+
+### Step 4: Client-Side Signature Creation
+
+When creating transactions on the client side, sign the same message:
+
+```rust
+// Prepare the message with all inputs
+let mut message = vec![];
+message.extend_from_slice(tx_digest.as_ref());
+message.extend_from_slice(&blacklist_ref.0.into_bytes());
+message.extend_from_slice(bcs::to_bytes(&raw_value)?.as_slice());
+let message_hash = Sha256::digest(message.as_slice()).digest;
+
+// Sign the complete message
+let signature = keystore.sign_hashed(&signer, &message_hash)?;
+```
+
+## Key Takeaways
+
+✅ **Protect all inputs**: Every authenticator parameter that could be tampered with must be included in the cryptographic signature
+
+✅ **Include object identities**: For shared objects, include their object IDs in the signed message to prevent swapping
+
+✅ **Include raw values**: For primitive parameters (u64, bool, etc.), include their values in the signed message
+
+✅ **Include transaction digest**: Including a transaction digest in the cryptographic signature allows to protect the transaction data and the authenticator inputs with one signature
+
+✅ **Use deterministic encoding**: When combining inputs into a message, use deterministic encoding (like BCS) to ensure consistent hashing
+
+✅ **Hash the combined message**: Use a cryptographic hash function (SHA-256) to create the final message digest
+
+✅ **Client-side consistency**: Ensure client-side signature creation uses the exact same message construction as the on-chain authenticator
+
+✅ **Document the message format**: Clearly document what's included in the signed message for client developers
+
+❌ **Don't rely on type safety alone**: Having the right type doesn't mean it's the right instance
+
+❌ **Don't assume inputs are immutable**: Any input not cryptographically protected can be swapped

@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{StructTag, crypto::Intent};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::IotaKeyPair,
@@ -188,7 +188,7 @@ impl WalletContext {
                 .get_owned_objects(
                     address,
                     IotaObjectResponseQuery::new(
-                        Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                        Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                         Some(IotaObjectDataOptions::full_content()),
                     ),
                     cursor,
@@ -225,10 +225,11 @@ impl WalletContext {
             .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
             .await?
             .into_object()?;
-        Ok(object
+        Ok(*object
             .owner
             .ok_or_else(|| anyhow!("Owner field is None"))?
-            .get_owner_address()?)
+            .address_or_object()
+            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
     }
 
     /// Get the address that owns the object, if an [`ObjectID`] is provided.
@@ -305,7 +306,7 @@ impl WalletContext {
             .get_owned_objects(
                 address,
                 IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                     Some(IotaObjectDataOptions::full_content()),
                 ),
                 None,

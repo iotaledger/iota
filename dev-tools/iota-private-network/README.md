@@ -91,17 +91,6 @@ To bring up 10 validators and faucet:
 > - Update IP address assignments in the docker-compose.yaml for the additional validators
 > - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
 
-### Optional: Selecting a Consensus Protocol
-
-You can run the network with an optional consensus protocol flag. There are two options `starfish` and `mysticeti`.
-If the flag is not provided, the default protocol is **Starfish**.
-
-For example, to start with **Mysticeti** consensus protocol (if you prefer the previous consensus protocol):
-
-```bash
-./run.sh -n 10 -p mysticeti
-```
-
 ### Ports
 
 - fullnode-1:

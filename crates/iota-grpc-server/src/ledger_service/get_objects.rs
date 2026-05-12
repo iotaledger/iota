@@ -47,7 +47,6 @@ pub(crate) fn validate_get_object_requests(
                         .nested_at("requests", idx)
                 })?
                 .object_id()
-                .map(Into::into)
                 .map_err(|e| {
                     FieldViolation::new("object_id")
                         .with_description(format!("invalid object_id: {e}"))

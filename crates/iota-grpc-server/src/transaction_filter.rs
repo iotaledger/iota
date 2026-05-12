@@ -21,36 +21,37 @@ const MAX_FILTER_DEPTH: usize = 10;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum TransactionKind {
-    /// The `SystemTransaction` variant can be used to filter for all types of
-    /// system transactions.
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
+    /// The `System` variant can be used to filter for all types of system
+    /// transactions.
+    System = 0,
+    Programmable = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdateV1 = 4,
-    EndOfEpochTransaction = 5,
+    EndOfEpoch = 5,
     RandomnessStateUpdate = 6,
 }
 
 impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
     fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::ProgrammableTransaction(_) => {
-                TransactionKind::ProgrammableTransaction
+            iota_types::transaction::TransactionKind::Programmable(_) => {
+                TransactionKind::Programmable
             }
             iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
             iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
-            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                TransactionKind::AuthenticatorStateUpdateV1
+            #[allow(deprecated)]
+            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                TransactionKind::System
             }
-            iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
-                TransactionKind::EndOfEpochTransaction
-            }
+            iota_types::transaction::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
             iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -60,22 +61,13 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
 
     fn try_from(kind: proto_filter::TransactionKind) -> Result<Self, String> {
         match kind {
-            proto_filter::TransactionKind::SystemTransaction => {
-                Ok(TransactionKind::SystemTransaction)
-            }
-            proto_filter::TransactionKind::ProgrammableTransaction => {
-                Ok(TransactionKind::ProgrammableTransaction)
-            }
+            proto_filter::TransactionKind::System => Ok(TransactionKind::System),
+            proto_filter::TransactionKind::Programmable => Ok(TransactionKind::Programmable),
             proto_filter::TransactionKind::Genesis => Ok(TransactionKind::Genesis),
             proto_filter::TransactionKind::ConsensusCommitPrologueV1 => {
                 Ok(TransactionKind::ConsensusCommitPrologueV1)
             }
-            proto_filter::TransactionKind::AuthenticatorStateUpdateV1 => {
-                Ok(TransactionKind::AuthenticatorStateUpdateV1)
-            }
-            proto_filter::TransactionKind::EndOfEpochTransaction => {
-                Ok(TransactionKind::EndOfEpochTransaction)
-            }
+            proto_filter::TransactionKind::EndOfEpoch => Ok(TransactionKind::EndOfEpoch),
             proto_filter::TransactionKind::RandomnessStateUpdate => {
                 Ok(TransactionKind::RandomnessStateUpdate)
             }
@@ -128,9 +120,9 @@ impl CommandFilter {
             (CommandFilter::SplitCoins, Command::SplitCoins(..)) => true,
             (CommandFilter::MergeCoins, Command::MergeCoins(..)) => true,
             (CommandFilter::Publish, Command::Publish(..)) => true,
-            (CommandFilter::MakeMoveVec, Command::MakeMoveVec(..)) => true,
-            (CommandFilter::Upgrade { package }, Command::Upgrade(_, _, pkg_id, _)) => {
-                package.is_none() || matches!(package, Some(p) if p == pkg_id)
+            (CommandFilter::MakeMoveVec, Command::MakeMoveVector(..)) => true,
+            (CommandFilter::Upgrade { package }, Command::Upgrade(cmd)) => {
+                package.is_none() || matches!(package, Some(p) if p == &cmd.package)
             }
             _ => false,
         })
@@ -192,8 +184,8 @@ impl ExecutionStatusFilter {
     /// Returns true if the given execution status matches this filter.
     pub fn matches_status(&self, status: &ExecutionStatus) -> bool {
         match self {
-            ExecutionStatusFilter::Success => status.is_ok(),
-            ExecutionStatusFilter::Failure => status.is_err(),
+            ExecutionStatusFilter::Success => status.is_success(),
+            ExecutionStatusFilter::Failure => status.is_failure(),
         }
     }
 }
@@ -308,7 +300,6 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .as_ref()
                     .ok_or("object_id is missing")?
                     .object_id()
-                    .map(Into::into)
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }
@@ -332,10 +323,9 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
         TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
-        | TransactionKind::AuthenticatorStateUpdateV1
-        | TransactionKind::EndOfEpochTransaction
+        | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
-        TransactionKind::ProgrammableTransaction => false,
+        TransactionKind::Programmable => false,
         _ => panic!("Unhandled transaction kind"),
     }
 }
@@ -355,7 +345,7 @@ impl TransactionFilter {
             TransactionFilter::TransactionKind(kinds) => {
                 let actual_kind = TransactionKind::from(tx_data.kind());
                 kinds.iter().any(|kind| match kind {
-                    TransactionKind::SystemTransaction => is_system_transaction(&actual_kind),
+                    TransactionKind::System => is_system_transaction(&actual_kind),
                     _ => kind == &actual_kind,
                 })
             }
@@ -367,16 +357,16 @@ impl TransactionFilter {
                 .mutated()
                 .iter()
                 .chain(item.effects.unwrapped().iter())
-                .any(|(_, owner)| matches!(owner, Owner::AddressOwner(addr) if *addr == *a)),
+                .any(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == *a)),
 
             TransactionFilter::AffectedObject(o) => item
                 .effects
                 .all_affected_objects()
                 .iter()
-                .any(|obj_ref| &obj_ref.0 == o),
+                .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::ProgrammableTransaction(pt) => {
+                iota_types::transaction::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,
@@ -493,8 +483,8 @@ impl TransactionFilter {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::ObjectID,
-        transaction::{Argument, Command, ProgrammableMoveCall},
+        base_types::{Identifier, ObjectID},
+        transaction::{Argument, Command},
     };
 
     use super::*;
@@ -502,13 +492,13 @@ mod tests {
     #[test]
     fn test_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
                 TransactionFilter::AffectedObject(ObjectID::random()),
                 TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
@@ -520,7 +510,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             deep_filter = TransactionFilter::Not(Box::new(deep_filter));
         }
@@ -531,15 +521,15 @@ mod tests {
     #[test]
     fn test_filter_complexity_validation() {
         // Simple filter should pass complexity validation
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_complexity().is_ok());
         assert_eq!(simple_filter.count_nodes(), 1);
 
         // Moderately complex filter should pass
         let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Receiver(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]),
         ]);
@@ -549,11 +539,11 @@ mod tests {
 
     #[test]
     fn test_new_validated() {
-        let valid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let valid_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(TransactionFilter::new_validated(valid_filter).is_ok());
 
         // Create an invalid deeply nested filter
-        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             invalid_filter = TransactionFilter::Not(Box::new(invalid_filter));
         }
@@ -578,11 +568,11 @@ mod tests {
         // Create a complex but valid nested structure
         let complex_filter = TransactionFilter::All(vec![
             TransactionFilter::Any(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
+                TransactionFilter::Receiver(IotaAddress::random()),
             ]),
             TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]))),
         ]);
@@ -594,13 +584,13 @@ mod tests {
     // --- CommandFilter matching tests ---
 
     fn make_move_call_cmd(package: ObjectID, module: &str, function: &str) -> Command {
-        Command::MoveCall(Box::new(ProgrammableMoveCall {
+        Command::new_move_call(
             package,
-            module: module.to_string(),
-            function: function.to_string(),
-            type_arguments: vec![],
-            arguments: vec![],
-        }))
+            Identifier::new_unchecked(module),
+            Identifier::new_unchecked(function),
+            vec![],
+            vec![],
+        )
     }
 
     #[test]
@@ -665,7 +655,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_transfer_objects() {
-        let commands = vec![Command::TransferObjects(
+        let commands = vec![Command::new_transfer_objects(
             vec![Argument::Input(0)],
             Argument::Input(1),
         )];
@@ -676,7 +666,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_split_coins() {
-        let commands = vec![Command::SplitCoins(
+        let commands = vec![Command::new_split_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -687,7 +677,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_merge_coins() {
-        let commands = vec![Command::MergeCoins(
+        let commands = vec![Command::new_merge_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -698,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_publish() {
-        let commands = vec![Command::Publish(vec![vec![1, 2, 3]], vec![])];
+        let commands = vec![Command::new_publish(vec![vec![1, 2, 3]], vec![])];
 
         assert!(CommandFilter::Publish.matches_commands(&commands));
         assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
@@ -706,7 +696,10 @@ mod tests {
 
     #[test]
     fn test_command_filter_make_move_vec() {
-        let commands = vec![Command::MakeMoveVec(None, vec![Argument::Input(0)])];
+        let commands = vec![Command::new_make_move_vector(
+            None,
+            vec![Argument::Input(0)],
+        )];
 
         assert!(CommandFilter::MakeMoveVec.matches_commands(&commands));
         assert!(!CommandFilter::Publish.matches_commands(&commands));
@@ -715,7 +708,7 @@ mod tests {
     #[test]
     fn test_command_filter_upgrade_any() {
         let pkg = ObjectID::random();
-        let commands = vec![Command::Upgrade(
+        let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -731,7 +724,7 @@ mod tests {
     fn test_command_filter_upgrade_specific_package() {
         let pkg = ObjectID::random();
         let other_pkg = ObjectID::random();
-        let commands = vec![Command::Upgrade(
+        let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -769,9 +762,9 @@ mod tests {
     fn test_command_filter_multiple_commands() {
         let pkg = ObjectID::random();
         let commands = vec![
-            Command::SplitCoins(Argument::Input(0), vec![Argument::Input(1)]),
+            Command::new_split_coins(Argument::Input(0), vec![Argument::Input(1)]),
             make_move_call_cmd(pkg, "m", "f"),
-            Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(2)),
+            Command::new_transfer_objects(vec![Argument::Result(0)], Argument::Input(2)),
         ];
 
         // All three types should match
@@ -853,7 +846,7 @@ mod tests {
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
             error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: iota_types::execution_status::CongestedObjects(vec![]),
+                congested_objects: vec![],
             },
             command: None,
         }));

@@ -18,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
@@ -28,7 +28,7 @@ fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
         MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
         owner,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -56,9 +56,7 @@ fn generate_random_gas_data(
     let gas_coin_owners = gas_coin_owners
         .iter()
         .map(|o| match o {
-            Owner::ObjectOwner(_) | Owner::AddressOwner(_) if owned_by_sender => {
-                Owner::AddressOwner(sender)
-            }
+            Owner::Object(_) | Owner::Address(_) if owned_by_sender => Owner::Address(sender),
             _ => *o,
         })
         .collect::<Vec<_>>();
@@ -81,14 +79,14 @@ fn generate_random_gas_data(
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unsafe())
+            .map(|o| o.data.as_struct_opt().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );
 
     GasDataWithObjects {
         gas_data: GasData {
-            payment: object_refs,
+            objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
             budget: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),

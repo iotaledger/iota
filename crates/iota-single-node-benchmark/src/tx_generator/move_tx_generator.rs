@@ -6,11 +6,10 @@ use std::collections::HashMap;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, Transaction},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef, Transaction},
 };
-use move_core_types::identifier::Identifier;
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 
@@ -67,10 +66,10 @@ impl TxGenerator for MoveTxGenerator {
                     builder
                         .move_call(
                             self.move_package,
-                            Identifier::new("benchmark").unwrap(),
-                            Identifier::new("transfer_coin").unwrap(),
+                            Identifier::from_static("benchmark"),
+                            Identifier::from_static("transfer_coin"),
                             vec![],
-                            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object))],
+                            vec![CallArg::ImmutableOrOwned(object)],
                         )
                         .unwrap();
                 }
@@ -79,11 +78,11 @@ impl TxGenerator for MoveTxGenerator {
                 builder
                     .move_call(
                         self.move_package,
-                        Identifier::new("benchmark").unwrap(),
-                        Identifier::new("increment_shared_counter").unwrap(),
+                        Identifier::from_static("benchmark"),
+                        Identifier::from_static("increment_shared_counter"),
                         vec![],
-                        vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: shared_object.0,
+                        vec![CallArg::Shared(SharedObjectRef {
+                            object_id: shared_object.0,
                             initial_shared_version: shared_object.1,
                             mutable: true,
                         })],
@@ -95,12 +94,12 @@ impl TxGenerator for MoveTxGenerator {
                 // Step 2: Read all dynamic fields from the root object.
                 let root_object = self.root_objects.get(&account.sender).unwrap();
                 let root_object_arg = builder
-                    .obj(ObjectArg::ImmOrOwnedObject(*root_object))
+                    .obj(CallArg::ImmutableOrOwned(*root_object))
                     .unwrap();
                 builder.programmable_move_call(
                     self.move_package,
-                    Identifier::new("benchmark").unwrap(),
-                    Identifier::new("read_dynamic_fields").unwrap(),
+                    Identifier::from_static("benchmark"),
+                    Identifier::from_static("read_dynamic_fields"),
                     vec![],
                     vec![root_object_arg],
                 );
@@ -111,8 +110,8 @@ impl TxGenerator for MoveTxGenerator {
                 let computation_arg = builder.pure(self.computation as u64 * 100).unwrap();
                 builder.programmable_move_call(
                     self.move_package,
-                    Identifier::new("benchmark").unwrap(),
-                    Identifier::new("run_computation").unwrap(),
+                    Identifier::from_static("benchmark"),
+                    Identifier::from_static("run_computation"),
                     vec![],
                     vec![computation_arg],
                 );
@@ -136,8 +135,8 @@ impl TxGenerator for MoveTxGenerator {
                     ];
                     builder.programmable_move_call(
                         self.move_package,
-                        Identifier::new("benchmark").unwrap(),
-                        Identifier::new("batch_mint").unwrap(),
+                        Identifier::from_static("benchmark"),
+                        Identifier::from_static("batch_mint"),
                         vec![],
                         args,
                     );
@@ -150,8 +149,8 @@ impl TxGenerator for MoveTxGenerator {
                         ];
                         builder.programmable_move_call(
                             self.move_package,
-                            Identifier::new("benchmark").unwrap(),
-                            Identifier::new("mint_one").unwrap(),
+                            Identifier::from_static("benchmark"),
+                            Identifier::from_static("mint_one"),
                             vec![],
                             args,
                         );

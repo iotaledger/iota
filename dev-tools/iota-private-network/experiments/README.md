@@ -48,7 +48,6 @@ docker pull nicolaka/netshoot
 Supports the following flags:
 
 - `-n <NUM>`: number of validators (default: `4`; any number between `4` and `30` is supported)
-- `-p <protocol>`: consensus protocol (default: `starfish`; another option: `mysticeti`)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
 - `-g <true|false>`: enable geodistributed large network latencies (default: `false`)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
@@ -70,10 +69,10 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 # Run default 4-validator Starfish network with small latencies without any additional disruptions
 ./run-all-benchmark.sh
 
-# Run 10-validator Mysticeti network with large geodistributed latencies for one hour without rebuilding images
-./run-all-benchmark.sh -n 10 -p mysticeti -g true -b false
+# Run 10-validator network with large geodistributed latencies for one hour without rebuilding images
+./run-all-benchmark.sh -n 10 -g true -b false
 
-# Run 30-validator Starfish network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
+# Run 30-validator network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
 ./run-all-benchmark.sh -n 30 -g true -x 10 -l 5 -r 10 -t 7200
 ```
 ---
@@ -89,7 +88,7 @@ It supports two types of spammer tools, by default the stress test from the iota
 ./run-all-benchmark.sh -n 4 -S true -T 500
 ```
 
-This will load the default spammer with a TPS of 500 using Starfish (default protocol).
+This will load the default spammer with a TPS of 500.
 
 ### Required Setup for optional Spammer
 
@@ -108,16 +107,10 @@ Place it at the following relative path from `run-all-benchmark.sh`, or update t
 The optional spammer allows a special transaction type, called `sizable`, and can be used as follows:
 
 ```bash
-./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
+./run-all-benchmark.sh -n 4 -S true -T 100 -Z 10KiB
 ```
 
 This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.
-
-To use Mysticeti instead of Starfish, add `-p mysticeti`:
-
-```bash
-./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
-```
 
 ## Main Fuzz Script: `run-all-fuzz.sh`
 
@@ -125,7 +118,7 @@ To use Mysticeti instead of Starfish, add `-p mysticeti`:
 
 1. Optionally rebuilds the `iota-node`, `iota-tools`, and `iota-indexer` Docker images.
 2. Bootstraps the validator network.
-3. Runs the private network with the chosen consensus protocol.
+3. Runs the private network.
 4. Starts Grafana (available at `http://localhost:3000/dashboards`).
 5. Launches `network-fuzz.sh` to apply network latencies and controlled disruptions:
    - artificial RTTs (topology-dependent),
@@ -154,9 +147,6 @@ Supported flags:
 
 - `-n <NUM>`\
   Number of validators (default: `4`; supports `4`–`19`).
-
-- `-p <protocol>`\
-  Consensus protocol (default: `starfish`; other option: `mysticeti`).
 
 - `-b <true|false>`\
   Rebuild Docker images before running (default: `true`).
@@ -273,7 +263,6 @@ All drops installed by the fuzz script are tagged with\
 ```
 ./run-all-fuzz.sh \
   -n 10 \
-  -p starfish \
   -b false \
   -t true \
   -d 3600
@@ -286,7 +275,6 @@ Here `-t true` maps to `geo-high`.
 ```
 ./run-all-fuzz.sh \
   -n 19 \
-  -p starfish \
   -b true \
   -t geo-high \
   -x 10 \
@@ -307,7 +295,6 @@ HEAL_EVERY_ROUND=3 \
 HEAL_NUM_ROUNDS=1 \
 ./run-all-fuzz.sh \
   -n 19 \
-  -p starfish \
   -t geo-high \
   -x 10 \
   -l 5 \
@@ -363,7 +350,6 @@ To use the `iota-spammer`:
    ```
    ./run-all-fuzz.sh \
      -n 4 \
-     -p mysticeti \
      -S true \
      -C iota-spammer \
      -T 100 \
@@ -400,51 +386,6 @@ On exit, `run-all-fuzz.sh`:
 - kills fuzz and spam processes,
 - runs `cleanup.sh` (external script) to tear down Docker containers,
 - attempts to clear any remaining `tc` and `fuzzdrop:` rules.
-
----
-
-## Batch Comparison Script: `dual-run.sh`
-
-`dual-run.sh` automates **paired runs** of Mysticeti and Starfish under identical network conditions for direct comparison.
-
-It:
-
-- Builds all Docker images once (`iota-node`, `iota-tools`, `iota-indexer`)
-- Uses the same fuzz parameters for both protocols
-- Runs several steps defined by parameter lists:
-
-  ```bash
-  R_LIST=(25 26 33 33)   # % restarts
-  X_LIST=(10 15 10 10)   # % blocked pairs
-  L_LIST=(10 15 10 10)   # % packet loss
-  ```
-
-Each step executes:
-
-1. Mysticeti run with `(r, x, l)`
-2. short pause
-3. Starfish run with identical `(r, x, l)`
-4. pause before the next step
-
-Global defaults (inside the script):
-
-```bash
-NUM_VALIDATORS=10
-TOPOLOGY="ring"
-DURATION=3600
-SPAMMER=true
-SPAMMER_TPS=100
-FUZZ_ROUND_SPAN=300
-HEAL_EVERY_ROUND=2
-```
-
-Run from `experiments/`:
-
-```bash
-./dual-run.sh
-```
-
-This produces a sequence of alternating Mysticeti/Starfish experiments using the same disruption settings.
 
 ---
 

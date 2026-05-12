@@ -57,6 +57,7 @@ mod test {
         digests::TransactionDigest,
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
+        messages_consensus::{CancelledTransaction, VersionAssignment},
         supported_protocol_versions::SupportedProtocolVersions,
         traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
         transaction::{
@@ -122,7 +123,8 @@ mod test {
 
     async fn chain_config_smoke_test(chain: Chain) {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = init_test_cluster_builder(2, 3000)
+        // 2 validators, 10 seconds per epoch.
+        let test_cluster = init_test_cluster_builder(2, 10_000)
             .with_authority_overload_config(AuthorityOverloadConfig {
                 // Disable system overload checks for the test - during tests with crashes,
                 // it is possible for overload protection to trigger due to validators
@@ -146,7 +148,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_accumulator_v2_partial_upgrade() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = init_test_cluster_builder(4, 1000)
+        let test_cluster = init_test_cluster_builder(4, 10_000)
             .with_authority_overload_config(AuthorityOverloadConfig {
                 // Disable system overload checks for the test - during tests with crashes,
                 // it is possible for overload protection to trigger due to validators
@@ -156,7 +158,7 @@ mod test {
                 ..Default::default()
             })
             .with_submit_delay_step_override_millis(3000)
-            .with_state_accumulator_callback(Arc::new(|idx| idx % 2 == 0))
+            .with_global_state_hash_v1_enabled_callback(Arc::new(|idx| idx % 2 == 0))
             .build()
             .await
             .into();
@@ -354,7 +356,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_with_prune_and_compact() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(4, 1000, 0).await;
+        let test_cluster = build_test_cluster(4, 10_000, 0).await;
 
         let node_state = test_cluster.fullnode_handle.iota_node.clone().state();
         register_fail_point_async("prune-and-compact", move || {
@@ -374,7 +376,7 @@ mod test {
         register_fail_point_if("select-random-cache", || true);
 
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 1000)
+            init_test_cluster_builder(4, 10_000)
                 .with_num_unpruned_validators(4)
                 .build()
                 .await,
@@ -655,7 +657,7 @@ mod test {
     async fn test_data_ingestion_pipeline() {
         let path = nondeterministic!(TempDir::new().unwrap()).keep();
         let test_cluster = Arc::new(
-            init_test_cluster_builder(4, 5000)
+            init_test_cluster_builder(4, 10_000)
                 .with_data_ingestion_dir(path.clone())
                 .build()
                 .await,
@@ -699,14 +701,17 @@ mod test {
         // determinism.
         for _ in 0..num_txns {
             let num_objs = thread_rng().gen_range(1..15);
-            let mut assigned_object_versions = Vec::new();
+            let mut version_assignments = Vec::new();
             for _ in 0..num_objs {
-                assigned_object_versions.push((
+                version_assignments.push(VersionAssignment::new(
                     ObjectID::random(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                    SequenceNumber::new_congested_with_suggested_gas_price(1_000).unwrap(),
                 ));
             }
-            additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
+            additional_cancelled_txns.push(CancelledTransaction {
+                digest: TransactionDigest::random(),
+                version_assignments,
+            });
         }
 
         register_fail_point_arg("additional_cancelled_txns_for_tests", move || {

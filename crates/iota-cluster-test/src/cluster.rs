@@ -25,7 +25,7 @@ use iota_swarm_config::{
     network_config::{NetworkConfig, NetworkConfigLight},
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::address_from_iota_pub_key,
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
 };
 use tempfile::tempdir;
@@ -46,8 +46,8 @@ impl ClusterFactory {
         options: &ClusterTestOpt,
     ) -> Result<Box<dyn Cluster + Sync + Send>, anyhow::Error> {
         Ok(match &options.env {
-            Env::NewLocal => Box::new(LocalNewCluster::start(options).await?),
-            _ => Box::new(RemoteRunningCluster::start(options).await?),
+            Env::NewLocal => Box::new(LocalNewCluster::start(options).await?) as Box<_>,
+            _ => Box::new(RemoteRunningCluster::start(options).await?) as Box<_>,
         })
     }
 }
@@ -234,7 +234,7 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = IotaAddress::from(faucet_key.public());
+        let faucet_address = address_from_iota_pub_key(faucet_key.public());
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
@@ -370,7 +370,7 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address: IotaAddress = key_pair.public().into();
+    let address = address_from_iota_pub_key(key_pair.public());
     keystore
         .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();

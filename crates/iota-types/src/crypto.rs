@@ -2,9 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// This module broadly handles cryptographic types and operations.
+// Deprecated zkLogin types are intentionally retained for serialization
+// compatibility.
+
 use std::{
     collections::BTreeMap,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
     str::FromStr,
 };
@@ -38,21 +42,20 @@ use fastcrypto::{
         Secp256r1SignatureAsBytes,
     },
 };
-use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
+pub use iota_sdk_types::RandomnessRound;
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
 use roaring::RoaringBitmap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
 use serde_with::{Bytes, serde_as};
 use strum::EnumString;
 use tracing::{instrument, warn};
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress},
+    base_types::{AuthorityName, ConciseableName, IotaAddress, address_from_iota_pub_key},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
@@ -286,39 +289,24 @@ impl<'de> Deserialize<'de> for IotaKeyPair {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PublicKey {
     Ed25519(Ed25519PublicKeyAsBytes),
     Secp256k1(Secp256k1PublicKeyAsBytes),
     Secp256r1(Secp256r1PublicKeyAsBytes),
-    ZkLogin(ZkLoginPublicIdentifier),
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
+    ZkLoginDeprecated,
     Passkey(Secp256r1PublicKeyAsBytes),
 }
 
-/// A wrapper struct to retrofit in [enum PublicKey] for zkLogin.
-/// Useful to construct [struct MultiSigPublicKey].
-#[derive(Clone, Debug, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
-pub struct ZkLoginPublicIdentifier(#[schemars(with = "Base64")] pub Vec<u8>);
-
-impl ZkLoginPublicIdentifier {
-    /// Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
-    pub fn new(iss: &str, address_seed: &Bn254FrElement) -> IotaResult<Self> {
-        let mut bytes = Vec::new();
-        let iss_bytes = iss.as_bytes();
-        bytes.extend([iss_bytes.len() as u8]);
-        bytes.extend(iss_bytes);
-        bytes.extend(address_seed.padded());
-
-        Ok(Self(bytes))
-    }
-}
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {
         match self {
             PublicKey::Ed25519(pk) => &pk.0,
             PublicKey::Secp256k1(pk) => &pk.0,
             PublicKey::Secp256r1(pk) => &pk.0,
-            PublicKey::ZkLogin(z) => &z.0,
+            #[allow(deprecated)]
+            PublicKey::ZkLoginDeprecated => &[],
             PublicKey::Passkey(pk) => &pk.0,
         }
     }
@@ -397,40 +385,20 @@ impl PublicKey {
             PublicKey::Ed25519(_) => Ed25519IotaSignature::SCHEME,
             PublicKey::Secp256k1(_) => Secp256k1IotaSignature::SCHEME,
             PublicKey::Secp256r1(_) => Secp256r1IotaSignature::SCHEME,
-            PublicKey::ZkLogin(_) => SignatureScheme::ZkLoginAuthenticator,
+            #[allow(deprecated)]
+            PublicKey::ZkLoginDeprecated => SignatureScheme::ZkLoginAuthenticatorDeprecated,
             PublicKey::Passkey(_) => SignatureScheme::PasskeyAuthenticator,
         }
-    }
-
-    pub fn from_zklogin_inputs(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        Ok(PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
-            inputs.get_iss(),
-            inputs.get_address_seed(),
-        )?))
     }
 }
 
 /// Defines the compressed version of the public key that we pass around
 /// in IOTA.
 #[serde_as]
-#[derive(
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-    AsRef,
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, AsRef)]
 #[as_ref(forward)]
 pub struct AuthorityPublicKeyBytes(
-    #[schemars(with = "Base64")]
-    #[serde_as(as = "Readable<Base64, Bytes>")]
-    pub [u8; AuthorityPublicKey::LENGTH],
+    #[serde_as(as = "Readable<Base64, Bytes>")] pub [u8; AuthorityPublicKey::LENGTH],
 );
 
 impl AuthorityPublicKeyBytes {
@@ -475,7 +443,7 @@ impl Display for ConciseAuthorityPublicKeyBytesRef<'_> {
 }
 
 /// A wrapper around AuthorityPublicKeyBytes but owns it.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ConciseAuthorityPublicKeyBytes(AuthorityPublicKeyBytes);
 
 impl Debug for ConciseAuthorityPublicKeyBytes {
@@ -666,7 +634,7 @@ where
     <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     let kp = KP::generate(&mut StdRng::from_rng(csprng).unwrap());
-    (kp.public().into(), kp)
+    (address_from_iota_pub_key(kp.public()), kp)
 }
 
 // TODO: C-GETTER
@@ -690,7 +658,7 @@ where
     )
     .map_err(|_| IotaError::InvalidPrivateKey)?;
     let kp: KP = sk.into();
-    Ok((kp.public().into(), kp))
+    Ok((address_from_iota_pub_key(kp.public()), kp))
 }
 
 // Account Signatures
@@ -698,7 +666,7 @@ where
 
 // Enums for signature scheme signatures
 #[enum_dispatch]
-#[derive(Clone, JsonSchema, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Signature {
     Ed25519IotaSignature,
     Secp256k1IotaSignature,
@@ -812,11 +780,10 @@ impl IotaPublicKey for BLS12381PublicKey {
 //
 
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 pub struct Ed25519IotaSignature(
-    #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1],
 );
@@ -859,11 +826,10 @@ impl Signer<Signature> for Ed25519KeyPair {
 // Secp256k1 Iota Signature port
 //
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 pub struct Secp256k1IotaSignature(
-    #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Secp256k1PublicKey::LENGTH + Secp256k1Signature::LENGTH + 1],
 );
@@ -899,11 +865,10 @@ impl Signer<Signature> for Secp256k1KeyPair {
 // Secp256r1 Iota Signature port
 //
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 pub struct Secp256r1IotaSignature(
-    #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Secp256r1PublicKey::LENGTH + Secp256r1Signature::LENGTH + 1],
 );
@@ -1016,7 +981,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         &self,
         value: &IntentMessage<T>,
         author: IotaAddress,
-        scheme: SignatureScheme,
+        _scheme: SignatureScheme,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -1026,17 +991,11 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         let digest = hasher.finalize().digest;
 
         let (sig, pk) = &self.get_verification_inputs()?;
-        match scheme {
-            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
-            // not derive address from pubkey.
-            _ => {
-                let address = IotaAddress::from(pk);
-                if author != address {
-                    return Err(IotaError::IncorrectSigner {
-                        error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
-                    });
-                }
-            }
+        let address = address_from_iota_pub_key(pk);
+        if author != address {
+            return Err(IotaError::IncorrectSigner {
+                error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
+            });
         }
 
         pk.verify(&digest, sig)
@@ -1207,12 +1166,10 @@ impl PartialEq for AuthoritySignInfo {
 /// STRONG_THRESHOLD is false, the quorum is valid when the total stake is at
 /// least the validity threshold (f+1) of the committee.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthorityQuorumSignInfo<const STRONG_THRESHOLD: bool> {
     pub epoch: EpochId,
-    #[schemars(with = "Base64")]
     pub signature: AggregateAuthoritySignature,
-    #[schemars(with = "Base64")]
     #[serde_as(as = "IotaBitmap")]
     pub signers_map: RoaringBitmap,
 }
@@ -1222,11 +1179,10 @@ pub type AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo<true>;
 // Variant of [AuthorityStrongQuorumSignInfo] but with a serialized signature,
 // to be used in external APIs.
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IotaAuthorityStrongQuorumSignInfo {
     pub epoch: EpochId,
     pub signature: AggregateAuthoritySignatureAsBytes,
-    #[schemars(with = "Base64")]
     #[serde_as(as = "IotaBitmap")]
     pub signers_map: RoaringBitmap,
 }
@@ -1485,7 +1441,7 @@ mod bcs_signable {
     impl BcsSignable for crate::transaction::SenderSignedData {}
     impl BcsSignable for crate::object::ObjectInner {}
 
-    impl BcsSignable for crate::accumulator::Accumulator {}
+    impl BcsSignable for crate::global_state_hash::GlobalStateHash {}
 
     impl BcsSignable for super::bcs_signable_test::Foo {}
     #[cfg(test)]
@@ -1704,17 +1660,9 @@ pub mod bcs_signable_test {
     }
 }
 
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[derive(
-    Clone,
-    Copy,
-    Deserialize,
-    Serialize,
-    JsonSchema,
-    Debug,
-    EnumString,
-    strum_macros::Display,
-    PartialEq,
-    Eq,
+    Clone, Copy, Deserialize, Serialize, Debug, EnumString, strum_macros::Display, PartialEq, Eq,
 )]
 #[strum(serialize_all = "lowercase")]
 pub enum SignatureScheme {
@@ -1723,7 +1671,8 @@ pub enum SignatureScheme {
     Secp256r1,
     BLS12381, // This is currently not supported for user Iota Address.
     MultiSig,
-    ZkLoginAuthenticator,
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
+    ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
 }
@@ -1737,7 +1686,8 @@ impl SignatureScheme {
             SignatureScheme::MultiSig => 0x03,
             SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota
             // Address.
-            SignatureScheme::ZkLoginAuthenticator => 0x05,
+            #[allow(deprecated)]
+            SignatureScheme::ZkLoginAuthenticatorDeprecated => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
             SignatureScheme::MoveAuthenticator => 0x07,
         }
@@ -1766,7 +1716,8 @@ impl SignatureScheme {
             0x02 => Ok(SignatureScheme::Secp256r1),
             0x03 => Ok(SignatureScheme::MultiSig),
             0x04 => Ok(SignatureScheme::BLS12381),
-            0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
+            #[allow(deprecated)]
+            0x05 => Ok(SignatureScheme::ZkLoginAuthenticatorDeprecated),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
             0x07 => Ok(SignatureScheme::MoveAuthenticator),
             _ => Err(IotaError::KeyConversion("Invalid key scheme".to_string())),
@@ -1775,24 +1726,22 @@ impl SignatureScheme {
 }
 /// Unlike [enum Signature], [enum CompressedSignature] does not contain public
 /// key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CompressedSignature {
     Ed25519(Ed25519SignatureAsBytes),
     Secp256k1(Secp256k1SignatureAsBytes),
     Secp256r1(Secp256r1SignatureAsBytes),
-    ZkLogin(ZkLoginAuthenticatorAsBytes),
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
+    ZkLoginDeprecated,
     Passkey(PasskeyAuthenticatorAsBytes),
     Move(MoveAuthenticatorAsBytes),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PasskeyAuthenticatorAsBytes(pub Vec<u8>);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct PasskeyAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct MoveAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MoveAuthenticatorAsBytes(pub Vec<u8>);
 
 impl AsRef<[u8]> for CompressedSignature {
     fn as_ref(&self) -> &[u8] {
@@ -1800,7 +1749,8 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Ed25519(sig) => &sig.0,
             CompressedSignature::Secp256k1(sig) => &sig.0,
             CompressedSignature::Secp256r1(sig) => &sig.0,
-            CompressedSignature::ZkLogin(sig) => &sig.0,
+            #[allow(deprecated)]
+            CompressedSignature::ZkLoginDeprecated => &[],
             CompressedSignature::Passkey(sig) => &sig.0,
             CompressedSignature::Move(sig) => &sig.0,
         }
@@ -1834,60 +1784,3 @@ pub type RandomnessSignature = fastcrypto_tbls::types::Signature;
 pub type RandomnessPartialSignature = fastcrypto_tbls::tbls::PartialSignature<RandomnessSignature>;
 pub type RandomnessPrivateKey =
     fastcrypto_tbls::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;
-
-/// Round number of generated randomness.
-#[derive(Clone, Copy, Hash, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RandomnessRound(pub u64);
-
-impl Display for RandomnessRound {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::ops::Add for RandomnessRound {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self(self.0 + other.0)
-    }
-}
-
-impl std::ops::Add<u64> for RandomnessRound {
-    type Output = Self;
-    fn add(self, other: u64) -> Self {
-        Self(self.0 + other)
-    }
-}
-
-impl std::ops::Sub for RandomnessRound {
-    type Output = Self;
-    fn sub(self, other: Self) -> Self {
-        Self(self.0 - other.0)
-    }
-}
-
-impl std::ops::Sub<u64> for RandomnessRound {
-    type Output = Self;
-    fn sub(self, other: u64) -> Self {
-        Self(self.0 - other)
-    }
-}
-
-impl RandomnessRound {
-    pub fn new(round: u64) -> Self {
-        Self(round)
-    }
-
-    pub fn checked_add(self, rhs: u64) -> Option<Self> {
-        self.0.checked_add(rhs).map(Self)
-    }
-
-    pub fn signature_message(&self) -> Vec<u8> {
-        "random_beacon round "
-            .as_bytes()
-            .iter()
-            .cloned()
-            .chain(bcs::to_bytes(&self.0).expect("serialization should not fail"))
-            .collect()
-    }
-}

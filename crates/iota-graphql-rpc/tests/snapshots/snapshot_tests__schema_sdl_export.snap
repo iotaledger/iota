@@ -2,67 +2,6 @@
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
 ---
-type ActiveJwk {
-	"""
-	The string (Issuing Authority) that identifies the OIDC provider.
-	"""
-	iss: String!
-	"""
-	The string (Key ID) that identifies the JWK among a set of JWKs, (RFC
-	7517, Section 4.5).
-	"""
-	kid: String!
-	"""
-	The JWK key type parameter, (RFC 7517, Section 4.1).
-	"""
-	kty: String!
-	"""
-	The JWK RSA public exponent, (RFC 7517, Section 9.3).
-	"""
-	e: String!
-	"""
-	The JWK RSA modulus, (RFC 7517, Section 9.3).
-	"""
-	n: String!
-	"""
-	The JWK algorithm parameter, (RFC 7517, Section 4.4).
-	"""
-	alg: String!
-	"""
-	The most recent epoch in which the JWK was validated.
-	"""
-	epoch: Epoch
-}
-
-type ActiveJwkConnection {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ActiveJwkEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [ActiveJwk!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ActiveJwkEdge {
-	"""
-	The item at the end of the edge
-	"""
-	node: ActiveJwk!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
 """
 The 32-byte address that is an account address (corresponding to a public
 key).
@@ -195,49 +134,6 @@ enum AddressTransactionBlockRelationship {
 	Transactions that sent objects to this address.
 	"""
 	RECV
-}
-
-"""
-System transaction for creating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
-type AuthenticatorStateExpireTransaction {
-	"""
-	Expire JWKs that have a lower epoch than this.
-	"""
-	minEpoch: Epoch
-	"""
-	The initial version that the AuthenticatorStateUpdateV1 was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
-}
-
-"""
-System transaction for updating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateUpdateTransaction {
-	"""
-	Epoch of the authenticator state update transaction.
-	"""
-	epoch: Epoch
-	"""
-	Consensus round of the authenticator state update.
-	"""
-	round: UInt53!
-	"""
-	Newly active JWKs (JSON Web Keys).
-	"""
-	newActiveJwks(first: Int, after: String, last: Int, before: String): ActiveJwkConnection!
-	"""
-	The initial version of the authenticator object that it was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
 }
 
 """
@@ -1121,7 +1017,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2 | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -3825,23 +3721,6 @@ type Query {
 	The coin metadata associated with the given coin type.
 	"""
 	coinMetadata(coinType: String!): CoinMetadata
-	"""
-	Verify a zkLogin signature based on the provided transaction or personal
-	message based on current epoch, chain id, and latest JWKs fetched
-	on-chain. If the signature is valid, the function returns a
-	`ZkLoginVerifyResult` with success as true and an empty list of
-	errors. If the signature is invalid, the function returns
-	a `ZkLoginVerifyResult` with success as false with a list of errors.
-	
-	- `bytes` is either the personal message in raw bytes or transaction
-	data bytes in BCS-encoded and then Base64-encoded.
-	- `signature` is a serialized zkLogin signature that is Base64-encoded.
-	- `intentScope` is an enum that specifies the intent scope to be used to
-	parse bytes.
-	- `author` is the address of the signer of the transaction or personal
-	msg.
-	"""
-	verifyZkloginSignature(bytes: Base64!, signature: Base64!, intentScope: ZkLoginIntentScope!, author: IotaAddress!): ZkLoginVerifyResult!
 }
 
 """
@@ -4741,7 +4620,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | AuthenticatorStateUpdateTransaction | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
 
 """
 An input filter selecting for either system or programmable transactions.
@@ -4764,10 +4643,6 @@ enum TransactionBlockKindInput {
 	The consensus commit prologue transaction block.
 	"""
 	CONSENSUS_COMMIT_PROLOGUE_V1
-	"""
-	The authenticator state update transaction block.
-	"""
-	AUTHENTICATOR_STATE_UPDATE_V1
 	"""
 	The randomness state update transaction block.
 	"""
@@ -5177,35 +5052,6 @@ type ValidatorSet {
 	The current set of committee members.
 	"""
 	committeeMembers(first: Int, before: String, last: Int, after: String): ValidatorConnection!
-}
-
-"""
-An enum that specifies the intent scope to be used to parse the bytes for
-signature verification.
-"""
-enum ZkLoginIntentScope {
-	"""
-	Indicates that the bytes are to be parsed as transaction data bytes.
-	"""
-	TRANSACTION_DATA
-	"""
-	Indicates that the bytes are to be parsed as a personal message.
-	"""
-	PERSONAL_MESSAGE
-}
-
-"""
-The result of the zkLogin signature verification.
-"""
-type ZkLoginVerifyResult {
-	"""
-	The boolean result of the verification. If true, errors should be empty.
-	"""
-	success: Boolean!
-	"""
-	The errors field captures any verification error
-	"""
-	errors: [String!]!
 }
 
 """

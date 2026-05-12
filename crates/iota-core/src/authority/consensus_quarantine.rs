@@ -6,15 +6,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_types::{
-    authenticator_state::ActiveJwk,
     base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::{TimestampMs, VersionedDkgConfirmation},
+    messages_consensus::{TimestampMs, VersionAssignment, VersionedDkgConfirmation},
     signature::GenericSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -72,10 +70,6 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
     dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
-
-    // jwk state
-    pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
-    active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
 }
 
 impl ConsensusCommitOutput {
@@ -115,12 +109,6 @@ impl ConsensusCommitOutput {
         self.pending_checkpoints
             .iter()
             .any(|cp| cp.height() == *index)
-    }
-
-    fn get_round(&self) -> Option<u64> {
-        self.consensus_commit_stats
-            .as_ref()
-            .map(|stats| stats.index.last_committed_round)
     }
 
     pub fn insert_end_of_publish(&mut self, authority: AuthorityName) {
@@ -192,14 +180,6 @@ impl ConsensusCommitOutput {
         self.dkg_output = Some(output);
     }
 
-    pub fn insert_pending_jwk(&mut self, authority: AuthorityName, id: JwkId, jwk: JWK) {
-        self.pending_jwks.insert((authority, id, jwk));
-    }
-
-    pub fn insert_active_jwk(&mut self, round: u64, key: (JwkId, JWK)) {
-        self.active_jwks.insert((round, key));
-    }
-
     pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
         self.congestion_control_object_debts = object_debts;
     }
@@ -239,7 +219,6 @@ impl ConsensusCommitOutput {
         let consensus_commit_stats = self
             .consensus_commit_stats
             .expect("consensus_commit_stats must be set");
-        let round = consensus_commit_stats.index.last_committed_round;
 
         batch.insert_batch(
             &tables.last_consensus_stats,
@@ -298,18 +277,6 @@ impl ConsensusCommitOutput {
         }
 
         batch.insert_batch(
-            &tables.pending_jwks,
-            self.pending_jwks.into_iter().map(|j| (j, ())),
-        )?;
-        batch.insert_batch(
-            &tables.active_jwks,
-            self.active_jwks.into_iter().map(|j| {
-                // TODO: we don't need to store the round in this map if it is invariant
-                assert_eq!(j.0, round);
-                (j, ())
-            }),
-        )?;
-        batch.insert_batch(
             &tables.congestion_control_object_debts,
             self.congestion_control_object_debts
                 .into_iter()
@@ -344,7 +311,7 @@ impl ConsensusCommitOutput {
 pub(crate) struct ConsensusOutputCache {
     // shared version assignments is a DashMap because it is read from execution so we don't
     // want contention.
-    shared_version_assignments: DashMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
+    shared_version_assignments: DashMap<TransactionKey, Vec<VersionAssignment>>,
 
     // deferred transactions is only used by consensus handler so there should never be lock
     // contention
@@ -405,7 +372,7 @@ impl ConsensusOutputCache {
     pub fn get_assigned_shared_object_versions(
         &self,
         key: &TransactionKey,
-    ) -> Option<Vec<(ObjectID, SequenceNumber)>> {
+    ) -> Option<Vec<VersionAssignment>> {
         self.shared_version_assignments
             .get(key)
             .map(|locks| locks.clone())
@@ -431,7 +398,7 @@ impl ConsensusOutputCache {
     pub fn set_shared_object_versions_for_testing(
         &self,
         tx_digest: &TransactionDigest,
-        assigned_versions: &[(ObjectID, SequenceNumber)],
+        assigned_versions: &[VersionAssignment],
     ) {
         self.shared_version_assignments.insert(
             TransactionKey::Digest(*tx_digest),
@@ -439,13 +406,10 @@ impl ConsensusOutputCache {
         );
     }
 
-    pub fn remove_shared_object_assignments<'a>(
-        &self,
-        keys: impl IntoIterator<Item = &'a TransactionKey>,
-    ) {
+    pub fn remove_shared_object_assignments(&self, keys: impl IntoIterator<Item = TransactionKey>) {
         let mut removed_count = 0;
         for tx_key in keys {
-            if self.shared_version_assignments.remove(tx_key).is_some() {
+            if self.shared_version_assignments.remove(&tx_key).is_some() {
                 removed_count += 1;
             }
         }
@@ -707,7 +671,8 @@ impl ConsensusOutputQuarantine {
                     output
                         .pending_checkpoints
                         .iter()
-                        .flat_map(|c| c.roots().iter()),
+                        .flat_map(|c| c.roots().iter())
+                        .copied(),
                 );
                 output.write_to_batch(epoch_store, batch)?;
             } else {
@@ -883,54 +848,6 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
-    pub(super) fn get_new_jwks(
-        &self,
-        epoch_store: &AuthorityPerEpochStore,
-        round: u64,
-    ) -> IotaResult<Vec<ActiveJwk>> {
-        let epoch = epoch_store.epoch();
-
-        // Check if the requested round is in memory
-        for output in self.output_queue.iter().rev() {
-            // unwrap safe because output will always have last consensus stats set before
-            // being added to the quarantine
-            let output_round = output.get_round().unwrap();
-            if round == output_round {
-                return Ok(output
-                    .active_jwks
-                    .iter()
-                    .map(|(_, (jwk_id, jwk))| ActiveJwk {
-                        jwk_id: jwk_id.clone(),
-                        jwk: jwk.clone(),
-                        epoch,
-                    })
-                    .collect());
-            }
-        }
-
-        // Fall back to reading from database
-        let empty_jwk_id = JwkId::new(String::new(), String::new());
-        let empty_jwk = JWK {
-            kty: String::new(),
-            e: String::new(),
-            n: String::new(),
-            alg: String::new(),
-        };
-
-        let start = (round, (empty_jwk_id.clone(), empty_jwk.clone()));
-        let end = (round + 1, (empty_jwk_id, empty_jwk));
-
-        Ok(epoch_store
-            .tables()?
-            .active_jwks
-            .safe_iter_with_bounds(Some(start), Some(end))
-            .map_ok(|((r, (jwk_id, jwk)), _)| {
-                debug_assert!(round == r);
-                ActiveJwk { jwk_id, jwk, epoch }
-            })
-            .collect::<Result<Vec<_>, _>>()?)
-    }
-
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
         self.output_queue
             .iter()
@@ -972,7 +889,11 @@ impl ConsensusOutputQuarantine {
                     ..
                 }) = &tx.0.transaction
                 {
-                    Some(tx.shared_input_objects().into_iter().map(|obj| obj.id))
+                    Some(
+                        tx.shared_input_objects()
+                            .into_iter()
+                            .map(|obj| obj.object_id),
+                    )
                 } else {
                     None
                 }

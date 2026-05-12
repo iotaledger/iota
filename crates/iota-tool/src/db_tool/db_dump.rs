@@ -231,6 +231,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,
+        None,
     )
     .await?;
     Ok(())
@@ -257,6 +258,7 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         metrics,
         archive_readers,
         EPOCH_DURATION_MS_FOR_TESTING,
+        None,
     )
     .await?;
     Ok(())
@@ -282,6 +284,8 @@ pub fn dump_table(
                     page_number,
                 )
             } else {
+                let perpetual_tables = AuthorityPerpetualTables::describe_tables();
+                assert!(perpetual_tables.contains_key(table_name));
                 AuthorityPerpetualTables::open_readonly(&db_path).dump(
                     table_name,
                     page_size,

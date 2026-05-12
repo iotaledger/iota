@@ -42,7 +42,11 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
         any::<[u8; 32]>(),
     )
         .prop_map(move |(addr, seq, seed)| {
-            (ObjectID::from_address(addr), seq, ObjectDigest::new(seed))
+            ObjectRef::new(
+                ObjectID::new(addr.into_bytes()),
+                seq,
+                ObjectDigest::new(seed),
+            )
         })
 }
 
@@ -53,7 +57,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
         gas_budget_selection_strategy(),
     )
         .prop_map(move |(obj_refs, price, budget)| GasData {
-            payment: obj_refs,
+            objects: obj_refs,
             owner: sender,
             price,
             budget,
@@ -63,7 +67,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
 pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
     (vec(gen_type_tag(), 0..10))
         .prop_map(pt_for_tags)
-        .prop_map(TransactionKind::ProgrammableTransaction)
+        .prop_map(TransactionKind::Programmable)
 }
 
 pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {
@@ -125,7 +129,7 @@ impl<
             .prop_map(|(kind, sender, gas_data, expiration)| TransactionDataV1 {
                 kind,
                 sender,
-                gas_data,
+                gas_payment: gas_data,
                 expiration,
             })
             .prop_map(TransactionData::V1)

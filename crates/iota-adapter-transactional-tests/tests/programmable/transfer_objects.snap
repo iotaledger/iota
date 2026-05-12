@@ -10,7 +10,7 @@ task 1, lines 9-33:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5996400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5996400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 34-36:
 //# programmable --sender A --inputs @A
@@ -18,11 +18,11 @@ task 2, lines 34-36:
 //> TransferObjects([Result(0)], Input(0));
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 38-40:
 //# view-object 0,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -42,11 +42,11 @@ task 4, lines 41-44:
 //> TransferObjects([Result(1)], Result(0));
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 46-48:
 //# view-object 4,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 3
 Contents: test::m1::Pub {
     id: iota::object::UID {
@@ -66,11 +66,11 @@ task 6, lines 49-54:
 //> TransferObjects([Result(2)], Result(3));
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, lines 56-58:
 //# view-object 6,0
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 4
 Contents: test::m1::Pub {
     id: iota::object::UID {
@@ -92,11 +92,11 @@ task 8, lines 59-66:
 //> TransferObjects([Result(4), Result(2), Result(5)], Result(3));
 created: object(8,0), object(8,1), object(8,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5358000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5358000, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 9, line 68:
 //# view-object 8,0
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Cup<iota::object::ID> {
     id: iota::object::UID {
@@ -108,7 +108,7 @@ Contents: test::m1::Cup<iota::object::ID> {
 
 task 10, line 70:
 //# view-object 8,1
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Cup<test::m1::Pub> {
     id: iota::object::UID {
@@ -120,7 +120,7 @@ Contents: test::m1::Cup<test::m1::Pub> {
 
 task 11, line 72:
 //# view-object 8,2
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Pub {
     id: iota::object::UID {

@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use move_core_types::language_storage::TypeTag;
+use iota_sdk_types::TypeTag;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +12,7 @@ use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
-    is_system_package,
-    object::{Data, Object, Owner},
+    object::{Data, MoveObjectExt, Object, Owner},
     storage::BackingPackageStore,
     transaction::Argument,
 };
@@ -119,7 +118,7 @@ impl ExecutionResultsV1 {
 
             // Update the version for the written object.
             match &mut obj.data {
-                Data::Move(obj) => {
+                Data::Struct(obj) => {
                     // Move objects all get the transaction's lamport timestamp
                     obj.increment_version_to(lamport_version);
                 }
@@ -129,8 +128,9 @@ impl ExecutionResultsV1 {
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
                     if self.modified_objects.contains(id) {
-                        debug_assert!(is_system_package(*id));
-                        pkg.increment_version();
+                        debug_assert!(id.is_system_package());
+                        pkg.increment_version()
+                            .expect("package version should never overflow");
                     }
                 }
             }
@@ -139,28 +139,25 @@ impl ExecutionResultsV1 {
             // Note, this only works because shared objects must be created as
             // shared (not created as owned in one transaction and later
             // converted to shared in another).
-            if let Owner::Shared {
-                initial_shared_version,
-            } = &mut obj.owner
-            {
+            if let Owner::Shared(initial_shared_version) = &mut obj.owner {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
-                        SequenceNumber::new(),
+                        SequenceNumber::default(),
                         "Initial version should be blank before this point for {id:?}",
                     );
                     *initial_shared_version = lamport_version;
                 }
 
                 // Update initial_shared_version for reshared objects
-                if let Some(Owner::Shared {
-                    initial_shared_version: previous_initial_shared_version,
-                }) = input_objects.get(id).map(|obj| &obj.owner)
+                if let Some(previous_initial_shared_version) = input_objects
+                    .get(id)
+                    .and_then(|obj| obj.owner.as_shared_opt())
                 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));
                     debug_assert!(
-                        *initial_shared_version == SequenceNumber::new()
+                        *initial_shared_version == SequenceNumber::default()
                             || *initial_shared_version == *previous_initial_shared_version
                     );
 

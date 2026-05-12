@@ -17,7 +17,7 @@ use iota_grpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, StructTag, TypeTag, VersionNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -28,8 +28,12 @@ use iota_types::{
     object::Object,
     storage::error::Kind,
 };
+use prometheus::IntGauge;
 use prost::Message;
-use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
+use tokio::sync::{
+    OwnedSemaphorePermit, Semaphore,
+    broadcast::{Receiver, Sender, error::RecvError},
+};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
@@ -79,23 +83,99 @@ pub type GetCheckpointStream = Pin<Box<dyn futures::Stream<Item = CheckpointStre
 pub type StreamCheckpointsStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
-/// Wrapper that converts native CheckpointData to gRPC type before broadcasting
+/// Broadcasts checkpoint data to subscribers, capping concurrent subscribers.
 #[derive(Clone)]
 pub struct GrpcCheckpointDataBroadcaster {
     sender: Sender<Arc<IotaTypesCheckpointData>>,
+    /// Semaphore enforcing the concurrent-subscriber cap. Each successful
+    /// `subscribe()` acquires one permit; dropping the returned
+    /// [`SubscriberGuard`] releases it. This makes the cap atomic (no
+    /// check-then-subscribe race).
+    subscription_semaphore: Arc<Semaphore>,
+    /// Optional gauge tracking the number of active subscribers. Incremented
+    /// on `subscribe()`, decremented when the subscriber's
+    /// [`SubscriberGuard`] drops — so the metric is always in sync with
+    /// actual subscriber count, including client disconnects between
+    /// broadcasts.
+    inflight_subscribers: Option<IntGauge>,
+}
+
+/// A broadcast [`Receiver`] bundled with the [`SubscriberGuard`] holding
+/// its slot in the subscriber cap. Bundling them at the `subscribe()`
+/// boundary makes it impossible for callers to acquire a receiver without
+/// also holding the cap/gauge lifetime.
+#[must_use = "dropping the SubscribedReceiver immediately releases the subscriber slot"]
+pub struct SubscribedReceiver {
+    pub(crate) rx: Receiver<Arc<IotaTypesCheckpointData>>,
+    pub(crate) guard: SubscriberGuard,
+}
+
+/// RAII guard that holds one slot in the subscriber cap and keeps the
+/// inflight gauge in sync: the gauge is incremented on construction and
+/// decremented on drop.
+pub struct SubscriberGuard {
+    _permit: OwnedSemaphorePermit,
+    gauge: Option<IntGauge>,
+}
+
+impl SubscriberGuard {
+    fn new(permit: OwnedSemaphorePermit, gauge: Option<IntGauge>) -> Self {
+        if let Some(g) = &gauge {
+            g.inc();
+        }
+        Self {
+            _permit: permit,
+            gauge,
+        }
+    }
+}
+
+impl Drop for SubscriberGuard {
+    fn drop(&mut self) {
+        if let Some(gauge) = &self.gauge {
+            gauge.dec();
+        }
+    }
 }
 
 impl GrpcCheckpointDataBroadcaster {
-    pub fn new(sender: Sender<Arc<IotaTypesCheckpointData>>) -> Self {
-        Self { sender }
+    pub fn new(
+        sender: Sender<Arc<IotaTypesCheckpointData>>,
+        max_subscribers: usize,
+        inflight_subscribers: Option<IntGauge>,
+    ) -> Self {
+        Self {
+            sender,
+            subscription_semaphore: Arc::new(Semaphore::new(max_subscribers)),
+            inflight_subscribers,
+        }
     }
 
-    /// Subscribe to checkpoint data broadcasts
-    pub fn subscribe(&self) -> Receiver<Arc<IotaTypesCheckpointData>> {
-        self.sender.subscribe()
+    /// Subscribe to checkpoint data broadcasts, enforcing the configured cap
+    /// on concurrent subscribers.
+    ///
+    /// Returns `None` when the cap has been reached. Callers should surface
+    /// this as `Unavailable` to the client (transient capacity, retryable).
+    pub fn subscribe(&self) -> Option<SubscribedReceiver> {
+        let permit = self
+            .subscription_semaphore
+            .clone()
+            .try_acquire_owned()
+            .ok()?;
+        let rx = self.sender.subscribe();
+        let guard = SubscriberGuard::new(permit, self.inflight_subscribers.clone());
+        Some(SubscribedReceiver { rx, guard })
     }
 
-    /// Get the number of active receivers
+    /// Get the number of active broadcast receivers.
+    ///
+    /// Counts every receiver on the underlying `broadcast::Sender`, including
+    /// any internal subscribers that did not go through [`subscribe`] and are
+    /// therefore not tracked by the subscriber cap or `inflight_subscribers`
+    /// gauge. Use this when deciding whether to send on the channel; use the
+    /// gauge when reporting externally-subscribed stream count.
+    ///
+    /// [`subscribe`]: Self::subscribe
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }
@@ -403,13 +483,7 @@ impl GrpcReader {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-
-                                        // Convert matching event to SDK type
-                                        let sdk_event: iota_sdk_types::Event = raw_event
-                                            .clone()
-                                            .try_into()
-                                            .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
-                                        let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
@@ -599,7 +673,7 @@ impl GrpcReader {
 
     pub fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state_reader
             .get_type_layout(type_tag)
@@ -613,7 +687,7 @@ impl GrpcReader {
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<&OwnedObjectCursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
@@ -642,7 +716,7 @@ impl GrpcReader {
     /// Get unified coin info.
     pub fn get_coin_info(
         &self,
-        coin_type: &move_core_types::language_storage::StructTag,
+        coin_type: &StructTag,
     ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
@@ -673,6 +747,7 @@ impl GrpcReader {
     fn create_generic_checkpoint_stream<T, S, R>(
         &self,
         mut rx: Receiver<Arc<T>>,
+        subscriber_guard: SubscriberGuard,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         cancellation_token: CancellationToken,
@@ -701,6 +776,9 @@ impl GrpcReader {
     {
         let state_reader = self.state_reader.clone();
         async_stream::try_stream! {
+            // Capture the guard so it drops (releasing the subscriber slot
+            // and decrementing the gauge) when the stream is dropped.
+            let _subscriber_guard = subscriber_guard;
             let mut latest = latest_checkpoint_seq(&*state_reader)
                 .map_err(|e| Status::internal(format!("Failed to get latest checkpoint: {e}")))?
                 .unwrap_or(0);
@@ -875,7 +953,7 @@ impl GrpcReader {
     /// Create a checkpoint stream implementation
     pub fn create_checkpoint_data_stream(
         &self,
-        rx: Receiver<Arc<IotaTypesCheckpointData>>,
+        subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         checkpoint_mask: FieldMaskTree,
@@ -903,7 +981,8 @@ impl GrpcReader {
         let event_filter_historical = event_filter.clone();
 
         Box::new(Box::pin(reader.create_generic_checkpoint_stream(
-            rx,
+            subscription.rx,
+            subscription.guard,
             start_sequence_number,
             end_sequence_number,
             cancellation_token,
@@ -1068,8 +1147,7 @@ impl GrpcReader {
 
             let transaction_data = fields
                 .include_transaction
-                .then(|| transaction.transaction_data().clone().try_into())
-                .transpose()?;
+                .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
                 .include_signatures
@@ -1165,7 +1243,7 @@ impl GrpcReader {
             // Get output objects only if requested
             let output_objects = if fields.include_output_objects {
                 let mut objects = Vec::new();
-                for ((object_id, version, _digest), _owner) in effects
+                for (object_ref, _owner) in effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
@@ -1173,7 +1251,7 @@ impl GrpcReader {
                 {
                     if let Some(obj) = self
                         .state_reader
-                        .try_get_object_by_key(&object_id, version)?
+                        .try_get_object_by_key(&object_ref.object_id, object_ref.version)?
                     {
                         objects.push(obj);
                     }

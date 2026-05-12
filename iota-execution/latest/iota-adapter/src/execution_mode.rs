@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    error::ExecutionError, execution::ExecutionResult, transaction::Argument, transfer::Receiving,
+    base_types::TypeTag, error::ExecutionError, execution::ExecutionResult, transaction::Argument,
+    transfer::Receiving,
 };
-use move_core_types::language_storage::TypeTag;
 
 use crate::{
     execution_value::{RawValueType, Value},
@@ -174,8 +174,8 @@ impl ExecutionMode for System {
     }
 
     fn allow_arbitrary_values() -> bool {
-        // For AuthenticatorStateUpdate, we need to be able to pass in a vector of
-        // JWKs, so we need to allow arbitrary values.
+        // System transactions (e.g. RandomnessStateUpdate) need to pass
+        // arbitrary pure values such as random bytes.
         true
     }
 

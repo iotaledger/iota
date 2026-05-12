@@ -96,7 +96,7 @@ serde_spanned = { version = "0.6.9", features = ["serde"] }
 serde_with = "3.9.0"
 serde_yaml = "0.8.26"
 sha2 = "0.10.9"
-sha3 = "0.10.8"
+sha3 = "0.11.0"
 shell-words = "1.0.0"
 similar = "2.4.0"
 simplelog = "0.9.0"

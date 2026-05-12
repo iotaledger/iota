@@ -10,16 +10,15 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
+use iota_sdk_types::StructTag;
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
-    gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::rpc_params;
-use move_core_types::language_storage::StructTag;
 use serde_json::json;
 use tracing::info;
 
@@ -68,11 +67,11 @@ impl TestCaseImpl for CoinIndexTest {
         let balance_change = response.balance_changes.unwrap();
         let owner_balance = balance_change
             .iter()
-            .find(|b| b.owner == Owner::AddressOwner(account))
+            .find(|b| b.owner == Owner::Address(account))
             .unwrap();
         let recipient_balance = balance_change
             .iter()
-            .find(|b| b.owner != Owner::AddressOwner(account))
+            .find(|b| b.owner != Owner::Address(account))
             .unwrap();
         let Balance {
             coin_object_count,
@@ -80,7 +79,7 @@ impl TestCaseImpl for CoinIndexTest {
             coin_type,
             ..
         } = client.coin_read_api().get_balance(account, None).await?;
-        assert_eq!(coin_type, GAS::type_().to_string());
+        assert_eq!(coin_type, StructTag::new_gas().to_string());
 
         assert_eq!(coin_object_count, old_coin_object_count);
         assert_eq!(
@@ -96,7 +95,7 @@ impl TestCaseImpl for CoinIndexTest {
             ..
         } = client
             .coin_read_api()
-            .get_balance(recipient_balance.owner.get_owner_address().unwrap(), None)
+            .get_balance(*recipient_balance.owner.address_or_object().unwrap(), None)
             .await?;
         assert_eq!(coin_object_count, 1);
         assert!(recipient_balance.amount > 0);
@@ -125,7 +124,7 @@ impl TestCaseImpl for CoinIndexTest {
             .await?;
 
         let balance_change = &response.balance_changes.unwrap()[0];
-        assert_eq!(balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(balance_change.owner, Owner::Address(account));
 
         let Balance {
             coin_object_count,
@@ -149,12 +148,12 @@ impl TestCaseImpl for CoinIndexTest {
 
         info!("token package published, package: {package:?}, cap: {cap:?}",);
         let iota_type_str = "0x2::iota::IOTA";
-        let coin_type_str = format!("{}::managed::MANAGED", package.0);
+        let coin_type_str = format!("{}::managed::MANAGED", package.object_id);
         info!("coin type: {coin_type_str}");
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
         let args = vec![
-            IotaJsonValue::from_object_id(cap.0),
+            IotaJsonValue::from_object_id(cap.object_id),
             IotaJsonValue::new(json!("10000"))?,
             IotaJsonValue::new(json!(account))?,
         ];
@@ -162,7 +161,7 @@ impl TestCaseImpl for CoinIndexTest {
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "mint",
                 vec![],
@@ -185,8 +184,8 @@ impl TestCaseImpl for CoinIndexTest {
             .find(|b| b.coin_type.to_string().contains("MANAGED"))
             .unwrap();
 
-        assert_eq!(iota_balance_change.owner, Owner::AddressOwner(account));
-        assert_eq!(managed_balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(iota_balance_change.owner, Owner::Address(account));
+        assert_eq!(managed_balance_change.owner, Owner::Address(account));
 
         let Balance { total_balance, .. } =
             client.coin_read_api().get_balance(account, None).await?;
@@ -239,12 +238,12 @@ impl TestCaseImpl for CoinIndexTest {
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "mint",
                 vec![],
                 vec![
-                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::from_object_id(cap.object_id),
                     IotaJsonValue::new(json!("10"))?,
                     IotaJsonValue::new(json!(account))?,
                 ],
@@ -285,7 +284,7 @@ impl TestCaseImpl for CoinIndexTest {
             .find(|c| c.balance == 10000)
             .unwrap()
             .coin_object_id;
-        let _ = add_to_envelope(ctx, package.0, envelope.0, managed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         let managed_balance = client
             .coin_read_api()
@@ -304,12 +303,12 @@ impl TestCaseImpl for CoinIndexTest {
         let managed_old_total_count = managed_balance.coin_object_count;
 
         // 7. take back the balance 10 MANAGED coin
-        let args = vec![IotaJsonValue::from_object_id(envelope.0)];
+        let args = vec![IotaJsonValue::from_object_id(envelope.object_id)];
         let txn = client
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "take_from_envelope",
                 vec![],
@@ -339,20 +338,20 @@ impl TestCaseImpl for CoinIndexTest {
         );
 
         // 8. Put the balance = 10 MANAGED coin back to envelope
-        let _ = add_to_envelope(ctx, package.0, envelope.0, managed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         // 9. Take from envelope and burn
         let txn = client
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "take_from_envelope_and_burn",
                 vec![],
                 vec![
-                    IotaJsonValue::from_object_id(cap.0),
-                    IotaJsonValue::from_object_id(envelope.0),
+                    IotaJsonValue::from_object_id(cap.object_id),
+                    IotaJsonValue::from_object_id(envelope.object_id),
                 ],
                 None,
                 rgp * 2_000_000,
@@ -378,12 +377,12 @@ impl TestCaseImpl for CoinIndexTest {
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "burn",
                 vec![],
                 vec![
-                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::from_object_id(cap.object_id),
                     IotaJsonValue::from_object_id(managed_coin_id_10k),
                 ],
                 None,
@@ -446,12 +445,12 @@ impl TestCaseImpl for CoinIndexTest {
             .transaction_builder()
             .move_call(
                 account,
-                package.0,
+                package.object_id,
                 "managed",
                 "mint_multi",
                 vec![],
                 vec![
-                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::from_object_id(cap.object_id),
                     IotaJsonValue::new(json!("5"))?,  // balance = 5
                     IotaJsonValue::new(json!("40"))?, // num = 40
                     IotaJsonValue::new(json!(account))?,
@@ -586,7 +585,7 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 12. add one coin to envelope, now we only have 39 coins
         let removed_coin_id = managed_coins.get(20).unwrap().coin_object_id;
-        let _ = add_to_envelope(ctx, package.0, envelope.0, removed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, removed_coin_id).await;
         let managed_coins_12_39 = client
             .coin_read_api()
             .get_all_coins(account, cursor, Some(40))
@@ -651,13 +650,10 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::AddressOwner(_),
-            object_type: StructTag {
-                name,
-                ..
-            },
+            owner: Owner::Address(_),
+            object_type,
             ..
-        } if name.as_str() == "TreasuryCap")
+        } if object_type.is_treasury_cap())
         })
         .unwrap()
         .object_ref();
@@ -665,13 +661,10 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::Shared {..},
-            object_type: StructTag {
-                name,
-                ..
-            },
+            owner: Owner::Shared(_),
+            object_type,
             ..
-        } if name.as_str() == "PublicRedEnvelope")
+        } if object_type.name().as_str() == "PublicRedEnvelope")
         })
         .unwrap()
         .object_ref();

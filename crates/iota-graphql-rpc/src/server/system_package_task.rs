@@ -42,7 +42,7 @@ impl SystemPackageTask {
                     info!("Detected epoch boundary, evicting system packages from cache");
                     self.resolver
                         .package_store()
-                        .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                        .evict(SYSTEM_PACKAGE_ADDRESSES);
                 }
             }
         }

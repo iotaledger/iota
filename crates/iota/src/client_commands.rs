@@ -25,12 +25,11 @@ use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
-    DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
-    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
+    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -58,10 +57,10 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, Field},
+    dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
@@ -75,17 +74,13 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
-    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
-};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -685,12 +680,21 @@ pub struct TxProcessingArgs {
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
     /// Auth input objects or primitive values for the Move authenticate
-    /// function
+    /// function of the sender.
     #[arg(long, num_args = 1..)]
     pub auth_call_args: Option<Vec<String>>,
-    /// Auth type arguments for the Move authenticate function
+    /// Auth type arguments for the Move authenticate function of the sender.
     #[arg(long, num_args = 1..)]
     pub auth_type_args: Option<Vec<String>>,
+    /// Auth input objects or primitive values for the Move authenticate
+    /// function of the gas sponsor. Use this when the sponsor is an abstract
+    /// account that must be authenticated via a `MoveAuthenticator`.
+    #[arg(long, num_args = 1..)]
+    pub sponsor_auth_call_args: Option<Vec<String>>,
+    /// Auth type arguments for the Move authenticate function of the gas
+    /// sponsor.
+    #[arg(long, num_args = 1..)]
+    pub sponsor_auth_type_args: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -923,7 +927,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )?
                 } else {
                     None
@@ -1095,7 +1099,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )?
                 } else {
                     None
@@ -1957,8 +1961,8 @@ impl IotaClientCommands {
                     (false, true, _) => ValidationMode::deps(),
                     (true, false, None) => ValidationMode::root(),
                     (true, true, None) => ValidationMode::root_and_deps(),
-                    (true, false, Some(at)) => ValidationMode::root_at(*at),
-                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
+                    (true, false, Some(at)) => ValidationMode::root_at(at.into()),
+                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(at.into()),
                 };
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
@@ -2380,7 +2384,7 @@ impl Display for IotaClientCommandResult {
                 let df_refs = DynamicFieldOutput {
                     has_next_page: df_refs.has_next_page,
                     next_cursor: df_refs.next_cursor,
-                    data: df_refs.data.clone(),
+                    data: df_refs.data.iter().cloned().map(Into::into).collect(),
                 };
 
                 let json_obj = json!(df_refs);
@@ -3199,7 +3203,10 @@ pub async fn execute_dry_run(
                 let gas_coins = client
                     .read_api()
                     .multi_get_object_with_options(
-                        gas_payment.iter().map(|object_ref| object_ref.0).collect(),
+                        gas_payment
+                            .iter()
+                            .map(|object_ref| object_ref.object_id)
+                            .collect(),
                         IotaObjectDataOptions::bcs_lossless(),
                     )
                     .await?;
@@ -3329,6 +3336,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         display,
         auth_call_args,
         auth_type_args,
+        sponsor_auth_call_args,
+        sponsor_auth_type_args,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3343,6 +3352,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let client = context.get_client().await?;
 
     let signer = sender.unwrap_or(signer);
+
+    ensure!(
+        gas_sponsor.is_some_and(|s| s != signer)
+            || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
+        "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
+    );
 
     if dev_inspect {
         return execute_dev_inspect(
@@ -3396,7 +3411,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             .input_objects()?
             .iter()
             .filter_map(|o| match o {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 _ => None,
             })
             .collect();
@@ -3432,36 +3447,30 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
-            let auth_info = fetch_auth_info(&client, signer).await?;
-            let (type_args, json_args) =
-                process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
-            let call_args = resolve_auth_call_args(
-                &client,
-                auth_info.value.package,
-                &auth_info.value.module,
-                &auth_info.value.function,
-                &type_args,
-                json_args,
-            )
-            .await?;
-            Some((
-                call_args,
-                type_args.into_iter().map(TypeInput::from).collect(),
-            ))
-        } else {
-            None
-        };
+        let sender_auth_args = build_auth_args_for_signing(
+            &client,
+            signer,
+            auth_call_args.as_ref(),
+            auth_type_args.as_ref(),
+        )
+        .await?;
 
         let signature =
-            sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
+            sign_transaction(context, &tx_data, &tx_data.sender(), sender_auth_args).await?;
 
         let mut signatures = vec![signature];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
+                let sponsor_auth_args = build_auth_args_for_signing(
+                    &client,
+                    gas_sponsor,
+                    sponsor_auth_call_args.as_ref(),
+                    sponsor_auth_type_args.as_ref(),
+                )
+                .await?;
                 let signature =
-                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
+                    sign_transaction(context, &tx_data, &gas_sponsor, sponsor_auth_args).await?;
 
                 signatures.push(signature);
             }
@@ -3511,7 +3520,6 @@ async fn execute_dev_inspect(
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
 
     let dev_inspect_args = DevInspectArgs {
         gas_sponsor,
@@ -3691,7 +3699,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::from(module.unit.address.into_inner())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,
@@ -3740,8 +3748,38 @@ async fn select_coins_for_amount(
     Ok(coins)
 }
 
-/// Resolves authentication call arguments, removing the signer arg added by the
-/// VM.
+/// Builds a `MoveAuthenticator` auth-args tuple for the given signer address.
+///
+/// Returns `None` when no `--auth-call-args` / `--auth-type-args` are provided.
+/// Fetches the `AuthenticatorFunctionRefV1` bound to `address` so the correct
+/// package/module/function is resolved per signer — required for abstract
+/// accounts acting as either sender or gas sponsor.
+pub(crate) async fn build_auth_args_for_signing(
+    client: &IotaClient,
+    address: IotaAddress,
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+) -> Result<Option<(Vec<CallArg>, Vec<TypeTag>)>, anyhow::Error> {
+    if auth_call_args.is_none() && auth_type_args.is_none() {
+        return Ok(None);
+    }
+
+    let auth_info = fetch_auth_info(client, address).await?;
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
+    let call_args = resolve_auth_call_args(
+        client,
+        auth_info.value.package,
+        &auth_info.value.module,
+        &auth_info.value.function,
+        &type_args,
+        json_args,
+    )
+    .await?;
+    Ok(Some((call_args, type_args)))
+}
+
+/// Resolves authentication call arguments, removing the signer arg added by
+/// the VM.
 pub(crate) async fn resolve_auth_call_args(
     client: &IotaClient,
     package: ObjectID,
@@ -3851,28 +3889,19 @@ async fn create_move_authenticator_signature(
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
-    let auth_info = fetch_auth_info(client, address).await?;
-
-    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
-
-    let call_args = resolve_auth_call_args(
-        client,
-        auth_info.value.package,
-        &auth_info.value.module,
-        &auth_info.value.function,
-        &type_args,
-        json_args,
-    )
-    .await?;
+    let (call_args, type_args) =
+        build_auth_args_for_signing(client, address, auth_call_args, auth_type_args)
+            .await?
+            .ok_or_else(|| anyhow!("auth args are required to create a MoveAuthenticator"))?;
 
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(GenericSignature::MoveAuthenticator(
         MoveAuthenticator::new_v1(
             call_args,
-            type_args.into_iter().map(TypeInput::from).collect(),
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(address),
+            type_args,
+            CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::from(address),
                 initial_shared_version,
                 mutable: false,
             }),

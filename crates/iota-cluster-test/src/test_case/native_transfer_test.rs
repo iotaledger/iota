@@ -91,22 +91,22 @@ impl NativeTransferTest {
         );
         // Order of balance change is not fixed so need to check who's balance come
         // first. this make sure recipient always come first
-        if balance_changes[0].owner.get_owner_address().unwrap() == signer {
+        if *balance_changes[0].owner.address_or_object().unwrap() == signer {
             balance_changes.reverse()
         }
         BalanceChangeChecker::new()
-            .owner(Owner::AddressOwner(recipient))
+            .owner(Owner::Address(recipient))
             .coin_type("0x2::iota::IOTA")
             .check(&balance_changes.remove(0));
         BalanceChangeChecker::new()
-            .owner(Owner::AddressOwner(signer))
+            .owner(Owner::Address(signer))
             .coin_type("0x2::iota::IOTA")
             .check(&balance_changes.remove(0));
         // Verify fullnode observes the txn
         ctx.let_fullnode_sync(vec![response.digest], 5).await;
 
         let _ = ObjectChecker::new(obj_to_transfer_id)
-            .owner(Owner::AddressOwner(recipient))
+            .owner(Owner::Address(recipient))
             .check(ctx.get_fullnode_client())
             .await;
     }

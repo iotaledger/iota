@@ -22,15 +22,15 @@ use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
     authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
-    state_accumulator::StateAccumulator,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{ObjectID, ObjectRef},
+    global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -237,13 +237,13 @@ impl LiveObjectSetWriterV1 {
     /// Writes an object reference to the reference file.
     fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
-        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.0.as_ref());
+        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(
             &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
-            object_ref.1.value(),
+            object_ref.version.as_u64(),
         );
         buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
-            .copy_from_slice(object_ref.2.as_ref());
+            .copy_from_slice(object_ref.digest.as_ref());
         self.ref_wbuf.write_all(&buf)?;
         Ok(())
     }
@@ -422,9 +422,9 @@ impl StateSnapshotWriterV1 {
         let mut object_writers: HashMap<u32, LiveObjectSetWriterV1> = HashMap::new();
         let local_staging_dir_path =
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
-        let mut acc = Accumulator::default();
+        let mut acc = GlobalStateHash::default();
         for object in perpetual_db.iter_live_object_set() {
-            StateAccumulator::accumulate_live_object(&mut acc, &object);
+            GlobalStateHasher::accumulate_live_object(&mut acc, &object);
             let bucket_num = bucket_func(&object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
             if let Vacant(entry) = object_writers.entry(bucket_num) {

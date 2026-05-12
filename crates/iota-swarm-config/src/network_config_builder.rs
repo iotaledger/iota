@@ -7,7 +7,6 @@ use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 use fastcrypto::traits::KeyPair;
@@ -68,12 +67,12 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
-pub type StateAccumulatorEnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+pub type GlobalStateHashV1EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone)]
-pub enum StateAccumulatorV1EnabledConfig {
+pub enum GlobalStateHashV1EnabledConfig {
     Global(bool),
-    PerValidator(StateAccumulatorEnabledCallback),
+    PerValidator(GlobalStateHashV1EnabledCallback),
 }
 
 pub struct ConfigBuilder<R = OsRng> {
@@ -85,7 +84,6 @@ pub struct ConfigBuilder<R = OsRng> {
     genesis_config: Option<GenesisConfig>,
     reference_gas_price: Option<u64>,
     additional_objects: Vec<Object>,
-    jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
@@ -95,7 +93,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
+    global_state_hash_v1_enabled_config: Option<GlobalStateHashV1EnabledConfig>,
     empty_validator_genesis: bool,
     admin_interface_address: Option<SocketAddr>,
 }
@@ -113,7 +111,6 @@ impl ConfigBuilder {
             genesis_config: None,
             reference_gas_price: None,
             additional_objects: vec![],
-            jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
             execution_cache_type: None,
@@ -123,7 +120,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
+            global_state_hash_v1_enabled_config: Some(GlobalStateHashV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
             admin_interface_address: None,
         }
@@ -182,11 +179,6 @@ impl<R> ConfigBuilder<R> {
 
     pub fn with_num_unpruned_validators(mut self, n: usize) -> Self {
         self.num_unpruned_validators = Some(n);
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -249,16 +241,20 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_callback(
+    pub fn with_global_state_hash_v1_enabled_callback(
         mut self,
-        func: StateAccumulatorEnabledCallback,
+        func: GlobalStateHashV1EnabledCallback,
     ) -> Self {
-        self.state_accumulator_config = Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
+        self.global_state_hash_v1_enabled_config =
+            Some(GlobalStateHashV1EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
-        self.state_accumulator_config = Some(c);
+    pub fn with_global_state_hash_v1_enabled_config(
+        mut self,
+        c: GlobalStateHashV1EnabledConfig,
+    ) -> Self {
+        self.global_state_hash_v1_enabled_config = Some(c);
         self
     }
 
@@ -316,7 +312,6 @@ impl<R> ConfigBuilder<R> {
             reference_gas_price: self.reference_gas_price,
             additional_objects: self.additional_objects,
             num_unpruned_validators: self.num_unpruned_validators,
-            jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
             execution_cache_type: self.execution_cache_type,
             execution_cache_config: self.execution_cache_config,
@@ -325,7 +320,7 @@ impl<R> ConfigBuilder<R> {
             firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_config: self.state_accumulator_config,
+            global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             empty_validator_genesis: self.empty_validator_genesis,
             admin_interface_address: self.admin_interface_address,
         }
@@ -519,10 +514,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
                 }
 
-                if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-                    builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
-                }
-
                 if let Some(authority_overload_config) = &self.authority_overload_config {
                     builder =
                         builder.with_authority_overload_config(authority_overload_config.clone());
@@ -630,9 +621,12 @@ mod test {
     use iota_config::genesis::Genesis;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
-        epoch_data::EpochData, gas::IotaGasStatus, in_memory_storage::InMemoryStorage,
-        iota_system_state::IotaSystemStateTrait, metrics::LimitsMetrics,
-        transaction::CheckedInputObjects,
+        epoch_data::EpochData,
+        gas::IotaGasStatus,
+        in_memory_storage::InMemoryStorage,
+        iota_system_state::IotaSystemStateTrait,
+        metrics::LimitsMetrics,
+        transaction::{CheckedInputObjects, TransactionDataAPI},
     };
 
     #[test]
@@ -673,7 +667,7 @@ mod test {
         let epoch = EpochData::new_test();
         let transaction_data = &genesis_transaction.data().intent_message().value;
         let (kind, signer, mut gas_data) = transaction_data.execution_parts();
-        gas_data.payment = vec![];
+        gas_data.objects = vec![];
         let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
 
         let (_inner_temp_store, _, effects, _execution_error) = executor

@@ -4,9 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_types::{
-    TypeTag,
+    base_types::{StructTag, TypeTag},
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::GAS,
 };
 
 use crate::{
@@ -342,8 +341,8 @@ impl CoinMetadata {
 
     /// The overall quantity of tokens that will be issued.
     async fn supply(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
-        let mut type_params = self.super_.native.type_().type_params();
-        let Some(coin_type) = type_params.pop() else {
+        let type_params = self.super_.native.struct_tag().type_params();
+        let Some(coin_type) = type_params.last().cloned() else {
             return Ok(None);
         };
 
@@ -373,7 +372,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let metadata_type = NativeCoinMetadata::type_(*coin_struct);
+        let metadata_type = StructTag::new_coin_metadata(*coin_struct);
         let Some(object) = Object::query_singleton(db, metadata_type, checkpoint_viewed_at).await?
         else {
             return Ok(None);
@@ -407,14 +406,14 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
+        Ok(Some(if coin_struct.is_gas() {
             let pg_manager = ctx.data_unchecked::<PgManager>();
 
             let state = pg_manager.fetch_iota_system_state(None).await?;
 
             state.iota_total_supply()
         } else {
-            let cap_type = TreasuryCap::type_(*coin_struct);
+            let cap_type = StructTag::new_treasury_cap(*coin_struct);
 
             let db = ctx.data_unchecked();
 
@@ -443,7 +442,7 @@ impl TryFrom<&MoveObject> for CoinMetadata {
     type Error = CoinMetadataDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.type_().is_coin_metadata() {
+        if !move_object.native.struct_tag().is_coin_metadata() {
             return Err(CoinMetadataDowncastError::NotCoinMetadata);
         }
 

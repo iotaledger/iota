@@ -15,8 +15,6 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -174,10 +172,10 @@ impl Genesis {
         let clock = self
             .objects()
             .iter()
-            .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
+            .find(|o| o.id() == ObjectID::CLOCK)
             .expect("clock must always exist")
             .data
-            .try_as_move()
+            .as_struct_opt()
             .expect("clock must be a Move object");
         bcs::from_bytes::<Clock>(clock.contents())
             .expect("clock object deserialization cannot fail")
@@ -328,19 +326,15 @@ impl UnsignedGenesis {
         get_iota_system_state(&self.objects()).expect("IOTA System State object must always exist")
     }
 
-    pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
-    }
-
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
-            .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .get_object(&ObjectID::RANDOMNESS_STATE)
             .is_some()
     }
 
     pub fn has_bridge_object(&self) -> bool {
         self.objects()
-            .get_object(&GENESIS_IOTA_BRIDGE_OBJECT_ID)
+            .get_object(&ObjectID::GENESIS_BRIDGE)
             .is_some()
     }
 
@@ -525,7 +519,7 @@ impl TokenDistributionSchedule {
 
         let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             pre_minted_supply.recipient_address,
             "final allocation must be for the pre-minted supply amount",
         );
@@ -551,7 +545,7 @@ impl TokenDistributionSchedule {
         }
 
         writer.serialize(TokenAllocation {
-            recipient_address: IotaAddress::default(),
+            recipient_address: IotaAddress::ZERO,
             amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
             staked_with_timelock_expiration: None,

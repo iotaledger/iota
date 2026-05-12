@@ -23,20 +23,32 @@ use crate::object_store::{
 };
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
+pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
 
 #[derive(Serialize, Deserialize)]
-
 pub struct Manifest {
-    pub available_epochs: Vec<u64>,
+    /// Epoch number paired with its start timestamp in ms (when known).
+    pub available_epochs: Vec<(u64, Option<u64>)>,
 }
 
 impl Manifest {
-    pub fn new(available_epochs: Vec<u64>) -> Self {
+    pub fn new(available_epochs: Vec<(u64, Option<u64>)>) -> Self {
         Manifest { available_epochs }
     }
 
     pub fn epoch_exists(&self, epoch: u64) -> bool {
-        self.available_epochs.contains(&epoch)
+        self.available_epochs.iter().any(|(e, _)| *e == epoch)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EpochMetadata {
+    pub epoch_start_timestamp_ms: u64,
+}
+
+impl EpochMetadata {
+    pub fn to_bytes(&self) -> Result<Bytes> {
+        Ok(Bytes::from(serde_json::to_vec(self)?))
     }
 }
 
@@ -260,8 +272,9 @@ pub async fn find_all_dirs_with_epoch_prefix(
     Ok(dirs)
 }
 
-/// Finds all epochs in the store and returns them as a sorted list.
-pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u64>> {
+/// Finds all epochs in the store and returns them as a sorted list, paired
+/// with each epoch's start timestamp in ms when its metadata file is present.
+pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, Option<u64>)>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];
     let mut success_marker_found = false;
@@ -275,7 +288,18 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<u6
                 }
             }
             Ok(_) => {
-                out.push(*epoch);
+                let metadata_path = path.child(EPOCH_METADATA_FILENAME);
+                let epoch_start_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
+                    Ok(bytes) => match serde_json::from_slice::<EpochMetadata>(&bytes) {
+                        Ok(metadata) => Some(metadata.epoch_start_timestamp_ms),
+                        Err(err) => {
+                            warn!("Failed to parse epoch metadata for epoch {epoch}: {err}");
+                            None
+                        }
+                    },
+                    Err(_) => None,
+                };
+                out.push((*epoch, epoch_start_timestamp_ms));
                 success_marker_found = true;
             }
         }
@@ -295,9 +319,9 @@ pub async fn run_manifest_update_loop(
     loop {
         tokio::select! {
             _now = update_interval.tick() => {
-                if let Ok(epochs) = list_all_epochs(store.clone()).await {
+                if let Ok(available_epochs) = list_all_epochs(store.clone()).await {
                     let manifest_path = Path::from(MANIFEST_FILENAME);
-                    let manifest = Manifest::new(epochs);
+                    let manifest = Manifest { available_epochs };
                     let bytes = serde_json::to_string(&manifest)?;
                     put(&store, &manifest_path, Bytes::from(bytes)).await?;
                 }

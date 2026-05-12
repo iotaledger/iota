@@ -32,10 +32,9 @@ use iota_json_rpc_types::{
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_transaction_builder::DataReader;
 use iota_types::{
-    TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
-    coin::{CoinMetadata, TreasuryCap},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag, VersionNumber},
+    coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
@@ -43,6 +42,7 @@ use iota_types::{
     effects::TransactionEvents,
     error::IotaError,
     event::EventID,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -51,7 +51,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
+use move_core_types::annotated_value::MoveStructLayout;
 use tap::TapFallible;
 
 use crate::{
@@ -271,13 +271,13 @@ impl IndexerReader {
         object_id: &ObjectID,
         version: Option<VersionNumber>,
     ) -> Result<Option<StoredObject>, IndexerError> {
-        let object_id = object_id.to_vec();
+        let object_id = object_id.as_bytes();
 
         let stored_object = run_query!(&self.pool, |conn| {
             if let Some(version) = version {
                 objects::dsl::objects
                     .filter(objects::dsl::object_id.eq(object_id))
-                    .filter(objects::dsl::object_version.eq(version.value() as i64))
+                    .filter(objects::dsl::object_version.eq(version.as_u64() as i64))
                     .first::<StoredObject>(conn)
                     .optional()
             } else {
@@ -327,7 +327,7 @@ impl IndexerReader {
     }
 
     fn get_object_raw(&self, object_id: ObjectID) -> Result<Option<StoredObject>, IndexerError> {
-        let id = object_id.to_vec();
+        let id = object_id.as_bytes();
         let stored_object = run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::dsl::object_id.eq(id))
@@ -354,7 +354,7 @@ impl IndexerReader {
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
-        let object_version_num = object_version.value() as i64;
+        let object_version_num = object_version.as_u64() as i64;
 
         // Query objects_version to find the requested version and relevant
         // checkpoint sequence number considering the `before_version` flag.
@@ -596,12 +596,14 @@ impl IndexerReader {
             "chain identifier not found".to_string(),
         ))?;
 
-        let checkpoint_digest =
-            CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "failed to decode chain identifier with err: {e:?}"
-                ))
-            })?;
+        let checkpoint_digest = CheckpointDigest::from_bytes(
+            stored_chain_identifier.checkpoint_digest,
+        )
+        .map_err(|e| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "failed to decode chain identifier with err: {e:?}"
+            ))
+        })?;
 
         Ok(checkpoint_digest.into())
     }
@@ -777,7 +779,7 @@ impl IndexerReader {
     ///  Retrieval order:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
-    async fn multi_get_transactions(
+    pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<StoredTransaction>> {
@@ -832,7 +834,7 @@ impl IndexerReader {
         let missing_digests = Self::check_for_missing_tx_digests(&digests, &fetched_transactions)
             .iter()
             .map(|digest| {
-                TransactionDigest::try_from(digest.as_slice()).map_err(|e| {
+                TransactionDigest::from_bytes(digest.as_slice()).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "can't convert {digest:?} as tx_digest. Error: {e}",
                     ))
@@ -954,7 +956,7 @@ impl IndexerReader {
         run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-                .filter(objects::dsl::owner_id.eq(address.to_vec()))
+                .filter(objects::dsl::owner_id.eq(address.as_bytes()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
@@ -1013,7 +1015,7 @@ impl IndexerReader {
             }
 
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
 
             query
@@ -1027,9 +1029,9 @@ impl IndexerReader {
 
         run_query!(&self.pool, |conn| {
             let object = match objects::dsl::objects
-                .filter(objects::object_type_package.eq(struct_tag.address.to_vec()))
-                .filter(objects::object_type_module.eq(struct_tag.module.to_string()))
-                .filter(objects::object_type_name.eq(struct_tag.name.to_string()))
+                .filter(objects::object_type_package.eq(struct_tag.address().as_bytes().to_vec()))
+                .filter(objects::object_type_module.eq(struct_tag.module().to_string()))
+                .filter(objects::object_type_name.eq(struct_tag.name().to_string()))
                 .filter(objects::object_type.eq(object_type))
                 .first::<StoredObject>(conn)
                 .optional()
@@ -1055,7 +1057,7 @@ impl IndexerReader {
         &self,
         object_ids: Vec<ObjectID>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
+        let object_ids = object_ids.iter().map(|id| id.as_bytes()).collect_vec();
         run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
@@ -1086,8 +1088,8 @@ impl IndexerReader {
             .map(|(id, version)| {
                 format!(
                     "('\\x{}'::bytea, {}::bigint)",
-                    Hex::encode(id.to_vec()),
-                    version.value()
+                    Hex::encode(id.into_bytes()),
+                    version.as_u64()
                 )
             })
             .join(", ");
@@ -1276,7 +1278,7 @@ impl IndexerReader {
                 module,
                 function,
             })) => {
-                let package = Hex::encode(package.to_vec());
+                let package = Hex::encode(package.as_bytes());
                 match (module, function) {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
@@ -1301,7 +1303,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::InputObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_input_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1309,7 +1311,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_changed_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1318,7 +1320,7 @@ impl IndexerReader {
             Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(
                 object_id,
             ))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_wrapped_or_deleted_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1326,7 +1328,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(from_address))) => {
-                let from_address = Hex::encode(from_address.to_vec());
+                let from_address = Hex::encode(from_address.as_bytes());
                 (
                     "tx_senders".into(),
                     format!("sender = '\\x{from_address}'::bytea"),
@@ -1334,7 +1336,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(to_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(to_address))) => {
-                let to_address = Hex::encode(to_address.to_vec());
+                let to_address = Hex::encode(to_address.as_bytes());
                 (
                     "tx_recipients".into(),
                     format!("recipient = '\\x{to_address}'::bytea"),
@@ -1343,8 +1345,8 @@ impl IndexerReader {
             Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { from, to }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { from, to })) =>
             {
-                let from_address = Hex::encode(from.to_vec());
-                let to_address = Hex::encode(to.to_vec());
+                let from_address = Hex::encode(from.as_bytes());
+                let to_address = Hex::encode(to.as_bytes());
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
@@ -1371,7 +1373,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
-                let address = Hex::encode(addr.to_vec());
+                let address = Hex::encode(addr.as_bytes());
                 let inner_query = format!(
                     "( \
                         ( \
@@ -1801,7 +1803,7 @@ impl IndexerReader {
                     ORDER BY {} \
                     LIMIT {}
                 )",
-                Hex::encode(sender.to_vec()),
+                Hex::encode(sender.as_bytes()),
                 min_available_tx,
                 cursor_clause,
                 order_clause,
@@ -1812,12 +1814,12 @@ impl IndexerReader {
         } else {
             let main_where_clause = match filter {
                 EventFilter::Package(package_id) => {
-                    format!("package = '\\x{}'::bytea", package_id.to_hex())
+                    format!("package = '\\x{}'::bytea", package_id.to_raw_hex())
                 }
                 EventFilter::MoveModule { package, module } => {
                     format!(
                         "package = '\\x{}'::bytea AND module = '{}'",
-                        package.to_hex(),
+                        package.to_raw_hex(),
                         module,
                     )
                 }
@@ -1826,7 +1828,7 @@ impl IndexerReader {
                     format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
-                    let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
+                    let package_module_prefix = format!("{}::{}", package.to_short_hex(), module);
                     format!("event_type LIKE '{package_module_prefix}::%'")
                 }
                 EventFilter::Sender(_) => {
@@ -1951,12 +1953,12 @@ impl IndexerReader {
         let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Object as i16))
-                .filter(objects::dsl::owner_id.eq(parent_object_id.to_vec()))
+                .filter(objects::dsl::owner_id.eq(parent_object_id.as_bytes()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
             query.load::<StoredObject>(conn)
         })?;
@@ -1973,20 +1975,19 @@ impl IndexerReader {
         }
 
         let object: Object = stored_object.try_into()?;
-        let Some(move_object) = object.data.try_as_move().cloned() else {
+        let Some(move_object) = object.data.as_struct_opt().cloned() else {
             return Err(IndexerError::ResolveMoveStruct(
                 "Object is not a MoveObject".to_string(),
             ));
         };
-        let type_tag: TypeTag = move_object.type_().clone().into();
+        let type_tag = move_object.type_tag();
         let layout = self
             .package_resolver
             .type_layout(type_tag.clone())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
-                    "Failed to get type layout for type {}: {e}",
-                    type_tag.to_canonical_display(/* with_prefix */ true),
+                    "Failed to get type layout for type {type_tag}: {e}",
                 ))
             })?;
 
@@ -1994,7 +1995,7 @@ impl IndexerReader {
             .tap_err(|e| tracing::warn!("{e}"))?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
@@ -2028,11 +2029,11 @@ impl IndexerReader {
                     .ok_or_else(|| {
                         IndexerError::Uncategorized(anyhow!(
                             "Failed to find object_id {} when trying to create dynamic field info",
-                            object_id.to_canonical_display(/* with_prefix */ true),
+                            object_id.to_canonical_string(/* with_prefix */ true),
                         ))
                     })?;
 
-                let object_type = object.data.type_().unwrap().clone();
+                let object_type = object.data.object_type().unwrap().clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,
@@ -2067,7 +2068,7 @@ impl IndexerReader {
 
     pub async fn get_display_object_by_type(
         &self,
-        object_type: &move_core_types::language_storage::StructTag,
+        object_type: &StructTag,
     ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
         let object_type = object_type.to_canonical_string(/* with_prefix */ true);
         self.spawn_blocking(move |this| this.get_display_update_event(object_type))
@@ -2116,8 +2117,8 @@ impl IndexerReader {
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         let mut query = objects::dsl::objects
             .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-            .filter(objects::dsl::owner_id.eq(owner.to_vec()))
-            .filter(objects::dsl::object_id.gt(cursor.to_vec()))
+            .filter(objects::dsl::owner_id.eq(owner.as_bytes()))
+            .filter(objects::dsl::object_id.gt(cursor.as_bytes()))
             .into_boxed();
         if let Some(coin_type) = coin_type {
             query = query.filter(objects::dsl::coin_type.eq(Some(coin_type)));
@@ -2171,7 +2172,7 @@ impl IndexerReader {
             ORDER BY coin_type ASC
         ",
             OwnerType::Address as i16,
-            Hex::encode(owner.to_vec()),
+            Hex::encode(owner.as_bytes()),
             coin_type_filter,
         );
 
@@ -2351,7 +2352,7 @@ impl IndexerReader {
         &self,
         coin_struct: StructTag,
     ) -> Result<Option<IotaCoinMetadata>, IndexerError> {
-        let coin_metadata_type = CoinMetadata::type_(coin_struct.clone());
+        let coin_metadata_type = StructTag::new_coin_metadata(coin_struct.clone());
         let metadata_object = self
             .get_singleton_object(coin_metadata_type)?
             .and_then(|o| IotaCoinMetadata::try_from(o).ok());
@@ -2381,7 +2382,7 @@ impl IndexerReader {
         &self,
         coin_type: StructTag,
     ) -> Result<Option<CoinManager>, IndexerError> {
-        let coin_manager_type = CoinManager::type_(coin_type);
+        let coin_manager_type = StructTag::new_coin_manager(coin_type);
         let coin_manager_object = self
             .get_singleton_object(coin_manager_type)?
             .and_then(|o| CoinManager::try_from(o).ok());
@@ -2413,7 +2414,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = TreasuryCap::type_(coin_struct.clone());
+        let tag = StructTag::new_treasury_cap(coin_struct.clone());
         Ok(self
             .get_object_as::<TreasuryCap>(tag)?
             .map(|tc| tc.total_supply))
@@ -2423,7 +2424,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = CoinManager::type_(coin_struct.clone());
+        let tag = StructTag::new_coin_manager(coin_struct.clone());
         Ok(self
             .get_object_as::<CoinManager>(tag)?
             .map(|mgr| mgr.treasury_cap.total_supply))
@@ -2549,7 +2550,7 @@ impl DataReader for IndexerReader {
             // Here the cursor is the last object id in the previous page
             stored_objects.pop().unwrap();
             next_cursor = Some(if let Some(last_object) = stored_objects.last() {
-                last_object.get_object_ref()?.0
+                last_object.get_object_ref()?.object_id
             } else {
                 ObjectID::ZERO
             });
@@ -2875,13 +2876,13 @@ impl<'a> DBReader<'a> {
         object_version: SequenceNumber,
         before_version: bool,
     ) -> IndexerResult<Option<StoredObjectVersion>> {
-        let object_version_num = object_version.value() as i64;
+        let object_version_num = object_version.as_u64() as i64;
         let pool = self.main_reader.get_pool();
 
         // query objects_version to find the requested version
         run_query_async!(&pool, move |conn| {
             let mut query = objects_version::dsl::objects_version
-                .filter(objects_version::object_id.eq(object_id.as_ref()))
+                .filter(objects_version::object_id.eq(object_id.as_bytes()))
                 .into_boxed();
 
             if before_version {
@@ -2906,7 +2907,7 @@ impl<'a> DBReader<'a> {
 
         run_query_async!(&pool, move |conn| {
             objects_version::dsl::objects_version
-                .filter(objects_version::object_id.eq(object_id.as_ref()))
+                .filter(objects_version::object_id.eq(object_id.as_bytes()))
                 .order_by(objects_version::object_version.desc())
                 .select(objects_version::object_version)
                 .limit(1)
@@ -2926,7 +2927,7 @@ impl<'a> DBReader<'a> {
             // Match on the primary key.
             let query = objects_history::dsl::objects_history
                 .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
-                .filter(objects_history::object_id.eq(object_id.as_ref()))
+                .filter(objects_history::object_id.eq(object_id.as_bytes()))
                 .filter(objects_history::object_version.eq(object_version))
                 .into_boxed();
 

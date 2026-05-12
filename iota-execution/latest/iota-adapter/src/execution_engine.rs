@@ -19,48 +19,38 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
         auth_context::AuthContext,
-        authenticator_state::{
-            AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
-            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
-            AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
+        balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
+        base_types::{
+            Identifier, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
         },
-        balance::{
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
-            BALANCE_MODULE_NAME,
-        },
-        base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
-        clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
+        clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        execution_status::{CongestedObjects, ExecutionStatus},
+        execution_status::ExecutionStatus,
         gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
-        iota_system_state::{
-            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
-        },
+        iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
         move_authenticator::MoveAuthenticator,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
+        randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
-            EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+            CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
+            InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
+            SystemPackage, TransactionKind, TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -137,7 +127,7 @@ mod checked {
         let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
             transaction_digest,
-            gas_data.payment,
+            gas_data.objects,
             gas_status,
             protocol_config,
         );
@@ -212,7 +202,7 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
+        let is_epoch_change = transaction_kind.is_end_of_epoch();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
 
         let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
@@ -251,7 +241,7 @@ mod checked {
         // Genesis writes a special digest to indicate that an object was created during
         // genesis and not written by any normal transaction - remove that from the
         // dependencies
-        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+        transaction_dependencies.remove(&TransactionDigest::GENESIS_MARKER);
 
         if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store
@@ -374,7 +364,7 @@ mod checked {
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
             transaction_digest,
-            gas_data.payment,
+            gas_data.objects,
             gas_status,
             protocol_config,
         );
@@ -612,7 +602,7 @@ mod checked {
     {
         // Check the preconditions.
         debug_assert!(
-            transaction_kind.is_programmable_transaction(),
+            transaction_kind.is_programmable(),
             "Only programmable transactions are allowed"
         );
         debug_assert!(
@@ -634,7 +624,7 @@ mod checked {
 
         // Prepare the authentication context.
         let auth_ctx = {
-            let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
+            let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
@@ -812,7 +802,7 @@ mod checked {
         );
 
         let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
-            || transaction_kind.is_end_of_epoch_tx();
+            || transaction_kind.is_end_of_epoch();
 
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
@@ -906,7 +896,7 @@ mod checked {
     ) -> ExecutionStatus {
         use ExecutionErrorKind as K;
         match execution_error.kind() {
-            K::InvariantViolation | K::VMInvariantViolation => {
+            K::InvariantViolation | K::VmInvariantViolation => {
                 #[skip_checked_arithmetic]
                 tracing::error!(
                     kind = ?execution_error.kind(),
@@ -916,7 +906,7 @@ mod checked {
                 );
             }
 
-            K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+            K::IotaMoveVerificationError | K::VmVerificationOrDeserializationError => {
                 #[skip_checked_arithmetic]
                 tracing::debug!(
                     kind = ?execution_error.kind(),
@@ -1061,9 +1051,10 @@ mod checked {
                 version if version.is_congested() => Err(ExecutionError::new(
                     if protocol_config.congestion_control_gas_price_feedback_mechanism() {
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                            congested_objects: cancelled_objects,
                             suggested_gas_price: version
-                                .get_congested_version_suggested_gas_price(),
+                                .get_congested_version_suggested_gas_price()
+                                .unwrap(),
                         }
                     } else {
                         // WARN: do not remove this `else` branch even after
@@ -1071,7 +1062,7 @@ mod checked {
                         // on the mainnet. It must be kept to be able to replay old
                         // transaction data.
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                            congested_objects: cancelled_objects,
                         }
                     },
                     None,
@@ -1165,8 +1156,8 @@ mod checked {
                 LimitThresholdCrossed::Hard(_, lim) => {
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::WrittenObjectsTooLarge {
-                            current_size: written_objects_size as u64,
-                            max_size: lim as u64,
+                            object_size: written_objects_size as u64,
+                            max_object_size: lim as u64,
                         },
                         "Written objects size crossed hard limit",
                     ));
@@ -1201,17 +1192,13 @@ mod checked {
                 }
 
                 for genesis_object in objects {
-                    match genesis_object {
-                        iota_types::transaction::GenesisObject::RawObject { data, owner } => {
-                            let object = ObjectInner {
-                                data,
-                                owner,
-                                previous_transaction: tx_ctx.borrow().digest(),
-                                storage_rebate: 0,
-                            };
-                            temporary_store.create_object(object.into());
-                        }
-                    }
+                    let object = ObjectInner {
+                        data: genesis_object.data,
+                        owner: genesis_object.owner,
+                        previous_transaction: tx_ctx.borrow().digest(),
+                        storage_rebate: 0,
+                    };
+                    temporary_store.create_object(object.into());
                 }
 
                 temporary_store.record_execution_results(ExecutionResults::V1(
@@ -1237,7 +1224,7 @@ mod checked {
                 .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ProgrammableTransaction(pt) => {
+            TransactionKind::Programmable(pt) => {
                 programmable_transactions::execution::execute::<Mode>(
                     protocol_config,
                     metrics,
@@ -1249,10 +1236,11 @@ mod checked {
                     trace_builder_opt,
                 )
             }
-            TransactionKind::EndOfEpochTransaction(txns) => {
-                let mut builder = ProgrammableTransactionBuilder::new();
+            TransactionKind::EndOfEpoch(txns) => {
+                let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
-                for (i, tx) in txns.into_iter().enumerate() {
+
+                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1314,35 +1302,24 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
-                        EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-                            builder = setup_authenticator_state_create(builder);
-                        }
-                        EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-
-                            // TODO: it would be nice if a failure of this function didn't cause
-                            // safe mode.
-                            builder = setup_authenticator_state_expire(builder, expire);
-                        }
+                        _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                     }
                 }
                 unreachable!(
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
-                setup_authenticator_state_update(
-                    auth_state_update,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                    trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                return Err(ExecutionError::new(
+                    ExecutionErrorKind::VmInvariantViolation,
+                    Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 setup_randomness_state_update(
@@ -1357,6 +1334,9 @@ mod checked {
                 )?;
                 Ok(Mode::empty_results())
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }?;
         temporary_store.check_execution_results_consistency()?;
         Ok(result)
@@ -1376,28 +1356,24 @@ mod checked {
     ) -> (Argument, Argument) {
         // Create storage charges.
         let storage_charge_arg = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&params.storage_charge).unwrap(),
-            ))
+            .input(CallArg::pure(&params.storage_charge))
             .unwrap();
         let storage_charges = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![storage_charge_arg],
         );
 
         // Create computation charges.
         let computation_charge_arg = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&params.computation_charge).unwrap(),
-            ))
+            .input(CallArg::pure(&params.computation_charge))
             .unwrap();
         let computation_charges = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
@@ -1441,18 +1417,18 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ADVANCE_EPOCH_FUNCTION_NAME.to_owned(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE,
+            ADVANCE_EPOCH_FUNCTION_NAME,
             vec![],
             arguments,
         );
 
         // Step 3: Destroy the storage rebates.
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_DESTROY_REBATES_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![storage_rebates],
         );
@@ -1468,13 +1444,13 @@ mod checked {
         // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
         // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::IOTA_SYSTEM_MUTABLE, // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch), // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate), // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate), // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms), // epoch_start_timestamp_ms: u64
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1488,15 +1464,15 @@ mod checked {
         // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
         // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1511,16 +1487,17 @@ mod checked {
         // `construct_advance_epoch_pt_impl`. The remaining arguments are added
         // here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
+            CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
+                                                               * Vec<u64> */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1535,18 +1512,19 @@ mod checked {
         // `construct_advance_epoch_pt_impl`. The remaining arguments are added
         // here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
-            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
-            CallArg::Pure(bcs::to_bytes(&params.adjust_rewards_by_score).unwrap()), /* adjust_rewards_by_score: bool */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
+            CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
+                                                               * Vec<u64> */
+            CallArg::pure(&params.scores), // scores: Vec<u64>
+            CallArg::pure(&params.adjust_rewards_by_score), // adjust_rewards_by_score: bool
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1560,7 +1538,7 @@ mod checked {
     fn advance_epoch_impl(
         advance_epoch_pt: ProgrammableTransaction,
         params: AdvanceEpochParams,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: Rc<RefCell<TxContext>>,
         move_vm: &Arc<MoveVM>,
@@ -1634,7 +1612,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
-            next_protocol_version: change_epoch.protocol_version,
+            next_protocol_version: change_epoch.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
@@ -1682,7 +1660,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v2.epoch,
-            next_protocol_version: change_epoch_v2.protocol_version,
+            next_protocol_version: change_epoch_v2.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v2.storage_charge,
             computation_charge: change_epoch_v2.computation_charge,
@@ -1729,7 +1707,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v3.epoch,
-            next_protocol_version: change_epoch_v3.protocol_version,
+            next_protocol_version: change_epoch_v3.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v3.storage_charge,
             computation_charge: change_epoch_v3.computation_charge,
@@ -1776,7 +1754,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v4.epoch,
-            next_protocol_version: change_epoch_v4.protocol_version,
+            next_protocol_version: change_epoch_v4.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v4.storage_charge,
             computation_charge: change_epoch_v4.computation_charge,
@@ -1806,7 +1784,7 @@ mod checked {
     }
 
     fn process_system_packages(
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: Rc<RefCell<TxContext>>,
         move_vm: &MoveVM,
@@ -1816,7 +1794,12 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
         let binary_config = to_binary_config(protocol_config);
-        for (version, modules, dependencies) in system_packages.into_iter() {
+        for SystemPackage {
+            version,
+            modules,
+            dependencies,
+        } in system_packages.into_iter()
+        {
             let deserialized_modules: Vec<_> = modules
                 .iter()
                 .map(|m| CompiledModule::deserialize_with_config(m, &binary_config).unwrap())
@@ -1828,7 +1811,7 @@ mod checked {
 
                 let publish_pt = {
                     let mut b = ProgrammableTransactionBuilder::new();
-                    b.command(Command::Publish(modules, dependencies));
+                    b.command(Command::new_publish(modules, dependencies));
                     b.finish()
                 };
 
@@ -1860,9 +1843,10 @@ mod checked {
                 // the version growing by one in the effects.
                 new_package
                     .data
-                    .try_as_package_mut()
+                    .as_package_mut_opt()
                     .unwrap()
-                    .decrement_version();
+                    .decrement_version()
+                    .expect("package version should never underflow");
 
                 // upgrade of a previously existing framework module
                 temporary_store.upgrade_system_package(new_package);
@@ -1888,13 +1872,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                CLOCK_MODULE_NAME.to_owned(),
-                CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::CLOCK_MODULE,
+                CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::CLOCK_MUT,
-                    CallArg::Pure(bcs::to_bytes(&consensus_commit_timestamp_ms).unwrap()),
+                    CallArg::CLOCK_MUTABLE,
+                    CallArg::pure(&consensus_commit_timestamp_ms),
                 ],
             );
             assert_invariant!(
@@ -1915,101 +1899,6 @@ mod checked {
         )
     }
 
-    /// This function adds a Move call to the IOTA framework's
-    /// `authenticator_state_create` function, preparing the transaction for
-    /// execution.
-    fn setup_authenticator_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    /// Sets up and executes a `ProgrammableTransaction` to update the
-    /// authenticator state. This function constructs a transaction that
-    /// invokes the `authenticator_state_update` function from the IOTA
-    /// framework, passing the authenticator state object and new active JWKS as
-    /// arguments. It then executes the transaction using the system
-    /// execution mode.
-    fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdateV1,
-        temporary_store: &mut TemporaryStore<'_>,
-        tx_ctx: Rc<RefCell<TxContext>>,
-        move_vm: &Arc<MoveVM>,
-        gas_charger: &mut GasCharger,
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
-        trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: update.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&update.new_active_jwks).unwrap()),
-                ],
-            );
-            assert_invariant!(
-                res.is_ok(),
-                "Unable to generate authenticator_state_update transaction!"
-            );
-            builder.finish()
-        };
-        programmable_transactions::execution::execute::<execution_mode::System>(
-            protocol_config,
-            metrics,
-            move_vm,
-            temporary_store,
-            tx_ctx,
-            gas_charger,
-            pt,
-            trace_builder_opt,
-        )
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to expire authenticator
-    /// state by invoking the `authenticator_state_expire_jwks` function
-    /// from the IOTA framework. The function adds the necessary Move call
-    /// with the authenticator state object and the minimum epoch as arguments.
-    fn setup_authenticator_state_expire(
-        mut builder: ProgrammableTransactionBuilder,
-        expire: AuthenticatorStateExpire,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),
-                ],
-            )
-            .expect("Unable to generate authenticator_state_expire transaction!");
-        builder
-    }
-
     /// The function constructs a transaction that invokes
     /// the `randomness_state_update` function from the IOTA framework,
     /// passing the randomness state object, the `randomness_round`,
@@ -2028,18 +1917,18 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                RANDOMNESS_MODULE_NAME.to_owned(),
-                RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::RANDOM_MODULE,
+                RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: ObjectID::RANDOMNESS_STATE,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,
                     }),
-                    CallArg::Pure(bcs::to_bytes(&update.randomness_round).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&update.random_bytes).unwrap()),
+                    CallArg::pure(&update.randomness_round),
+                    CallArg::pure(&update.random_bytes),
                 ],
             );
             assert_invariant!(
@@ -2075,19 +1964,6 @@ mod checked {
         let mut args = vec![authenticator.object_to_authenticate().to_owned()];
         args.extend(authenticator.call_args().to_owned());
 
-        let type_arguments = authenticator
-            .type_arguments()
-            .iter()
-            .map(|t| {
-                t.as_type_tag().map_err(|err| {
-                    ExecutionError::new_with_source(
-                        ExecutionErrorKind::VMInvariantViolation,
-                        err.to_string(),
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
         let res = builder.move_call(
             authenticator_function_ref.package,
             Identifier::new(authenticator_function_ref.module.clone()).expect(
@@ -2096,7 +1972,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            type_arguments,
+            authenticator.type_arguments().clone(),
             args,
         );
 

@@ -16,8 +16,7 @@ pub mod checked {
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        is_system_package,
-        object::Data,
+        object::{Data, MoveObjectExt},
     };
     use tracing::trace;
 
@@ -126,13 +125,14 @@ pub mod checked {
         // are correct.
         pub fn smash_gas(&mut self, temporary_store: &mut TemporaryStore<'_>) {
             let gas_coin_count = self.gas_coins.len();
-            if gas_coin_count == 0 || (gas_coin_count == 1 && self.gas_coins[0].0 == ObjectID::ZERO)
+            if gas_coin_count == 0
+                || (gas_coin_count == 1 && self.gas_coins[0].object_id == ObjectID::ZERO)
             {
                 return; // self.smashed_gas_coin is None
             }
             // set the first coin to be the transaction only gas coin.
             // All others will be smashed into this one.
-            let gas_coin_id = self.gas_coins[0].0;
+            let gas_coin_id = self.gas_coins[0].object_id;
             self.smashed_gas_coin = Some(gas_coin_id);
             if gas_coin_count == 1 {
                 return;
@@ -143,18 +143,18 @@ pub mod checked {
                 .gas_coins
                 .iter()
                 .map(|obj_ref| {
-                    let obj = temporary_store.objects().get(&obj_ref.0).unwrap();
-                    let Data::Move(move_obj) = &obj.data else {
+                    let obj = temporary_store.objects().get(&obj_ref.object_id).unwrap();
+                    let Data::Struct(move_obj) = &obj.data else {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));
                     };
-                    if !move_obj.type_().is_gas_coin() {
+                    if !move_obj.struct_tag().is_gas_coin() {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));
                     }
-                    Ok(move_obj.get_coin_value_unsafe())
+                    Ok(move_obj.get_coin_value_unchecked())
                 })
                 .collect::<Result<Vec<u64>, ExecutionError>>()
                 // transaction and certificate input checks must have insured that all gas coins
@@ -180,13 +180,13 @@ pub mod checked {
                 })
                 .clone();
             // delete all gas objects except the primary_gas_object
-            for (id, _version, _digest) in &self.gas_coins[1..] {
-                debug_assert_ne!(*id, primary_gas_object.id());
-                temporary_store.delete_input_object(id);
+            for gas_coin in &self.gas_coins[1..] {
+                debug_assert_ne!(gas_coin.object_id, primary_gas_object.id());
+                temporary_store.delete_input_object(&gas_coin.object_id);
             }
             primary_gas_object
                 .data
-                .try_as_move_mut()
+                .as_struct_mut_opt()
                 // unwrap should be safe because we checked that the primary gas object was a coin
                 // object above.
                 .unwrap_or_else(|| {
@@ -195,7 +195,7 @@ pub mod checked {
                         self.tx_digest
                     )
                 })
-                .set_coin_value_unsafe(new_balance);
+                .set_coin_value_unchecked(new_balance);
             temporary_store.mutate_input_object(primary_gas_object);
         }
 
@@ -236,7 +236,7 @@ pub mod checked {
                 .objects()
                 .iter()
                 // don't charge for loading IOTA Framework or Move stdlib
-                .filter(|(id, _)| !is_system_package(**id))
+                .filter(|(id, _)| !id.is_system_package())
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();
             self.gas_status.charge_storage_read(total_size)

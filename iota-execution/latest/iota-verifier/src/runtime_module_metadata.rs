@@ -11,11 +11,11 @@
 use std::collections::BTreeSet;
 
 use iota_types::{
-    Identifier,
     error::ExecutionError,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
+use move_core_types::identifier::Identifier;
 
 use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_failure};
 
@@ -82,7 +82,7 @@ fn verify_runtime_metadata(
                             // Version 1: verify that the function is a valid authenticator
                             verify_authenticate_func_v1(
                                 module,
-                                Identifier::new(fn_name.clone()).map_err(|err| {
+                                &Identifier::new(fn_name.clone()).map_err(|err| {
                                     verification_failure(format!(
                                         "Failed to read function name: {err}",
                                     ))

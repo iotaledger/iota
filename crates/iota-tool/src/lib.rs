@@ -57,17 +57,17 @@ use iota_storage::{
     verify_checkpoint_range,
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
+    global_state_hash::GlobalStateHash,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::Owner,
+    object::{MoveObjectExt, Owner},
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
@@ -197,7 +197,7 @@ impl GroupedObjectOutput {
             let stake = committee.get(name).unwrap();
             let key = match resp {
                 Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().2;
+                    let obj_digest = r.object.compute_object_reference().digest;
                     let parent_tx_digest = r.object.previous_transaction;
                     let owner = r.object.owner;
                     let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
@@ -282,7 +282,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -291,7 +291,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     "object-fetch-failed", "no-cert-available", "no-owner-available"
                 )?,
                 Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().2;
+                    let obj_digest = resp.object.compute_object_reference().digest;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
                     write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
@@ -324,7 +324,7 @@ impl std::fmt::Display for VerboseObjectOutput {
                     writeln!(
                         f,
                         "  -- object digest: {}",
-                        resp.object.compute_object_reference().2
+                        resp.object.compute_object_reference().digest
                     )?;
                     if resp.object.is_package() {
                         writeln!(f, "  -- object: <Move Package>")?;
@@ -334,7 +334,7 @@ impl std::fmt::Display for VerboseObjectOutput {
                             "  -- object: Move Object: {}",
                             resp.object
                                 .data
-                                .try_as_move()
+                                .as_struct_opt()
                                 .unwrap()
                                 .to_move_struct(layout)
                                 .unwrap()
@@ -500,8 +500,8 @@ async fn get_object_impl(
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version());
+    (resp_version, resp, elapsed)
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
@@ -769,6 +769,9 @@ fn start_summary_sync(
             verify_progress_bar.finish_with_message("Checkpoint summary verification is complete");
         }
 
+        // SAFETY: All four watermarks must be set together so the executor
+        // starts from `highest_executed + 1` and never tries to access
+        // checkpoint contents in the restored (summary-only) range.
         checkpoint_store.update_highest_verified_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_synced_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_executed_checkpoint(&checkpoint)?;
@@ -793,9 +796,10 @@ pub async fn get_latest_available_epoch(
     let epoch = root_manifest
         .available_epochs
         .iter()
+        .map(|(epoch, _)| *epoch)
         .max()
         .ok_or(anyhow!("No snapshot found in manifest"))?;
-    Ok(*epoch)
+    Ok(epoch)
 }
 
 pub async fn check_completed_snapshot(
@@ -900,11 +904,11 @@ pub async fn download_formal_snapshot(
             .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         Ok::<(), anyhow::Error>(())
     });
-    let mut root_accumulator = Accumulator::default();
+    let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
-    while let Some((partial_acc, num_objects)) = receiver.recv().await {
+    while let Some((partial_hash, num_objects)) = receiver.recv().await {
         num_live_objects += num_objects;
-        root_accumulator.union(&partial_acc);
+        root_global_state_hash.union(&partial_hash);
     }
     summaries_handle
         .await
@@ -939,7 +943,7 @@ pub async fn download_formal_snapshot(
             );
         match commitment {
             CheckpointCommitment::ECMHLiveObjectSetDigest(consensus_digest) => {
-                let local_digest: ECMHLiveObjectSetDigest = root_accumulator.digest().into();
+                let local_digest: ECMHLiveObjectSetDigest = root_global_state_hash.digest().into();
                 assert_eq!(
                     *consensus_digest, local_digest,
                     "End of epoch {} root state digest {} does not match \
@@ -978,7 +982,7 @@ pub async fn download_formal_snapshot(
 
     setup_db_state(
         epoch,
-        root_accumulator.clone(),
+        root_global_state_hash.clone(),
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,

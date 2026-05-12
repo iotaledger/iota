@@ -44,6 +44,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         authority_service: Arc<S>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Self {
+        // Drop label combos left over from previous epochs whose hostnames
+        // are no longer in the current committee — otherwise IntGaugeVec
+        // keeps re-emitting the last value (typically 1) forever.
+        context.metrics.node_metrics.subscribed_to.reset();
         let subscriptions = (0..context.committee.size())
             .map(|_| None)
             .collect::<Vec<_>>();

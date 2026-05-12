@@ -23,7 +23,7 @@ serde.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
 tonic.workspace = true
 tower.workspace = true
 tower-http.workspace = true
