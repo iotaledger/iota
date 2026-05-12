@@ -3569,4 +3569,69 @@ mod test {
             "Expected {expected_notifications} notifications but only received {received_notifications}"
         );
     }
+
+    #[tokio::test]
+    async fn test_compute_strong_vote() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context, store)));
+
+        // Round-1 ack targets at authorities 2 and 3.
+        let r1_a2 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
+        let r1_a3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 3).build());
+
+        // Leader at round=2, author=1, acknowledging the two round-1 blocks.
+        let leader = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, 1)
+                .set_acknowledgments(vec![r1_a2.reference(), r1_a3.reference()])
+                .build(),
+        );
+
+        let add_data_for = |block: &VerifiedBlock| {
+            let mut s = dag_state.write();
+            s.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
+            s.add_transactions(block.verified_transactions.clone(), DataSource::Test);
+        };
+
+        let a1 = AuthorityIndex::new_for_test(1);
+        let a2 = AuthorityIndex::new_for_test(2);
+        let a3 = AuthorityIndex::new_for_test(3);
+
+        // Empty DagState: leader and both acks are missing.
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.contains(a1));
+            assert!(sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 3);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // Leader and ack at author 2 present; ack at author 3 still missing.
+        add_data_for(&leader);
+        add_data_for(&r1_a2);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(!sv.missing.contains(a1));
+            assert!(!sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 1);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // All data present: empty missing, strong vote.
+        add_data_for(&r1_a3);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.is_empty());
+            assert!(sv.is_strong_vote());
+        }
+    }
 }
