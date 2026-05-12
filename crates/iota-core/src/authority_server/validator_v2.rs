@@ -271,9 +271,67 @@ impl ValidatorService {
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
 
+        // Build the consensus transaction. When validator attestation is enabled,
+        // attest the transaction (dry-run + Move auth) and submit as V2; otherwise
+        // fall back to the legacy V1 path.
+        let consensus_tx = if epoch_store
+            .protocol_config()
+            .enable_validator_attestation()
+        {
+            use iota_types::{
+                attestation::{Attestation, AttestedTransaction},
+                iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+            };
+
+            let release_locks_and_reject = |e: IotaError| {
+                soft_locks.release(&tx_digest);
+                metrics
+                    .soft_lock_table_size
+                    .set(soft_locks.lock_count() as i64);
+                let weight = normalize(&e);
+                (TxStatusUpdate::Rejected { error: e }, weight)
+            };
+
+            let attestation_data =
+                match state.attest_transaction(&verified_tx, &owned_objects, epoch_store) {
+                    Ok(data) => data,
+                    Err(e) => return release_locks_and_reject(e),
+                };
+
+            let committee = epoch_store.committee();
+            let attestor_index = committee
+                .names()
+                .position(|n| n == &state.name)
+                .and_then(|i| {
+                    epoch_store
+                        .epoch_start_state()
+                        .get_consensus_committee()
+                        .to_authority_index(i)
+                });
+
+            match attestor_index {
+                Some(attestor_index) => ConsensusTransaction::new_attested_transaction(
+                    AttestedTransaction::new(
+                        verified_tx.into_inner(),
+                        Attestation::Validator {
+                            payload: attestation_data,
+                            attestor_index,
+                        },
+                    ),
+                ),
+                None => {
+                    return release_locks_and_reject(IotaError::from(
+                        "validator not found in consensus committee",
+                    ));
+                }
+            }
+        } else {
+            ConsensusTransaction::new_user_transaction(verified_tx.into_inner())
+        };
+
         // Submit to consensus.
         if let Err(e) = consensus_adapter.submit(
-            ConsensusTransaction::new_user_transaction(verified_tx.into_inner()),
+            consensus_tx,
             Some(&reconfiguration_lock),
             epoch_store,
         ) {

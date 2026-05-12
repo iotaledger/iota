@@ -127,11 +127,13 @@ impl IotaTxValidator {
                                 .into(),
                         });
                     }
-                    // For UserTransactionV2 (attested transactions), skip user signature
-                    // verification — we trust the attestor that the transaction has already
-                    // been validated before entering consensus. Only the attestor
-                    // signature needs to be checked.
-                    // TODO: verify the attestor signature on `_a.attestation`.
+                    // For UserTransactionV2 (attested transactions), skip user
+                    // signature verification — we trust the
+                    // attestor that the transaction has already
+                    // been validated before entering consensus. Only the
+                    // attestor signature needs to be
+                    // checked. TODO: verify the attestor
+                    // signature on `_a.attestation`.
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)

@@ -328,7 +328,9 @@ fn extract_owned_input_objects(
         }) => a.transaction.data(),
         _ => {
             return Err(IotaError::GenericAuthority {
-                error: "Expected UserTransactionV1 or UserTransactionV2 in extract_owned_input_objects".to_string(),
+                error:
+                    "Expected UserTransactionV1 or UserTransactionV2 in extract_owned_input_objects"
+                        .to_string(),
             });
         }
     };

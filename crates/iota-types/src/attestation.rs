@@ -37,7 +37,7 @@ pub enum Attestation {
         /// Signs over `hash(transaction.digest() || BCS(data) ||
         /// attestor_address)`, binding the attestation to both the
         /// specific transaction and the attestor's identity.
-        signature: GenericSignature,
+        signature: Box<GenericSignature>,
     },
 }
 
@@ -77,7 +77,9 @@ impl AttestedTransaction {
             attestation,
         }
     }
-    pub fn digest(&self) -> &TransactionDigest { self.transaction.digest() }
+    pub fn digest(&self) -> &TransactionDigest {
+        self.transaction.digest()
+    }
 }
 
 #[cfg(test)]
@@ -87,7 +89,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{IotaAddress, random_object_ref},
-        crypto::{Ed25519IotaSignature, IotaSignature},
+        crypto::Ed25519IotaSignature,
         utils::create_fake_transaction,
     };
 
@@ -119,11 +121,7 @@ mod tests {
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
-        let Attestation::Validator {
-            attestor_index,
-            ..
-        } = decoded
-        else {
+        let Attestation::Validator { attestor_index, .. } = decoded else {
             panic!("unexpected variant");
         };
         assert_eq!(attestor_index, AuthorityIndex::new_for_test(3));
@@ -135,7 +133,9 @@ mod tests {
         let attestation = Attestation::Explicit {
             payload: make_attestation_data(),
             attestor_address: address,
-            signature: GenericSignature::Signature(Ed25519IotaSignature::default().into()),
+            signature: Box::new(GenericSignature::Signature(
+                Ed25519IotaSignature::default().into(),
+            )),
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();

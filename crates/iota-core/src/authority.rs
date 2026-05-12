@@ -1020,6 +1020,200 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// Dry-runs a verified transaction and returns `AttestationData` ready to
+    /// be wrapped in a validator attestation and attached to the transaction
+    /// before submitting it to consensus.
+    ///
+    /// Follows the same pipeline as `handle_transaction_validation_checks`
+    /// — deny checks, object loading, input validation, coin deny list — but
+    /// replaces the final `authenticate_transaction` call with
+    /// `authenticate_then_execute_transaction_to_effects` so that Move
+    /// authentication and transaction execution run together and produce full
+    /// `TransactionEffects` including the accurate `computation_cost`.
+    pub(crate) fn attest_transaction(
+        &self,
+        transaction: &VerifiedTransaction,
+        owned_objects: &[ObjectRef],
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<iota_types::attestation::AttestationData> {
+        use iota_types::attestation::AttestationData;
+
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+        let epoch = epoch_store.epoch();
+        let tx_data = transaction.data().transaction_data();
+
+        // Step 1: deny checks.
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx_data,
+            transaction.tx_signatures(),
+            &transaction.input_objects()?,
+            &tx_data.receiving_objects(),
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+
+        // Step 2: load all input objects including authenticator inputs.
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            self.read_objects_for_validation(transaction, epoch)?;
+
+        // Step 3: get Move authenticators.
+        let move_authenticators = transaction.move_authenticators();
+
+        // Step 4: check inputs for signing (validates gas budget covers auth + tx).
+        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
+            .check_transaction_inputs_for_validation(
+                protocol_config,
+                reference_gas_price,
+                tx_data,
+                tx_input_objects.clone(),
+                &tx_receiving_objects,
+                &move_authenticators,
+                per_authenticator_inputs.clone(),
+            )?;
+
+        // Step 5: coin deny list.
+        let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
+        check_coin_deny_list_v1(
+            tx_data.sender(),
+            &tx_checked_input_objects,
+            &tx_receiving_objects,
+            &per_authenticator_checked_input_objects,
+            &self.get_object_store(),
+        )?;
+
+        let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
+        let epoch_start_timestamp = epoch_store
+            .epoch_start_config()
+            .epoch_data()
+            .epoch_start_timestamp();
+        let backing_store = self.get_backing_store();
+        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let tx_digest = *transaction.digest();
+
+        // Step 6: execute.
+        let effects = if move_authenticators.is_empty() {
+            // Common path: no Move authentication, execute directly.
+            let (_, _, effects, _) = epoch_store.executor().execute_transaction_to_effects(
+                backing_store.as_ref(),
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                false, // expensive_checks
+                self.config.certificate_deny_config.certificate_deny_set(),
+                &epoch_id,
+                epoch_start_timestamp,
+                tx_checked_input_objects,
+                gas_data,
+                gas_status,
+                kind,
+                signer,
+                tx_digest,
+                &mut None,
+            );
+            effects
+        } else {
+            // MoveAuthenticator path: get AuthenticatorFunctionRefForExecution
+            // for each authenticator, then run auth + execution in one pass with an
+            // execution-mode gas status.
+            let tx_data_bytes =
+                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+
+            let per_authenticator_inputs_for_exec = move_authenticators
+                .iter()
+                .zip(per_authenticator_inputs)
+                .map(|(ma, (auth_input_objects, account_object))| {
+                    let (id, seq, digest) = ma.object_to_authenticate_components()?;
+                    let signer_addr = ma.address()?;
+                    let func_ref_for_exec =
+                        self.check_move_account(id, seq, digest, account_object, &signer_addr)?;
+                    Ok((auth_input_objects, func_ref_for_exec))
+                })
+                .collect::<IotaResult<Vec<_>>>()?;
+
+            let per_authenticator_input_objects_for_exec = per_authenticator_inputs_for_exec
+                .iter()
+                .map(|(objs, _)| objs.clone())
+                .collect();
+
+            let authenticator_gas_budget = protocol_config.max_auth_gas();
+            let (exec_gas_status, per_auth_checked, auth_and_tx_checked) =
+                iota_transaction_checks::check_transaction_and_move_authenticator_input(
+                    tx_data,
+                    tx_input_objects,
+                    per_authenticator_input_objects_for_exec,
+                    authenticator_gas_budget,
+                    protocol_config,
+                    reference_gas_price,
+                )?;
+
+            let authenticators_for_exec = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_inputs_for_exec)
+                .zip(per_auth_checked)
+                .map(|((ma, (_, func_ref)), checked_inputs)| {
+                    (ma.to_owned(), func_ref, checked_inputs)
+                })
+                .collect::<Vec<_>>();
+
+            let (_, _, effects, _) = epoch_store
+                .executor()
+                .authenticate_then_execute_transaction_to_effects(
+                    backing_store.as_ref(),
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    false, // expensive_checks
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    gas_data,
+                    exec_gas_status,
+                    authenticators_for_exec,
+                    auth_and_tx_checked,
+                    kind,
+                    signer,
+                    tx_digest,
+                    tx_data_bytes,
+                    &mut None,
+                );
+            effects
+        };
+
+        // Step 7: build AttestationData.
+        let estimated_computation_cost = effects.gas_cost_summary().computation_cost;
+
+        // Collect all input object refs seen during execution. Start from the
+        // owned objects already validated by the caller, then add shared objects
+        // as recorded in effects (includes authenticator + deny-list objects),
+        // receiving objects, and gas payment objects.
+        let mut seen_ids = std::collections::HashSet::new();
+        let mut object_versions: Vec<ObjectRef> = Vec::new();
+        let mut push = |oref: ObjectRef| {
+            if seen_ids.insert(oref.object_id) {
+                object_versions.push(oref);
+            }
+        };
+        for &oref in owned_objects {
+            push(oref);
+        }
+        for shared in effects.input_shared_objects() {
+            push(shared.object_ref());
+        }
+        for oref in tx_data.receiving_objects() {
+            push(oref);
+        }
+        for &oref in tx_data.gas() {
+            push(oref);
+        }
+
+        Ok(AttestationData::V1 {
+            estimated_computation_cost,
+            object_versions,
+        })
+    }
+
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.

@@ -293,6 +293,50 @@ mod checked {
         ))
     }
 
+    /// Variant of [`check_certificate_and_move_authenticator_input`] for use
+    /// before consensus (attestation path), where a full
+    /// [`VerifiedExecutableTransaction`] is not yet available. Produces an
+    /// execution-mode gas status (full `transaction_gas_budget`, not the
+    /// reduced signing-time auth budget).
+    pub fn check_transaction_and_move_authenticator_input(
+        transaction: &TransactionData,
+        tx_input_objects: InputObjects,
+        per_authenticator_input_objects: Vec<InputObjects>,
+        authenticator_gas_budget: u64,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+    ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
+        per_authenticator_input_objects
+            .iter()
+            .try_for_each(check_move_authenticator_objects)?;
+
+        let gas_status = check_transaction_input_inner(
+            protocol_config,
+            reference_gas_price,
+            transaction,
+            &tx_input_objects,
+            &[],
+            authenticator_gas_budget,
+            true, // execution mode — full transaction_gas_budget
+        )?;
+
+        let per_authenticator_checked_input_objects = per_authenticator_input_objects
+            .into_iter()
+            .map(|objects| objects.into_checked())
+            .collect::<Vec<_>>();
+
+        let mut input_objects_union = tx_input_objects.into_checked();
+        for objects in per_authenticator_checked_input_objects.iter() {
+            input_objects_union = checked_input_objects_union(input_objects_union, objects)?;
+        }
+
+        Ok((
+            gas_status,
+            per_authenticator_checked_input_objects,
+            input_objects_union,
+        ))
+    }
+
     // Common checks performed for transactions and certificates.
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,

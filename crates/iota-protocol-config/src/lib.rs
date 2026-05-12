@@ -485,6 +485,13 @@ struct FeatureFlags {
     // Conflicts are resolved deterministically post-consensus using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_white_flag_flow: bool,
+
+    // If true, the block-proposing validator attests each received user transaction
+    // before sending it to consensus. The attestor certifies that Move authentication
+    // passed and the attestation carries a computation cost estimate for
+    // shared-object scheduling.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_validator_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1685,6 +1692,10 @@ impl ProtocolConfig {
 
     pub fn enable_white_flag_flow(&self) -> bool {
         self.feature_flags.enable_white_flag_flow
+    }
+
+    pub fn enable_validator_attestation(&self) -> bool {
+        self.feature_flags.enable_validator_attestation
     }
 }
 
