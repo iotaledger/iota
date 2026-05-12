@@ -5,8 +5,7 @@
 use iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS;
 use prometheus::{
     GaugeVec, HistogramVec, IntCounterVec, Registry, register_gauge_vec_with_registry,
-    register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
 
 #[derive(Clone)]
