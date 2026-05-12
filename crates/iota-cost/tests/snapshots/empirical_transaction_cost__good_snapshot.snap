@@ -1,6 +1,7 @@
 ---
 source: crates/iota-cost/tests/empirical_transaction_cost.rs
 expression: common_costs_actual
+snapshot_kind: text
 ---
 {
   "MergeCoin": {
