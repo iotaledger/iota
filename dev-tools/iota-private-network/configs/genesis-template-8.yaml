@@ -57,4 +57,32 @@ validator_config_info:
     network_address: /dns/validator-4/tcp/8080/http
     p2p_address: /dns/validator-4/udp/8084
     stake: 20000000000000000
+  - commission_rate: 0
+    gas_price: 1000
+    name: validator-5
+    primary_address: /dns/validator-5/udp/8081
+    network_address: /dns/validator-5/tcp/8080/http
+    p2p_address: /dns/validator-5/udp/8084
+    stake: 20000000000000000
+  - commission_rate: 0
+    gas_price: 1000
+    name: validator-6
+    primary_address: /dns/validator-6/udp/8081
+    network_address: /dns/validator-6/tcp/8080/http
+    p2p_address: /dns/validator-6/udp/8084
+    stake: 20000000000000000
+  - commission_rate: 0
+    gas_price: 1000
+    name: validator-7
+    primary_address: /dns/validator-7/udp/8081
+    network_address: /dns/validator-7/tcp/8080/http
+    p2p_address: /dns/validator-7/udp/8084
+    stake: 20000000000000000
+  - commission_rate: 0
+    gas_price: 1000
+    name: validator-8
+    primary_address: /dns/validator-8/udp/8081
+    network_address: /dns/validator-8/tcp/8080/http
+    p2p_address: /dns/validator-8/udp/8084
+    stake: 20000000000000000
 migration_sources: []

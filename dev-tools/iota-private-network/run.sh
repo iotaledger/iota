@@ -24,7 +24,7 @@ function start_services() {
 }
 
 modes=(
-  [faucet]="fullnode-1 faucet-1"
+  [faucet]="fullnode-1 fullnode-2 fullnode-3 fullnode-4 faucet-1"
   [backup]="fullnode-2"
   [indexer]="fullnode-3 indexer-1 postgres_primary"
   [indexer-cluster]="fullnode-3 indexer-1 postgres_primary fullnode-4 indexer-2 postgres_replica"
@@ -37,7 +37,7 @@ for mode in "$@"; do
       services_to_start="fullnode-1 fullnode-2 fullnode-3 fullnode-4 indexer-1 indexer-2 postgres_primary postgres_replica"
       ;;
     faucet)
-      services_to_start="$services_to_start fullnode-1 faucet-1"
+      services_to_start="$services_to_start fullnode-1 fullnode-2 fullnode-3 fullnode-4 faucet-1"
       ;;
     backup)
       services_to_start="$services_to_start fullnode-2"

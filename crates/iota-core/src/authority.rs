@@ -1142,55 +1142,62 @@ impl AuthorityState {
         do_authority_overload_check: bool,
         white_flag_flow_enabled: bool,
     ) -> IotaResult {
+        // if white_flag_flow_enabled {
+        //     // Graduated shedding: 0% to 100% as consensus queue fills from soft
+        //     // to hard limit.
+        //     self.check_consensus_queue_overload(consensus_adapter, tx_data)
+        //         .tap_err(|_| {
+        //             self.update_overload_metrics("consensus_graduated");
+        //         })?;
+        //
+        //     // NOTE: graduated shedding at 100% already rejects everything at or above
+        //     // `max_pending_transactions`, so the queue-length part of the check below
+        //     // is redundant but harmless. But the binary check is kept here because
+        //     // it also verifies that `submit_semaphore` has permits (see
+        //     // `check_consensus_limits` in consensus_adapter.rs), which is a separate
+        //     // concurrency limit not covered by the graduated shedding.
+        //     if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
+        //         self.update_overload_metrics(reason.metric_label());
+        //         return Err(IotaError::TooManyTransactionsPendingConsensus);
+        //     }
+        // } else {
+        if do_authority_overload_check {
+            self.check_authority_overload(tx_data).tap_err(|_| {
+                self.update_overload_metrics("execution_queue");
+            })?;
+        }
+        self.transaction_manager
+            .check_execution_overload(self.overload_config(), tx_data)
+            .tap_err(|_| {
+                self.update_overload_metrics("execution_pending");
+            })?;
+
         if white_flag_flow_enabled {
-            // Graduated shedding: 0% to 100% as consensus queue fills from soft
-            // to hard limit.
             self.check_consensus_queue_overload(consensus_adapter, tx_data)
                 .tap_err(|_| {
                     self.update_overload_metrics("consensus_graduated");
                 })?;
-
-            // NOTE: graduated shedding at 100% already rejects everything at or above
-            // `max_pending_transactions`, so the queue-length part of the check below
-            // is redundant but harmless. But the binary check is kept here because
-            // it also verifies that `submit_semaphore` has permits (see
-            // `check_consensus_limits` in consensus_adapter.rs), which is a separate
-            // concurrency limit not covered by the graduated shedding.
-            if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
-                self.update_overload_metrics(reason.metric_label());
-                return Err(IotaError::TooManyTransactionsPendingConsensus);
-            }
-        } else {
-            if do_authority_overload_check {
-                self.check_authority_overload(tx_data).tap_err(|_| {
-                    self.update_overload_metrics("execution_queue");
-                })?;
-            }
-            self.transaction_manager
-                .check_execution_overload(self.overload_config(), tx_data)
-                .tap_err(|_| {
-                    self.update_overload_metrics("execution_pending");
-                })?;
-            if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
-                self.update_overload_metrics(reason.metric_label());
-                return Err(IotaError::TooManyTransactionsPendingConsensus);
-            }
-
-            let pending_tx_count = self
-                .get_cache_commit()
-                .approximate_pending_transaction_count();
-            if pending_tx_count
-                > self
-                    .config
-                    .execution_cache_config
-                    .writeback_cache
-                    .backpressure_threshold_for_rpc()
-            {
-                return Err(IotaError::ValidatorOverloadedRetryAfter {
-                    retry_after_secs: 10,
-                });
-            }
         }
+        if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
+            self.update_overload_metrics(reason.metric_label());
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
+        }
+
+        let pending_tx_count = self
+            .get_cache_commit()
+            .approximate_pending_transaction_count();
+        if pending_tx_count
+            > self
+                .config
+                .execution_cache_config
+                .writeback_cache
+                .backpressure_threshold_for_rpc()
+        {
+            return Err(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: 10,
+            });
+        }
+        // }
 
         Ok(())
     }

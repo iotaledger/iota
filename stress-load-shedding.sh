@@ -127,7 +127,7 @@ query_range() {
         --data-urlencode "query=$query" \
         --data-urlencode "start=$start_epoch" \
         --data-urlencode "end=$end_epoch" \
-        --data-urlencode "step=5s" \
+        --data-urlencode "step=1s" \
         -o "$out/$outfile" || echo "warning: query failed: $query" >&2
 }
 
@@ -145,9 +145,9 @@ echo "=> capturing metrics from Prometheus over [${start_epoch}..${end_epoch}] (
 query_range 'sum by (host) (sequencing_certificate_inflight{host=~"validator.*"})'              num_inflight.json
 query_range 'sequencing_in_flight_submissions{host=~"validator.*"}'                             in_flight.json
 query_range 'consensus_queue_load_shedding_percentage{host=~"validator.*"}'                     shed_pct.json
-query_range 'rate(transaction_overload_sources[30s])'                                           overload_rate.json
-query_range 'rate(validator_service_num_rejected_tx_during_overload[30s])'                      rejected_rate.json
-query_range 'rate(total_transaction_effects{host=~"validator.*"}[30s])'                         useful_tps.json
+query_range 'rate(transaction_overload_sources[5s])'                                           overload_rate.json
+query_range 'rate(validator_service_num_rejected_tx_during_overload[5s])'                      rejected_rate.json
+query_range 'rate(total_transaction_effects{host=~"validator.*"}[5s])'                         useful_tps.json
 query_instant "sum by (host, source) (increase(transaction_overload_sources[${run_seconds}s]))" overload_total.json
 query_instant "sum by (host, error)  (increase(validator_service_num_rejected_tx_during_overload[${run_seconds}s]))" rejected_total.json
 
@@ -221,7 +221,7 @@ summarize_total() {
     echo "[counter total over run] validator_service_num_rejected_tx_during_overload by (host, error)"
     summarize_total rejected_total.json
     echo
-    echo "[useful TPS] rate(total_transaction_effects[30s]) — txs/sec executed (effects produced)"
+    echo "[useful TPS] rate(total_transaction_effects[5s]) — txs/sec executed (effects produced)"
     summarize_gauge useful_tps.json useful_tps
     echo
     echo "Output dir: $out/"
