@@ -292,7 +292,7 @@ impl SingleValidator {
             .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
             .map(|o| {
-                let LiveObject::Normal(object) = o;
+                let LiveObject(object) = o;
                 (object.id(), object)
             })
             .collect();

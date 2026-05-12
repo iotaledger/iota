@@ -89,7 +89,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     for object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .filter_map(LiveObject::to_normal)
+        .map(|LiveObject(o)| o)
     {
         object_scanned += 1;
         if object_scanned.is_multiple_of(2_000_000) {

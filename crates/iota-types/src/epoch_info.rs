@@ -8,13 +8,21 @@ use crate::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
 };
 
-/// Per-epoch metadata sufficient to rebuild a per-epoch summary table
-/// without reading historical checkpoint contents.
+/// Per-epoch metadata sufficient to rebuild the indexer's `epochs` table
+/// (consumed by JSON-RPC `iotax_getEpochs`, GraphQL `epochs`, and the
+/// explorer) without reading historical checkpoint contents from the
+/// archive. See iotaledger/iota#11254 for the extended-snapshot plan.
 ///
-/// Stored as the value type of the `epoch_info` table on `CheckpointStore`,
-/// alongside `epoch_last_checkpoint_map`. The table is populated incrementally
-/// at each AdvanceEpoch transaction by the checkpoint executor and read by
-/// the snapshot V2 writer to produce the snapshot's `EPOCH_INFO` file.
+/// **Producer.** Written by the checkpoint executor - one row per epoch -
+/// at the end of each AdvanceEpoch transaction. Stored as the value type
+/// of the `epoch_info` table on `CheckpointStore`, alongside
+/// `epoch_last_checkpoint_map`.
+///
+/// **Consumer.** Read by the snapshot V2 writer to produce the snapshot's
+/// `EPOCH_INFO` file (one entry per epoch in `[0, snapshot_epoch]`,
+/// wrapped in `EpochInfo::V1`). A future restore path will read
+/// `EPOCH_INFO` and populate the indexer's `epochs` table from it -
+/// removing the archive dependency on the restore path.
 ///
 /// Wire-format stability: this struct is BCS-encoded both in RocksDB (as the
 /// value of `epoch_info`) and on the snapshot wire (embedded inside
@@ -98,7 +106,7 @@ mod tests {
     fn epoch_info_entry_field_order_is_locked() {
         let entry = EpochInfoEntry {
             last_checkpoint_summary: empty_certified_summary(),
-            // Distinct, recognizable u64 — easy to spot in a hex dump if
+            // Distinct, recognizable u64 - easy to spot in a hex dump if
             // this assertion ever needs to be debugged.
             first_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
             end_of_epoch_tx_events: TransactionEvents::default(),

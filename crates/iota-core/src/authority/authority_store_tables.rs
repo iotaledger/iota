@@ -554,48 +554,33 @@ impl ObjectStore for AuthorityPerpetualTables {
 /// not need it.
 pub struct LiveSetIter<'a>(LiveSetIterV2<'a>);
 
-/// A row that the live-set iterator surfaces. The previous `Wrapped` variant
-/// was removed: `LiveSetIter` filters `StoreObject::Wrapped` and
-/// `StoreObject::Deleted` from its output, so wrapped objects never reach
-/// downstream consumers (snapshot writer, state-hash accumulator, restore
-/// path).
-///
-/// Kept as a single-variant enum to bound the blast radius of this PR —
-/// every consumer site uses `let LiveObject::Normal(o) = ...;` today, and
-/// collapsing to `pub struct LiveObject(pub Object);` (or
-/// `pub type LiveObject = Object;`) would touch every such site. The
-/// `Serialize`/`Deserialize`/`Hash`/`Eq`/`PartialEq` derives have no
-/// current consumer (no call site BCS-encodes, hashes, or equality-
-/// compares a `LiveObject`); a follow-up can collapse the type and prune
-/// both the derives and the trivial wrapper methods.
+/// A row that the live-set iterator surfaces. `LiveSetIter` filters
+/// `StoreObject::Wrapped` and `StoreObject::Deleted` at the source, so
+/// wrapped and deleted objects never reach downstream consumers (snapshot
+/// writer, state-hash accumulator, restore path) - every yielded row is
+/// a live `Object`.
+// `Serialize`/`Deserialize` are load-bearing: the snapshot writer
+// BCS-encodes each `LiveObject` into the bucketed `.obj` files
+// (`iota-snapshot::writer::write_object`), and the reader BCS-decodes
+// them (`iota-snapshot::reader::LiveObjectIter`). Collapsing this from
+// the previous single-variant enum drops the 1-byte variant tag from
+// the wire format - that's fine because snapshot V2 is new (V1 readers
+// reject V2 magic and vice versa), so no existing files carry the old
+// shape.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum LiveObject {
-    Normal(Object),
-}
+pub struct LiveObject(pub Object);
 
 impl LiveObject {
     pub fn object_id(&self) -> ObjectID {
-        match self {
-            LiveObject::Normal(obj) => obj.id(),
-        }
+        self.0.id()
     }
 
     pub fn version(&self) -> SequenceNumber {
-        match self {
-            LiveObject::Normal(obj) => obj.version(),
-        }
+        self.0.version()
     }
 
     pub fn object_reference(&self) -> ObjectRef {
-        match self {
-            LiveObject::Normal(obj) => obj.compute_object_reference(),
-        }
-    }
-
-    pub fn to_normal(self) -> Option<Object> {
-        match self {
-            LiveObject::Normal(object) => Some(object),
-        }
+        self.0.compute_object_reference()
     }
 }
 
@@ -636,7 +621,7 @@ impl LiveSetIterV2<'_> {
                     .construct_object(&object_key, *value)
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObjectV2 {
-                    live: LiveObject::Normal(object),
+                    live: LiveObject(object),
                     previous_transaction_checkpoint,
                 })
             }
@@ -753,8 +738,8 @@ mod tests {
     /// `LiveSetIter` must filter `StoreObject::Wrapped` and
     /// `StoreObject::Deleted` rows at the source so downstream consumers
     /// (snapshot writer, state-hash accumulator, restore path) only ever
-    /// observe live `Normal` objects. This invariant is what lets
-    /// `LiveObject` carry only the `Normal` variant.
+    /// observe live objects. This invariant is what lets `LiveObject` be
+    /// a plain `Object` wrapper.
     fn live_set_iter_filters_wrapped_and_deleted_store_rows() {
         let tmp_dir = iota_common::tempdir();
         let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
@@ -791,12 +776,12 @@ mod tests {
 
         let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
         assert_eq!(yielded.len(), 1, "wrapped/deleted rows must be filtered");
-        let LiveObject::Normal(only) = yielded.into_iter().next().unwrap();
+        let LiveObject(only) = yielded.into_iter().next().unwrap();
         assert_eq!(only.id(), live_id);
     }
 
     /// `LiveSetIterV2` must surface the exact `previous_transaction_checkpoint`
-    /// stored on `StoreObjectValueV2` — it is the load-bearing input to the
+    /// stored on `StoreObjectValueV2` - it is the load-bearing input to the
     /// snapshot V2 writer's per-record trailer. A bug that, e.g., always
     /// stamped `0` here would silently corrupt every snapshot's per-record
     /// trailer; this is the focused canary for that contract.

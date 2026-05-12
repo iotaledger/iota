@@ -61,7 +61,9 @@ use tokio::time::Instant;
 /// listing the object references in that partition. Partition files are
 /// optionally zstd-compressed.
 ///
-/// V2 additions over V1:
+/// Snapshot-format V2 additions over V1 (this "V2" refers to the on-wire
+/// snapshot format, not to `StoreObjectV2` or `EpochInfo::V*`, which are
+/// independent type-level version axes):
 /// - REFERENCE file magic is `0xCAFEBEEF` (V1 was `0xDEADBEEF`); a V2 reader
 ///   fails fast on a V1 magic and vice versa.
 /// - REFERENCE records carry an extra 8-byte big-endian
@@ -144,9 +146,9 @@ use tokio::time::Instant;
 /// └──────────────────────────────┘
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
 /// Magic for V2 reference files. Distinct from the V1 magic (`0xDEADBEEF`) so
-/// a V1 reader fails fast on the magic check rather than silently
-/// miss-decoding a V2 ref record's extra `previous_transaction_checkpoint`
-/// trailer.
+/// a V1 reader fails fast on the magic check rather than silently decoding
+/// a V2 ref record's extra `previous_transaction_checkpoint` trailer into
+/// the wrong shape.
 const REFERENCE_FILE_MAGIC_V2: u32 = 0xCAFEBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
@@ -214,7 +216,7 @@ impl FileMetadata {
     }
 }
 
-/// Body of a manifest at any version. V1 and V2 are structurally identical —
+/// Body of a manifest at any version. V1 and V2 are structurally identical -
 /// the on-disk wire format is the same and the BCS variant tag on `Manifest`
 /// distinguishes them. V2 differs only in semantic associations: the
 /// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
@@ -228,7 +230,7 @@ pub struct ManifestBody {
     pub epoch: u64,
 }
 
-// `Manifest::V1` and `Manifest::V2` use the same `ManifestBody` payload —
+// `Manifest::V1` and `Manifest::V2` use the same `ManifestBody` payload -
 // the BCS variant tag distinguishes them. The variants must stay (removing
 // `V1` would shift `V2`'s tag) even though the body type is shared.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]

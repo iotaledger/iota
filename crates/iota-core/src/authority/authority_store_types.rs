@@ -23,15 +23,15 @@ use serde::{Deserialize, Serialize};
 /// in tests and operational checks.
 ///
 /// TODO(snapshot-v2-backfill): a one-time backfill must rewrite every row
-/// that holds this sentinel — V1 rows lifted via `migrate()`, rows stamped
+/// that holds this sentinel - V1 rows lifted via `migrate()`, rows stamped
 /// on the `PassthroughCache` synchronous-write path, and rows stamped on
-/// the snapshot restore path — with the real
+/// the snapshot restore path - with the real
 /// `previous_transaction_checkpoint`.
 pub const SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT: CheckpointSequenceNumber = u64::MAX;
 
 // Versioning process:
 //
-// Object storage versioning is done lazily (at read time) — therefore we must
+// Object storage versioning is done lazily (at read time) - therefore we must
 // always preserve the code for reading the very first storage version. For all
 // versions, a migration function
 //
@@ -135,9 +135,22 @@ pub struct StoreObjectValueV2 {
     pub owner: Owner,
     pub previous_transaction: TransactionDigest,
     /// Checkpoint sequence number of the checkpoint that contained
-    /// `previous_transaction`. `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`
-    /// indicates the row was lifted from `StoreObjectV1` by `migrate()` and
-    /// has not yet been rewritten by the migration backfill.
+    /// `previous_transaction`.
+    ///
+    /// **Producer.** Stamped at write time by `AuthorityStore::build_db_batch`,
+    /// called from the cache layer. On the `WritebackCache` path the value
+    /// is the containing checkpoint's sequence number (buffered until
+    /// checkpoint commit). On the `PassthroughCache` synchronous-write path
+    /// the containing checkpoint is not yet known, so the value is
+    /// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` until the follow-up
+    /// backfill rewrites those rows. The same sentinel is stamped on V1
+    /// rows lifted to V2 by `migrate()` and on rows produced by the
+    /// snapshot restore path.
+    ///
+    /// **Consumer.** Emitted by the snapshot V2 writer as the 8-byte
+    /// big-endian trailer on each reference record. The indexer reads it
+    /// to populate object-history tables (i.e. "which checkpoint last
+    /// touched this object") without an archive replay.
     pub previous_transaction_checkpoint: CheckpointSequenceNumber,
     pub storage_rebate: u64,
 }
@@ -296,6 +309,31 @@ mod tests {
         assert!(matches!(decoded, StoreObjectWrapper::V1(_)));
     }
 
+    /// `get_store_object` is the single production write site for new V2
+    /// rows. Both cache layers funnel through it: `WritebackCache` passes
+    /// the real containing-checkpoint sequence number, `PassthroughCache`
+    /// passes `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`. This locks that
+    /// whatever the caller passes ends up faithfully on the row, for both
+    /// the sentinel and a distinct value.
+    #[test]
+    fn get_store_object_stamps_provided_checkpoint() {
+        for expected in [
+            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+            0xCAFE_F00D_BEEF_0001u64,
+        ] {
+            let object =
+                Object::immutable_with_id_for_testing(iota_types::base_types::ObjectID::random());
+            let wrapper = get_store_object(object, expected);
+            let StoreObjectWrapper::V2(StoreObjectV2::Value(value)) = wrapper else {
+                panic!("expected V2(Value), got {wrapper:?}");
+            };
+            assert_eq!(
+                value.previous_transaction_checkpoint, expected,
+                "get_store_object must stamp the caller-provided checkpoint"
+            );
+        }
+    }
+
     #[test]
     fn migrate_v2_is_identity() {
         let v2 = StoreObjectV2::Value(Box::new(StoreObjectValueV2 {
@@ -334,21 +372,21 @@ mod tests {
         let bytes = bcs::to_bytes(&v2).unwrap();
 
         let mut golden: Vec<u8> = Vec::new();
-        // `StoreData::Coin(u64)` — the four-variant `StoreData` enum places
+        // `StoreData::Coin(u64)` - the four-variant `StoreData` enum places
         // `Coin` at variant tag 3, followed by the u64 in little-endian.
         golden.push(0x03);
         golden.extend_from_slice(&0x0102_0304_0506_0708u64.to_le_bytes());
-        // `Owner::Immutable` — Owner uses a custom serializer that maps to
+        // `Owner::Immutable` - Owner uses a custom serializer that maps to
         // `ReadableOwner` (AddressOwner=0, ObjectOwner=1, Shared=2,
         // Immutable=3), so Immutable encodes as a single tag byte.
         golden.push(0x03);
-        // `TransactionDigest::ZERO` — Digest's binary BCS form is
+        // `TransactionDigest::ZERO` - Digest's binary BCS form is
         // length-prefixed: ULEB128 length 32 (=`0x20`) + 32 zero bytes.
         golden.push(0x20);
         golden.extend_from_slice(&[0u8; 32]);
-        // `previous_transaction_checkpoint: u64` — little-endian.
+        // `previous_transaction_checkpoint: u64` - little-endian.
         golden.extend_from_slice(&0x1011_1213_1415_1617u64.to_le_bytes());
-        // `storage_rebate: u64` — little-endian.
+        // `storage_rebate: u64` - little-endian.
         golden.extend_from_slice(&0x2021_2223_2425_2627u64.to_le_bytes());
 
         assert_eq!(

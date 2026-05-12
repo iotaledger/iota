@@ -104,9 +104,9 @@ async fn snapshot_round_trip(
 
     // On-wire size assertion: with no compression the uploaded `.ref` file
     // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES_V2`. This
-    // locks the V2 trailer width — a bug that miss-sized records would
-    // still pass the round-trip if writer and reader agreed on the wrong
-    // size. Reads from the remote store, since `sync_file_to_remote`
+    // locks the V2 trailer width - a bug that wrote records of the wrong
+    // size would still pass the round-trip if writer and reader agreed on
+    // the wrong size. Reads from the remote store, since `sync_file_to_remote`
     // removes the local copy after upload.
     if file_compression == FileCompression::None && num_objects > 0 {
         let ref_file = tmp_dir.join("remote_dir").join("epoch_0").join("1_1.ref");
@@ -121,8 +121,8 @@ async fn snapshot_round_trip(
     // Lock the EPOCH_INFO file's on-disk shape: 4-byte big-endian magic
     // followed by `bcs(EpochInfo)`. The reader does not consume this file
     // during restore (the indexer reads it out-of-band from the bucket), so
-    // without this assertion a writer bug — typo'd magic, wrong filename,
-    // wrong BCS encoding — would pass every test and only surface
+    // without this assertion a writer bug - typo'd magic, wrong filename,
+    // wrong BCS encoding - would pass every test and only surface
     // post-deploy when the indexer fails to decode. Gated on `None`
     // compression so the raw on-wire bytes are readable directly.
     if file_compression == FileCompression::None {
@@ -181,7 +181,7 @@ async fn snapshot_round_trip(
 
 #[tokio::test]
 async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
-    // Populated case, with compression — exercises the production path.
+    // Populated case, with compression - exercises the production path.
     let basic_dir = iota_common::tempdir();
     snapshot_round_trip(basic_dir.path(), 1000, FileCompression::Zstd).await?;
     // Empty database case.

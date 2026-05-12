@@ -26,7 +26,7 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
 
     tracing::info!("Reading live objects set");
     for object in store.iter_live_object_set() {
-        let LiveObject::Normal(object) = object;
+        let LiveObject(object) = object;
         let Owner::Address(owner) = object.owner else {
             continue;
         };

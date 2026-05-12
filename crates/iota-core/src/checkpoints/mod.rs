@@ -178,10 +178,18 @@ pub struct CheckpointStoreTables {
     /// that epoch.
     epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
 
-    /// Per-epoch metadata sufficient to rebuild a per-epoch summary table
-    /// without reading historical checkpoint contents. Appended at each
-    /// AdvanceEpoch transaction by the checkpoint executor and read by the
-    /// snapshot V2 writer to produce the snapshot's `EPOCH_INFO` file.
+    /// Per-epoch metadata sufficient to rebuild the indexer's `epochs` table
+    /// (consumed by JSON-RPC `iotax_getEpochs`, GraphQL `epochs`, and the
+    /// explorer) without reading historical checkpoint contents from the
+    /// archive.
+    ///
+    /// One row is appended per epoch by the checkpoint executor at every
+    /// AdvanceEpoch transaction (see
+    /// `CheckpointExecutor::write_epoch_info_entry`). The whole column
+    /// family is read by the snapshot V2 writer to produce the snapshot's
+    /// `EPOCH_INFO` file; a future restore path reads `EPOCH_INFO` to
+    /// populate the indexer's `epochs` table directly. See `EpochInfoEntry`
+    /// and iotaledger/iota#11254.
     epoch_info: DBMap<EpochId, EpochInfoEntry>,
 
     /// Watermarks used to determine the highest verified, fully synced, and

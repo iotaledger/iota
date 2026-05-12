@@ -769,7 +769,7 @@ impl AuthorityStore {
         let mut batch = perpetual_db.objects.batch();
         for object in live_objects {
             hasher.update(object.object_reference().digest.inner());
-            let LiveObject::Normal(object) = object;
+            let LiveObject(object) = object;
             // V2 ref records carry an 8-byte `previous_transaction_checkpoint`
             // trailer, but `ObjectRefIter` reads past it without surfacing the
             // value, so stamp the sentinel here.
@@ -823,17 +823,18 @@ impl AuthorityStore {
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
     ///
-    /// `checkpoint_seq` is stamped onto each newly written object's
-    /// `previous_transaction_checkpoint` field. Callers that buffer execution
-    /// outputs until checkpoint commit time (e.g. `WritebackCache`) pass the
-    /// containing checkpoint's sequence number; callers that flush at
-    /// execution time before the containing checkpoint is known (e.g.
-    /// `PassthroughCache`) pass `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`.
+    /// `previous_transaction_checkpoint` is stamped onto each newly written
+    /// object's `StoreObjectValueV2.previous_transaction_checkpoint` field.
+    /// Callers that buffer execution outputs until checkpoint commit time
+    /// (e.g. `WritebackCache`) pass the containing checkpoint's sequence
+    /// number; callers that flush at execution time before the containing
+    /// checkpoint is known (e.g. `PassthroughCache`) pass
+    /// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`.
     #[instrument(level = "debug", skip_all)]
     pub fn build_db_batch(
         &self,
         epoch_id: EpochId,
-        checkpoint_seq: CheckpointSequenceNumber,
+        previous_transaction_checkpoint: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
@@ -846,7 +847,7 @@ impl AuthorityStore {
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
-                checkpoint_seq,
+                previous_transaction_checkpoint,
                 outputs,
             )?;
         }
@@ -871,7 +872,7 @@ impl AuthorityStore {
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
-        checkpoint_seq: CheckpointSequenceNumber,
+        previous_transaction_checkpoint: CheckpointSequenceNumber,
         tx_outputs: &TransactionOutputs,
     ) -> IotaResult {
         let TransactionOutputs {
@@ -917,7 +918,8 @@ impl AuthorityStore {
         let new_objects = written.iter().map(|(id, new_object)| {
             let version = new_object.version();
             trace!(?id, ?version, "writing object");
-            let store_object = get_store_object(new_object.clone(), checkpoint_seq);
+            let store_object =
+                get_store_object(new_object.clone(), previous_transaction_checkpoint);
             (ObjectKey(*id, version), store_object)
         });
 
@@ -1475,7 +1477,7 @@ impl AuthorityStore {
         let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                let LiveObject::Normal(object) = o;
+                let LiveObject(object) = o;
                 size += object.object_size_for_gas_metering();
                 count += 1;
                 pending_objects.push(object);
