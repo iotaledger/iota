@@ -41,7 +41,7 @@ services:
       - "127.0.0.1:9123:9123"
       - "127.0.0.1:50051:50051"
     healthcheck:
-      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v0/ledger_service.proto localhost:50051 iota.grpc.v0.ledger_service.LedgerService/GetHealth"
+      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v1/ledger_service.proto localhost:50051 iota.grpc.v1.ledger_service.LedgerService/GetHealth"
       interval: 1s
       start_period: 5s
       timeout: 2s
