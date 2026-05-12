@@ -88,7 +88,7 @@ impl IotaRpcModule for CoinReadApi {
 
 #[async_trait]
 impl CoinReadApiServer for CoinReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_coins(
         &self,
         owner: IotaAddress,
@@ -117,7 +117,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_coins(
         &self,
         owner: IotaAddress,
@@ -163,7 +163,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_balance(
         &self,
         owner: IotaAddress,
@@ -176,7 +176,7 @@ impl CoinReadApiServer for CoinReadApi {
                 .get_balance(owner, coin_type_tag.clone())
                 .await
                 .tap_err(|e| {
-                    debug!(?owner, "Failed to get balance with error: {:?}", e);
+                    debug!(%owner, "Failed to get balance with error: {e}");
                 })?;
             Ok(Balance {
                 coin_type: coin_type_tag.to_string(),
@@ -188,11 +188,11 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
         async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
-                debug!(?owner, "Failed to get all balance with error: {:?}", e);
+                debug!(%owner, "Failed to get all balance with error: {e}");
             })?;
             Ok(all_balance
                 .iter()

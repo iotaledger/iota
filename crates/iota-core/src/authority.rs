@@ -5872,7 +5872,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .collect())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],

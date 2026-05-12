@@ -483,7 +483,7 @@ impl ReadApi {
 
 #[async_trait]
 impl ReadApiServer for ReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -545,7 +545,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_ids), fields(object_ids = object_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_objects(
         &self,
         object_ids: Vec<ObjectID>,
@@ -594,7 +594,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_past_object(
         &self,
         object_id: ObjectID,
@@ -654,7 +654,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectID,
@@ -732,7 +732,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
         let transaction = async move {
             let transaction_kv_store = self.transaction_kv_store.clone();
@@ -757,7 +757,7 @@ impl ReadApiServer for ReadApi {
         Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,
@@ -920,7 +920,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_transaction_blocks(
         &self,
         digests: Vec<TransactionDigest>,
@@ -936,7 +936,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, transaction_digest), fields(transaction_digest = %transaction_digest))]
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         async move {
             let state = self.state.clone();
