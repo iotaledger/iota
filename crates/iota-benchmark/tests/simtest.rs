@@ -1150,7 +1150,7 @@ mod test {
         };
 
         let bench_task = tokio::spawn(async move {
-            let driver = BenchDriver::new(5, false);
+            let driver = BenchDriver::new(5, false, Default::default());
 
             // Use 0 for unbounded
             let interval = Interval::Time(test_duration);
