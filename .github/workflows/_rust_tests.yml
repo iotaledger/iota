@@ -74,7 +74,7 @@ jobs:
       - id: check
         uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5.3.1
         with:
-          skip_after_successful_duplicate: 'true'
+          skip_after_successful_duplicate: "true"
 
   rust-tests:
     name: Run rust tests
