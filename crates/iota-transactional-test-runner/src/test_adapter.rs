@@ -2967,6 +2967,12 @@ fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
                         IotaAttribute::authenticator_attribute(version),
                     );
                 }
+                if info.attributes.is_view() {
+                    runtime_metadata.add_function_attribute(
+                        name.as_str().to_owned(),
+                        IotaAttribute::view_attribute(),
+                    );
+                }
             }
         }
 
