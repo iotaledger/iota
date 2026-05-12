@@ -3634,4 +3634,69 @@ mod test {
             assert!(sv.is_strong_vote());
         }
     }
+
+    #[tokio::test]
+    async fn test_has_strong_vote_quorum() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let fixture = CoreTextFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+        );
+
+        let leader = AuthorityIndex::new_for_test(1);
+        let strong_vote = StrongVote {
+            leader_authority: leader,
+            missing: AuthoritySet::new(),
+        };
+        let mut blame_missing = AuthoritySet::new();
+        blame_missing.insert(AuthorityIndex::new_for_test(3));
+        let strong_blame = StrongVote {
+            leader_authority: leader,
+            missing: blame_missing,
+        };
+
+        let add_block = |round: Round, author: u8, sv: StrongVote| {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author)
+                    .set_strong_vote(Some(sv))
+                    .build(),
+            );
+            fixture
+                .core
+                .dag_state
+                .write()
+                .accept_block_header(header, DataSource::Test);
+        };
+
+        // Empty DagState at round 5 -> no quorum.
+        assert!(!fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 3 strong votes for `leader` at round 5 -> quorum.
+        for author in [0u8, 1, 2] {
+            add_block(5, author, strong_vote);
+        }
+        assert!(fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 2 strong votes for `leader` at round 6 -> below quorum.
+        for author in [0u8, 1] {
+            add_block(6, author, strong_vote);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(6, leader));
+
+        // 2 strong votes + 1 strong blame for `leader` at round 7 -> below
+        // quorum (blame does not count as vote).
+        add_block(7, 0, strong_vote);
+        add_block(7, 1, strong_vote);
+        add_block(7, 2, strong_blame);
+        assert!(!fixture.core.has_strong_vote_quorum(7, leader));
+    }
 }
