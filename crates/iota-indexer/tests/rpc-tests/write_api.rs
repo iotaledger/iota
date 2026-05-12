@@ -1456,6 +1456,30 @@ fn move_view_function_call() {
         };
         assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
+
+        // Test mixed object, bool and address arguments.
+        let fn_name = format!("{}::wat_counter::has_address_arg", object_ref.object_id);
+        let address = IotaAddress::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        )
+        .unwrap();
+        let view_results = client
+            .view_function_call(
+                fn_name,
+                None,
+                vec![
+                    call_arg!(review_id).unwrap(),
+                    call_arg!("true").unwrap(),
+                    call_arg!(address).unwrap(),
+                ],
+            )
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        assert_eq!(
+            view_results.into_return_values(),
+            vec![IotaMoveValue::Bool(true)]
+        );
     });
 }
 
