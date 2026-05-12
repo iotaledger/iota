@@ -30,6 +30,7 @@ mod checked {
         },
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
+        digests::Digest,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
@@ -315,6 +316,8 @@ mod checked {
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -438,6 +441,8 @@ mod checked {
                             transaction_kind.clone(),
                             transaction_digest,
                             transaction_data_bytes.clone(),
+                            sender_auth_digest,
+                            sponsor_auth_digest,
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -505,6 +510,8 @@ mod checked {
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -558,6 +565,8 @@ mod checked {
                             transaction_kind.clone(),
                             transaction_digest,
                             transaction_data_bytes.clone(),
+                            sender_auth_digest,
+                            sponsor_auth_digest,
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -593,6 +602,8 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
         tx_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         tx_ctx: Rc<RefCell<TxContext>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -627,7 +638,13 @@ mod checked {
             let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
+            AuthContext::new_from_components(
+                authenticator.digest(),
+                sender_auth_digest,
+                sponsor_auth_digest,
+                ptb,
+                tx_data_bytes,
+            )
         };
         let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 

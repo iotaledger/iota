@@ -900,13 +900,13 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        // Load all transaction-related input objects.
-        // Authenticator input objects and the account objects are loaded in the same
-        // call if there are `MoveAuthenticator` signatures present in the transaction.
+        // Load all transaction-related input objects including ones for every
+        // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
+        // reference — missing object, wrong version, inaccessible object — causes a
+        // pre-consensus rejection.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_signing(&transaction, epoch)?;
 
-        // Get the `MoveAuthenticator`s, if any.
         let move_authenticators = transaction.move_authenticators();
 
         // Check the inputs for signing.
@@ -942,6 +942,23 @@ impl AuthorityState {
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
         )?;
+
+        // Filter the authenticators and their checked inputs down to those that must
+        // be executed pre-consensus. This is done *after* the deny-list check so
+        // that all MoveAuthenticator input objects are covered by that check regardless
+        // of deferral.
+        let pre_consensus_move_authenticators =
+            pre_consensus_move_authenticators(&transaction, protocol_config);
+        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
+            move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
+                .unzip();
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
 
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
@@ -981,6 +998,9 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                transaction.data().compute_auth_digests()?;
+
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticators.
@@ -1001,6 +1021,8 @@ impl AuthorityState {
                 signer,
                 transaction.digest().to_owned(),
                 tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
                 &mut None,
             );
 
@@ -1726,6 +1748,9 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                certificate.data().compute_auth_digests()?;
+
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
@@ -1793,6 +1818,8 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     tx_data_bytes,
+                    sender_auth_digest,
+                    sponsor_auth_digest,
                     &mut None,
                 )
         };
@@ -6166,5 +6193,35 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+/// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus
+/// phase.
+///
+/// When `pre_consensus_sponsor_only_move_authentication` is enabled:
+/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is
+///   returned (empty if the sponsor does not use one).
+/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned
+///   (currently only the sender's).
+///
+/// When the flag is not set, all [`MoveAuthenticator`]s are returned for
+/// compatibility.
+fn pre_consensus_move_authenticators<'a>(
+    tx: &'a VerifiedTransaction,
+    protocol_config: &ProtocolConfig,
+) -> Vec<&'a MoveAuthenticator> {
+    if protocol_config.pre_consensus_sponsor_only_move_authentication() {
+        if tx.transaction_data().is_sponsored_tx() {
+            if let Some(sponsor_move_authenticator) = tx.sponsor_move_authenticator() {
+                vec![sponsor_move_authenticator]
+            } else {
+                vec![]
+            }
+        } else {
+            tx.move_authenticators()
+        }
+    } else {
+        tx.move_authenticators()
     }
 }

@@ -240,6 +240,8 @@ impl AdapterInitConfig {
         }
         if let Some(enable) = move_auth {
             protocol_config.set_enable_move_authentication_for_testing(enable);
+            protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
+            protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");

@@ -143,6 +143,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             supported.
 // Version 26: Introduce a module to allow Move code to query protocol feature
 //             flags at runtime.
+// Version 27: Only sponsor Move authentication is performed pre-consensus in
+//             devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -441,6 +443,10 @@ struct FeatureFlags {
     // If true, enables the authentication of a sponsor account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
+
+    // If true, only sponsor Move authentication is performed pre-consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    pre_consensus_sponsor_only_move_authentication: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1647,6 +1653,23 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
+    pub fn pre_consensus_sponsor_only_move_authentication(&self) -> bool {
+        let pre_consensus_sponsor_only_move_authentication = self
+            .feature_flags
+            .pre_consensus_sponsor_only_move_authentication;
+        if pre_consensus_sponsor_only_move_authentication {
+            assert!(
+                self.enable_move_authentication(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.enable_move_authentication_for_sponsor(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication_for_sponsor to be set"
+            );
+        }
+        pre_consensus_sponsor_only_move_authentication
+    }
+
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -2782,8 +2805,13 @@ impl ProtocolConfig {
                         // header size by committee size.
                         cfg.feature_flags.consensus_block_restrictions = true;
                     }
-                }
 
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Only sponsor Move authentication is performed pre-consensus in devnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3008,6 +3036,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
+    pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pre_consensus_sponsor_only_move_authentication = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
