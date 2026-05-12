@@ -30,7 +30,9 @@ use crate::{
 };
 
 /// Builds a consistent view of the dynamic fields owned by `parent` at
-/// `parent_version`. The DF-shape filter
+/// `parent_version`.
+///
+/// The DF-shape filter
 /// (`owner_id = parent AND owner_type = Object AND df_kind IS NOT NULL`) is
 /// applied internally — it both narrows the candidate set and excludes
 /// non-Active rows (whose `owner_id`/`df_kind` are NULL).
@@ -44,6 +46,7 @@ pub(crate) fn query(parent: IotaAddress, parent_version: u64, page: &Page<Cursor
 }
 
 /// Returns a filter that constrains a row to be a dynamic field of `parent`.
+///
 /// Applied to both Source A and Source B; excludes non-Active rows by virtue
 /// of their NULL `owner_id`/`df_kind` columns.
 fn parent_dynamic_field_filter(parent: IotaAddress) -> impl Fn(RawQuery) -> RawQuery {
@@ -59,20 +62,29 @@ fn parent_dynamic_field_filter(parent: IotaAddress) -> impl Fn(RawQuery) -> RawQ
     }
 }
 
-/// Source A: rows in `checkpointed_objects` whose current `object_version`
-/// is `<= parent_version`. Since `checkpointed_objects` holds each object's
-/// latest version, that version equals `MAX(objects_version.object_version)`
-/// for the id, so `co.object_version <= parent_version` is equivalent to
-/// "the largest known version of this object is in the requested window" —
-/// no `objects_version` lookup is needed here.
+/// Source A — DFs whose current state in `checkpointed_objects` is at or
+/// before `parent_version`.
 ///
-/// Excludes rows also present in `objects_backward_history` at the same
-/// `(object_id, object_version)` to keep the two sources disjoint at the
-/// row level — the same `(id, version)` can briefly appear in both tables
-/// during the race window between backward-history and checkpointed-objects
-/// writes. The merge step's `DISTINCT ON` only deduplicates within a page,
-/// so source-level disjointness is needed for correctness across page
-/// boundaries.
+/// Picks rows where `co.object_version <= parent_version`. Since
+/// `checkpointed_objects` tracks each object's latest version, this version
+/// is also `MAX(objects_version.object_version)` for the id, so the simple
+/// `<=` check is equivalent to "the largest known version of this object
+/// is at or before `parent_version`" — no `objects_version` lookup is
+/// needed here.
+///
+/// # Constraints
+///
+/// Excludes rows that also appear in `objects_backward_history` at the same
+/// `(object_id, object_version)`, keeping Source A and Source B disjoint at
+/// the row level. This is needed because a `(id, version)` pair can
+/// briefly exist in both tables during the race window between
+/// `objects_backward_history` and `checkpointed_objects` writes.
+///
+/// # Implementation notes
+///
+/// The merge step uses `DISTINCT ON` to deduplicate *within a page* only;
+/// source-level disjointness is required to keep the result correct across
+/// page boundaries.
 fn dynamic_fields_from_checkpointed_objects(
     parent_version: i64,
     page: &Page<Cursor>,
@@ -99,10 +111,21 @@ fn dynamic_fields_from_checkpointed_objects(
     page.apply::<StoredBackwardObject>(source)
 }
 
-/// Source B: rows in `objects_backward_history` whose `object_version` equals
-/// the largest `objects_version` entry `<= parent_version` for that
-/// `object_id`. This row carries the prior-state data of the object as it
+/// Source B — DFs whose prior state in `objects_backward_history` is the
+/// one current at `parent_version`.
+///
+/// For each `object_id`, picks the row in `objects_backward_history` whose
+/// `object_version` equals `target_v`, where `target_v` is the largest
+/// `objects_version.object_version` entry `<= parent_version`. The chosen
+/// row carries the prior-state data of the DF as it was while the parent
 /// was at `parent_version`.
+///
+/// # Implementation notes
+///
+/// `objects_version` is consulted as the version-timeline authority (it
+/// records every real version, including tombstone versions). When
+/// `target_v` lands on a tombstone version, no Active state row exists at
+/// that key — the candidate naturally drops out of the result.
 fn dynamic_fields_from_historical_objects(
     parent_version: i64,
     page: &Page<Cursor>,
