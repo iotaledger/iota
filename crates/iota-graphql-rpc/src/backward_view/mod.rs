@@ -5,6 +5,7 @@
 //! `checkpointed_objects` and `objects_backward_history`.
 
 pub(crate) mod consistent;
+pub(crate) mod dynamic_fields;
 pub(crate) mod historical;
 
 use iota_indexer::{
