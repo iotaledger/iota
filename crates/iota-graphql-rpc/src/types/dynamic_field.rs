@@ -6,7 +6,7 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_indexer::types::OwnerType;
 use iota_types::{
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
@@ -16,7 +16,7 @@ use iota_types::{
 };
 
 use crate::{
-    consistency::{View, build_objects_query},
+    backward_view::{consistent, dynamic_fields},
     data::{Db, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter,
@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ObjectKind},
+        object::{self, Object, ObjectKind, StoredBackwardObject},
         type_filter::ExactTypeFilter,
     },
 };
@@ -203,14 +203,24 @@ impl DynamicField {
 
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                let query = match parent_version {
+                    Some(pv) => dynamic_fields::query(parent, pv, &page),
+                    None => {
+                        consistent::query(checkpoint_viewed_at, &page, |q| apply_filter(q, parent))
+                    }
+                };
+
+                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    dynamic_fields_query(parent, parent_version, range, &page),
+                    query,
                 )?))
             })
             .await?
@@ -226,9 +236,10 @@ impl DynamicField {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
 
             let object = Object::try_from_stored_history_object(
-                stored,
+                stored_history,
                 checkpoint_viewed_at,
                 parent_version,
             )?;
@@ -280,51 +291,13 @@ impl TryFrom<MoveObject> for DynamicField {
     }
 }
 
-/// Builds the `RawQuery` for fetching dynamic fields attached to a parent
-/// object. If `parent_version` is null, the latest version of each field within
-/// the given checkpoint range [`lhs`, `rhs`] is returned, conditioned on the
-/// fact that there is not a more recent version of the field.
-///
-/// If `parent_version` is provided, it is used to bound both the `candidates`
-/// and `newer` objects subqueries. This is because the dynamic fields of a
-/// parent at version v are dynamic fields owned by the parent whose versions
-/// are <= v. Unlike object ownership, where owned and owner objects
-/// can have arbitrary `object_version`s, dynamic fields on a parent cannot have
-/// a version greater than its parent.
-fn dynamic_fields_query(
-    parent: IotaAddress,
-    parent_version: Option<u64>,
-    range: AvailableRange,
-    page: &Page<object::Cursor>,
-) -> RawQuery {
-    build_objects_query(
-        View::Consistent,
-        range,
-        page,
-        move |query| apply_filter(query, parent, parent_version),
-        move |newer| {
-            if let Some(parent_version) = parent_version {
-                filter!(newer, format!("object_version <= {}", parent_version))
-            } else {
-                newer
-            }
-        },
-    )
-}
-
-fn apply_filter(query: RawQuery, parent: IotaAddress, parent_version: Option<u64>) -> RawQuery {
-    let query = filter!(
+fn apply_filter(query: RawQuery, parent: IotaAddress) -> RawQuery {
+    filter!(
         query,
         format!(
             "owner_id = '\\x{}'::bytea AND owner_type = {} AND df_kind IS NOT NULL",
             hex::encode(parent.into_vec()),
             OwnerType::Object as i16
         )
-    );
-
-    if let Some(version) = parent_version {
-        filter!(query, format!("object_version <= {}", version))
-    } else {
-        query
-    }
+    )
 }
