@@ -40,4 +40,4 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 
 task 5, lines 30-31:
 //# abstract --account immshared(4,2) --auth-inputs "test" --ptb-inputs 100 @A
-Error: Failed to execute the Move authenticator, reason: Move Runtime Abort. Location: object(3,0)::authenticate::authenticate_hello_world (function index 0) at offset 7, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: object(3,0), name: Identifier("authenticate") } and message object(3,0)::authenticate::authenticate_hello_world at offset 7 at code offset 7 in function definition 0; at command index: 0.
+Error: Failed to execute the Move authenticator, reason: Move Runtime Abort. Location: object(3,0)::authenticate::authenticate_hello_world (function index 0) at offset 7, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: object(3,0), name: Identifier("authenticate") } and message object(3,0)::authenticate::authenticate_hello_world at offset 7 at code offset 7 in function definition 0; at command index: 0
