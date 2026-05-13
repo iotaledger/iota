@@ -462,10 +462,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             sender,
             upgradeable,
             dependencies,
+            view_functions,
             gas_price,
         } = extra;
 
-        fill_metadata(&mut modules);
+        fill_metadata(&mut modules, &view_functions)?;
 
         let named_addr_opt = modules.first().unwrap().named_address;
 
@@ -948,7 +949,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 .unwrap_or_else(|| panic!("Internal error: expected dependency {name} in map when restoring address."));
                         }
 
-                        fill_metadata(&mut modules);
+                        fill_metadata(&mut modules, &[])?;
 
                         let upgraded_name = modules.first().unwrap().named_address.unwrap();
                         let package = &Symbol::from(package.as_str());
@@ -2931,12 +2932,18 @@ fn find_iota_root_dir() -> PathBuf {
     iota_root_dir.to_path_buf()
 }
 
-/// Fill the compiled modules with authenticator metadata directly from
-/// function_infos
-fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
+/// Fill the compiled modules with IOTA metadata from compiler function infos
+/// and transactional-test-only flags.
+fn fill_metadata(
+    modules: &mut [MaybeNamedCompiledModule],
+    view_functions: &[String],
+) -> anyhow::Result<()> {
+    let mut unmatched_view_functions = view_functions.iter().cloned().collect::<BTreeSet<_>>();
+
     for m in modules.iter_mut() {
         let module: &mut CompiledModule = &mut m.module;
         let mut runtime_metadata = RuntimeModuleMetadata::default();
+        let mut view_attributes = BTreeSet::new();
 
         if let Some(fn_infos) = &m.function_infos {
             for (_, name, info) in fn_infos.iter() {
@@ -2948,12 +2955,20 @@ fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
                     );
                 }
                 if info.attributes.is_view() {
-                    runtime_metadata.add_function_attribute(
-                        name.as_str().to_owned(),
-                        IotaAttribute::view_attribute(),
-                    );
+                    view_attributes.insert(name.as_str().to_owned());
                 }
             }
+        }
+
+        for function_name in view_functions {
+            if module.find_function_def_by_name(function_name).is_some() {
+                unmatched_view_functions.remove(function_name);
+                view_attributes.insert(function_name.clone());
+            }
+        }
+
+        for function_name in view_attributes {
+            runtime_metadata.add_function_attribute(function_name, IotaAttribute::view_attribute());
         }
 
         if !runtime_metadata.is_empty() {
@@ -2963,4 +2978,10 @@ fn fill_metadata(modules: &mut [MaybeNamedCompiledModule]) {
             });
         }
     }
+
+    if let Some(function_name) = unmatched_view_functions.into_iter().next() {
+        bail!("Could not find function '{function_name}' requested by --view-functions");
+    }
+
+    Ok(())
 }
