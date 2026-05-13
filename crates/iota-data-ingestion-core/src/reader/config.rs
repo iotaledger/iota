@@ -35,23 +35,19 @@ pub use crate::{
 /// ```rust
 /// use iota_data_ingestion_core::{
 ///     ReaderOptions,
-///     filters::fullnode::{ExecutionStatusFilter, TransactionFilter},
+///     filters::fullnode::TransactionFilter,
 ///     reader::config::{CheckpointReaderConfig, CheckpointReaderConfigExt, RemoteUrl},
 /// };
 ///
-/// let filter = TransactionFilter::default()
-///     .with_execution_status(ExecutionStatusFilter::default().with_success(true));
-///
 /// let config = CheckpointReaderConfigExt::new(ReaderOptions::default())
 ///     .with_remote_store_url(RemoteUrl::Fullnode("http://127.0.0.1:50051".into()))
-///     .with_fullnode_transaction_filter(filter);
+///     .with_fullnode_transaction_filter(TransactionFilter::new().execution_status(true));
 /// ```
 /// # Example with an existing [`CheckpointReaderConfig`]
-///
 /// ```rust
 /// use iota_data_ingestion_core::{
 ///     ReaderOptions,
-///     filters::fullnode::{ExecutionStatusFilter, TransactionFilter},
+///     filters::fullnode::TransactionFilter,
 ///     reader::config::{CheckpointReaderConfig, CheckpointReaderConfigExt, RemoteUrl},
 /// };
 ///
@@ -61,10 +57,8 @@ pub use crate::{
 ///     ..Default::default()
 /// };
 ///
-/// let filter = TransactionFilter::default()
-///     .with_execution_status(ExecutionStatusFilter::default().with_success(true));
-/// let config =
-///     CheckpointReaderConfigExt::from(base_config).with_fullnode_transaction_filter(filter);
+/// let config = CheckpointReaderConfigExt::from(base_config)
+///     .with_fullnode_transaction_filter(TransactionFilter::new().execution_status(true));
 /// ```
 #[derive(Clone, Default)]
 pub struct CheckpointReaderConfigExt {
