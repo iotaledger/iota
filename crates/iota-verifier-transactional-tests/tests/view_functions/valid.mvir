@@ -1,0 +1,208 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// View function attributes can be injected into MVIR tests with
+// --view-functions so the bytecode verifier sees the same metadata produced
+// by source #[view] attributes.
+
+// These cases mirror the bytecode-visible valid signatures in:
+// external-crates/move/crates/move-compiler/tests/iota_mode/move_2024/typing/view_function/valid.move
+// The source fixtures' native view functions are represented with regular
+// aborting bodies here because arbitrary native functions fail publication
+// before the IOTA metadata verifier runs.
+
+//# publish --view-functions entry_view object_immutable_ref primitive_by_value multiple_generic_object_immutable_ref wrapped_by_value generic_object_immutable_ref template_immutable_ref template_key_store_immutable_ref template_copy_drop_store_immutable_ref non_object_by_value templated_non_object_by_value option_primitive_by_value option_non_object_by_value option_generic_object_immutable_ref vector_primitive_by_value vector_non_object_by_value vector_generic_object_immutable_ref receiving_immutable_ref copy_type_param drop_type_param copy_store_type_param primitive_tuple_return native_view native_view_no_param native_type_param unused_unconstrained_type_param unconstrained_type_param_by_ref unconstrained_type_param_vector_by_ref unconstrained_type_param_option_by_ref
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct Wrapped2 has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject2<T: store, U: store> has key {
+        id: object.UID,
+        inner: T,
+        other: U,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    struct NonObject has copy, drop, store {
+        value: u64,
+    }
+
+    struct NonObjectTemplated<T: copy + drop + store> has copy, drop, store {
+        inner: T,
+    }
+
+    struct Receiving<phantom T: key> has copy, drop, store {
+        id: object.ID,
+    }
+
+    public entry entry_view(a: u64): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public object_immutable_ref(object: &Self.Object): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public primitive_by_value(object: &Self.Object, val: u8): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public multiple_generic_object_immutable_ref(
+        generic_object: &Self.GenericObject2<Self.Wrapped, Self.Wrapped2>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public wrapped_by_value(wrapped: Self.Wrapped): bool {
+        label l0:
+        abort 0;
+    }
+
+    public generic_object_immutable_ref(generic_object: &Self.GenericObject<Self.Wrapped>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public template_immutable_ref<T: store>(generic_object: &Self.GenericObject<T>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public template_key_store_immutable_ref<T: key + store>(
+        generic_object: &Self.GenericObject<T>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public template_copy_drop_store_immutable_ref<T: copy + drop + store>(
+        generic_object: &Self.GenericObject<T>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public non_object_by_value(value: Self.NonObject): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public templated_non_object_by_value<T: copy + drop + store>(
+        value: Self.NonObjectTemplated<T>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public option_primitive_by_value(value: option.Option<u64>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public option_non_object_by_value(value: option.Option<Self.NonObject>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public option_generic_object_immutable_ref(
+        value: &option.Option<Self.GenericObject<Self.Wrapped>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public vector_primitive_by_value(value: vector<u64>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public vector_non_object_by_value(value: vector<Self.NonObject>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public vector_generic_object_immutable_ref(value: &vector<Self.GenericObject<Self.Wrapped>>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public receiving_immutable_ref(receiving: &Self.Receiving<Self.GenericObject<Self.Wrapped>>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public copy_type_param<T: copy>(value: T): T {
+        label l0:
+        abort 0;
+    }
+
+    public drop_type_param<T: drop>(value: T): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public copy_store_type_param<T: copy + store>(value: T): T {
+        label l0:
+        abort 0;
+    }
+
+    public primitive_tuple_return(a: u64, b: bool): u64 * bool {
+        label l0:
+        abort 0;
+    }
+
+    public native_view(v: u64): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public native_view_no_param(): bool {
+        label l0:
+        abort 0;
+    }
+
+    public native_type_param<T: key>(): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public unused_unconstrained_type_param<T>(): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public unconstrained_type_param_by_ref<T>(x: &T): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public unconstrained_type_param_vector_by_ref<T>(x: &vector<T>): u64 {
+        label l0:
+        abort 0;
+    }
+
+    public unconstrained_type_param_option_by_ref<T>(x: &option.Option<T>): u64 {
+        label l0:
+        abort 0;
+    }
+}
