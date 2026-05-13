@@ -222,7 +222,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_restarts() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(4, 5_000, 1).await;
+        let test_cluster = build_test_cluster(4, 10_000, 1).await;
         let node_restarter = test_cluster
             .random_node_restarter()
             .with_kill_interval_secs(5, 15)
@@ -234,7 +234,7 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_small_committee_reconfig() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(1, 5_000, 0).await;
+        let test_cluster = build_test_cluster(1, 10_000, 0).await;
         test_simulated_load(test_cluster, 120).await;
     }
 
@@ -561,7 +561,7 @@ mod test {
             config
         });
 
-        let test_cluster = build_test_cluster(4, 5000, 2).await;
+        let test_cluster = build_test_cluster(4, 30_000, 2).await;
         let mut simulated_load_config = SimulatedLoadConfig::default();
         {
             let mut rng = thread_rng();
@@ -689,7 +689,7 @@ mod test {
     // designed to test performance.
     #[sim_test(config = "test_config_low_latency()")]
     async fn test_simulated_load_large_consensus_commit_prologue_size() {
-        let test_cluster = build_test_cluster(4, 5_000, 1).await;
+        let test_cluster = build_test_cluster(4, 10_000, 1).await;
 
         let mut additional_cancelled_txns = Vec::new();
         let num_txns = thread_rng().gen_range(500..2000);
