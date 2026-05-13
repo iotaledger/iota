@@ -45,6 +45,8 @@ pub struct IotaPublishArgs {
     pub upgradeable: bool,
     #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
+    #[arg(long = "view-functions", num_args(1..))]
+    pub view_functions: Vec<String>,
     #[arg(long)]
     pub gas_price: Option<u64>,
 }
