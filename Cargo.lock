@@ -5603,7 +5603,6 @@ dependencies = [
  "futures",
  "iota-macros",
  "iota-metrics",
- "iota-types",
  "once_cell",
  "parking_lot 0.12.3",
  "rand 0.8.6",

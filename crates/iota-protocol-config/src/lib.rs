@@ -1315,7 +1315,9 @@ pub struct ProtocolConfig {
     /// the MisbehaviorReports messages, where `version` determines the scoring
     /// formulas and metrics to be used. Even if set to None, the Scorer
     /// component is created, having access to metrics and being able to expose
-    /// validator scores.
+    /// validator scores. Also gates the wire format of the
+    /// `MisbehaviorReport` consensus transaction — scorer and report bump
+    /// together.
     scorer_version: Option<u16>,
 
     // `auth_context` module
