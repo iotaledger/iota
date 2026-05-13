@@ -19,4 +19,3 @@ iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0bb2128fc621c8323f1583f095a53564486ae779" }
 iota-types = { path = "../../../crates/iota-types" }
-move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }

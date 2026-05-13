@@ -91,3 +91,8 @@ path = "abstract_account/authenticator-shared-object-swap.rs"
 [[example]]
 name = "authenticator-tx-data-cryptographic-protection"
 path = "abstract_account/authenticator-tx-data-cryptographic-protection.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "move-binary-format", # `serialize` method is gated by its `fuzzing` feature
+]

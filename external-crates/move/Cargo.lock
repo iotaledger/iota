@@ -1786,11 +1786,9 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "arbitrary",
- "enum-compat-util",
  "getrandom 0.2.16",
  "indexmap 2.11.0",
  "move-core-types",
- "move-proc-macros",
  "proptest",
  "proptest-derive",
  "ref-cast",
@@ -1826,7 +1824,6 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "petgraph",
- "serde",
  "serde-reflection",
 ]
 
@@ -1873,9 +1870,7 @@ name = "move-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs",
  "clap 4.5.41",
- "codespan-reporting",
  "colored",
  "datatest-stable",
  "move-binary-format",
@@ -1890,10 +1885,8 @@ dependencies = [
  "move-disassembler",
  "move-docgen",
  "move-ir-types",
- "move-model-2",
  "move-package",
  "move-stdlib-natives",
- "move-symbol-pool",
  "move-unit-test",
  "move-vm-profiler",
  "move-vm-runtime",
@@ -1902,7 +1895,6 @@ dependencies = [
  "serde_yaml",
  "similar",
  "tempfile",
- "toml_edit 0.22.27",
  "walkdir",
 ]
 
@@ -1937,7 +1929,6 @@ dependencies = [
  "datatest-stable",
  "dunce",
  "hex",
- "insta",
  "lsp-types",
  "move-binary-format",
  "move-borrow-graph",
@@ -1958,7 +1949,6 @@ dependencies = [
  "serde_json",
  "similar",
  "stacker",
- "tempfile",
  "vfs",
 ]
 
@@ -2023,7 +2013,6 @@ name = "move-disassembler"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs",
  "clap 4.5.41",
  "hex",
  "inline_colorization",
@@ -2045,16 +2034,13 @@ dependencies = [
  "anyhow",
  "clap 4.5.41",
  "codespan",
- "codespan-reporting",
  "itertools 0.10.5",
- "log",
  "move-binary-format",
  "move-compiler",
  "move-core-types",
  "move-ir-types",
  "move-model-2",
  "move-symbol-pool",
- "num",
  "once_cell",
  "regex",
  "serde",
@@ -2064,26 +2050,10 @@ dependencies = [
 name = "move-docgen-tests"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "codespan",
- "codespan-reporting",
  "datatest-stable",
- "insta",
- "itertools 0.10.5",
- "log",
- "move-binary-format",
  "move-command-line-common",
- "move-compiler",
- "move-core-types",
  "move-docgen",
- "move-ir-types",
- "move-model-2",
  "move-package",
- "move-symbol-pool",
- "num",
- "once_cell",
- "regex",
- "serde",
  "tempfile",
 ]
 
@@ -2173,7 +2143,6 @@ dependencies = [
  "move-symbol-pool",
  "num",
  "once_cell",
- "regex",
  "serde",
 ]
 
@@ -2183,18 +2152,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
- "codespan-reporting",
  "indexmap 2.11.0",
  "move-binary-format",
  "move-bytecode-source-map",
- "move-command-line-common",
  "move-compiler",
  "move-core-types",
  "move-ir-types",
  "move-symbol-pool",
- "num",
- "serde",
- "vfs",
 ]
 
 [[package]]
@@ -2298,14 +2262,10 @@ name = "move-stdlib"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "hex",
- "log",
- "move-binary-format",
  "move-command-line-common",
  "move-core-types",
  "move-docgen",
  "move-package",
- "sha2 0.10.9",
  "tempfile",
  "walkdir",
 ]
@@ -2369,7 +2329,6 @@ dependencies = [
  "move-vm-test-utils",
  "move-vm-types",
  "once_cell",
- "rayon",
  "regex",
  "tempfile",
  "tokio",
@@ -2383,7 +2342,6 @@ dependencies = [
  "bcs",
  "better_any",
  "clap 4.5.41",
- "codespan-reporting",
  "colored",
  "datatest-stable",
  "move-binary-format",
@@ -2394,7 +2352,6 @@ dependencies = [
  "move-ir-types",
  "move-stdlib",
  "move-stdlib-natives",
- "move-symbol-pool",
  "move-trace-format",
  "move-vm-profiler",
  "move-vm-runtime",
@@ -2441,7 +2398,6 @@ name = "move-vm-profiler"
 version = "0.1.0"
 dependencies = [
  "move-vm-config",
- "once_cell",
  "serde",
  "serde_json",
  "tracing",

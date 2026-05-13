@@ -12,7 +12,6 @@ anyhow.workspace = true
 fastcrypto.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
-serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true
