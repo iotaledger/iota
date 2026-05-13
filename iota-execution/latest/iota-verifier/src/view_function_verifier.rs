@@ -109,7 +109,8 @@ fn verify_view_return_type(
 }
 
 /// Returns true if `signature_token` contains either an immutable or mutable
-/// reference, including references nested in vectors or datatype instantiations.
+/// reference, including references nested in vectors or datatype
+/// instantiations.
 fn contains_reference_type(signature_token: &SignatureToken) -> bool {
     use SignatureToken as S;
     match signature_token {
