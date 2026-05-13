@@ -1,0 +1,632 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// View function attributes can be injected into MVIR tests with
+// --view-functions so the bytecode verifier sees the same metadata produced
+// by source #[view] attributes.
+
+// These cases mirror the bytecode-visible invalid signatures in:
+// external-crates/move/crates/move-compiler/tests/iota_mode/move_2024/typing/view_function/invalid.move
+
+// The invalid source fixture also rejects `mut value: T` parameter bindings.
+// That mutability is not encoded in bytecode/MVIR function signatures, so it
+// cannot be reproduced as an IOTA bytecode verifier failure.
+// The source fixtures' native view functions are represented with regular
+// aborting bodies here because arbitrary native functions fail publication
+// before the IOTA metadata verifier runs.
+
+//# publish --view-functions private_view
+module 0x0.m {
+    private_view(): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions no_return
+module 0x0.m {
+    public no_return() {
+        label l0:
+        return;
+    }
+}
+
+//# publish --view-functions object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public object_by_value(object: Self.Object): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions object_mutable_ref
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public object_mutable_ref(object_ref: &mut Self.Object): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions concrete_multiple_object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject2<T: store, U: store> has key {
+        id: object.UID,
+        inner: T,
+        other: U,
+    }
+
+    public concrete_multiple_object_by_value(
+        generic_object2: Self.GenericObject2<Self.Wrapped, Self.Wrapped>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions generic_object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public generic_object_by_value(generic_object: Self.GenericObject<Self.Wrapped>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions generic_object_mutable_ref
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public generic_object_mutable_ref(object_ref: &mut Self.GenericObject<Self.Wrapped>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions template_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public template_by_value<T: store>(generic_object: Self.GenericObject<T>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions template_key_store_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    struct Wrapper<T> has key {
+        id: object.UID,
+        wrapped: vector<T>,
+    }
+
+    public template_key_store_by_value<T: key + store>(
+        generic_object: Self.GenericObject<T>,
+        wrapper: &Self.Wrapper<T>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions template_copy_drop_store_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public template_copy_drop_store_by_value<T: copy + drop + store>(
+        generic_object: Self.GenericObject<T>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions direct_key_store_type_param_by_value
+module 0x0.m {
+    public direct_key_store_type_param_by_value<T: key + store>(generic_object: T): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions unconstrained_type_param_by_value
+module 0x0.m {
+    public unconstrained_type_param_by_value<T>(value: T): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions store_only_by_value
+module 0x0.m {
+    struct StoreOnly has store {
+        value: u64,
+    }
+
+    public store_only_by_value(value: Self.StoreOnly): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions store_only_type_param_by_value
+module 0x0.m {
+    public store_only_type_param_by_value<T: store>(value: T): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_object_by_value
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public option_object_by_value(
+        value: option.Option<Self.GenericObject<Self.Wrapped>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_template_object_by_value
+module 0x0.m {
+    import 0x1.option;
+
+    public option_template_object_by_value<T: key + store>(value: option.Option<T>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_vector_object_by_value
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public option_vector_object_by_value(
+        value: option.Option<vector<Self.GenericObject<Self.Wrapped>>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_option_object_by_value
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public vector_option_object_by_value(
+        value: vector<option.Option<Self.GenericObject<Self.Wrapped>>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_primitive_mutable_ref
+module 0x0.m {
+    import 0x1.option;
+
+    public option_primitive_mutable_ref(value: &mut option.Option<u64>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_non_object_mutable_ref
+module 0x0.m {
+    import 0x1.option;
+
+    struct NonObject has copy, drop, store {
+        value: u64,
+    }
+
+    public option_non_object_mutable_ref(value: &mut option.Option<Self.NonObject>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions option_object_mutable_ref
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public option_object_mutable_ref(
+        value: &mut option.Option<Self.GenericObject<Self.Wrapped>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_object_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public vector_object_by_value(value: vector<Self.GenericObject<Self.Wrapped>>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_template_object_by_value
+module 0x0.m {
+    public vector_template_object_by_value<T: key + store>(value: vector<T>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_primitive_mutable_ref
+module 0x0.m {
+    public vector_primitive_mutable_ref(value: &mut vector<u64>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_non_object_mutable_ref
+module 0x0.m {
+    struct NonObject has copy, drop, store {
+        value: u64,
+    }
+
+    public vector_non_object_mutable_ref(value: &mut vector<Self.NonObject>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions vector_object_mutable_ref
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public vector_object_mutable_ref(value: &mut vector<Self.GenericObject<Self.Wrapped>>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions receiving_by_value
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    struct Receiving<phantom T: key> has copy, drop, store {
+        id: object.ID,
+    }
+
+    public receiving_by_value(receiving: Self.Receiving<Self.GenericObject<Self.Wrapped>>): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions receiving_mutable_ref
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    struct Receiving<phantom T: key> has copy, drop, store {
+        id: object.ID,
+    }
+
+    public receiving_mutable_ref(
+        receiving: &mut Self.Receiving<Self.GenericObject<Self.Wrapped>>,
+    ): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions tx_context_mutable_ref
+module 0x0.m {
+    import 0x2.tx_context;
+
+    public tx_context_mutable_ref(ctx: &mut tx_context.TxContext): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_object
+module 0x0.m {
+    import 0x2.object;
+
+    struct Object has key {
+        id: object.UID,
+    }
+
+    public returns_object(): Self.Object {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_object_vector
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public returns_object_vector(): vector<Self.GenericObject<Self.Wrapped>> {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_option_object
+module 0x0.m {
+    import 0x1.option;
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public returns_option_object(): option.Option<Self.GenericObject<Self.Wrapped>> {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_store_only
+module 0x0.m {
+    struct StoreOnly has store {
+        value: u64,
+    }
+
+    public returns_store_only(): Self.StoreOnly {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_option_store_only
+module 0x0.m {
+    import 0x1.option;
+
+    struct StoreOnly has store {
+        value: u64,
+    }
+
+    public returns_option_store_only(): option.Option<Self.StoreOnly> {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_key_store_type_param
+module 0x0.m {
+    public returns_key_store_type_param<T: key + store>(): T {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_store_only_type_param
+module 0x0.m {
+    public returns_store_only_type_param<T: store>(): T {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_tuple_with_object
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public returns_tuple_with_object(): u64 * Self.GenericObject<Self.Wrapped> {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_generic_obj_reference
+module 0x0.m {
+    import 0x2.object;
+
+    struct Wrapped has copy, drop, store {
+        value: u64,
+    }
+
+    struct GenericObject<T: store> has key, store {
+        id: object.UID,
+        inner: T,
+    }
+
+    public returns_generic_obj_reference(
+        input: &Self.GenericObject<Self.Wrapped>,
+    ): &Self.GenericObject<Self.Wrapped> {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_u64_reference
+module 0x0.m {
+    public returns_u64_reference(input: &u64): &u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions returns_tuple_with_reference
+module 0x0.m {
+    public returns_tuple_with_reference(input: &u64): &u64 * u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions store_only_type_param
+module 0x0.m {
+    public store_only_type_param<T: store>(x: T): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions native_mut_ref
+module 0x0.m {
+    public native_mut_ref(x: &mut u64): u64 {
+        label l0:
+        abort 0;
+    }
+}
+
+//# publish --view-functions missing_view
+module 0x0.m {
+    public existing_function(): u64 {
+        label l0:
+        abort 0;
+    }
+}
