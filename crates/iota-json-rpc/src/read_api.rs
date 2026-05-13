@@ -17,10 +17,10 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
     IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse,
+    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
+    IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange, ProtocolConfigResponse,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -35,7 +35,7 @@ use iota_types::{
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::{IotaError, IotaObjectResponseError},
+    error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,

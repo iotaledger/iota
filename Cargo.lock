@@ -5594,16 +5594,12 @@ name = "iota-common"
 version = "1.24.0-alpha"
 dependencies = [
  "anyhow",
- "fastcrypto",
  "futures",
  "iota-macros",
  "iota-metrics",
- "iota-types",
  "once_cell",
  "parking_lot 0.12.3",
  "rand 0.8.6",
- "reqwest",
- "snap",
  "tempfile",
  "tokio",
  "tracing",

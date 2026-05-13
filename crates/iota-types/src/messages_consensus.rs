@@ -13,7 +13,6 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentScope;
 pub use iota_sdk_types::{
     CancelledTransaction, CheckpointTimestamp as TimestampMs, ConsensusCommitPrologueV1,
@@ -236,11 +235,7 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
-    MisbehaviorReport(
-        AuthorityName,
-        VersionedMisbehaviorReport,
-        CheckpointSequenceNumber,
-    ),
+    MisbehaviorReport(VersionedMisbehaviorReport),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -255,131 +250,112 @@ impl ConsensusTransactionKind {
     }
 }
 
+/// A misbehavior report carrying a versioned payload plus a memoized digest.
+///
+/// Wire format is BCS over the `Serialize`-derived fields in declaration order:
+/// `authority || payload || generation`. This exactly matches the pre-refactor
+/// `ConsensusTransactionKind::MisbehaviorReport(AuthorityName,
+/// VersionedMisbehaviorReport { payload }, CheckpointSequenceNumber)` 3-tuple
+/// — see `tests::misbehavior_report_wire_format_unchanged` which pins the
+/// equivalence. Reordering or inserting any non-`skip` field here would change
+/// the consensus wire format and halt a running testnet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum VersionedMisbehaviorReport {
-    V1(
-        MisbehaviorsV1<Vec<u64>>,
-        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
-    ),
+pub struct VersionedMisbehaviorReport {
+    /// Originating authority — must match the transaction source authority
+    /// from consensus. Verified at the consensus boundary.
+    pub authority: AuthorityName,
+    /// Versioned payload of the misbehavior report.
+    pub payload: MisbehaviorObservations,
+    /// Generation number set by the sending authority. Used to identify the
+    /// most recent report from each authority. Currently set to the
+    /// checkpoint sequence number at which the report was generated.
+    pub generation: u64,
+    #[serde(skip)]
+    digest: OnceCell<MisbehaviorReportDigest>,
+}
+
+/// Versioned per-authority misbehavior observations. New variants get their
+/// own named-field payload type (`MisbehaviorObservationsV2`,
+/// `MisbehaviorObservationsV3`, ...) so the wire schema stays compile-time
+/// checked. Also serves as the in-memory representation in
+/// `MisbehaviorMonitor` / `ReportAggregator`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MisbehaviorObservations {
+    V1(MisbehaviorObservationsV1),
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
-        VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
+    pub fn new_v1(
+        authority: AuthorityName,
+        generation: u64,
+        observations: MisbehaviorObservationsV1,
+    ) -> Self {
+        Self {
+            authority,
+            payload: MisbehaviorObservations::V1(observations),
+            generation,
+            digest: OnceCell::new(),
+        }
     }
 
-    pub fn verify(&self, committee_size: usize) -> bool {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
-        }
-    }
-    /// Returns an iterator over references to some of the fields in the report.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.iter(),
-        }
-    }
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
-        match self {
-            VersionedMisbehaviorReport::V1(_, digest) => {
-                digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
-            }
-        }
+        self.digest
+            .get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
     }
+
     /// Returns the summary of the misbehavior report, defined as the sum of all
     /// metrics for all authorities.
     pub fn summary(&self) -> u64 {
-        let summary = match self {
-            VersionedMisbehaviorReport::V1(report, _) => report
-                .iter()
-                .flatten()
-                .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
+        let summary = match &self.payload {
+            MisbehaviorObservations::V1(report) => [
+                &report.faulty_blocks_provable,
+                &report.faulty_blocks_unprovable,
+                &report.missing_proposals,
+                &report.equivocations,
+            ]
+            .into_iter()
+            .flatten()
+            .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
         };
         if summary == u64::MAX {
             warn!("MisbehaviorReport summary reached its maximum value.");
         }
         summary
     }
-
-    pub fn is_valid_version(&self, protocol_config: &ProtocolConfig) -> bool {
-        let scorer_version = protocol_config.scorer_version_as_option();
-        match (self, scorer_version) {
-            (VersionedMisbehaviorReport::V1(_, _), None) => true,
-            (VersionedMisbehaviorReport::V1(_, _), Some(1)) => true,
-            (VersionedMisbehaviorReport::V1(_, _), _) => false,
-        }
-    }
 }
 
-// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbeheaviors) include,
-// faulty blocks, equivocation and missing proposal counts for each authority.
-// This first version does not include any type of proof.
+/// V1 misbehavior observations: per-authority counts for each tracked
+/// misbehavior category (faulty blocks, equivocations, missing proposals).
+/// Field order is part of the wire format — BCS serializes named struct
+/// fields in declaration order. This first version does not include any
+/// type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MisbehaviorsV1<T> {
-    pub faulty_blocks_provable: T,
-    pub faulty_blocks_unprovable: T,
-    pub missing_proposals: T,
-    pub equivocations: T,
+pub struct MisbehaviorObservationsV1 {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+    pub equivocations: Vec<u64>,
 }
 
-impl MisbehaviorsV1<Vec<u64>> {
+impl MisbehaviorObservationsV1 {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
         // authorities. Future versions may contain proofs that need verification.
         // However, since the validity of a proof is deeply coupled with the protocol
         // version and the consensus mechanism being used, we cannot verify it here. In
         // the future, reports should be unwrapped (or translated) to a type verifiable
-        // by the consensus crate, which means that the verification logic will probably
+        // by the starfish crate, which means that the verification logic will probably
         // move out of this crate.
         if (self.faulty_blocks_provable.len() != committee_size)
-            | (self.faulty_blocks_unprovable.len() != committee_size)
-            | (self.equivocations.len() != committee_size)
-            | (self.missing_proposals.len() != committee_size)
+            || (self.faulty_blocks_unprovable.len() != committee_size)
+            || (self.equivocations.len() != committee_size)
+            || (self.missing_proposals.len() != committee_size)
         {
             return false;
         }
         true
-    }
-}
-impl<T> MisbehaviorsV1<T> {
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        ]
-        .into_iter()
-    }
-    // Returns an iterator over references to major misbehavior fields in the
-    // report. Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![&self.equivocations].into_iter()
-    }
-    // Returns an iterator over references to minor misbehavior fields in the
-    // report. Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-        ]
-        .into_iter()
-    }
-}
-
-impl<T> FromIterator<T> for MisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
-        Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
-        }
     }
 }
 
@@ -546,23 +522,15 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_misbehavior_report(
-        authority: AuthorityName,
-        report: &VersionedMisbehaviorReport,
-        checkpoint_seq: CheckpointSequenceNumber,
-    ) -> Self {
+    pub fn new_misbehavior_report(report: VersionedMisbehaviorReport) -> Self {
         let serialized_report =
-            bcs::to_bytes(report).expect("report serialization should not fail");
+            bcs::to_bytes(&report).expect("report serialization should not fail");
         let mut hasher = DefaultHasher::new();
         serialized_report.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::MisbehaviorReport(
-                authority,
-                report.clone(),
-                checkpoint_seq,
-            ),
+            kind: ConsensusTransactionKind::MisbehaviorReport(report),
         }
     }
 
@@ -606,11 +574,11 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(authority, report, checkpoint_seq) => {
+            ConsensusTransactionKind::MisbehaviorReport(report) => {
                 ConsensusTransactionKey::MisbehaviorReport(
-                    *authority,
+                    report.authority,
                     *report.digest(),
-                    *checkpoint_seq,
+                    report.generation,
                 )
             }
         }
@@ -622,5 +590,99 @@ impl ConsensusTransaction {
 
     pub fn is_end_of_publish(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pre-refactor wire shape of `VersionedMisbehaviorReport` — only `payload`
+    /// crossed the wire (the digest cache was `#[serde(skip)]`). Used to pin
+    /// post-refactor bytes against the legacy encoding.
+    #[derive(Serialize)]
+    struct LegacyVersionedMisbehaviorReport<'a> {
+        payload: &'a MisbehaviorObservations,
+    }
+
+    fn sample_payload() -> MisbehaviorObservations {
+        MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
+            faulty_blocks_provable: vec![1, 2, 3],
+            faulty_blocks_unprovable: vec![4, 5, 6],
+            missing_proposals: vec![7, 8, 9],
+            equivocations: vec![10, 11, 12],
+        })
+    }
+
+    /// Pins the BCS encoding of `VersionedMisbehaviorReport` against the
+    /// pre-refactor 3-tuple layout `(AuthorityName, { payload }, u64)`. Testnet
+    /// is running the legacy format; if the bytes ever drift, validators on
+    /// the new build will reject reports from validators on the old build (or
+    /// vice versa) and consensus halts. Reordering struct fields, adding a
+    /// non-`skip` field, or renaming a field's serde tag will all trip this
+    /// test.
+    #[test]
+    fn misbehavior_report_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 42;
+        let payload = sample_payload();
+
+        let legacy_bytes = bcs::to_bytes(&(
+            authority,
+            LegacyVersionedMisbehaviorReport { payload: &payload },
+            generation,
+        ))
+        .unwrap();
+
+        let new = VersionedMisbehaviorReport {
+            authority,
+            payload,
+            generation,
+            digest: OnceCell::new(),
+        };
+        let new_bytes = bcs::to_bytes(&new).unwrap();
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "VersionedMisbehaviorReport wire format must not change — testnet is live"
+        );
+    }
+
+    /// `ConsensusTransactionKind::MisbehaviorReport`'s variant tag is its
+    /// position in the enum (BCS encodes enum variants as ULEB128 of the
+    /// declaration index). Reordering variants — even if the new wrapping
+    /// layout is byte-identical otherwise — would shift the tag and break
+    /// every node still on the old build. This test catches that and also
+    /// confirms the post-tag bytes equal the legacy 3-tuple encoding.
+    #[test]
+    fn misbehavior_report_consensus_kind_wire_format_unchanged() {
+        let authority = AuthorityName::default();
+        let generation: u64 = 7;
+        let payload = sample_payload();
+
+        let new_kind = ConsensusTransactionKind::MisbehaviorReport(VersionedMisbehaviorReport {
+            authority,
+            payload: payload.clone(),
+            generation,
+            digest: OnceCell::new(),
+        });
+        let new_bytes = bcs::to_bytes(&new_kind).unwrap();
+
+        // Legacy encoding: variant tag (8 = position of MisbehaviorReport in
+        // the enum, ULEB128 single byte) followed by the 3-tuple body.
+        let mut legacy_bytes = vec![8u8];
+        legacy_bytes.extend(
+            bcs::to_bytes(&(
+                authority,
+                LegacyVersionedMisbehaviorReport { payload: &payload },
+                generation,
+            ))
+            .unwrap(),
+        );
+
+        assert_eq!(
+            legacy_bytes, new_bytes,
+            "ConsensusTransactionKind::MisbehaviorReport wire format must not change — testnet is live"
+        );
     }
 }

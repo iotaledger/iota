@@ -4,13 +4,10 @@
 
 use std::fmt;
 
-use iota_json_rpc_types::IotaRawMoveObject;
+use iota_json_rpc_types::{IotaObjectResponseError, IotaRawMoveObject};
 use iota_package_management::PublishedAtError;
 use iota_sdk::error::Error as SdkError;
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    error::IotaObjectResponseError,
-};
+use iota_types::base_types::{IotaAddress, ObjectID};
 use move_symbol_pool::Symbol;
 
 #[derive(Debug, thiserror::Error)]
