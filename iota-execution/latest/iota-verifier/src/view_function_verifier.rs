@@ -53,6 +53,13 @@ pub fn verify_view_func(
     Ok(())
 }
 
+/// A valid view parameter type must:
+/// - contain no mutable references, including nested mutable references
+/// - be safe to pass by value when the parameter is not behind a reference
+///
+/// Immutable references are allowed because the referenced value is not moved
+/// into the view function. Source-only rules, such as `mut value: T` parameter
+/// bindings, are not represented in bytecode and are enforced by the compiler.
 fn verify_view_parameter_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -75,6 +82,10 @@ fn verify_view_parameter_type(
     Ok(())
 }
 
+/// A valid view return type must:
+/// - contain no references, including nested references
+/// - be safe to return by value, which means it cannot be an object or a value
+///   that could contain an object
 fn verify_view_return_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -97,6 +108,8 @@ fn verify_view_return_type(
     Ok(())
 }
 
+/// Returns true if `signature_token` contains either an immutable or mutable
+/// reference, including references nested in vectors or datatype instantiations.
 fn contains_reference_type(signature_token: &SignatureToken) -> bool {
     use SignatureToken as S;
     match signature_token {
@@ -120,6 +133,9 @@ fn contains_reference_type(signature_token: &SignatureToken) -> bool {
     }
 }
 
+/// Returns true if `signature_token` contains a mutable reference, including a
+/// mutable reference nested in an immutable reference, vector, or datatype
+/// instantiation.
 fn contains_mutable_reference_type(signature_token: &SignatureToken) -> bool {
     use SignatureToken as S;
     match signature_token {
@@ -143,6 +159,19 @@ fn contains_mutable_reference_type(signature_token: &SignatureToken) -> bool {
     }
 }
 
+/// Returns true if `signature_token` is unsafe to pass or return by value from
+/// a view function.
+///
+/// A type is safe by value when it is:
+/// - a primitive bytecode type
+/// - a type parameter constrained with `copy` or `drop`
+/// - a datatype with no `key` ability, with `copy` or `drop`, and with only
+///   by-value-safe type arguments
+/// - a vector whose element type is by-value-safe
+///
+/// References are never considered by-value here. Mutable references are
+/// rejected before this check for parameters, and all references are rejected
+/// before this check for returns.
 fn contains_view_unsafe_by_value_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
