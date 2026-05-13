@@ -6561,6 +6561,7 @@ dependencies = [
  "serde_with",
  "strum 0.27.2",
  "tabled",
+ "thiserror 1.0.64",
  "tracing",
 ]
 
