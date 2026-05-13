@@ -533,34 +533,6 @@ impl ShardWithProof {
     }
 }
 
-/// Rejects a deserialized `ShardWithProof` whose variant does not match the
-/// local protocol-flag configuration. The flag is uniform across the network
-/// within an epoch, so any mismatch implies either a malicious peer or a
-/// misconfigured upgrade path. In the flag-OFF (raw V1 wire form) branch the
-/// check is a tautology — the deserializer always produces V1 — but it is
-/// called there for symmetry.
-pub(crate) fn check_shard_version_matches_flags(
-    shard: &ShardWithProof,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
-    let variant_matches_flags = matches!(
-        (shard, fast_commit_sync),
-        (ShardWithProof::V1(_), false) | (ShardWithProof::V2(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match shard {
-            ShardWithProof::V1(_) => "V1",
-            ShardWithProof::V2(_) => "V2",
-        };
-        return Err(ConsensusError::WrongShardVersionForFlags {
-            actual,
-            fast_commit_sync,
-        });
-    }
-    Ok(())
-}
-
 impl ShardWithProofAPI for ShardWithProofV1 {
     fn shard(&self) -> &Shard {
         &self.shard
