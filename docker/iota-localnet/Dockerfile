@@ -30,8 +30,10 @@ COPY Cargo.toml Cargo.lock ./
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-localnet \
+      --bin iota-tool \
       --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-localnet ./iota-localnet
+    cp $TARGET_FOLDER/iota-localnet ./iota-localnet && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool
 
 # Production image
 FROM debian:trixie-slim AS runtime
@@ -42,6 +44,7 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y ca-certificates curl libpq5
 COPY --from=builder /iota/iota-localnet /usr/local/bin
+COPY --from=builder /iota/iota-tool /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION

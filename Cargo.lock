@@ -7799,6 +7799,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-replay",
  "iota-sdk",
+ "iota-sdk-grpc-client",
  "iota-snapshot",
  "iota-storage",
  "iota-tls",
