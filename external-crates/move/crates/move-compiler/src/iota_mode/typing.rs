@@ -701,7 +701,9 @@ fn view_return_ty(context: &mut Context, view_loc: Loc, name: FunctionName, retu
 }
 
 fn is_valid_view_return_ty(return_type: &Type) -> bool {
-    !matches!(return_type.value, Type_::Unit) && !contains_view_unsafe_by_value_ty(return_type)
+    !matches!(return_type.value, Type_::Unit)
+        && !contains_reference_ty(return_type)
+        && !contains_view_unsafe_by_value_ty(return_type)
 }
 
 /// A valid view param type is

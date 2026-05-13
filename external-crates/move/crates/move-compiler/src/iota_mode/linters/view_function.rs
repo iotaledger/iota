@@ -48,9 +48,7 @@ simple_visitor!(
             fname
         );
         let mut d = diag!(VIEW_FUNCTION_DIAG, (fname.loc(), msg));
-        d.add_note(format!(
-            "Add '#[view]' to make the function explicitly callable as a view function."
-        ));
+        d.add_note("Add '#[view]' to make the function explicitly callable as a view function.");
         self.add_diag(d);
 
         true
