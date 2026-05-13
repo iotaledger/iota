@@ -14,9 +14,10 @@ use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQueryV2, ObjectChange, TransactionFilterV2,
+    IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
+    TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -28,7 +29,6 @@ use iota_types::{
     base_types::{Identifier, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
-    error::IotaObjectResponseError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,

@@ -15,7 +15,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
     TransactionFilter,
@@ -31,7 +31,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::{IotaObjectResponseError, UserInputError},
+    error::UserInputError,
     event::EventID,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
 };

@@ -9,7 +9,7 @@ use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
 };
@@ -22,7 +22,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
 };

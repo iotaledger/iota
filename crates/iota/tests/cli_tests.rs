@@ -32,9 +32,9 @@ use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaRawData, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
-    get_new_package_obj_from_response,
+    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaRawData,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    ObjectChange, OwnedObjectRef, get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -49,7 +49,6 @@ use iota_types::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
-    error::IotaObjectResponseError,
     gas_coin::GasCoin,
     move_package::{MovePackage, UpgradeInfo},
     object::Owner,
