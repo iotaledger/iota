@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::collections::{HashMap, HashSet};
 
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::base_types::AuthorityName;
 use rand::seq::SliceRandom;
+use tokio::time::Instant;
 use tracing::debug;
 
 use crate::validator_client_monitor::{OperationFeedback, OperationType};

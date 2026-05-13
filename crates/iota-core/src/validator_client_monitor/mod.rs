@@ -15,6 +15,7 @@ use iota_types::base_types::AuthorityName;
 pub use metrics::ValidatorClientMetrics;
 pub use monitor::ValidatorClientMonitor;
 use strum::EnumIter;
+use tokio::time::Instant;
 
 /// Operation types for validator performance tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter)]
@@ -48,7 +49,7 @@ pub struct OperationFeedback {
     /// Result of the operation: Ok(latency) if successful, Err(()) if failed.
     pub result: Result<Duration, ()>,
     /// The timestamp when the operation feedback was observed.
-    pub timestamp: std::time::Instant,
+    pub timestamp: Instant,
 }
 
 impl OperationFeedback {
@@ -76,11 +77,7 @@ pub struct OperationFeedbackBuilder {
 }
 
 impl OperationFeedbackBuilder {
-    pub fn result_at(
-        self,
-        result: Result<Duration, ()>,
-        timestamp: std::time::Instant,
-    ) -> OperationFeedback {
+    pub fn result_at(self, result: Result<Duration, ()>, timestamp: Instant) -> OperationFeedback {
         OperationFeedback {
             authority_name: self.authority_name,
             display_name: self.display_name,
@@ -91,22 +88,22 @@ impl OperationFeedbackBuilder {
     }
 
     pub fn result_now(self, result: Result<Duration, ()>) -> OperationFeedback {
-        self.result_at(result, std::time::Instant::now())
+        self.result_at(result, Instant::now())
     }
 
-    pub fn ok_at(self, latency: Duration, timestamp: std::time::Instant) -> OperationFeedback {
+    pub fn ok_at(self, latency: Duration, timestamp: Instant) -> OperationFeedback {
         self.result_at(Ok(latency), timestamp)
     }
 
     pub fn ok_now(self, latency: Duration) -> OperationFeedback {
-        self.ok_at(latency, std::time::Instant::now())
+        self.result_now(Ok(latency))
     }
 
-    pub fn err_at(self, timestamp: std::time::Instant) -> OperationFeedback {
+    pub fn err_at(self, timestamp: Instant) -> OperationFeedback {
         self.result_at(Err(()), timestamp)
     }
 
     pub fn err_now(self) -> OperationFeedback {
-        self.err_at(std::time::Instant::now())
+        self.result_now(Err(()))
     }
 }

@@ -4,7 +4,7 @@
 
 use std::{
     sync::{Arc, Weak},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use arc_swap::ArcSwap;
@@ -13,7 +13,7 @@ use iota_types::{base_types::AuthorityName, messages_grpc::ValidatorHealthReques
 use parking_lot::RwLock;
 use tokio::{
     task::{JoinHandle, JoinSet},
-    time::{interval, timeout},
+    time::{Instant, interval, timeout},
 };
 use tracing::{info, warn};
 

@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::{
     base_types::AuthorityName,
     crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair},
 };
+use tokio::time::Instant;
 
 use super::{OperationFeedback, OperationType};
 use crate::validator_client_monitor::stats::ClientObservedStats;
