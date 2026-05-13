@@ -4,8 +4,6 @@
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-#[cfg(not(msim))]
-use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     env,
@@ -13,7 +11,8 @@ use std::{
     fs::{self, read_dir},
     io::{self, Read, Seek, SeekFrom, Write as IoWrite},
     path::{Path, PathBuf},
-    str, thread,
+    str::{self, FromStr},
+    thread,
     time::Duration,
 };
 
@@ -555,6 +554,11 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     let mut package_path = PathBuf::from(TEST_DATA_DIR);
     package_path.push("ptb_complex_args_test_functions");
 
+    // Drop any stale `Move.lock` left behind by a prior publish — its
+    // `published-id` would rewrite module addresses away from 0x0 and fail
+    // this publish. `Move.lock` is gitignored, so this is always safe.
+    let _ = fs::remove_file(package_path.join("Move.lock"));
+
     let publish_ptb_string = format!(
         r#"
          --move-call iota::tx_context::sender
@@ -587,6 +591,10 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     package_path.push("ptb_complex_args_test_functions");
     let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
     package_path_2.push("clever_errors");
+
+    // Drop stale `Move.lock`s from prior publishes; see `test_ptb_publish`.
+    let _ = fs::remove_file(package_path.join("Move.lock"));
+    let _ = fs::remove_file(package_path_2.join("Move.lock"));
 
     let publish_ptb_string = format!(
         r#"
@@ -6342,20 +6350,22 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_move_authenticator() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let sender_address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-
+/// Publishes a Move-authenticator example package, links its authenticator
+/// function, and funds the resulting shared `Account` object with
+/// `fund_amount` nanos. Returns the shared `Account`'s `ObjectID`, whose bytes
+/// are the abstract-account address.
+async fn setup_move_authenticator_account(
+    context: &mut WalletContext,
+    publisher: IotaAddress,
+    package_relative_path: &str,
+    module: &str,
+    function: &str,
+    fund_amount: u64,
+) -> Result<ObjectID, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_obj_id = client
         .read_api()
-        .get_owned_objects(sender_address, None, None, None)
+        .get_owned_objects(publisher, None, None, None)
         .await?
         .data
         .first()
@@ -6364,15 +6374,16 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         .unwrap()
         .object_id;
 
-    // Publish the account package
     let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()
         .unwrap()
         .parent()
         .unwrap()
-        .join("examples/move/account");
+        .join(package_relative_path);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
+
+    // Publish the account package
     let resp = IotaClientCommands::Publish {
         package_path,
         build_config,
@@ -6382,10 +6393,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         payment: PaymentArgs {
             gas: vec![gas_obj_id],
         },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
+        gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
     .execute(context)
@@ -6393,7 +6401,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 
     // Extract IDs from publish response
     let IotaClientCommandResult::TransactionBlock(response) = resp else {
-        panic!("Expected TransactionBlock");
+        anyhow::bail!("Expected TransactionBlock from Publish");
     };
     let object_changes = response.object_changes.as_ref().unwrap();
     let account_address = object_changes
@@ -6406,14 +6414,14 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
             } if object_type.to_string().ends_with("::account::Account") => Some(*object_id),
             _ => None,
         })
-        .unwrap();
+        .expect("account object created");
     let package_id = object_changes
         .iter()
         .find_map(|oc| match oc {
             ObjectChange::Published { package_id, .. } => Some(*package_id),
             _ => None,
         })
-        .unwrap();
+        .expect("package published");
     let metadata_id = object_changes
         .iter()
         .find_map(|oc| match oc {
@@ -6426,25 +6434,22 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
             }
             _ => None,
         })
-        .unwrap();
+        .expect("package metadata created");
 
     // Link auth
     IotaClientCommands::Call {
         package: package_id,
-        module: "account".to_string(),
+        module: module.to_string(),
         function: "link_auth".to_string(),
         type_args: vec![],
         args: vec![
             IotaJsonValue::from_str(&account_address.to_string()).unwrap(),
             IotaJsonValue::from_str(&metadata_id.to_string()).unwrap(),
-            IotaJsonValue::from_str("\"account\"").unwrap(),
-            IotaJsonValue::from_str("\"authenticate\"").unwrap(),
+            IotaJsonValue::from_str(&format!("\"{module}\"")).unwrap(),
+            IotaJsonValue::from_str(&format!("\"{function}\"")).unwrap(),
         ],
         payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-            ..Default::default()
-        },
+        gas_data: GasDataArgs::default(),
         processing: TxProcessingArgs::default(),
     }
     .execute(context)
@@ -6455,7 +6460,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         args: vec![
             "--split-coins".to_string(),
             "gas".to_string(),
-            "[2000000000]".to_string(),
+            format!("[{fund_amount}]"),
             "--assign".to_string(),
             "coin".to_string(),
             "--transfer-objects".to_string(),
@@ -6471,13 +6476,38 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
         IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
     ));
 
-    // Add and switch to account
+    // Add the AA to the keystore so the CLI can build `MoveAuthenticator`
+    // signatures for it.
     IotaClientCommands::AddAccount {
         alias: None,
         address: account_address.into(),
     }
     .execute(context)
     .await?;
+
+    Ok(account_address)
+}
+
+#[sim_test]
+async fn test_move_authenticator() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let sender_address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let account_address = setup_move_authenticator_account(
+        context,
+        sender_address,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
         address: Some(IotaAddress::from(account_address).into()),
         env: None,
@@ -6575,136 +6605,20 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
         .with_num_validators(1)
         .build()
         .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
     let sender_address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
-    let client = context.get_client().await?;
-    let gas_obj_id = client
-        .read_api()
-        .get_owned_objects(sender_address, None, None, None)
-        .await?
-        .data
-        .first()
-        .unwrap()
-        .object()
-        .unwrap()
-        .object_id;
-
-    // Publish the account_multi_auth package
-    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("examples/move/abstract_iota_accounts/account_multi_auth");
-    let mut build_config = BuildConfig::new_for_testing().config;
-    build_config.lock_file = Some(package_path.join("Move.lock"));
-    let resp = IotaClientCommands::Publish {
-        package_path,
-        build_config,
-        skip_dependency_verification: false,
-        with_unpublished_dependencies: false,
-        verify_deps: true,
-        payment: PaymentArgs {
-            gas: vec![gas_obj_id],
-        },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
+    let account_address = setup_move_authenticator_account(
+        context,
+        sender_address,
+        "examples/move/abstract_iota_accounts/account_multi_auth",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
     .await?;
 
-    // Extract IDs from publish response
-    let IotaClientCommandResult::TransactionBlock(response) = resp else {
-        panic!("Expected TransactionBlock");
-    };
-    let object_changes = response.object_changes.as_ref().unwrap();
-    let account_address = object_changes
-        .iter()
-        .find_map(|oc| match oc {
-            ObjectChange::Created {
-                object_type,
-                object_id,
-                ..
-            } if object_type.to_string().ends_with("::account::Account") => Some(*object_id),
-            _ => None,
-        })
-        .unwrap();
-    let package_id = object_changes
-        .iter()
-        .find_map(|oc| match oc {
-            ObjectChange::Published { package_id, .. } => Some(*package_id),
-            _ => None,
-        })
-        .unwrap();
-    let metadata_id = object_changes
-        .iter()
-        .find_map(|oc| match oc {
-            ObjectChange::Created {
-                object_type,
-                object_id,
-                ..
-            } if object_type.to_string() == "0x2::package_metadata::PackageMetadataV1" => {
-                Some(*object_id)
-            }
-            _ => None,
-        })
-        .unwrap();
-
-    // Link auth
-    IotaClientCommands::Call {
-        package: package_id,
-        module: "account".to_string(),
-        function: "link_auth".to_string(),
-        type_args: vec![],
-        args: vec![
-            IotaJsonValue::from_str(&account_address.to_string()).unwrap(),
-            IotaJsonValue::from_str(&metadata_id.to_string()).unwrap(),
-            IotaJsonValue::from_str("\"account\"").unwrap(),
-            IotaJsonValue::from_str("\"authenticate\"").unwrap(),
-        ],
-        payment: PaymentArgs::default(),
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-
-    // Send funds to account
-    let transfer_resp = IotaClientCommands::PTB(PTB {
-        args: vec![
-            "--split-coins".to_string(),
-            "gas".to_string(),
-            "[2000000000]".to_string(),
-            "--assign".to_string(),
-            "coin".to_string(),
-            "--transfer-objects".to_string(),
-            "[coin]".to_string(),
-            format!("@{account_address}"),
-        ],
-        display: HashSet::new(),
-    })
-    .execute(context)
-    .await?;
-    assert!(matches!(
-        transfer_resp,
-        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
-    ));
-
-    // Add and switch to account
-    IotaClientCommands::AddAccount {
-        alias: None,
-        address: account_address.into(),
-    }
-    .execute(context)
-    .await?;
+    // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
         address: Some(IotaAddress::from(account_address).into()),
         env: None,
@@ -6747,6 +6661,166 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
             IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
         ),
         "Auth transaction with nested vector args should succeed"
+    );
+
+    Ok(())
+}
+
+/// Tests that the CLI can execute a sponsored transaction where the gas
+/// sponsor is an abstract account authenticated via a `MoveAuthenticator`.
+/// The sender is a regular keystore address; the sponsor's auth args are
+/// supplied via the new `--sponsor-auth-call-args` flag.
+#[sim_test]
+async fn test_move_authenticator_as_sponsor() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let publisher = test_cluster.get_address_0();
+    let sender = test_cluster.get_address_1();
+    let recipient = test_cluster.get_address_2();
+    let context = &mut test_cluster.wallet;
+
+    // Publish the `account` example package and fund the resulting shared
+    // Account so it can act as the sponsor.
+    let account_address = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Find an object owned by `sender` that we can transfer.
+    let sender_obj = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_owned_objects(sender, None, None, None)
+        .await?
+        .data
+        .into_iter()
+        .next()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+
+    // Transfer a sender-owned object to `recipient`, sponsored by the AA.
+    // The sender signs with a regular key; the sponsor is authenticated via
+    // the new `--sponsor-auth-call-args` flag.
+    let transfer_resp = IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(recipient),
+        object_id: sender_obj,
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_sponsor: Some(account_address.into()),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs {
+            sender: Some(sender),
+            sponsor_auth_call_args: Some(vec!["hello".to_string()]),
+            ..Default::default()
+        },
+    }
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(tx) = transfer_resp else {
+        panic!("Expected TransactionBlock result, got {transfer_resp:?}");
+    };
+    let effects = tx.effects.as_ref().unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "Sponsored transfer with MoveAuthenticator sponsor should succeed: {:?}",
+        effects.status()
+    );
+    let tx_block = tx.transaction.as_ref().expect("transaction block");
+    assert_eq!(tx_block.data.gas_data().owner, account_address.into());
+    assert_eq!(tx_block.data.sender(), &sender);
+
+    Ok(())
+}
+
+/// Tests that the CLI can execute a sponsored transaction where both the
+/// sender AND the gas sponsor are abstract accounts authenticated via a
+/// `MoveAuthenticator`. The sender's auth args are supplied via
+/// `--auth-call-args` and the sponsor's via `--sponsor-auth-call-args`.
+#[sim_test]
+async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let publisher = test_cluster.get_address_0();
+    let recipient = test_cluster.get_address_1();
+    let context = &mut test_cluster.wallet;
+
+    // Publish the `account` example package twice — each publication produces
+    // a distinct shared `Account` with its own authenticator function ref.
+    let sender_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+    let sponsor_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+    assert_ne!(sender_aa, sponsor_aa);
+
+    // Sponsored PTB splitting a nano off the sponsor's gas and transferring it
+    // to `recipient`. Sender is authenticated via `--auth-call-args`, sponsor
+    // via `--sponsor-auth-call-args`.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{recipient}"),
+            "--sender".to_string(),
+            format!("@{sender_aa}"),
+            "--gas-sponsor".to_string(),
+            format!("@{sponsor_aa}"),
+            "--auth-call-args".to_string(),
+            "hello".to_string(),
+            "--sponsor-auth-call-args".to_string(),
+            "hello".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(tx) = ptb_resp else {
+        panic!("Expected TransactionBlock result, got {ptb_resp:?}");
+    };
+    let effects = tx.effects.as_ref().unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "Sponsored tx with MoveAuthenticator sender and sponsor should succeed: {:?}",
+        effects.status()
+    );
+    let tx_block = tx.transaction.as_ref().expect("transaction block");
+    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
+    assert_eq!(
+        tx_block.data.gas_data().owner,
+        IotaAddress::from(sponsor_aa)
     );
 
     Ok(())

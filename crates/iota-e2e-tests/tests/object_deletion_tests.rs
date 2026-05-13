@@ -138,8 +138,7 @@ mod sim_only_tests {
     ) -> (ObjectID, ObjectID) {
         let package_id = publish_package(
             &test_cluster.wallet,
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../iota-surfer/tests/move_building_blocks"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_building_blocks"),
         )
         .await
         .object_id;

@@ -1,0 +1,9 @@
+[package]
+name = "authenticator_tx_data_cryptographic_protection"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+authenticator_tx_data_cryptographic_protection = "0x0"

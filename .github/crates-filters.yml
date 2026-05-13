@@ -10,12 +10,6 @@ iota-archival:
   - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
-iota-aws-orchestrator:
-  - "crates/iota-aws-orchestrator/**"
-iota-benchmark:
-  - "crates/iota-benchmark/**"
-iota-build-cache-server:
-  - "crates/iota-build-cache-server/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:
@@ -158,8 +152,6 @@ iota-source-validation-service:
   - "crates/iota-source-validation-service/**"
 iota-storage:
   - "crates/iota-storage/**"
-iota-surfer:
-  - "crates/iota-surfer/**"
 iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
