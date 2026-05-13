@@ -17,7 +17,10 @@ use iota_types::{
 };
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
 
-use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_failure};
+use crate::{
+    authenticator_verifier::verify_authenticate_func_v1, verification_failure,
+    view_function_verifier::verify_view_func,
+};
 
 /// Verifies the runtime module metadata of the given module.
 /// If the module does not contain any runtime metadata, just pass.
@@ -98,10 +101,86 @@ fn verify_runtime_metadata(
                     }
                 }
                 IotaAttribute::View => {
-                    // TODO
+                    verify_view_func(
+                        module,
+                        Identifier::new(fn_name.clone()).map_err(|err| {
+                            verification_failure(format!("Failed to read function name: {err}",))
+                        })?,
+                    )?;
                 }
             }
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use move_binary_format::file_format::{
+        FunctionDefinition, FunctionHandle, IdentifierIndex, ModuleHandleIndex, Signature,
+        SignatureIndex, Visibility, empty_module,
+    };
+    use move_core_types::metadata::Metadata;
+
+    use super::*;
+
+    fn module_with_view_metadata(visibility: Visibility, returns: Signature) -> CompiledModule {
+        let mut module = empty_module();
+        module
+            .identifiers
+            .push(Identifier::new("view".to_owned()).unwrap());
+        let name = IdentifierIndex((module.identifiers.len() - 1) as u16);
+
+        module.signatures.push(returns);
+        let return_ = SignatureIndex((module.signatures.len() - 1) as u16);
+        module.function_handles.push(FunctionHandle {
+            module: ModuleHandleIndex(0),
+            name,
+            parameters: SignatureIndex(0),
+            return_,
+            type_parameters: vec![],
+        });
+        module.function_defs.push(FunctionDefinition {
+            visibility,
+            ..Default::default()
+        });
+
+        let mut metadata = RuntimeModuleMetadata::default();
+        metadata.add_function_attribute("view".to_owned(), IotaAttribute::view_attribute());
+        module.metadata.push(Metadata {
+            key: IOTA_METADATA_KEY.to_vec(),
+            value: RuntimeModuleMetadataWrapper::from(metadata).to_bcs_bytes(),
+        });
+
+        module
+    }
+
+    fn assert_error_contains(module: &CompiledModule, expected: &str) {
+        let err = verify_module(module).unwrap_err();
+        let source = err.source().as_ref().unwrap().to_string();
+        assert!(
+            source.contains(expected),
+            "expected error to contain {expected:?}, got {source:?}"
+        );
+    }
+
+    #[test]
+    fn verifies_view_attribute_from_runtime_metadata() {
+        let module = module_with_view_metadata(
+            Visibility::Public,
+            Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
+        );
+
+        verify_module(&module).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_view_attribute_from_runtime_metadata() {
+        let module = module_with_view_metadata(
+            Visibility::Private,
+            Signature(vec![move_binary_format::file_format::SignatureToken::Bool]),
+        );
+
+        assert_error_contains(&module, "View function 'view' must be public");
+    }
 }
