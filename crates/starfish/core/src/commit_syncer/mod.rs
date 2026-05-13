@@ -800,8 +800,8 @@ mod tests {
         .map(|_| ())
     }
 
-    #[test]
-    fn verify_commits_rejects_v2_commit_when_fast_commit_sync_disabled() {
+    #[tokio::test]
+    async fn verify_commits_rejects_v2_commit_when_fast_commit_sync_disabled() {
         let result = run_verify(Commit::V2(CommitV2::default()), false);
         assert!(matches!(
             result,
@@ -812,8 +812,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn verify_commits_rejects_v1_commit_when_fast_commit_sync_enabled() {
+    #[tokio::test]
+    async fn verify_commits_rejects_v1_commit_when_fast_commit_sync_enabled() {
         let result = run_verify(Commit::V1(CommitV1::default()), true);
         assert!(matches!(
             result,
