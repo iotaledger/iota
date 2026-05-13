@@ -98,7 +98,7 @@ pub async fn publish_aa_package_and_find_metadata(
         Ok((
             is_package,
             ty.clone(),
-            format!("id={} owner={:?} type={}", r.object_id, owner, ty),
+            format!("id={} owner={owner:?} type={ty}", r.object_id),
         ))
     }
 
@@ -146,8 +146,7 @@ pub async fn publish_aa_package_and_find_metadata(
     })?;
 
     info!(
-        "[{WORKLOAD_LABEL}] publish done: package_id={}, package_metadata_ref={:?}",
-        package_id, metadata_ref
+        "[{WORKLOAD_LABEL}] publish done: package_id={package_id}, package_metadata_ref={metadata_ref:?}",
     );
 
     Ok((package_id, metadata_ref))
@@ -253,8 +252,7 @@ pub async fn mint_owned_coins_to_address(
     amount: u64,
 ) -> Result<Vec<ObjectRef>> {
     info!(
-        "[{WORKLOAD_LABEL}] minting {} coins to AA address {}, amount={} each ...",
-        count, recipient, amount
+        "[{WORKLOAD_LABEL}] minting {count} coins to AA address {recipient}, amount={amount} each ..."
     );
 
     let mut remaining = count as usize;

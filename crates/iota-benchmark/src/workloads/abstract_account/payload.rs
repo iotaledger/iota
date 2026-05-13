@@ -103,16 +103,14 @@ impl Payload for AbstractAccountPayload {
                 // - either ensure the PT does not fully consume pay_coin (recommended),
                 // - or re-mint / rotate a fresh pay coin per tx.
                 panic!(
-                    "[{WORKLOAD_LABEL}] pay_coin was deleted/consumed; cannot reuse it. pay_coin_id={}",
-                    pay_id
+                    "[{WORKLOAD_LABEL}] pay_coin was deleted/consumed; cannot reuse it. pay_coin_id={pay_id}"
                 );
             }
 
             // 3) Unchanged: tx did not touch pay_coin (common for your 'touch shared
             //    object' tx). Reuse the existing ObjectRef (version did not change).
             debug!(
-                "[{WORKLOAD_LABEL}] pay_coin unchanged; reusing existing ref. pay_coin_id={}",
-                pay_id
+                "[{WORKLOAD_LABEL}] pay_coin unchanged; reusing existing ref. pay_coin_id={pay_id}"
             );
         }
 

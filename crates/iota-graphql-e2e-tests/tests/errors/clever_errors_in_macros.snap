@@ -15,17 +15,17 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 37:
 //# run P0::m::t_a
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503
-Execution Error: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503; caused by: VMError with status ABORTED with sub status 13906834268832661503 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_a at offset 1 at code offset 1 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503; caused by: VMError with status ABORTED with sub status 13906834268832661503 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_a at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 3, line 39:
 //# run P0::m::t_calls_a
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391
-Execution Error: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391; caused by: VMError with status ABORTED with sub status 13906834281717563391 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_calls_a at offset 1 at code offset 1 in function definition 1; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391; caused by: VMError with status ABORTED with sub status 13906834281717563391 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_calls_a at offset 1 at code offset 1 in function definition 1; at command index: 0
 
 task 4, line 41:
 //# run P0::m::t_const_assert
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953
-Execution Error: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953; caused by: VMError with status ABORTED with sub status 13906834217293053953 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_const_assert at offset 1 at code offset 1 in function definition 2; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953; caused by: VMError with status ABORTED with sub status 13906834217293053953 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_const_assert at offset 1 at code offset 1 in function definition 2; at command index: 0
 
 task 5, line 43:
 //# create-checkpoint

@@ -33,14 +33,14 @@ Contents: t::m::Obj {
 task 4, line 43:
 //# run t::m::share --args object(2,3) --sender A
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0
 
 task 5, line 45:
 //# run t::m::share_wrapped --args object(2,3) --sender A
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0
 
 task 6, line 47:
 //# run t::m::share_child --args object(2,3) --sender A
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::share_object_impl (function index 10) at offset 0, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 10; at command index: 0

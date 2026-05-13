@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fmt::Debug};
+use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
@@ -340,7 +340,7 @@ pub enum UserInputError {
         account_object_id: ObjectID,
         account_object_version: SequenceNumber,
     },
-    #[error("Unable to get a Move authenticator object ID for account {account_object_id}")]
+    #[error("Unable to get a `MoveAuthenticator` object ID for account {account_object_id}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
     #[error(
         "Invalid authenticator function ref field value found for the account {account_object_id}"
@@ -1007,12 +1007,12 @@ impl ExecutionError {
 
 impl std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.inner.kind)?;
+        write!(f, "{}: {}", self.inner.kind.as_ref(), self.inner.kind)?;
         if let Some(source) = self.inner.source.as_ref() {
-            write!(f, "; caused by: {}", source)?;
+            write!(f, "; caused by: {source}")?;
         }
         if let Some(command) = self.inner.command {
-            write!(f, "; at command index: {}", command)?;
+            write!(f, "; at command index: {command}")?;
         }
         Ok(())
     }

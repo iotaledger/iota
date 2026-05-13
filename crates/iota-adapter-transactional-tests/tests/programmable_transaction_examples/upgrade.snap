@@ -40,7 +40,7 @@ task 6, lines 44-46:
 //> 0: q::m::x();
 //> p::m::foo(Result(0))
 Error: Transaction Effects Status: Move Runtime Abort. Location: p::n::bar (function index 0) at offset 6, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: p::n::bar (function index 0) at offset 6, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: p, name: Identifier("n") } and message p::n::bar at offset 6 at code offset 6 in function definition 0; at command index: 1
+Execution Error: MoveAbort: Move Runtime Abort. Location: p::n::bar (function index 0) at offset 6, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: p, name: Identifier("n") } and message p::n::bar at offset 6 at code offset 6 in function definition 0; at command index: 1
 
 task 8, lines 50-52:
 //# programmable --sender A

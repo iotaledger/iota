@@ -6,7 +6,7 @@ processed 11 tasks
 task 1, lines 7-105:
 //# publish
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Enum X cannot have the 'key' ability. Enums cannot have the 'key' ability.; at command index: 0
+Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Enum X cannot have the 'key' ability. Enums cannot have the 'key' ability.; at command index: 0
 
 task 2, line 107:
 //# set-address test object(1,0)

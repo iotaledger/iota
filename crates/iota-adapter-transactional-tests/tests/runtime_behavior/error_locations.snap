@@ -12,19 +12,19 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 33:
 //# run test::m::abort_
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::m::abort_ (function index 0) at offset 1, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: test::m::abort_ (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: test, name: Identifier("m") } and message test::m::abort_ at offset 1 at code offset 1 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::m::abort_ (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: test, name: Identifier("m") } and message test::m::abort_ at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 3, line 35:
 //# run test::m::loop_ --gas-budget 1000000
 Error: Transaction Effects Status: Insufficient Gas
-Execution Error: Insufficient Gas; caused by: VMError with status OUT_OF_GAS at location Module ModuleId { address: test, name: Identifier("m") } at code offset 0 in function definition 1; at command index: 0
+Execution Error: InsufficientGas: Insufficient Gas; caused by: VMError with status OUT_OF_GAS at location Module ModuleId { address: test, name: Identifier("m") } at code offset 0 in function definition 1; at command index: 0
 
 task 4, line 37:
 //# run test::m::math
 Error: Transaction Effects Status: Move Primitive Runtime Error. Location: test::m::math (function index 2) at offset 2. Arithmetic error, stack overflow, max value depth, etc.
-Execution Error: Move Primitive Runtime Error. Location: test::m::math (function index 2) at offset 2. Arithmetic error, stack overflow, max value depth, etc.; caused by: VMError with status ARITHMETIC_ERROR at location Module ModuleId { address: test, name: Identifier("m") } at code offset 2 in function definition 2; at command index: 0
+Execution Error: MovePrimitiveRuntimeError: Move Primitive Runtime Error. Location: test::m::math (function index 2) at offset 2. Arithmetic error, stack overflow, max value depth, etc.; caused by: VMError with status ARITHMETIC_ERROR at location Module ModuleId { address: test, name: Identifier("m") } at code offset 2 in function definition 2; at command index: 0
 
 task 5, line 39:
 //# run test::m::vector_
 Error: Transaction Effects Status: Move Primitive Runtime Error. Location: test::m::vector_ (function index 3) at offset 4. Arithmetic error, stack overflow, max value depth, etc.
-Execution Error: Move Primitive Runtime Error. Location: test::m::vector_ (function index 3) at offset 4. Arithmetic error, stack overflow, max value depth, etc.; caused by: VMError with status VECTOR_OPERATION_ERROR with sub status 1 at location Module ModuleId { address: test, name: Identifier("m") } at code offset 4 in function definition 3; at command index: 0
+Execution Error: MovePrimitiveRuntimeError: Move Primitive Runtime Error. Location: test::m::vector_ (function index 3) at offset 4. Arithmetic error, stack overflow, max value depth, etc.; caused by: VMError with status VECTOR_OPERATION_ERROR with sub status 1 at location Module ModuleId { address: test, name: Identifier("m") } at code offset 4 in function definition 3; at command index: 0

@@ -21,4 +21,4 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 3, line 33:
 //# run a::m::t2 --sender A --args object(2,0)
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::add (function index 0) at offset 15, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: iota::dynamic_field::add (function index 0) at offset 15, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("dynamic_field") } and message iota::dynamic_field::add at offset 15 at code offset 15 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::dynamic_field::add (function index 0) at offset 15, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: iota, name: Identifier("dynamic_field") } and message iota::dynamic_field::add at offset 15 at code offset 15 in function definition 0; at command index: 0

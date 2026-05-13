@@ -156,8 +156,7 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
             let aa_address: IotaAddress = aa_obj_id.into();
 
             info!(
-                "[{WORKLOAD_LABEL}] created AA: \n obj_id= {}, \n initial_shared_version={:?}, \n aa_address={}",
-                aa_obj_id, aa_initial_shared_version, aa_address
+                "[{WORKLOAD_LABEL}] created AA: \n obj_id= {aa_obj_id}, \n initial_shared_version={aa_initial_shared_version:?}, \n aa_address={aa_address}"
             );
 
             self.aa_object_id = Some(aa_obj_id);

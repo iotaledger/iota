@@ -31,4 +31,4 @@ task 4, lines 26-28:
 // failure, gas price(800) lower than reference gas price(700) + 300
 //> test::gas_test::gas_checks(Input(0), Input(1))
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::gas_test::gas_checks (function index 0) at offset 28, Abort Code: 102
-Execution Error: Move Runtime Abort. Location: test::gas_test::gas_checks (function index 0) at offset 28, Abort Code: 102; caused by: VMError with status ABORTED with sub status 102 at location Module ModuleId { address: test, name: Identifier("gas_test") } and message test::gas_test::gas_checks at offset 28 at code offset 28 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::gas_test::gas_checks (function index 0) at offset 28, Abort Code: 102; caused by: VMError with status ABORTED with sub status 102 at location Module ModuleId { address: test, name: Identifier("gas_test") } and message test::gas_test::gas_checks at offset 28 at code offset 28 in function definition 0; at command index: 0

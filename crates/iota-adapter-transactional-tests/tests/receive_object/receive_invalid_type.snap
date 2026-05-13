@@ -42,4 +42,4 @@ Contents: tto::M1::B {
 task 5, line 40:
 //# run tto::M1::receiver --args object(2,0) receiving(2,1)
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2
-Execution Error: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2; caused by: VMError with status ABORTED with sub status 2 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 12; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2; caused by: VMError with status ABORTED with sub status 2 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 12; at command index: 0

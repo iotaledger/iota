@@ -63,4 +63,4 @@ Contents: test::m::Child {
 task 8, line 88:
 //# run test::m::make_dynamic_remove_and_then_share
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1
-Execution Error: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1; caused by: VMError with status ABORTED with sub status 1 at location Module ModuleId { address: iota, name: Identifier("dynamic_field") } at code offset 0 in function definition 11; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1; caused by: VMError with status ABORTED with sub status 1 at location Module ModuleId { address: iota, name: Identifier("dynamic_field") } at code offset 0 in function definition 11; at command index: 0

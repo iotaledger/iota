@@ -27,14 +27,14 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 4, lines 29-31:
 //# run Test1::M1::f1
 Error: Transaction Effects Status: Move Runtime Abort. Location: Test1::M1::f1 (function index 0) at offset 1, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: Test1::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: Test1::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 5, lines 32-34:
 //# run Test2::M1::f1
 Error: Transaction Effects Status: Move Runtime Abort. Location: Test2::M1::f1 (function index 0) at offset 1, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: Test2::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: Test2::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 6, line 35:
 //# run Test3::M1::f1
 Error: Transaction Effects Status: Move Runtime Abort. Location: Test3::M1::f1 (function index 0) at offset 1, Abort Code: 0
-Execution Error: Move Runtime Abort. Location: Test3::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
+Execution Error: MoveAbort: Move Runtime Abort. Location: Test3::M1::f1 (function index 0) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: Test1, name: Identifier("M1") } and message Test1::M1::f1 at offset 1 at code offset 1 in function definition 0; at command index: 0
