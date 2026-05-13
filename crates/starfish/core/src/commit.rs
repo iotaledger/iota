@@ -127,34 +127,6 @@ impl Commit {
     }
 }
 
-/// Rejects a deserialized commit whose variant does not match the local
-/// protocol-flag configuration. The flag is uniform across the network within
-/// an epoch, so any mismatch implies either a malicious peer or a misconfigured
-/// upgrade path. Called on commits received over the network in
-/// `commit_syncer::Inner::verify_commits`; recovery from local store is trusted
-/// and skips this check.
-pub(crate) fn check_commit_version_matches_flags(
-    commit: &Commit,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> crate::error::ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
-    let variant_matches_flags = matches!(
-        (commit, fast_commit_sync),
-        (Commit::V1(_), false) | (Commit::V2(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match commit {
-            Commit::V1(_) => "V1",
-            Commit::V2(_) => "V2",
-        };
-        return Err(crate::error::ConsensusError::WrongCommitVersionForFlags {
-            actual,
-            fast_commit_sync,
-        });
-    }
-    Ok(())
-}
-
 /// Accessors to Commit info.
 #[enum_dispatch]
 pub(crate) trait CommitAPI {
