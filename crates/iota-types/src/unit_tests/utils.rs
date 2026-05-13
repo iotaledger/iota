@@ -22,6 +22,7 @@ use crate::{
     signature::GenericSignature,
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 
@@ -77,9 +78,8 @@ pub fn create_fake_transaction() -> Transaction {
 }
 
 pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
-    let object = Object::immutable_with_id_for_testing(ObjectID::random_from_rng(
-        &mut StdRng::from_seed([0; 32]),
-    ));
+    let object =
+        Object::immutable_with_id_for_testing(ObjectID::generate(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
@@ -173,7 +173,7 @@ mod move_authenticator {
         base_types::IotaAddress,
         object::OBJECT_START_VERSION,
         signature::GenericSignature,
-        transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
+        transaction::{CallArg, SenderSignedData, SharedObjectRef, Transaction},
         utils::make_transaction_data,
     };
 
@@ -185,8 +185,8 @@ mod move_authenticator {
         //
         // TODO: if it is necessary, AA accounts need to be supported properly in the
         // `AuthorityState` used for testing.
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: address.into(),
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
+            object_id: address.into(),
             initial_shared_version: OBJECT_START_VERSION,
             mutable: false,
         });

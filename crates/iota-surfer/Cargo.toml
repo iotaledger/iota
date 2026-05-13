@@ -13,7 +13,7 @@ clap.workspace = true
 futures.workspace = true
 indexmap.workspace = true
 rand.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "tracing"] }
 tracing.workspace = true
 
 # internal dependencies

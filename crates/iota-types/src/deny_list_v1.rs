@@ -7,28 +7,23 @@ use std::{
     fmt,
 };
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
-    object::{Object, Owner},
+    object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
@@ -56,20 +51,9 @@ struct ConfigKey {
     per_type_key: Vec<u8>,
 }
 
-impl ConfigKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("ConfigKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for ConfigKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
     }
 }
 
@@ -77,20 +61,9 @@ impl MoveTypeTagTrait for ConfigKey {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct AddressKey(IotaAddress);
 
-impl AddressKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("AddressKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for AddressKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
     }
 }
 
@@ -104,19 +77,11 @@ impl GlobalPauseKey {
     pub fn new() -> Self {
         Self(false)
     }
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("GlobalPauseKey").to_owned(),
-            type_params: vec![],
-        }
-    }
 }
 
 impl MoveTypeTagTrait for GlobalPauseKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 
@@ -160,16 +125,16 @@ pub fn check_coin_deny_list_v1_during_execution(
         if obj.is_gas_coin() {
             continue;
         }
-        let Some(coin_type) = obj.coin_type_maybe() else {
+        let Some(coin_type) = obj.coin_type_opt() else {
             continue;
         };
-        let Ok(owner) = obj.owner.get_address_owner_address() else {
+        let Some(owner) = obj.owner.as_address_opt() else {
             continue;
         };
         new_coin_owners
             .entry(coin_type.to_canonical_string(false))
             .or_insert_with(BTreeSet::new)
-            .insert(owner);
+            .insert(*owner);
     }
     let num_non_gas_coin_owners = new_coin_owners.values().map(|v| v.len() as u64).sum();
     let new_regulated_coin_owners = new_coin_owners
@@ -271,11 +236,10 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
 
 pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
     get_deny_list_root_object(object_store)
-        .map(|obj| match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => initial_shared_version,
-            _ => unreachable!("Deny list object must be shared"),
+        .map(|obj| {
+            obj.owner
+                .into_shared_opt()
+                .expect("Deny list object must be shared")
         })
         .expect("Deny list object must exist")
 }
@@ -325,7 +289,7 @@ fn input_object_coin_types_for_denylist_check(
             if obj.is_gas_coin() {
                 None
             } else {
-                obj.coin_type_maybe()
+                obj.coin_type_opt()
                     .map(|type_tag| type_tag.to_canonical_string(false))
             }
         })

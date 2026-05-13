@@ -10,11 +10,11 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{
@@ -44,16 +44,16 @@ pub fn create_coin(
     let coin = Coin::new(object_id, amount);
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
+            StructTag::new_coin(coin_type.to_type_tag()),
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,
         )?
     };
     // Resolve ownership
-    let owner = Owner::AddressOwner(owner);
+    let owner = Owner::Address(owner);
     Ok(Object::new_from_genesis(
-        Data::Move(move_object),
+        Data::Struct(move_object),
         owner,
         tx_context.digest(),
     ))
@@ -154,7 +154,7 @@ impl BasicOutputExt for BasicOutput {
     ) -> Result<Object> {
         let move_object = {
             MoveObject::new_from_execution(
-                BasicOutput::tag(coin_type.to_type_tag()).into(),
+                BasicOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
@@ -162,14 +162,12 @@ impl BasicOutputExt for BasicOutput {
         };
         // Resolve ownership
         let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
+            Owner::Shared(version)
         } else {
-            Owner::AddressOwner(owner)
+            Owner::Address(owner)
         };
         Ok(Object::new_from_genesis(
-            Data::Move(move_object),
+            Data::Struct(move_object),
             owner,
             tx_context.digest(),
         ))

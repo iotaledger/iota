@@ -22,6 +22,7 @@ use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::GasCostSummary;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
     committee::StakeUnit,
@@ -30,7 +31,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
-    gas::GasCostSummary,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -1727,7 +1727,8 @@ impl CheckpointBuilder {
         let (previous_epoch, previous_gas_costs) = last_checkpoint
             .map(|c| (c.epoch, c.epoch_rolling_gas_cost_summary.clone()))
             .unwrap_or_default();
-        let current_gas_costs = GasCostSummary::new_from_txn_effects(cur_checkpoint_effects.iter());
+        let current_gas_costs =
+            checked::new_gas_cost_summary_from_txn_effects(cur_checkpoint_effects.iter());
         if previous_epoch == self.epoch_store.epoch() {
             // sum only when we are within the same epoch
             GasCostSummary::new(
@@ -2645,6 +2646,43 @@ impl CheckpointServiceNotify for CheckpointService {
     }
 }
 
+#[iota_macros::with_checked_arithmetic]
+mod checked {
+    use iota_sdk_types::GasCostSummary;
+    use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+    use itertools::MultiUnzip;
+
+    #[expect(clippy::type_complexity)]
+    pub fn new_gas_cost_summary_from_txn_effects<'a>(
+        transactions: impl Iterator<Item = &'a TransactionEffects>,
+    ) -> GasCostSummary {
+        let (
+            storage_costs,
+            computation_costs,
+            computation_costs_burned,
+            storage_rebates,
+            non_refundable_storage_fee,
+        ): (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) = transactions
+            .map(|e| {
+                (
+                    e.gas_cost_summary().storage_cost,
+                    e.gas_cost_summary().computation_cost,
+                    e.gas_cost_summary().computation_cost_burned,
+                    e.gas_cost_summary().storage_rebate,
+                    e.gas_cost_summary().non_refundable_storage_fee,
+                )
+            })
+            .multiunzip();
+
+        GasCostSummary::new(
+            computation_costs.iter().sum(),
+            computation_costs_burned.iter().sum(),
+            storage_costs.iter().sum(),
+            storage_rebates.iter().sum(),
+            non_refundable_storage_fee.iter().sum(),
+        )
+    }
+}
 // test helper
 pub struct CheckpointServiceNoop {}
 impl CheckpointServiceNotify for CheckpointServiceNoop {
@@ -2672,7 +2710,7 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
+        base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{TransactionEffects, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
@@ -2699,12 +2737,12 @@ mod tests {
 
         let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
-            vec![GenesisObject::RawObject {
-                data: object::Data::Package(
+            vec![GenesisObject::new(
+                object::Data::Package(
                     MovePackage::new(
                         ObjectID::random(),
-                        SequenceNumber::new(),
-                        BTreeMap::from([(format!("{:0>40000}", "1"), Vec::new())]),
+                        SequenceNumber::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this
                         // package
@@ -2715,8 +2753,8 @@ mod tests {
                     )
                     .unwrap(),
                 ),
-                owner: object::Owner::Immutable,
-            }],
+                object::Owner::Immutable,
+            )],
             vec![],
         );
         for i in 0..15 {

@@ -11,7 +11,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
-    TypeTag,
+    base_types::{ObjectRef, TypeTag},
     gas_coin::GAS,
     supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},
@@ -175,7 +175,13 @@ impl Query {
 
                 let gas_objects = gas_objects.map(|objs| {
                     objs.into_iter()
-                        .map(|obj| (obj.address.into(), obj.version.into(), obj.digest.into()))
+                        .map(|obj| {
+                            ObjectRef::new(
+                                obj.address.into(),
+                                obj.version.into(),
+                                obj.digest.into(),
+                            )
+                        })
                         .collect()
                 });
 
@@ -196,7 +202,7 @@ impl Query {
                     tx_data.clone().into_kind(),
                     Some(tx_data.gas_price().into()),
                     Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget().into()),
+                    Some(tx_data.gas_budget()),
                     Some(tx_data.gas().to_vec()),
                 )
             };

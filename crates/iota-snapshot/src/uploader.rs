@@ -15,8 +15,8 @@ use iota_core::{
 use iota_storage::{
     FileCompression,
     object_store::util::{
-        find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
-        run_manifest_update_loop,
+        EPOCH_METADATA_FILENAME, EpochMetadata, find_all_dirs_with_epoch_prefix,
+        find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
 use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
@@ -156,6 +156,31 @@ impl StateSnapshotUploader {
                     .write(*epoch, db, state_hash_commitment)
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
+                // Records the on-chain start timestamp of this epoch (= timestamp of the
+                // last checkpoint of the previous epoch, which is when advance_epoch ran;
+                // for epoch 0, the genesis checkpoint at sequence 0) in each epoch bucket,
+                // which will be read when updating the MANIFEST file.
+                let epoch_start_checkpoint = if *epoch == 0 {
+                    self.checkpoint_store.get_checkpoint_by_sequence_number(0)?
+                } else {
+                    self.checkpoint_store
+                        .get_epoch_last_checkpoint(*epoch - 1)?
+                };
+                if let Some(checkpoint) = epoch_start_checkpoint {
+                    let metadata = EpochMetadata {
+                        epoch_start_timestamp_ms: checkpoint.timestamp_ms,
+                    };
+                    put(
+                        &self.snapshot_store,
+                        &db_path.child(EPOCH_METADATA_FILENAME),
+                        metadata.to_bytes()?,
+                    )
+                    .await?;
+                } else {
+                    error!(
+                        "Could not determine epoch start timestamp for epoch {epoch}; skipping metadata write"
+                    );
+                }
                 // Drops marker in the output directory that upload completed successfully
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);

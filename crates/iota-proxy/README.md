@@ -166,7 +166,6 @@ migration-tx-data-path: /opt/iota/config/migration.blob
 # Pruning configuration
 authority-store-pruning-config:
   num-latest-epoch-dbs-to-retain: 3
-  epoch-db-pruning-period-secs: 3600
   max-checkpoints-in-batch: 10
   max-transactions-in-batch: 1000
   num-epochs-to-retain: 0

@@ -8,11 +8,11 @@ use async_graphql::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_types::{
-    TypeTag,
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
 };
 
 use crate::{
@@ -72,11 +72,11 @@ impl DynamicField {
     async fn name(&self, ctx: &Context<'_>) -> Result<Option<MoveValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -89,7 +89,7 @@ impl DynamicField {
             .extend()?;
 
         Ok(Some(MoveValue::new(
-            name_layout.into(),
+            type_tag_core_to_sdk(&name_layout.into()),
             Base64::from(name_bytes.to_owned()),
         )))
     }
@@ -101,11 +101,11 @@ impl DynamicField {
     async fn value(&self, ctx: &Context<'_>) -> Result<Option<DynamicFieldValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -134,7 +134,7 @@ impl DynamicField {
             Ok(obj.map(|obj| DynamicFieldValue::MoveObject(Box::new(obj))))
         } else {
             Ok(Some(DynamicFieldValue::MoveValue(MoveValue::new(
-                value_layout.into(),
+                type_tag_core_to_sdk(&value_layout.into()),
                 Base64::from(value_bytes.to_owned()),
             ))))
         }
@@ -268,15 +268,11 @@ impl TryFrom<MoveObject> for DynamicField {
             }
         };
 
-        let Some(object) = native.data.try_as_move() else {
+        let Some(object) = native.data.as_struct_opt() else {
             return Err(Error::Internal("DynamicField is not an object".to_string()));
         };
 
-        let Some(tag) = object.type_().other() else {
-            return Err(Error::Internal("DynamicField is not a struct".to_string()));
-        };
-
-        if !DynamicFieldInfo::is_dynamic_field(tag) {
+        if !DynamicFieldInfo::is_dynamic_field(object.struct_tag()) {
             return Err(Error::Internal("Wrong type for DynamicField".to_string()));
         }
 

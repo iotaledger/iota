@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use consensus_core;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
@@ -150,46 +149,27 @@ fn tx_from_bytes(tx: &[u8]) -> Result<ConsensusTransaction, eyre::Report> {
         .wrap_err("Malformed transaction (failed to deserialize)")
 }
 
-macro_rules! impl_tx_verifier_for {
-    (
-        // The type to implement the trait for
-        type = $impl_ty:path,
-        // The trait to implement
-        trait = $trait_path:path,
-        // The error type to use in the trait method
-        error = $err_path:path,
-    ) => {
-        impl $trait_path for $impl_ty {
-            #[instrument(level = "trace", skip_all)]
-            fn verify_batch(&self, batch: &[&[u8]]) -> core::result::Result<(), $err_path> {
-                let _scope = monitored_scope("ValidateBatch");
+impl starfish_core::TransactionVerifier for IotaTxValidator {
+    #[instrument(level = "trace", skip_all)]
+    fn verify_batch(
+        &self,
+        batch: &[&[u8]],
+    ) -> core::result::Result<(), starfish_core::ValidationError> {
+        let _scope = monitored_scope("ValidateBatch");
 
-                let txs = batch
-                    .iter()
-                    .map(|tx| {
-                        tx_from_bytes(tx)
-                            .map(|tx| tx.kind)
-                            .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-                    })
-                    .collect::<core::result::Result<Vec<_>, _>>()?;
+        let txs = batch
+            .iter()
+            .map(|tx| {
+                tx_from_bytes(tx)
+                    .map(|tx| tx.kind)
+                    .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+            })
+            .collect::<core::result::Result<Vec<_>, _>>()?;
 
-                self.validate_transactions(txs)
-                    .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-            }
-        }
-    };
+        self.validate_transactions(txs)
+            .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+    }
 }
-// Use it for both traits:
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = consensus_core::TransactionVerifier,
-    error = consensus_core::ValidationError,
-);
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = starfish_core::TransactionVerifier,
-    error = starfish_core::ValidationError,
-);
 
 pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
@@ -226,7 +206,6 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use consensus_core::TransactionVerifier as _;
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
     use iota_types::{
@@ -239,6 +218,7 @@ mod tests {
         object::Object,
         signature::GenericSignature,
     };
+    use starfish_core::TransactionVerifier as _;
 
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,

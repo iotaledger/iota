@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -9,7 +8,7 @@ use crate::base_types::IotaAddress;
 
 /// Rust version of the stardust expiration unlock condition.
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ExpirationUnlockCondition {
     /// The address who owns the output before the timestamp has passed.
     pub owner: IotaAddress,
@@ -23,7 +22,7 @@ pub struct ExpirationUnlockCondition {
 
 /// Rust version of the stardust storage deposit return unlock condition.
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StorageDepositReturnUnlockCondition {
     /// The address to which the consuming transaction should deposit the amount
     /// defined in Return Amount.
@@ -35,7 +34,7 @@ pub struct StorageDepositReturnUnlockCondition {
 
 /// Rust version of the stardust timelock unlock condition.
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TimelockUnlockCondition {
     /// The unix time (seconds since Unix epoch) starting from which the output
     /// can be consumed.

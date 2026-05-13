@@ -216,8 +216,8 @@ impl AuthenticationContext {
             .map(|value| utils::from_value(value, &input_move_layout))
             .collect::<PartialVMResult<Vec<MoveCallArg>>>()?;
 
-        let auth_digest =
-            MoveAuthenticatorDigest::try_from(auth_digest_value.as_slice()).map_err(|err| {
+        let auth_digest = MoveAuthenticatorDigest::from_bytes(auth_digest_value.as_slice())
+            .map_err(|err| {
                 PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
                     .with_message(err.to_string())
             })?;

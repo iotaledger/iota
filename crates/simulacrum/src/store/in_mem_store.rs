@@ -9,10 +9,12 @@ use std::{
 
 use iota_config::genesis;
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{
+        AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber, address_from_iota_pub_key,
+    },
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -134,7 +136,7 @@ impl InMemoryStore {
     }
 
     pub fn get_clock(&self) -> iota_types::clock::Clock {
-        self.get_object(&iota_types::IOTA_CLOCK_OBJECT_ID)
+        self.get_object(&ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -168,9 +170,7 @@ impl InMemoryStore {
         self.live_objects
             .iter()
             .flat_map(|(id, version)| self.get_object_at_version(id, *version))
-            .filter(
-                move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
-            )
+            .filter(move |object| matches!(object.owner, Owner::Address(addr) if addr == owner))
     }
 
     pub fn update_last_checkpoint_by_epoch(
@@ -260,10 +260,10 @@ impl InMemoryStore {
     pub fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
-        for (object_id, _, _) in deleted_objects {
-            self.live_objects.remove(&object_id);
+        for deleted_object in deleted_objects {
+            self.live_objects.remove(&deleted_object.object_id);
         }
 
         for (object_id, object) in written_objects {
@@ -299,7 +299,7 @@ impl ChildObjectResolver for InMemoryStore {
         };
 
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -329,7 +329,7 @@ impl ChildObjectResolver for InMemoryStore {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 
@@ -555,7 +555,7 @@ impl KeyStore {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|key| (key.public().into(), key.copy()))
+            .map(|key| (address_from_iota_pub_key(key.public()), key.copy()))
             .collect();
         Self {
             validator_keys,
@@ -645,7 +645,7 @@ impl SimulatorStore for InMemoryStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
         self.update_objects(written_objects, deleted_objects)
     }

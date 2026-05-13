@@ -153,6 +153,7 @@ impl Indexer {
         registry: &Registry,
         connection_pool: ConnectionPool,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
@@ -184,10 +185,16 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
-        let (handle, cancel) =
-            build_json_rpc_server(store.clone(), registry, read.clone(), config, metrics)
-                .await
-                .expect("json rpc server should not run into errors upon start.");
+        let handle = build_json_rpc_server(
+            store.clone(),
+            registry,
+            read.clone(),
+            config,
+            metrics,
+            cancel.clone(),
+        )
+        .await
+        .expect("json rpc server should not run into errors upon start.");
 
         tracing::info!("Starting watermark background task to track pruning state");
         let watermark_task = WatermarkTask::new(store, watermark_cache);

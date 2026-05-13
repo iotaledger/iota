@@ -16,12 +16,12 @@
 
 use std::mem::size_of;
 
+use iota_sdk_types::StructTag;
 use iota_types::{
     balance::Balance,
     gas_coin::GAS,
     object::{ID_END_INDEX, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::timelock::TimeLock,
 };
 
 /// Infer whether the object is a kind of gas coin.
@@ -32,7 +32,7 @@ pub fn is_gas_coin_kind(object: &Object) -> bool {
     struct_tag == AliasOutput::tag(GAS::type_tag())
         || struct_tag == BasicOutput::tag(GAS::type_tag())
         || struct_tag == NftOutput::tag(GAS::type_tag())
-        || struct_tag == TimeLock::<Balance>::type_(Balance::type_(GAS::type_tag()).into())
+        || struct_tag == StructTag::new_timelocked_gas_balance()
         || object.is_gas_coin()
 }
 
@@ -43,7 +43,7 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
     if !is_gas_coin_kind(object) {
         return None;
     }
-    let inner = object.data.try_as_move()?;
+    let inner = object.data.as_struct_opt()?;
     bcs::from_bytes(&inner.contents()[ID_END_INDEX..][..size_of::<Balance>()]).ok()
 }
 
@@ -111,7 +111,7 @@ mod tests {
             native_tokens: Default::default(),
         };
         output.to_genesis_object(
-            Owner::AddressOwner(IotaAddress::ZERO),
+            Owner::Address(IotaAddress::ZERO),
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),

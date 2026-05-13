@@ -7,6 +7,13 @@ services:
       - "9184:9184/tcp" # Metrics port
     volumes:
       - ./data:/opt/iota/:rw
+    #environment:
+    #  # activate jemalloc's heap profiler with the following settings:
+    #  #  - "prof_prefix:/opt/iota/profiles/memory/node" - writes heap profiles with the prefix "node"
+    #  #  - "prof_final:true" - writes a final heap profile on exit
+    #  #  - "lg_prof_interval:30" - to write a heap profile every 2^30 bytes (1GB) of allocated memory
+    #  #  - "prof_sample:19" - samples 1 out of 2^19 allocations for the heap profile, which is a good balance between overhead and detail.
+    #  - MALLOC_CONF=prof:true,prof_active:true,prof_prefix:/opt/iota/profiles/memory/node,prof_final:true,lg_prof_interval:30,lg_prof_sample:19
     command: [
       "/usr/local/bin/iota-node",
       "--config-path",

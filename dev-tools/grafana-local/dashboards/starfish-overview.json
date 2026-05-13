@@ -80,7 +80,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 8,
+        "w": 10,
         "x": 0,
         "y": 1
       },
@@ -263,88 +263,6 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Current consensus protocol: Starfish (if block header metrics exist) or Mysticeti",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "dark-blue",
-                  "index": 1,
-                  "text": "Mysticeti"
-                },
-                "1": {
-                  "color": "dark-purple",
-                  "index": 0,
-                  "text": "Starfish"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "dark-blue",
-                "value": null
-              },
-              {
-                "color": "dark-purple",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 2,
-        "x": 8,
-        "y": 1
-      },
-      "id": 315,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "clamp_max(count(consensus_block_header_commit_latency_count), 1) or vector(0)",
-          "legendFormat": "protocol",
-          "instant": true,
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Protocol",
-      "type": "stat"
-    },
-    {
-      "datasource": {
         "default": false,
         "type": "prometheus",
         "uid": "prometheus"
@@ -400,7 +318,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(uptime{process=\"validator\"})",
+          "expr": "count(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0)",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -598,7 +516,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "avg(rate(total_transaction_certificates[2m]) > 1)",
+          "expr": "quantile(0.5, rate(transactions_included_in_checkpoint[2m]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -674,7 +592,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} / 10000\n    * on(host) group_left(version)\n    clamp_min(clamp_max(last_over_time(uptime{process=\"validator\"}[30s]), 1), 1),\n    \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+).*\"\n  )\n) by (version_prefix)\n",
+          "expr": "(\n  sum by (version_prefix) (\n    label_replace(\n      max by (host) (current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0)\n        * on(host) group_left(version) topk by (host) (1, clamp_max(uptime{process=\"validator\"}, 1)),\n      \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+(?:-rc)?).*\"\n    )\n  )\n)\n/\nscalar(\n  sum(\n    max by (host) (current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0)\n  )\n)\n",
           "instant": true,
           "legendFormat": "{{version_prefix}}",
           "range": false,
@@ -683,322 +601,6 @@
       ],
       "title": "Voting Power per Version",
       "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Validators behind the network head (p95) by checkpoints or consensus rounds. ETA uses the gap-closing rate over a 5m window: gap_now / ((gap_5m_ago - gap_now) / 300). When the gap is not shrinking the ETA becomes very large (red). Rows are hidden when both gaps are below their thresholds (240 checkpoints, 1000 rounds).",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "center",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false,
-            "filterable": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 500
-              },
-              {
-                "color": "red",
-                "value": 5000
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "host"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 160
-              },
-              {
-                "id": "custom.align",
-                "value": "left"
-              },
-              {
-                "id": "unit",
-                "value": "string"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #A"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Checkpoints Behind"
-              },
-              {
-                "id": "custom.width",
-                "value": 180
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 240
-                    },
-                    {
-                      "color": "red",
-                      "value": 2000
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #B"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Rounds Behind"
-              },
-              {
-                "id": "custom.width",
-                "value": 180
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1000
-                    },
-                    {
-                      "color": "red",
-                      "value": 10000
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #C"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "ETA (checkpoints)"
-              },
-              {
-                "id": "custom.width",
-                "value": 180
-              },
-              {
-                "id": "unit",
-                "value": "s"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 300
-                    },
-                    {
-                      "color": "red",
-                      "value": 3600
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 38
-      },
-      "id": 327,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Checkpoints Behind"
-          }
-        ]
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "clamp_min(\n  scalar(\n    quantile(\n      0.95,\n      max_over_time(\n        highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"}[2m]\n      )\n    )\n  )\n  - highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"},\n  0\n)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "range": false,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "clamp_min(\n  scalar(\n    quantile(\n      0.95,\n      max_over_time(\n        consensus_last_committed_leader_round{host!~\"access.*|backup.*|archive.*|indexer.*\"}[2m]\n      )\n    )\n  )\n  - consensus_last_committed_leader_round{host!~\"access.*|backup.*|archive.*|indexer.*\"},\n  0\n)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "range": false,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "clamp_min(\n  scalar(\n    quantile(\n      0.95,\n      max_over_time(\n        highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"}[2m]\n      )\n    )\n  )\n  - highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"},\n  0\n)\n/\nclamp_min(\n  (\n    (\n      scalar(\n        quantile(\n          0.95,\n          max_over_time(\n            highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"}[2m] offset 5m\n          )\n        )\n      )\n      - highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"} offset 5m\n    )\n    -\n    (\n      scalar(\n        quantile(\n          0.95,\n          max_over_time(\n            highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"}[2m]\n          )\n        )\n      )\n      - highest_synced_checkpoint{host!~\"access.*|backup.*|archive.*|indexer.*\"}\n    )\n  ) / 300,\n  0.01\n)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "range": false,
-          "refId": "C"
-        }
-      ],
-      "title": "Out-of-Sync Validators",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "host",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "instance": true,
-              "instance 1": true,
-              "instance 2": true,
-              "instance 3": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "job 3": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "__name__ 3": true,
-              "network": true,
-              "network 1": true,
-              "network 2": true,
-              "network 3": true
-            },
-            "indexByName": {
-              "host": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3
-            },
-            "renameByName": {}
-          }
-        },
-        {
-          "id": "filterByValue",
-          "options": {
-            "filters": [
-              {
-                "fieldName": "Value #A",
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 240
-                  }
-                }
-              },
-              {
-                "fieldName": "Value #B",
-                "config": {
-                  "id": "greater",
-                  "options": {
-                    "value": 1000
-                  }
-                }
-              }
-            ],
-            "match": "any",
-            "type": "include"
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": {
@@ -1087,7 +689,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} / 10000\n    * on(host) group_left(version)\n    clamp_min(clamp_max(uptime{process=\"validator\"}, 1), 1),\n    \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+).*\"\n  )\n) by (version_prefix)\n",
+          "expr": "(\n  sum by (version_prefix) (\n    label_replace(\n      max by (host) (current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0)\n        * on(host) group_left(version) topk by (host) (1, clamp_max(uptime{process=\"validator\"}, 1)),\n      \"version_prefix\", \"$1\", \"version\", \"(\\\\d+\\\\.\\\\d+\\\\.\\\\d+(?:-rc)?).*\"\n    )\n  )\n)\n/\nscalar(\n  sum(\n    max by (host) (current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0)\n  )\n)\n",
           "instant": false,
           "legendFormat": "{{version_prefix}}",
           "range": true,
@@ -1182,10 +784,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m]))",
-          "legendFormat": "p50",
+          "expr": "quantile(0.05, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p5",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.5, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.95, rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Block Latency",
@@ -1276,10 +900,32 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[2m]) / rate(consensus_transaction_commit_latency_count[2m]) or rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m]))",
-          "legendFormat": "p50",
+          "expr": "quantile(0.05, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p5",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.5, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "quantile(0.95, rate(consensus_transaction_commit_latency_sum[5m]) / rate(consensus_transaction_commit_latency_count[5m]) or rate(consensus_block_header_commit_latency_sum[5m]) / rate(consensus_block_header_commit_latency_count[5m])) < 2",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Tx Latency",
@@ -1369,7 +1015,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
+          "expr": "quantile(0.5, rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
           "legendFormat": "p50",
           "range": true,
           "refId": "A"
@@ -1380,7 +1026,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.05, rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
+          "expr": "quantile(0.05, rate(consensus_accepted_block_headers{source=\"own\"}[2m]))",
           "legendFormat": "p5",
           "range": true,
           "refId": "C"
@@ -2013,7 +1659,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sort(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))))",
+          "expr": "sort(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")))",
           "legendFormat": "__auto",
           "range": true,
           "instant": false,
@@ -2173,7 +1819,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p33\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p66\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p33\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p66\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_to == 1) and on(host) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_by == 1) and on(host) label_replace(bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"sent conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))), \"validator\", \"$1\", \"authority\", \"(.*)\"), \"series\", \"commit msg/s\", \"authority\", \".*\"))",
+          "expr": "max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p33\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p66\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p33\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p66\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_to == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_by == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"sent conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"validator\", \"$1\", \"authority\", \"(.*)\"), \"series\", \"commit msg/s\", \"authority\", \".*\"))",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -2701,7 +2347,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by (host) (consensus_subscribed_by == 1)\n",
+              "expr": "sum by (host) (\n  consensus_subscribed_by{host!~\"access.*|backup.*|archive.*|indexer.*\"} == 1\n  and on (authority)\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0,\n    \"authority\", \"$1\", \"host\", \"(.*)\"\n  )\n)\n",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -2797,7 +2443,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by (host) (consensus_subscribed_to == 1)\n",
+              "expr": "sum by (host) (\n  consensus_subscribed_to{host!~\"access.*|backup.*|archive.*|indexer.*\"} == 1\n  and on (authority)\n  label_replace(\n    current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0,\n    \"authority\", \"$1\", \"host\", \"(.*)\"\n  )\n)\n",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -2988,7 +2634,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[2m]) or rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -3087,7 +2733,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[2m])\n  or rate(consensus_accepted_block_headers{source=\"own\"}[2m])\n",
+              "expr": "rate(consensus_accepted_block_headers{source=\"own\"}[2m])\n",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -3287,7 +2933,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -3383,7 +3029,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
+              "expr": "histogram_quantile(0.5, sum by(host, le) (rate(consensus_transaction_commit_latency_bucket[2m]))) or histogram_quantile(0.5, sum by(host, le) (rate(consensus_block_header_commit_latency_bucket[2m])))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -3971,13 +3617,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "max by(host) (rate(transactions_included_in_checkpoint[2m]))",
+              "expr": "max by(host) (rate(last_sent_checkpoint_signature[2m])) < 1000",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Checkpoint Tx Rate per Validator",
+          "title": "Last Sent Checkpoint Signature Rate per Validator",
           "type": "timeseries"
         },
         {
@@ -7045,7 +6691,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "rate(consensus_block_commit_latency_sum[2m]) / rate(consensus_block_commit_latency_count[2m]) or rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m])",
+              "expr": "rate(consensus_block_header_commit_latency_sum[2m]) / rate(consensus_block_header_commit_latency_count[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -7842,7 +7488,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[2m]) or rate(consensus_accepted_block_headers{source=\"own\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"own\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -7940,7 +7586,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[2m]) or rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
+              "expr": "rate(consensus_accepted_block_headers{source=\"others\"}[2m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,

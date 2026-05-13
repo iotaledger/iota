@@ -276,7 +276,7 @@ impl AuthorityPerpetualTables {
         let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {
             return Ok(None);
         };
-        Ok(Some(self.construct_object(object_key, store_object)?))
+        Ok(Some(self.construct_object(object_key, *store_object)?))
     }
 
     pub fn object_reference(
@@ -286,18 +286,14 @@ impl AuthorityPerpetualTables {
     ) -> Result<ObjectRef, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self
-                .construct_object(object_key, object)?
+                .construct_object(object_key, *object)?
                 .compute_object_reference(),
-            StoreObject::Deleted => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            ),
-            StoreObject::Wrapped => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            ),
+            StoreObject::Deleted => {
+                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
+            }
+            StoreObject::Wrapped => {
+                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
+            }
         };
         Ok(obj_ref)
     }
@@ -308,15 +304,15 @@ impl AuthorityPerpetualTables {
         store_object: &StoreObjectWrapper,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some((
+            StoreObject::Deleted => Some(ObjectRef::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
+                ObjectDigest::OBJECT_DELETED,
             )),
-            StoreObject::Wrapped => Some((
+            StoreObject::Wrapped => Some(ObjectRef::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
+                ObjectDigest::OBJECT_WRAPPED,
             )),
             _ => None,
         };
@@ -427,7 +423,7 @@ impl AuthorityPerpetualTables {
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
-            Some(ObjectKey(object.0, object.1.next())),
+            Some(ObjectKey(object.0, object.1.next().unwrap())),
             Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;
@@ -575,7 +571,7 @@ impl LiveObject {
     pub fn object_reference(&self) -> ObjectRef {
         match self {
             LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
@@ -597,7 +593,7 @@ impl LiveSetIter<'_> {
             StoreObject::Value(object) => {
                 let object = self
                     .tables
-                    .construct_object(&object_key, object)
+                    .construct_object(&object_key, *object)
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
@@ -645,7 +641,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: db_options.rw_options.set_ignore_range_deletions(false),
+        rw_options: db_options.rw_options,
     }
 }
 

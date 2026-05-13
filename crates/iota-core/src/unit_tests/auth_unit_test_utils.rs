@@ -6,7 +6,7 @@ use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_types::{
     crypto::Signature, move_package::UpgradePolicy,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    utils::to_sender_signed_transaction,
+    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
@@ -20,10 +20,10 @@ pub fn build_test_modules_with_dep_addr(
 ) -> CompiledPackage {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let mut package = build_config.build(path).unwrap();
 
@@ -69,10 +69,10 @@ pub async fn publish_package_on_single_authority(
 ) -> IotaResult<(TransactionDigest, (ObjectID, ObjectRef))> {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let modules = build_config.build(path).unwrap().get_package_bytes(false);
 
@@ -92,7 +92,7 @@ pub async fn publish_package_on_single_authority(
 
     let signed = to_sender_signed_transaction(txn_data, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
-    assert!(effects.data().status().is_ok());
+    assert!(effects.data().status().is_success());
     let package_id = effects
         .data()
         .created()
@@ -100,12 +100,12 @@ pub async fn publish_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     let cap_object = effects
         .data()
         .created()
         .iter()
-        .find(|c| matches!(c.1, Owner::AddressOwner(..)))
+        .find(|c| matches!(c.1, Owner::Address(..)))
         .unwrap()
         .0;
     Ok((*effects.transaction_digest(), (package_id, cap_object)))
@@ -135,7 +135,7 @@ pub async fn upgrade_package_on_single_authority(
         package_id,
         modules,
         package.get_published_dependencies_ids(),
-        (upgrade_cap, Owner::AddressOwner(sender)),
+        (upgrade_cap, Owner::Address(sender)),
         UpgradePolicy::COMPATIBLE,
         digest,
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -144,7 +144,7 @@ pub async fn upgrade_package_on_single_authority(
     .unwrap();
     let signed = to_sender_signed_transaction(data, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
-    assert!(effects.data().status().is_ok());
+    assert!(effects.data().status().is_success());
     let package_id = effects
         .data()
         .created()
@@ -152,6 +152,6 @@ pub async fn upgrade_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     Ok((*effects.transaction_digest(), package_id))
 }

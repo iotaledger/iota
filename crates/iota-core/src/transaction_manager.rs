@@ -480,8 +480,8 @@ impl TransactionManager {
                         cert.data().intent_message().value.receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
-                            id: entry.0,
-                            version: entry.1,
+                            id: entry.object_id,
+                            version: entry.version,
                         };
                         receiving_objects.insert(key);
                         input_object_keys.insert(key);
@@ -867,7 +867,7 @@ impl TransactionManager {
             tx_data
                 .shared_input_objects()
                 .into_iter()
-                .filter_map(|r| r.mutable.then_some(r.id))
+                .filter_map(|r| r.mutable.then_some(r.object_id))
                 .collect(),
         ) {
             // When this occurs, most likely transactions piled up on a shared object.

@@ -9,9 +9,8 @@ use iota_stardust_types::block::{
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
@@ -339,9 +338,7 @@ pub(super) fn verify_address_owner(
 }
 
 pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
-    let expected_owner = Owner::Shared {
-        initial_shared_version: Default::default(),
-    };
+    let expected_owner = Owner::Shared(Default::default());
     ensure!(
         obj.owner.is_shared(),
         "{name} shared owner mismatch: found {}, expected {}",
@@ -421,7 +418,8 @@ impl NativeTokenKind for (TypeTag, Coin) {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.coin_type_maybe()
+        obj.coin_type_opt()
+            .cloned()
             .zip(obj.as_coin_maybe())
             .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
     }

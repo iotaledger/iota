@@ -11,7 +11,7 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::alias::{Alias, AliasOutput},
@@ -91,7 +91,7 @@ impl AliasExt for Alias {
         // Construct the Alias object.
         let move_alias_object = {
             MoveObject::new_from_execution(
-                Alias::tag().into(),
+                Alias::tag(),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -99,7 +99,7 @@ impl AliasExt for Alias {
         };
 
         let move_alias_object = Object::new_from_genesis(
-            Data::Move(move_alias_object),
+            Data::Struct(move_alias_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the alias output object.
             owner,
@@ -155,7 +155,7 @@ impl AliasOutputExt for AliasOutput {
         // Construct the Alias Output object.
         let move_alias_output_object = {
             MoveObject::new_from_execution(
-                AliasOutput::tag(coin_type.to_type_tag()).into(),
+                AliasOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -163,7 +163,7 @@ impl AliasOutputExt for AliasOutput {
         };
 
         let move_alias_output_object = Object::new_from_genesis(
-            Data::Move(move_alias_output_object),
+            Data::Struct(move_alias_output_object),
             owner,
             tx_context.digest(),
         );

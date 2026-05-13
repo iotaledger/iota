@@ -46,6 +46,7 @@ use iota_core::{
     },
     authority_client::NetworkAuthorityClient,
     authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
         SubmitCheckpointToConsensus,
@@ -233,6 +234,8 @@ pub struct IotaNode {
 
     backpressure_manager: Arc<BackpressureManager>,
 
+    checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
+
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
 
     #[cfg(msim)]
@@ -385,6 +388,7 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
+        let perpetual_tables_for_progress = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -570,12 +574,15 @@ impl IotaNode {
         let state_snapshot_handle =
             Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
 
+        let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
+
         // Start uploading db checkpoints to remote store
         info!("start db checkpoint");
         let (db_checkpoint_config, db_checkpoint_handle) = Self::start_db_checkpoint(
             &config,
             &prometheus_registry,
             state_snapshot_handle.is_some(),
+            Some(checkpoint_progress_tracker.clone()),
         )?;
 
         let mut genesis_objects = genesis.objects().to_vec();
@@ -613,6 +620,7 @@ impl IotaNode {
             validator_tx_finalizer,
             chain_identifier,
             pruner_db,
+            Some(checkpoint_progress_tracker.clone()),
         )
         .await;
 
@@ -789,6 +797,7 @@ impl IotaNode {
             connection_monitor_status,
             trusted_peer_change_tx,
             backpressure_manager,
+            checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
             _db_checkpoint_handle: db_checkpoint_handle,
 
@@ -813,6 +822,9 @@ impl IotaNode {
                 warn!("Reconfiguration finished with error {:?}", error);
             }
         });
+
+        node.checkpoint_progress_tracker
+            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
 
         Ok(node)
     }
@@ -920,6 +932,7 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         state_snapshot_enabled: bool,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<(
         DBCheckpointConfig,
         Option<tokio::sync::broadcast::Sender<()>>,
@@ -967,6 +980,7 @@ impl IotaNode {
                     config.authority_store_pruning_config.clone(),
                     prometheus_registry,
                     state_snapshot_enabled,
+                    checkpoint_progress_tracker,
                 )?;
                 Ok((
                     db_checkpoint_config,
@@ -1034,7 +1048,7 @@ impl IotaNode {
                 .layer(
                     TraceLayer::new_for_client_and_server_errors()
                         .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
+                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
                 )
                 .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
                     Arc::new(outbound_network_metrics),
@@ -1626,6 +1640,7 @@ impl IotaNode {
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
                 data_sender,
+                Some(self.checkpoint_progress_tracker.clone()),
             );
 
             let run_with_range = self.config.run_with_range;
@@ -1647,7 +1662,7 @@ impl IotaNode {
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
-                        cur_epoch_store.get_chain_identifier().chain(),
+                        cur_epoch_store.get_chain(),
                         self.config
                             .supported_protocol_versions
                             .expect("Supported versions should be populated")
@@ -1899,6 +1914,16 @@ impl IotaNode {
             // Arc<AuthorityPerEpochStore> may linger.
             cur_epoch_store.release_db_handles();
 
+            // Drop the old epoch store to free its in-memory structures
+            // (ConsensusOutputCache, ConsensusQuarantine, DashMaps, etc.).
+            // The DB tables were already released above.
+            drop(cur_epoch_store);
+
+            // Prune old epoch databases after each epoch transition to prevent
+            // accumulation of RocksDB instances during fast catch-up sync
+            // (e.g. syncing from genesis).
+            self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
+
             if cfg!(msim)
                 && !matches!(
                     self.config
@@ -2047,7 +2072,7 @@ impl IotaNode {
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
             self.state.name,
-            epoch_store.get_chain_identifier().chain(),
+            epoch_store.get_chain(),
             self.config
                 .supported_protocol_versions
                 .expect("Supported versions should be populated")

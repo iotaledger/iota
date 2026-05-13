@@ -41,7 +41,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
         get_authority_key_pair,
@@ -50,7 +50,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
-    transaction::{CallArg, SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -549,10 +549,8 @@ impl KeyToolCommand {
                         let call_arguments: Vec<String> = move_auth
                             .call_args()
                             .iter()
-                            .map(|arg| match arg {
-                                CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
-                                CallArg::Object(obj) => serde_json::to_string(obj)
-                                    .unwrap_or_else(|_| format!("{obj:?}")),
+                            .map(|arg| {
+                                serde_json::to_string(&arg).unwrap_or_else(|_| format!("{arg:?}"))
                             })
                             .collect();
                         let type_arguments = serde_json::to_value(move_auth.type_arguments())
@@ -791,7 +789,7 @@ impl KeyToolCommand {
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: (keypair.public()).into(),
+                                iota_address: address_from_iota_pub_key(keypair.public()),
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
@@ -889,7 +887,15 @@ impl KeyToolCommand {
                 info!("Digest to sign: {:?}", Base64::encode(digest));
 
                 // Set up the KMS client in default region.
-                let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
+                let http_client = aws_smithy_http_client::Builder::new()
+                    .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                        aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+                    ))
+                    .build_https();
+                let config = aws_config::defaults(BehaviorVersion::latest())
+                    .http_client(http_client)
+                    .load()
+                    .await;
                 let kms = KmsClient::new(&config);
 
                 // Sign the message, normalize the signature and then compacts it

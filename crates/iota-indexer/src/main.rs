@@ -64,6 +64,9 @@ async fn main() -> Result<(), IndexerError> {
     )?;
     spawn_connection_pool_metric_collector(indexer_metrics.clone(), connection_pool.clone());
 
+    let cancel = CancellationToken::new();
+    spawn_shutdown_signal_listener(cancel.clone());
+
     match opts.command {
         Command::Indexer {
             ingestion_config,
@@ -100,7 +103,7 @@ async fn main() -> Result<(), IndexerError> {
                 indexer_metrics,
                 snapshot_config,
                 retention_config,
-                CancellationToken::new(),
+                cancel.clone(),
             )
             .await?;
         }
@@ -118,6 +121,7 @@ async fn main() -> Result<(), IndexerError> {
                 &registry,
                 connection_pool,
                 indexer_metrics,
+                cancel.clone(),
             )
             .await?;
         }
@@ -138,4 +142,26 @@ async fn main() -> Result<(), IndexerError> {
     }
 
     Ok(())
+}
+
+fn spawn_shutdown_signal_listener(token: CancellationToken) {
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("cannot listen to SIGTERM signal")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => tracing::info!("shutting down, CTRL+C signal received"),
+            _ = terminate => tracing::info!("shutting down, SIGTERM signal received"),
+        };
+
+        token.cancel();
+    });
 }

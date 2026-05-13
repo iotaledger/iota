@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::Result;
 use bytes::Bytes;
+use futures::{StreamExt, TryStreamExt, stream};
 use iota_kvstore::{
     BigTableClient, Cell,
     client::{
@@ -19,14 +20,21 @@ use iota_kvstore::{
         TRANSACTION_COLUMN_QUALIFIER, TRANSACTION_TO_CHECKPOINT, TRANSACTIONS_TABLE,
         raw_object_key,
     },
-    proto::bigtable::v2::{RowFilter, row_filter::Filter},
+    proto::bigtable::v2::{
+        RowFilter,
+        row_filter::Filter,
+        row_range::{EndKey, StartKey},
+    },
 };
-use iota_storage::http_key_value_store::Key;
-use iota_types::effects::TransactionEvents;
+use iota_storage::http_key_value_store::{ItemType, Key};
+use iota_types::{effects::TransactionEvents, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::errors::ApiError;
+use crate::errors::{ApiError, RangeKeyBoundError};
+
+/// The maximum number of concurrent futures allowed when scanning BigTableDB.
+const MAX_CONCURRENT_FUTURES: usize = 100;
 
 /// Configuration for the [`KvStoreClient`] used to access data from BigTableDB
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -81,6 +89,22 @@ impl KvStoreClient {
         })
     }
 
+    /// Builds a [`RowFilter`] that matches only cells whose column qualifier
+    /// equals `column_qualifier` exactly.
+    ///
+    /// Internally the filter is implemented as a regex anchored with `^` and
+    /// `$` to enforce an exact byte match of the provided
+    /// `column_qualifier`, preventing partial or substring matches against
+    /// other columns whose qualifiers happen to contain `column_qualifier`
+    /// as a prefix, suffix, or substring.
+    fn column_qualifier_filter(column_qualifier: &str) -> RowFilter {
+        RowFilter {
+            filter: Some(Filter::ColumnQualifierRegexFilter(
+                format!("^{column_qualifier}$").into_bytes(),
+            )),
+        }
+    }
+
     /// Get the elapsed time from which the service was instantiated.
     pub fn get_uptime(&self) -> Duration {
         self.start_time.elapsed()
@@ -90,7 +114,7 @@ impl KvStoreClient {
     ///
     /// Based on the provided [`Key`] fetch the data from BigTableDB.
     pub async fn get(&self, key: Key) -> Result<Option<Bytes>, ApiError> {
-        let results = self.multi_get(vec![key]).await?;
+        let results = self.get_items(vec![key]).await?;
         Ok(results.into_iter().next().unwrap_or(None))
     }
 
@@ -104,49 +128,37 @@ impl KvStoreClient {
     ///
     /// All keys must be of the same type, otherwise [`ApiError::BadRequest`] is
     /// returned.
-    pub async fn multi_get(&self, keys: Vec<Key>) -> Result<Vec<Option<Bytes>>, ApiError> {
+    pub async fn get_items(&self, keys: Vec<Key>) -> Result<Vec<Option<Bytes>>, ApiError> {
         if keys.is_empty() {
             return Ok(Vec::new());
         }
 
-        let mut client = self.bigtable_client.clone();
-
         // Use the first key to determine the type - all keys should be of the same type
         match keys.first().expect("emptiness was checked earlier") {
             Key::Transaction(_) => {
-                let digests = Self::extract_keys(&keys, |k| match k {
+                let digests = extract_keys(&keys, |k| match k {
                     Key::Transaction(digest) => Some(*digest),
                     _ => None,
                 })?;
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                multi_get_cell(
-                    &mut client,
-                    TRANSACTIONS_TABLE,
-                    keys,
-                    TRANSACTION_COLUMN_QUALIFIER,
-                )
-                .await
+                self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, TRANSACTION_COLUMN_QUALIFIER)
+                    .await
             }
             Key::TransactionEffects(_) => {
-                let digests = Self::extract_keys(&keys, |k| match k {
+                let digests = extract_keys(&keys, |k| match k {
                     Key::TransactionEffects(digest) => Some(*digest),
                     _ => None,
                 })?;
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                multi_get_cell(
-                    &mut client,
-                    TRANSACTIONS_TABLE,
-                    keys,
-                    EFFECTS_COLUMN_QUALIFIER,
-                )
-                .await
+                self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, EFFECTS_COLUMN_QUALIFIER)
+                    .await
             }
             Key::CheckpointContents(_) => {
-                let seq_nums = Self::extract_keys(&keys, |k| match k {
+                let seq_nums = extract_keys(&keys, |k| match k {
                     Key::CheckpointContents(seq_num) => Some(*seq_num),
                     _ => None,
                 })?;
@@ -156,8 +168,7 @@ impl KvStoreClient {
                     .map(|sq| Some(sq.to_be_bytes().to_vec()))
                     .collect();
 
-                multi_get_cell(
-                    &mut client,
+                self.fetch_from_bigtable(
                     CHECKPOINTS_TABLE,
                     keys,
                     CHECKPOINT_CONTENTS_COLUMN_QUALIFIER,
@@ -165,7 +176,7 @@ impl KvStoreClient {
                 .await
             }
             Key::CheckpointSummary(_) => {
-                let seq_nums = Self::extract_keys(&keys, |k| match k {
+                let seq_nums = extract_keys(&keys, |k| match k {
                     Key::CheckpointSummary(seq_num) => Some(*seq_num),
                     _ => None,
                 })?;
@@ -175,8 +186,7 @@ impl KvStoreClient {
                     .map(|sq| Some(sq.to_be_bytes().to_vec()))
                     .collect();
 
-                multi_get_cell(
-                    &mut client,
+                self.fetch_from_bigtable(
                     CHECKPOINTS_TABLE,
                     keys,
                     CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
@@ -184,7 +194,7 @@ impl KvStoreClient {
                 .await
             }
             Key::CheckpointSummaryByDigest(_) => {
-                let checkpoint_digests = Self::extract_keys(&keys, |k| match k {
+                let checkpoint_digests = extract_keys(&keys, |k| match k {
                     Key::CheckpointSummaryByDigest(checkpoint_digest) => Some(*checkpoint_digest),
                     _ => None,
                 })?;
@@ -194,26 +204,21 @@ impl KvStoreClient {
                     .map(|digest| Some(digest.inner().to_vec()))
                     .collect::<Vec<Option<Vec<u8>>>>();
 
-                fetch_checkpoint_summary_by_digests(&mut client, digest_keys).await
+                self.checkpoint_summary_by_digests(digest_keys).await
             }
             Key::TransactionToCheckpoint(_) => {
-                let digests = Self::extract_keys(&keys, |k| match k {
+                let digests = extract_keys(&keys, |k| match k {
                     Key::TransactionToCheckpoint(digest) => Some(*digest),
                     _ => None,
                 })?;
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                multi_get_cell(
-                    &mut client,
-                    TRANSACTIONS_TABLE,
-                    keys,
-                    TRANSACTION_TO_CHECKPOINT,
-                )
-                .await
+                self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, TRANSACTION_TO_CHECKPOINT)
+                    .await
             }
             Key::ObjectKey(_) => {
-                let object_keys = Self::extract_keys(&keys, |k| match k {
+                let object_keys = extract_keys(&keys, |k| match k {
                     Key::ObjectKey(object_key) => Some(*object_key),
                     _ => None,
                 })?;
@@ -223,23 +228,20 @@ impl KvStoreClient {
                     .map(|key| Some(raw_object_key(key)))
                     .collect();
 
-                multi_get_cell(&mut client, OBJECTS_TABLE, keys, DEFAULT_COLUMN_QUALIFIER).await
+                self.fetch_from_bigtable(OBJECTS_TABLE, keys, DEFAULT_COLUMN_QUALIFIER)
+                    .await
             }
             Key::EventsByTransactionDigest(_) => {
-                let digests = Self::extract_keys(&keys, |k| match k {
+                let digests = extract_keys(&keys, |k| match k {
                     Key::EventsByTransactionDigest(digest) => Some(*digest),
                     _ => None,
                 })?;
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                let response = multi_get_cell(
-                    &mut client,
-                    TRANSACTIONS_TABLE,
-                    keys,
-                    EVENTS_COLUMN_QUALIFIER,
-                )
-                .await?;
+                let response = self
+                    .fetch_from_bigtable(TRANSACTIONS_TABLE, keys, EVENTS_COLUMN_QUALIFIER)
+                    .await?;
 
                 Ok(response
                     .into_iter()
@@ -257,113 +259,256 @@ impl KvStoreClient {
         .map_err(Into::into)
     }
 
-    /// Extracts specific key type from a general [`Key`] type.
+    /// Fetch multiple values from a BigTable table with a specific key and
+    /// column qualifier.
     ///
-    /// Takes:
-    /// - `keys`: The list of keys to extract from
-    /// - `extractor`: Function that returns Some(extracted_value) for the
-    ///   target variant, None otherwise
+    /// Keys wrapped in `Option<Vec<u8>>` allow chaining multiple queries: the
+    /// result from one `fetch_from_bigtable` (which contains `None` for missing
+    /// keys) can be directly passed as input to the next call. `None` keys
+    /// are skipped in the query but preserve their position in the result.
     ///
-    /// Returns a vector of extracted values. Returns [`ApiError::BadRequest`]
-    /// if any extraction returns None value.
-    fn extract_keys<T, F>(keys: &[Key], extractor: F) -> Result<Vec<T>, ApiError>
-    where
-        F: Fn(&Key) -> Option<T>,
-    {
-        keys.iter()
-            .map(|k| {
-                extractor(k).ok_or_else(|| {
-                    ApiError::BadRequest("all keys should be of the same type".to_string())
-                })
-            })
-            .collect()
-    }
-}
+    /// The result's length is guaranteed to match the input `keys` length. Each
+    /// position in the result corresponds to the key at the same position in
+    /// the input. This allows the caller to easily determine which
+    /// requested keys have data:
+    /// - `Some(value)` at index `i` means `key[i]` exists and has data
+    /// - `None` at index `i` means `key[i]` was not found or has no matching
+    ///   data
+    async fn fetch_from_bigtable(
+        &self,
+        table_name: &str,
+        keys: Vec<Option<Vec<u8>>>,
+        column_qualifier: &str,
+    ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
+        let mut client = self.bigtable_client.clone();
+        // pre-allocate results with None. Matching cells will replace None with
+        // Some(value), and unmatched keys will remain None.
+        let mut results = vec![None; keys.len()];
 
-/// Fetch multiple values from a BigTable table with a specific key and column
-/// qualifier.
-///
-/// Keys wrapped in `Option<Vec<u8>>` allow chaining multiple queries: the
-/// result from one `multi_get_cell` (which contains `None` for missing keys)
-/// can be directly passed as input to the next call. `None` keys are skipped in
-/// the query but preserve their position in the result.
-///
-/// The result's length is guaranteed to match the input `keys` length. Each
-/// position in the result corresponds to the key at the same position in the
-/// input. This allows the caller to easily determine which requested keys have
-/// data:
-/// - `Some(value)` at index `i` means `key[i]` exists and has data
-/// - `None` at index `i` means `key[i]` was not found or has no matching data
-async fn multi_get_cell(
-    client: &mut BigTableClient,
-    table_name: &str,
-    keys: Vec<Option<Vec<u8>>>,
-    column_qualifier: &str,
-) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
-    // pre-allocate results with None. Matching cells will replace None with
-    // Some(value), and unmatched keys will remain None.
-    let mut results = vec![None; keys.len()];
+        let key_to_index = keys
+            .iter()
+            .enumerate()
+            .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
+            .collect::<HashMap<Vec<u8>, usize>>();
 
-    let key_to_index = keys
-        .iter()
-        .enumerate()
-        .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
-        .collect::<HashMap<Vec<u8>, usize>>();
-
-    // create the exact match filter
-    // We use ^ and $ to ensure it's an exact byte match, not a substring match.
-    let exact_column_filter = RowFilter {
-        filter: Some(Filter::ColumnQualifierRegexFilter(
-            format!("^{column_qualifier}$").into_bytes(),
-        )),
-    };
-
-    for row in client
-        .multi_get(
-            table_name,
-            key_to_index.keys().cloned().collect(),
-            Some(exact_column_filter),
-        )
-        .await?
-    {
-        for Cell { name, value } in row.cells {
-            let cell_name = std::str::from_utf8(&name)?;
-            if cell_name == column_qualifier {
-                if let Some(&index) = key_to_index.get(&row.key) {
-                    results[index] = Some(Bytes::from(value));
+        for row in client
+            .multi_get(
+                table_name,
+                key_to_index.keys().cloned().collect(),
+                Some(Self::column_qualifier_filter(column_qualifier)),
+            )
+            .await?
+        {
+            for Cell { name, value } in row.cells {
+                let cell_name = std::str::from_utf8(&name)?;
+                if cell_name == column_qualifier {
+                    if let Some(&index) = key_to_index.get(&row.key) {
+                        results[index] = Some(Bytes::from(value));
+                    }
+                } else {
+                    error!("unexpected column {cell_name:?} in {table_name} table")
                 }
-            } else {
-                error!("unexpected column {cell_name:?} in checkpoints table")
             }
         }
+
+        Ok(results)
     }
 
-    Ok(results)
+    /// Fetch multiple checkpoint summaries by its checkpoint digest.
+    async fn checkpoint_summary_by_digests(
+        &self,
+        keys: Vec<Option<Vec<u8>>>,
+    ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
+        let sequence_numbers = self
+            .fetch_from_bigtable(CHECKPOINTS_BY_DIGEST_TABLE, keys, DEFAULT_COLUMN_QUALIFIER)
+            .await?;
+
+        let seq_numbers_keys = sequence_numbers
+            .into_iter()
+            .map(|bytes| bytes.map(|b| b.to_vec()))
+            .collect::<Vec<Option<Vec<u8>>>>();
+
+        self.fetch_from_bigtable(
+            CHECKPOINTS_TABLE,
+            seq_numbers_keys,
+            CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
+        )
+        .await
+    }
+
+    /// Performs a single reverse range scan against the objects table and
+    /// returns the bytes of the highest stored version that is **strictly
+    /// less than** the version encoded in [`ObjectRangeKeyBound::end_key`].
+    ///
+    /// Returns `None` if no version below the requested one exists for that
+    /// object (or if the object is not stored at all).
+    pub async fn object_before_version(
+        &self,
+        range: ObjectRangeKeyBound,
+    ) -> Result<Option<Bytes>, anyhow::Error> {
+        if range.is_empty() {
+            return Ok(None);
+        }
+
+        let mut client = self.bigtable_client.clone();
+
+        let reversed = true;
+        let rows_limit = 1;
+        let rows = client
+            .range_scan(
+                OBJECTS_TABLE,
+                Some(range.start_key),
+                Some(range.end_key),
+                rows_limit,
+                reversed,
+                Some(Self::column_qualifier_filter(DEFAULT_COLUMN_QUALIFIER)),
+            )
+            .await?;
+
+        let Some(row) = rows.into_iter().next() else {
+            return Ok(None);
+        };
+
+        let mut value = None;
+        for Cell {
+            name,
+            value: cell_value,
+        } in row.cells
+        {
+            // little optimization, comparing bytes is cheaper than converting it to utf8
+            // string and do string comparison.
+            if name == DEFAULT_COLUMN_QUALIFIER.as_bytes() {
+                value = Some(Bytes::from(cell_value));
+            } else {
+                let cell_name = std::str::from_utf8(&name)?;
+                error!("unexpected column {cell_name:?} in {OBJECTS_TABLE} table");
+            }
+        }
+        Ok(value)
+    }
+
+    /// Gets multiple objects returning the latest version strictly less than
+    /// the requested version values as [`Vec`]<[`Option`]<[`Bytes`]>> from the
+    /// kv store.
+    ///
+    /// Based on the provided [`ObjectsBeforeVersionRequest`] fetch the data
+    /// from BigTableDB. Returns a vector of the same length and order as
+    /// the input keys. Each entry is `Some(bytes)` if the key was found, or
+    /// `None` if not found.
+    pub async fn objects_before_version(
+        &self,
+        req: ObjectsBeforeVersionRequest,
+    ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
+        let req = req.into_inner();
+
+        // `multiget_max_items` bounds the size of an incoming request, but it is
+        // an operator-configurable value. Concurrency is capped independently via
+        // `MAX_CONCURRENT_FUTURES` so that increasing the request limit does not
+        // proportionally increase the number of concurrent BigTable calls per request.
+        let max_buffered_concurrent_futures = req.len().clamp(1, MAX_CONCURRENT_FUTURES);
+
+        stream::iter(req.into_iter())
+            .map(|range| self.object_before_version(range))
+            .buffered(max_buffered_concurrent_futures)
+            .try_collect::<Vec<Option<Bytes>>>()
+            .await
+    }
 }
 
-/// Fetch multiple checkpoint summaries by its checkpoint digest.
-async fn fetch_checkpoint_summary_by_digests(
-    client: &mut BigTableClient,
-    keys: Vec<Option<Vec<u8>>>,
-) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
-    let sequence_numbers = multi_get_cell(
-        client,
-        CHECKPOINTS_BY_DIGEST_TABLE,
-        keys,
-        DEFAULT_COLUMN_QUALIFIER,
-    )
-    .await?;
+/// Extracts specific key type from a general [`Key`] type.
+///
+/// Takes:
+/// - `keys`: The list of keys to extract from
+/// - `extractor`: Function that returns Some(extracted_value) for the target
+///   variant, None otherwise
+///
+/// Returns a vector of extracted values. Returns [`ApiError::BadRequest`]
+/// if any extraction returns None value.
+fn extract_keys<T, F>(keys: &[Key], extractor: F) -> Result<Vec<T>, ApiError>
+where
+    F: Fn(&Key) -> Option<T>,
+{
+    keys.iter()
+        .map(|k| {
+            extractor(k).ok_or_else(|| {
+                ApiError::BadRequest("all keys should be of the same type".to_string())
+            })
+        })
+        .collect()
+}
 
-    let seq_numbers_keys = sequence_numbers
+/// Represents a range of keys for a single object the BigTableDB is allowed to
+/// scan.
+pub(crate) struct ObjectRangeKeyBound {
+    start_key: StartKey,
+    end_key: EndKey,
+}
+
+impl ObjectRangeKeyBound {
+    /// Returns `true` if the range contains no rows.
+    fn is_empty(&self) -> bool {
+        match (&self.start_key, &self.end_key) {
+            (StartKey::StartKeyClosed(start), EndKey::EndKeyClosed(end)) => start > end,
+            (
+                StartKey::StartKeyClosed(start) | StartKey::StartKeyOpen(start),
+                EndKey::EndKeyClosed(end) | EndKey::EndKeyOpen(end),
+            ) => start >= end,
+        }
+    }
+}
+
+impl TryFrom<Key> for ObjectRangeKeyBound {
+    type Error = RangeKeyBoundError;
+
+    fn try_from(key: Key) -> Result<Self, Self::Error> {
+        let Key::ObjectKey(object_key) = key else {
+            return Err(RangeKeyBoundError::UnexpectedItemType {
+                expected: ItemType::Object,
+                detail: "range key must be an ObjectKey".into(),
+            });
+        };
+        Ok(object_key.into())
+    }
+}
+
+impl From<ObjectKey> for ObjectRangeKeyBound {
+    fn from(value: ObjectKey) -> Self {
+        let obj_id = value.0;
+        ObjectRangeKeyBound {
+            start_key: StartKey::StartKeyClosed(raw_object_key(&ObjectKey::min_for_id(&obj_id))),
+            end_key: EndKey::EndKeyOpen(raw_object_key(&value)),
+        }
+    }
+}
+
+/// Represents a request to fetch objects before a given version.
+///
+/// This struct expects that all keys in the input vector are of type
+/// [`Key::ObjectKey`] in the [`TryFrom`] implementation.
+pub(crate) struct ObjectsBeforeVersionRequest(Vec<ObjectRangeKeyBound>);
+
+impl ObjectsBeforeVersionRequest {
+    fn into_inner(self) -> Vec<ObjectRangeKeyBound> {
+        self.0
+    }
+}
+
+impl TryFrom<Vec<Key>> for ObjectsBeforeVersionRequest {
+    type Error = RangeKeyBoundError;
+
+    fn try_from(keys: Vec<Key>) -> Result<Self, Self::Error> {
+        let object_range_keys = extract_keys(&keys, |k| match k {
+            Key::ObjectKey(object_key) => Some(*object_key),
+            _ => None,
+        })
+        .map_err(|e| RangeKeyBoundError::UnexpectedItemType {
+            expected: ItemType::Object,
+            detail: e.to_string(),
+        })?
         .into_iter()
-        .map(|bytes| bytes.map(|b| b.to_vec()))
-        .collect::<Vec<Option<Vec<u8>>>>();
+        .map(ObjectRangeKeyBound::from)
+        .collect();
 
-    multi_get_cell(
-        client,
-        CHECKPOINTS_TABLE,
-        seq_numbers_keys,
-        CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
-    )
-    .await
+        Ok(ObjectsBeforeVersionRequest(object_range_keys))
+    }
 }

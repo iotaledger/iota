@@ -10,7 +10,7 @@ task 1, lines 7-31:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5624000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5624000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 33-35:
 //# programmable --sender A --inputs @A
@@ -18,7 +18,7 @@ task 2, lines 33-35:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 37-39:
 //# programmable --sender A --inputs @A object(2,0)
@@ -27,7 +27,7 @@ task 3, lines 37-39:
 created: object(3,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600, storage_rebate: 2196400, non_refundable_storage_fee: 0
 
 task 4, lines 41-43:
 //# programmable --sender A --inputs @A object(3,0)
@@ -36,7 +36,7 @@ task 4, lines 41-43:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400, storage_rebate: 2439600, non_refundable_storage_fee: 0
 
 task 5, line 45:
 //# create-checkpoint
@@ -61,7 +61,7 @@ task 7, lines 57-59:
 //> TransferObjects([Result(0)], Input(0))
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, lines 61-63:
 //# programmable --sender A --inputs @A object(7,0)
@@ -70,7 +70,7 @@ task 8, lines 61-63:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(7,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600, storage_rebate: 2196400, non_refundable_storage_fee: 0
 
 task 9, line 65:
 //# create-checkpoint
@@ -96,7 +96,7 @@ task 11, lines 77-79:
 mutated: object(0,0)
 unwrapped: object(7,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400, storage_rebate: 2439600, non_refundable_storage_fee: 0
 
 task 12, line 81:
 //# create-checkpoint

@@ -22,7 +22,6 @@ RUN mkdir -p ~/.cargo && \
 RUN apt install -y ca-certificates libpq5 libpq-dev
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
-COPY consensus consensus
 COPY crates crates
 COPY external-crates external-crates
 COPY iota-execution iota-execution

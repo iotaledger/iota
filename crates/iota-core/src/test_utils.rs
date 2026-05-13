@@ -8,8 +8,8 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
-        random_object_ref,
+        AuthorityName, ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef,
+        TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{
@@ -20,12 +20,12 @@ use iota_types::{
     error::IotaError,
     message_envelope::Message,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
@@ -229,16 +229,16 @@ pub fn make_transfer_object_move_transaction(
     gas_price: u64,
 ) -> Transaction {
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::ImmutableOrOwned(object_ref),
+        CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("transfer").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("transfer"),
             Vec::new(),
             gas_object_ref,
             args,

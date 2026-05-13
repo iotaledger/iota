@@ -30,10 +30,10 @@ pub struct ManagePackage {
     #[arg(long = "network-id")]
     /// The network chain identifier. Use '6364aad5' for mainnet.
     pub chain_id: String,
-    #[arg(long, value_parser = ObjectID::from_hex_literal)]
+    #[arg(long)]
     /// The original address (Object ID) where this package is published.
     pub original_id: ObjectID,
-    #[arg(long, value_parser = ObjectID::from_hex_literal)]
+    #[arg(long)]
     /// The most recent address (Object ID) where this package is published. It
     /// is the same as 'original-id' if the package is immutable and
     /// published once. It is different from 'original-id' if the package has

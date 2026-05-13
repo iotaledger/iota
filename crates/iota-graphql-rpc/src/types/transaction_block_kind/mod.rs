@@ -42,7 +42,7 @@ impl TransactionBlockKind {
         use TransactionBlockKind as T;
 
         match kind {
-            K::ProgrammableTransaction(pt) => Ok(T::Programmable(ProgrammableTransactionBlock {
+            K::Programmable(pt) => Ok(T::Programmable(ProgrammableTransactionBlock {
                 native: pt,
                 checkpoint_viewed_at,
             })),
@@ -65,7 +65,7 @@ impl TransactionBlockKind {
                     "AuthenticatorStateUpdateV1 transactions are deprecated and were never created on IOTA".to_string(),
                 ))
             }
-            K::EndOfEpochTransaction(eoe) => Ok(T::EndOfEpoch(EndOfEpochTransaction {
+            K::EndOfEpoch(eoe) => Ok(T::EndOfEpoch(EndOfEpochTransaction {
                 native: eoe,
                 checkpoint_viewed_at,
             })),
@@ -73,6 +73,9 @@ impl TransactionBlockKind {
                 native: rsu,
                 checkpoint_viewed_at,
             })),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }

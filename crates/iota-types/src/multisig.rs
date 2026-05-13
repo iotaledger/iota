@@ -19,7 +19,6 @@ use fastcrypto::{
 };
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -43,7 +42,7 @@ pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
 /// The struct that contains signatures and public keys necessary for
 /// authenticating a MultiSig.
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MultiSig {
     /// The plain signature encoded with signature scheme.
     sigs: Vec<CompressedSignature>,
@@ -399,7 +398,7 @@ impl AsRef<[u8]> for MultiSig {
 }
 
 /// The struct that contains the public key used for authenticating a MultiSig.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiSigPublicKey {
     /// A list of public key and its corresponding weight.
     pk_map: Vec<(PublicKey, WeightUnit)>,

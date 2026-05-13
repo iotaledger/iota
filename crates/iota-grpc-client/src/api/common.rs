@@ -391,7 +391,7 @@ pub(crate) use define_list_query;
 
 /// Convert an `ObjectId` to the gRPC proto `ObjectId` type.
 pub fn proto_object_id(id: ObjectId) -> ProtoObjectId {
-    ProtoObjectId::default().with_object_id(id.inner().to_vec())
+    ProtoObjectId::default().with_object_id(id.bytes().to_vec())
 }
 
 /// Build a proto Transaction from serializable transaction data and digest.

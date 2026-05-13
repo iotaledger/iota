@@ -15,12 +15,11 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, Transaction},
+    transaction::{CallArg, SharedObjectRef, Transaction},
 };
-use move_core_types::ident_str;
 
 use crate::{
     authority::{
@@ -117,7 +116,7 @@ impl TestSetup {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
-            (self.package.0)::congestion_control::create_shared()
+            (self.package.object_id)::congestion_control::create_shared()
         };
         let pt = builder.finish();
 
@@ -132,7 +131,7 @@ impl TestSetup {
         .await
         .unwrap();
         assert!(
-            create_shared_object_effects.status().is_ok(),
+            create_shared_object_effects.status().is_success(),
             "Execution error {:?}",
             create_shared_object_effects.status()
         );
@@ -146,7 +145,7 @@ impl TestSetup {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
-            (self.package.0)::congestion_control::create_owned()
+            (self.package.object_id)::congestion_control::create_owned()
         };
         let pt = builder.finish();
 
@@ -161,7 +160,7 @@ impl TestSetup {
         .await
         .unwrap();
         assert!(
-            create_owned_object_effects.status().is_ok(),
+            create_owned_object_effects.status().is_success(),
             "Execution error {:?}",
             create_owned_object_effects.status()
         );
@@ -173,7 +172,7 @@ impl TestSetup {
     // a genesis marker.
     fn convert_to_genesis_obj(obj: Object) -> Object {
         let mut genesis_obj = obj;
-        genesis_obj.previous_transaction = TransactionDigest::genesis_marker();
+        genesis_obj.previous_transaction = TransactionDigest::GENESIS_MARKER;
         genesis_obj
     }
 
@@ -187,7 +186,7 @@ impl TestSetup {
         let mut genesis_objects = Vec::new();
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
             self.setup_authority_state
-                .get_object(&self.package.0)
+                .get_object(&self.package.object_id)
                 .await
                 .unwrap(),
         ));
@@ -225,36 +224,36 @@ async fn commit_and_execute_transaction(
     for shared_object in shared_objects {
         args.push(
             txn_builder
-                .obj(ObjectArg::SharedObject {
-                    id: shared_object.0,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: shared_object.0,
                     initial_shared_version: shared_object.1,
                     mutable: true,
-                })
+                }))
                 .unwrap(),
         )
     }
     args.push(
         txn_builder
-            .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
+            .obj(CallArg::ImmutableOrOwned(*owned_object))
             .unwrap(),
     );
     match args.len() {
         1 => {
             move_call! {
                 txn_builder,
-                (package.0)::congestion_control::increment_one(args.pop().unwrap())
+                (package.object_id)::congestion_control::increment_one(args.pop().unwrap())
             };
         }
         2 => {
             move_call! {
                 txn_builder,
-                (package.0)::congestion_control::increment_two(args.pop().unwrap(), args.pop().unwrap())
+                (package.object_id)::congestion_control::increment_two(args.pop().unwrap(), args.pop().unwrap())
             };
         }
         3 => {
             move_call! {
                 txn_builder,
-                (package.0)::congestion_control::increment_three(args.pop().unwrap(), args.pop().unwrap(), args.pop().unwrap())
+                (package.object_id)::congestion_control::increment_three(args.pop().unwrap(), args.pop().unwrap(), args.pop().unwrap())
             };
         }
         _ => panic!("Unsupported number of shared objects. Maximum supported is 2."),
@@ -303,9 +302,9 @@ async fn test_congestion_control_execution_cancellation() {
     // Gets objects that can be used as genesis objects for new authority states.
     let genesis_objects = test_setup
         .create_genesis_objects_for_new_authority_state(&[
-            shared_object_1.0,
-            shared_object_2.0,
-            owned_object.0,
+            shared_object_1.object_id,
+            shared_object_2.object_id,
+            owned_object.object_id,
         ])
         .await;
 
@@ -361,7 +360,7 @@ async fn test_congestion_control_execution_cancellation() {
     let congestion_control_parameters_1 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
-            &[(shared_object_1.0, initial_debt)],
+            &[(shared_object_1.object_id, initial_debt)],
             congestion_control_parameters_1.clone(),
         ))
     });
@@ -369,7 +368,7 @@ async fn test_congestion_control_execution_cancellation() {
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
-                &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
+                &[(shared_object_1.object_id, initial_debt, TEST_ONLY_GAS_PRICE)],
                 congestion_control_parameters_2.clone(),
                 TEST_ONLY_GAS_PRICE,
             ),
@@ -385,11 +384,11 @@ async fn test_congestion_control_execution_cancellation() {
         &test_setup.sender_key,
         &test_setup.gas_object_id,
         &[
-            (shared_object_1.0, shared_object_1.1),
-            (shared_object_2.0, shared_object_2.1),
+            (shared_object_1.object_id, shared_object_1.version),
+            (shared_object_2.object_id, shared_object_2.version),
         ],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -406,7 +405,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price,
             },
             command: None
@@ -418,12 +417,14 @@ async fn test_congestion_control_execution_cancellation() {
         effects.input_shared_objects(),
         vec![
             InputSharedObject::Cancelled(
-                shared_object_1.0,
+                shared_object_1.object_id,
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ),
             InputSharedObject::Cancelled(
-                shared_object_2.0,
+                shared_object_2.object_id,
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )
         ]
     );
@@ -447,7 +448,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-            congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+            congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
             suggested_gas_price,
         }
     );
@@ -474,9 +475,9 @@ async fn test_congestion_control_debt_tracking() {
     // Gets objects that can be used as genesis objects for new authority states.
     let genesis_objects = test_setup
         .create_genesis_objects_for_new_authority_state(&[
-            shared_object_1.0,
-            shared_object_2.0,
-            owned_object.0,
+            shared_object_1.object_id,
+            shared_object_2.object_id,
+            owned_object.object_id,
         ])
         .await;
 
@@ -500,9 +501,9 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &[(shared_object_1.0, shared_object_1.1)],
+        &[(shared_object_1.object_id, shared_object_1.version)],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -512,12 +513,12 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Check that the debt stored in consensus quarantine is correct.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -531,7 +532,7 @@ async fn test_congestion_control_debt_tracking() {
     // Check that shared object 2 has no debt.
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -550,11 +551,11 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender_key,
         &test_setup.gas_object_id,
         &[
-            (shared_object_1.0, shared_object_1.1),
-            (shared_object_2.0, shared_object_2.1),
+            (shared_object_1.object_id, shared_object_1.version),
+            (shared_object_2.object_id, shared_object_2.version),
         ],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -564,12 +565,12 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be a success as overshoot of 1.5*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that the debt stored in consensus quarantine is correct. Both shared
     // objects should have a debt of 1.5*default_tx_gas_budget.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -581,7 +582,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -606,9 +607,9 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &[(shared_object_2.0, shared_object_2.1)],
+        &[(shared_object_2.object_id, shared_object_2.version)],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -628,7 +629,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![shared_object_2.0]),
+                congested_objects: vec![shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -639,8 +640,9 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![InputSharedObject::Cancelled(
-            shared_object_2.0,
+            shared_object_2.object_id,
             SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                .unwrap()
         ),]
     );
 
@@ -652,7 +654,7 @@ async fn test_congestion_control_debt_tracking() {
     // the consensus quarantine even though the execution was cancelled.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -664,7 +666,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -690,9 +692,9 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &[(shared_object_1.0, shared_object_1.1)],
+        &[(shared_object_1.object_id, shared_object_1.version)],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -702,7 +704,7 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be executed successfully as overshoot of
     // 2*default_tx_gas_budget is allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
     // 1 should now have a debt of 2*default_tx_gas_budget from commit 4 and shared
@@ -711,7 +713,7 @@ async fn test_congestion_control_debt_tracking() {
     // be reduced by default_tx_gas_budget due to the skipped round.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -723,7 +725,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -746,11 +748,11 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender_key,
         &test_setup.gas_object_id,
         &[
-            (shared_object_1.0, shared_object_1.1),
-            (shared_object_2.0, shared_object_2.1),
+            (shared_object_1.object_id, shared_object_1.version),
+            (shared_object_2.object_id, shared_object_2.version),
         ],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -769,7 +771,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -781,16 +783,18 @@ async fn test_congestion_control_debt_tracking() {
         effects.input_shared_objects(),
         vec![
             InputSharedObject::Cancelled(
-                shared_object_1.0,
+                shared_object_1.object_id,
                 SequenceNumber::new_congested_with_suggested_gas_price(
                     expected_suggested_gas_price
                 )
+                .unwrap()
             ),
             InputSharedObject::Cancelled(
-                shared_object_2.0,
+                shared_object_2.object_id,
                 SequenceNumber::new_congested_with_suggested_gas_price(
                     expected_suggested_gas_price
                 )
+                .unwrap()
             )
         ]
     );
@@ -804,7 +808,7 @@ async fn test_congestion_control_debt_tracking() {
     // 0.5*default_tx_gas_budget from commit 3.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -816,7 +820,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -838,7 +842,7 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.gas_object_id,
         &[],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -846,7 +850,7 @@ async fn test_congestion_control_debt_tracking() {
     )
     .await;
     // Transaction should be a success as there is no shared object involved.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The debt on shared object 1 should still be stored as default_tx_gas_budget
     // from commit 5 as it was not updated in commit 6. The debt on shared
@@ -855,7 +859,7 @@ async fn test_congestion_control_debt_tracking() {
     // will be reduced by default_tx_gas_budget for each skipped round.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -867,7 +871,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -888,11 +892,11 @@ async fn test_congestion_control_debt_tracking() {
         &test_setup.sender_key,
         &test_setup.gas_object_id,
         &[
-            (shared_object_1.0, shared_object_1.1),
-            (shared_object_2.0, shared_object_2.1),
+            (shared_object_1.object_id, shared_object_1.version),
+            (shared_object_2.object_id, shared_object_2.version),
         ],
         &authority_state
-            .get_object(&owned_object.0)
+            .get_object(&owned_object.object_id)
             .await
             .unwrap()
             .compute_object_reference(),
@@ -901,13 +905,13 @@ async fn test_congestion_control_debt_tracking() {
     .await;
     // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The debt on both shared objects should should have been updated in storage to
     // 2*default_tx_gas_budget.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();
@@ -919,7 +923,7 @@ async fn test_congestion_control_debt_tracking() {
     }
     let shared_object_2_debt = authority_state
         .epoch_store_for_testing()
-        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.object_id])
         .expect("Failed to load initial object debts for testing.")
         .pop()
         .unwrap();

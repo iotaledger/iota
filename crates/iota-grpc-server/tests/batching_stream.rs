@@ -20,12 +20,12 @@ use iota_grpc_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, random_object_ref},
+    base_types::{ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
     gas_coin::GasCoin,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     transaction::VerifiedTransaction,
 };
 use prost::Message;
@@ -42,7 +42,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding_bytes_len).unwrap() + 1024,
@@ -50,8 +50,8 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     .unwrap();
     let obj = Object::new_move(
         move_obj,
-        Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
     );
     (id, obj)
 }
@@ -121,7 +121,7 @@ async fn test_get_objects_batching_within_limit() {
                 ObjectRequest::default().with_object_ref(
                     ObjectReference::default().with_object_id(
                         iota_grpc_types::v1::types::ObjectId::default()
-                            .with_object_id(id.as_ref().to_vec()),
+                            .with_object_id(id.into_bytes().to_vec()),
                     ),
                 )
             })
@@ -227,13 +227,7 @@ async fn test_get_objects_batching_within_limit() {
     assert_eq!(split_total, NUM_OBJECTS, "All objects must be returned");
 
     // Every response should fit within the message size limit
-    for (i, resp) in split_responses.iter().enumerate() {
-        let size = resp.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Response {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&split_responses, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }
@@ -392,13 +386,7 @@ async fn test_get_transactions_batching_within_limit() {
     assert_eq!(split_total, NUM_TXS, "All transactions must be returned");
 
     // Every response should fit within the message size limit
-    for (i, resp) in split_responses.iter().enumerate() {
-        let size = resp.encoded_len();
-        assert!(
-            size <= usize::try_from(tight_limit).unwrap(),
-            "Response {i} has encoded_len {size} which exceeds limit {tight_limit}"
-        );
-    }
+    common::assert_messages_within_limit(&split_responses, tight_limit);
 
     server_handle.shutdown().await.expect("shutdown");
 }

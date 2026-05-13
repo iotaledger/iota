@@ -98,13 +98,13 @@ impl ReadApi {
                         .map_err(internal_error)?,
                 ))
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 
@@ -119,7 +119,7 @@ impl ReadApi {
             PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
 
             PastObjectRead::ObjectDeleted(object_ref) => {
-                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref))
             }
 
             PastObjectRead::VersionFound(object_ref, object, layout) => {
@@ -164,7 +164,7 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         match self
             .fullnode_grpc_client
-            .get_transactions(&[digest.into()], Some("transaction.digest"))
+            .get_transactions(&[digest], Some("transaction.digest"))
             .await
         {
             Ok(txns) => {
@@ -172,7 +172,7 @@ impl ReadApi {
                     IndexerError::Grpc("there should be one tx lookup response".into())
                 })?;
 
-                Ok(executed_tx.transaction()?.digest()? == digest.into())
+                Ok(executed_tx.transaction()?.digest()? == digest)
             }
             Err(e) => {
                 if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
@@ -222,7 +222,7 @@ impl ReadApiServer for ReadApi {
             stored_objects
                 .into_iter()
                 .map(|obj| {
-                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                    let object_id = ObjectID::from_bytes(obj.object_id.clone()).map_err(|_| {
                         IndexerError::PersistentStorageDataCorruption(format!(
                             "failed to parse ObjectID: {:?}",
                             obj.object_id

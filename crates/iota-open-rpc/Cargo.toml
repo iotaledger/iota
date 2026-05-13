@@ -23,7 +23,7 @@ clap.workspace = true
 fastcrypto.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 # internal dependencies
 iota-json.workspace = true

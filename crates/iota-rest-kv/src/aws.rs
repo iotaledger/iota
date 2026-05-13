@@ -151,7 +151,13 @@ impl KvStoreClient {
             .operation_attempt_timeout(OPERATION_ATTEMPT_TIMEOUT_SECS)
             .connect_timeout(CONNECT_TIMEOUT_SECS)
             .build();
+        let http_client = aws_smithy_http_client::Builder::new()
+            .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+            ))
+            .build_https();
         let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
+            .http_client(http_client)
             .credentials_provider(credentials)
             .region(Region::new(dynamodb_config.aws_region))
             .timeout_config(timeout_config);

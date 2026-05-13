@@ -12,13 +12,15 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
-    base_types::{ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
-    move_package::MovePackage,
+    base_types::{
+        Identifier, IotaAddress, ObjectID, TxContext, TxContextKind, TypeTag, is_primitive_type_tag,
+    },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    move_package::{MovePackage, MovePackageExt},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
-    transaction::{self as Tx, ObjectArg},
+    transaction::{self as Tx, CallArg, SharedObjectRef},
 };
 use miette::Severity;
 use move_binary_format::{
@@ -27,7 +29,6 @@ use move_binary_format::{
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::MoveTypeLayout,
-    ident_str,
     parsing::{
         address::{NumericalAddress, ParsedAddress},
         parser::NumberFormat,
@@ -131,20 +132,19 @@ impl<'a> Resolver<'a> for ToObject {
         // Depending on the ownership of the object, we resolve it to different types of
         // object arguments for the transaction.
         let obj_arg = match owner {
-            Owner::AddressOwner(_) if self.is_receiving => ObjectArg::Receiving(object_ref),
-            Owner::Immutable | Owner::AddressOwner(_) => ObjectArg::ImmOrOwnedObject(object_ref),
-            Owner::Shared {
-                initial_shared_version,
-            } => ObjectArg::SharedObject {
-                id: object_ref.0,
+            Owner::Address(_) if self.is_receiving => CallArg::Receiving(object_ref),
+            Owner::Immutable | Owner::Address(_) => CallArg::ImmutableOrOwned(object_ref),
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                object_id: object_ref.object_id,
                 initial_shared_version,
                 mutable: self.is_mut,
-            },
-            Owner::ObjectOwner(_) => {
+            }),
+            Owner::Object(_) => {
                 error!(loc => help: {
                     "{obj_id} is an object-owned object, you can only use immutable, shared, or owned objects here."
                 }, "Cannot use an object-owned object as an argument")
             }
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         };
         // Insert the correct object arg that we built above into the transaction.
         builder.ptb.obj(obj_arg).map_err(|e| err!(loc, "{e}"))
@@ -169,7 +169,7 @@ impl ToPure {
 
     pub fn new_from_layout(layout: MoveTypeLayout) -> Self {
         Self {
-            type_: TypeTag::from(&layout),
+            type_: type_tag_core_to_sdk(&(&layout).into()),
         }
     }
 }
@@ -440,7 +440,11 @@ impl<'a> PTBBuilder<'a> {
         MovePackage::new(
             package.id,
             package.version,
-            package.module_map,
+            package
+                .module_map
+                .into_iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k), v))
+                .collect(),
             // This package came from on-chain and the tool runs locally, so don't worry about
             // trying to enforce the package size limit.
             u64::MAX,
@@ -549,8 +553,10 @@ impl<'a> PTBBuilder<'a> {
             .function_defs
             .iter()
             .find(|fdef| {
-                module.identifier_at(module.function_handle_at(fdef.function).name)
-                    == function_name.as_ident_str()
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function_name.as_str()
             })
             .ok_or_else(|| {
                 let e = err!(
@@ -652,7 +658,7 @@ impl<'a> PTBBuilder<'a> {
             | PTBArg::String(_)
             | PTBArg::Option(_)
             | PTBArg::Vector(_)) => ctx.pure(self, arg_loc, a).await,
-            PTBArg::Gas => Ok(Tx::Argument::GasCoin),
+            PTBArg::Gas => Ok(Tx::Argument::Gas),
             // NB: the ordering of these lines is important so that shadowing is properly
             // supported.
             // If we encounter an identifier that we have not already resolved, then we resolve the
@@ -697,7 +703,7 @@ impl<'a> PTBBuilder<'a> {
                 self.resolve(arg_loc.wrap(PTBArg::Identifier(i)), ctx).await
             }
             PTBArg::Address(addr) => {
-                let object_id = ObjectID::from_address(addr.into_inner());
+                let object_id = ObjectID::new(addr.into_bytes());
                 ctx.resolve_object_id(self, arg_loc, object_id).await
             }
             PTBArg::VariableAccess(head, fields) => {
@@ -719,7 +725,7 @@ impl<'a> PTBBuilder<'a> {
                             Some(
                                 x @ (Tx::Argument::NestedResult(..)
                                 | Tx::Argument::Input(..)
-                                | Tx::Argument::GasCoin),
+                                | Tx::Argument::Gas),
                             ) => {
                                 error!(
                                     arg_loc,
@@ -757,6 +763,9 @@ impl<'a> PTBBuilder<'a> {
                                 )
                                 .await
                             }
+                            _ => unimplemented!(
+                                "a new enum variant was added and needs to be handled"
+                            ),
                         }
                     }
                 }
@@ -822,7 +831,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 self.last_command = Some(
                     self.ptb
-                        .command(Tx::Command::TransferObjects(transfer_args, to_arg)),
+                        .command(Tx::Command::new_transfer_objects(transfer_args, to_arg)),
                 );
             }
             ParsedPTBCommand::Assign(sp!(ident_loc, i), None) => {
@@ -846,9 +855,11 @@ impl<'a> PTBBuilder<'a> {
                     .insert(i, ArgWithHistory::Unresolved(arg_w_loc));
             }
             ParsedPTBCommand::MakeMoveVec(sp!(ty_loc, ty_arg), sp!(_, args)) => {
-                let ty_arg = ty_arg
-                    .into_type_tag(&resolve_address)
-                    .map_err(|e| err!(ty_loc, "{e}"))?;
+                let ty_arg = type_tag_core_to_sdk(
+                    &ty_arg
+                        .into_type_tag(&resolve_address)
+                        .map_err(|e| err!(ty_loc, "{e}"))?,
+                );
                 let mut vec_args: Vec<Tx::Argument> = vec![];
                 if is_primitive_type_tag(&ty_arg) {
                     for arg in args.into_iter() {
@@ -863,7 +874,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 let res = self
                     .ptb
-                    .command(Tx::Command::make_move_vec(Some(ty_arg), vec_args));
+                    .command(Tx::Command::new_make_move_vector(Some(ty_arg), vec_args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::SplitCoins(pre_coin, sp!(_, amounts)) => {
@@ -873,7 +884,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToPure::new(TypeTag::U64)).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::SplitCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::new_split_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MergeCoins(pre_coin, sp!(_, coins)) => {
@@ -883,7 +894,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToObject::default()).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::MergeCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::new_merge_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
@@ -902,10 +913,10 @@ impl<'a> PTBBuilder<'a> {
 
                 if let Some(sp!(ty_loc, in_ty_args)) = in_ty_args {
                     for t in in_ty_args.into_iter() {
-                        ty_args.push(
-                            t.into_type_tag(&resolve_address)
+                        ty_args.push(type_tag_core_to_sdk(
+                            &t.into_type_tag(&resolve_address)
                                 .map_err(|e| err!(ty_loc, "{e}"))?,
-                        )
+                        ))
                     }
                 }
 
@@ -922,7 +933,7 @@ impl<'a> PTBBuilder<'a> {
                     }
                 })?;
 
-                let package_id = ObjectID::from_address(resolved_address);
+                let package_id = ObjectID::new(resolved_address.into_bytes());
                 let package = self.resolve_to_package(package_id, address.span).await?;
                 let args = self
                     .resolve_move_call_args(
@@ -934,7 +945,7 @@ impl<'a> PTBBuilder<'a> {
                         mod_access_loc,
                     )
                     .await?;
-                let res = self.ptb.command(Tx::Command::move_call(
+                let res = self.ptb.command(Tx::Command::new_move_call(
                     package_id,
                     module_name.value,
                     function_name.value,
@@ -965,7 +976,7 @@ impl<'a> PTBBuilder<'a> {
                         package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )
                     .map_err(|e| err!(pkg_loc, "{e}"))?
                 } else {
@@ -1055,7 +1066,7 @@ impl<'a> PTBBuilder<'a> {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )
                     .map_err(|e| err!(path_loc, "{e}"))?
                 } else {
@@ -1066,7 +1077,7 @@ impl<'a> PTBBuilder<'a> {
                     self.reader,
                     build_config.clone(),
                     &package_path,
-                    ObjectID::from_address(upgrade_cap_id.into_inner()),
+                    ObjectID::new(upgrade_cap_id.into_bytes()),
                     false, // with_unpublished_dependencies
                     true,  // skip_dependency_verification
                     None,
@@ -1108,10 +1119,10 @@ impl<'a> PTBBuilder<'a> {
                     // .to_vec() is necessary to get the length prefix
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
-                let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("package").to_owned(),
-                    ident_str!("authorize_upgrade").to_owned(),
+                let upgrade_ticket = self.ptb.command(Tx::Command::new_move_call(
+                    ObjectID::FRAMEWORK,
+                    Identifier::PACKAGE_MODULE,
+                    Identifier::from_static("authorize_upgrade"),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_arg, digest_arg],
                 ));
@@ -1125,10 +1136,10 @@ impl<'a> PTBBuilder<'a> {
                         .collect(),
                     compiled_modules,
                 );
-                let res = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    ident_str!("package").to_owned(),
-                    ident_str!("commit_upgrade").to_owned(),
+                let res = self.ptb.command(Tx::Command::new_move_call(
+                    ObjectID::FRAMEWORK,
+                    Identifier::PACKAGE_MODULE,
+                    Identifier::from_static("commit_upgrade"),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_receipt],
                 ));

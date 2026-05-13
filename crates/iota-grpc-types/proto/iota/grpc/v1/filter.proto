@@ -108,12 +108,12 @@ message NotTransactionFilter {
 }
 
 enum TransactionKind {
-  // `SYSTEM_TRANSACTION` can be used to filter for all types of system transactions.
-  SYSTEM_TRANSACTION = 0;
-  PROGRAMMABLE_TRANSACTION = 1;
+  // `SYSTEM` can be used to filter for all types of system transactions.
+  SYSTEM = 0;
+  PROGRAMMABLE = 1;
   GENESIS = 2;
   CONSENSUS_COMMIT_PROLOGUE_V1 = 3;
-  END_OF_EPOCH_TRANSACTION = 5;
+  END_OF_EPOCH = 5;
   RANDOMNESS_STATE_UPDATE = 6;
 }
 

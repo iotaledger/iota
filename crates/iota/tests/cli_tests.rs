@@ -41,10 +41,11 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::StructTag;
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
@@ -150,7 +151,7 @@ impl TreeShakingTest {
         )
         .await;
 
-        obj_ref.0
+        obj_ref.object_id
     }
 
     async fn upgrade_package(
@@ -247,7 +248,7 @@ async fn publish_package(
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     Ok((package_a.reference.object_id, cap.reference.object_id))
@@ -309,7 +310,7 @@ fn add_ids_to_manifest(
         if let Some(tbl) = tbl.as_table_mut() {
             tbl.insert(
                 "published-at".to_string(),
-                toml::Value::String(published_at_id.to_hex_uncompressed()),
+                toml::Value::String(published_at_id.to_hex()),
             );
         }
     }
@@ -320,7 +321,7 @@ fn add_ids_to_manifest(
             let first_key = tbl.keys().next().unwrap();
             tbl.insert(
                 first_key.to_string(),
-                toml::Value::String(address_id.to_hex_uncompressed()),
+                toml::Value::String(address_id.to_hex()),
             );
         }
     }
@@ -620,7 +621,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .iter()
         .filter_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
-                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None
@@ -844,7 +845,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
 
     // Send an object
     IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        to: KeyIdentity::Address(IotaAddress::random()),
         object_id: object_to_send,
         payment: PaymentArgs {
             gas: vec![object_id],
@@ -879,7 +880,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let address1 = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
-    let address2 = IotaAddress::random_for_testing_only();
+    let address2 = IotaAddress::random();
 
     let client = context.get_client().await?;
     // publish the object basics package
@@ -1301,17 +1302,20 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Package ID and version
-    let (expect_original_id, expect_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = resp {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_original_id,
+        version: expect_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -1323,10 +1327,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
         localnet.original_published_id,
     );
     assert_eq!(expect_original_id.to_string(), localnet.latest_published_id);
-    assert_eq!(
-        expect_version.value(),
-        localnet.version.parse::<u64>().unwrap(),
-    );
+    assert_eq!(expect_version, localnet.version.parse::<u64>().unwrap(),);
     Ok(())
 }
 
@@ -1405,7 +1406,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1429,7 +1430,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     };
 
     let delete_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "delete".to_string(),
         type_args: vec![],
@@ -1528,7 +1529,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1548,12 +1549,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1563,13 +1559,13 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
                 .iter()
                 .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
-            (parent.reference.clone(), child.reference.clone())
+            (parent.reference, child.reference)
         } else {
             unreachable!("Invalid response");
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "receiver".to_string(),
         type_args: vec![],
@@ -1671,7 +1667,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1691,12 +1687,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1706,13 +1697,13 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
                 .iter()
                 .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
-            (parent.reference.clone(), child.reference.clone())
+            (parent.reference, child.reference)
         } else {
             unreachable!("Invalid response");
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_immut_ref".to_string(),
         type_args: vec![],
@@ -1814,7 +1805,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1834,12 +1825,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1849,13 +1835,13 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
                 .iter()
                 .find(|refe| owners.contains(&refe.reference.object_id))
                 .unwrap();
-            (parent.reference.clone(), child.reference.clone())
+            (parent.reference, child.reference)
         } else {
             unreachable!("Invalid response");
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_mut_ref".to_string(),
         type_args: vec![],
@@ -2374,7 +2360,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // Hacky for now: we need to add the correct `published-at` field to the Move
@@ -2406,7 +2392,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         idx + 1,
         format!(
             "published-at = \"{}\"",
-            package.reference.object_id.to_hex_uncompressed()
+            package.reference.object_id.to_hex()
         ),
     );
     let new = lines.join("\n");
@@ -2524,7 +2510,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // We will upgrade the package in a `tmp_dir` using the `Move.lock` resulting
@@ -2577,21 +2563,27 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let (expect_original_id, _, _) = get_new_package_obj_from_response(&publish_response)
+    let ObjectRef {
+        object_id: expect_original_id,
+        ..
+    } = get_new_package_obj_from_response(&publish_response)
         .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
 
     // Get Upgraded Package ID and version
-    let (expect_upgrade_latest_id, expect_upgrade_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_upgrade_latest_id,
+        version: expect_upgrade_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -2610,7 +2602,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     );
     // Version should correspond to upgraded package.
     assert_eq!(
-        expect_upgrade_version.value(),
+        expect_upgrade_version.as_u64(),
         localnet.version.parse::<u64>().unwrap(),
     );
     Ok(())
@@ -2684,7 +2676,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // Set up a temporary working directory  for upgrading.
@@ -2769,7 +2761,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random();
     let client = context.get_client().await?;
     let object_refs = client
         .read_api()
@@ -2876,14 +2868,14 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
         panic!();
     };
 
-    let (gas, obj) = if mut_obj1.owner.unwrap().get_owner_address().unwrap() == address {
+    let (gas, obj) = if *mut_obj1.owner.unwrap().address_or_object().unwrap() == address {
         (mut_obj1, mut_obj2)
     } else {
         (mut_obj2, mut_obj1)
     };
 
-    assert_eq!(gas.owner.unwrap().get_owner_address().unwrap(), address);
-    assert_eq!(obj.owner.unwrap().get_owner_address().unwrap(), recipient);
+    assert_eq!(*gas.owner.unwrap().address_or_object().unwrap(), address);
+    assert_eq!(*obj.owner.unwrap().address_or_object().unwrap(), recipient);
 
     let object_refs = client
         .read_api()
@@ -3932,7 +3924,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -3948,10 +3940,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     // assert that all the objects_returned are owned by the address
     for resp in &object_responses.data {
         let obj_owner = resp.object().unwrap().owner.unwrap();
-        assert_eq!(
-            obj_owner.get_owner_address().unwrap().to_string(),
-            address.to_string()
-        )
+        assert_eq!(*obj_owner.address_or_object().unwrap(), address)
     }
     // assert that has next page is false
     assert!(!object_responses.has_next_page);
@@ -3963,7 +3952,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()
@@ -4103,7 +4092,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
     // === TRANSFER === //
     let transfer_dry_run = IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        to: KeyIdentity::Address(IotaAddress::random()),
         object_id: object_to_send,
         payment: PaymentArgs {
             gas: vec![object_id],
@@ -4125,7 +4114,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY === //
     let pay_dry_run = IotaClientCommands::Pay {
         input_coins: vec![object_id],
-        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
         amounts: vec![1],
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
@@ -4151,7 +4140,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     let gas_coin_id = object_refs.data.last().unwrap().object().unwrap().object_id;
     let pay_dry_run = IotaClientCommands::Pay {
         input_coins: vec![object_id],
-        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
         amounts: vec![1],
         payment: PaymentArgs {
             gas: vec![gas_coin_id],
@@ -4173,7 +4162,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY IOTA === //
     let pay_iota_dry_run = IotaClientCommands::PayIota {
         input_coins: Some(vec![object_id]),
-        recipients: vec![KeyIdentity::Address(IotaAddress::random_for_testing_only())],
+        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
         amounts: vec![1],
         gas_data: GasDataArgs {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -4192,7 +4181,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY ALL IOTA === //
     let pay_all_iota_dry_run = IotaClientCommands::PayAllIota {
         input_coins: vec![object_id],
-        recipient: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
+        recipient: KeyIdentity::Address(IotaAddress::random()),
         gas_data: GasDataArgs {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             ..Default::default()
@@ -4248,8 +4237,8 @@ async fn test_cluster_helper() -> (
         .object_id;
     let object_id2 = object_refs.data.get(1).unwrap().object().unwrap().object_id;
     let object_id3 = object_refs.data.get(2).unwrap().object().unwrap().object_id;
-    let address2 = IotaAddress::random_for_testing_only();
-    let address3 = IotaAddress::random_for_testing_only();
+    let address2 = IotaAddress::random();
+    let address3 = IotaAddress::random();
     let recipient1 = KeyIdentity::Address(address2);
     let recipient2 = KeyIdentity::Address(address3);
 

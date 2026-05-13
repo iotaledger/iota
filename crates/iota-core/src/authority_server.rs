@@ -49,7 +49,7 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, debug, error, error_span, info, trace_span};
+use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -57,7 +57,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
-    mysticeti_adapter::LazyMysticetiClient,
+    starfish_adapter::LazyStarfishClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
     },
@@ -119,7 +119,7 @@ impl AuthorityServer {
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
@@ -695,11 +695,29 @@ impl ValidatorService {
 
                 let input_objects = include_input_objects
                     .then(|| self.state.get_transaction_input_objects(&effects))
-                    .and_then(Result::ok);
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction input objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
 
                 let output_objects = include_output_objects
                     .then(|| self.state.get_transaction_output_objects(&effects))
-                    .and_then(Result::ok);
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction output objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
 
                 let signed_effects = self.state.sign_effects(effects, epoch_store)?;
                 epoch_store.insert_tx_cert_sig(certificate.digest(), certificate.auth_sig())?;

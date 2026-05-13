@@ -17,12 +17,10 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
 };
-use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 use crate::{BytecodeSourceVerifier, ValidationMode, toolchain::CURRENT_COMPILER_VERSION};
@@ -40,13 +38,13 @@ async fn successful_verification() -> anyhow::Result<()> {
 
     let b_pkg_fixtures = iota_common::tempdir();
     let b_pkg = {
-        let b_src = copy_published_package(&b_pkg_fixtures, "b", b_ref.0.into()).await?;
+        let b_src = copy_published_package(&b_pkg_fixtures, "b", b_ref.object_id.into()).await?;
         compile_package(b_src)
     };
 
     let a_fixtures = iota_common::tempdir();
     let (a_pkg, a_ref) = {
-        copy_published_package(&a_fixtures, "b", b_ref.0.into()).await?;
+        copy_published_package(&a_fixtures, "b", b_ref.object_id.into()).await?;
         let a_src = copy_published_package(&a_fixtures, "a", IotaAddress::ZERO).await?;
         (
             compile_package(a_src.clone()),
@@ -71,13 +69,16 @@ async fn successful_verification() -> anyhow::Result<()> {
 
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
 
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(a_ref.object_id.into()),
+        )
         .await
         .unwrap();
 
@@ -103,7 +104,7 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
 
     // Verify the root package which now includes dependency modules
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
 
@@ -133,7 +134,7 @@ async fn successful_verification_module_ordering() -> anyhow::Result<()> {
 
     let z_pkg_fixtures = iota_common::tempdir();
     let z_pkg = {
-        let z_src = copy_published_package(&z_pkg_fixtures, "z", z_ref.0.into()).await?;
+        let z_src = copy_published_package(&z_pkg_fixtures, "z", z_ref.object_id.into()).await?;
         compile_package(z_src)
     };
 
@@ -160,13 +161,18 @@ async fn successful_verification_upgrades() -> anyhow::Result<()> {
     let b_v2_fixtures = iota_common::tempdir();
     let b_v2 = {
         let b_src = copy_published_package(&b_v2_fixtures, "b-v2", IotaAddress::ZERO).await?;
-        upgrade_package(context, b_v1.0, b_cap.0, b_src).await
+        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     let b_fixtures = iota_common::tempdir();
     let (b_pkg, e_pkg) = {
-        let b_src =
-            copy_upgraded_package(&b_fixtures, "b-v2", b_v2.0.into(), b_v1.0.into()).await?;
+        let b_src = copy_upgraded_package(
+            &b_fixtures,
+            "b-v2",
+            b_v2.object_id.into(),
+            b_v1.object_id.into(),
+        )
+        .await?;
         let e_src = copy_published_package(&b_fixtures, "e", IotaAddress::ZERO).await?;
         (compile_package(b_src), compile_package(e_src))
     };
@@ -202,7 +208,7 @@ async fn fail_verification_bad_address() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        copy_published_package(&a_pkg_fixtures, "b", b_ref.0.into()).await?;
+        copy_published_package(&a_pkg_fixtures, "b", b_ref.object_id.into()).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         publish_package(context, a_src.clone()).await;
         compile_package(a_src)
@@ -212,10 +218,7 @@ async fn fail_verification_bad_address() -> anyhow::Result<()> {
     let expected = expect!["On-chain address cannot be zero"];
     expected.assert_eq(
         &BytecodeSourceVerifier::new(client.read_api())
-            .verify(
-                &a_pkg,
-                ValidationMode::root_and_deps_at(AccountAddress::ZERO),
-            )
+            .verify(&a_pkg, ValidationMode::root_and_deps_at(IotaAddress::ZERO))
             .await
             .unwrap_err()
             .to_string(),
@@ -264,11 +267,11 @@ async fn rpc_call_failed_during_verify() -> anyhow::Result<()> {
 
     let a_ref_fixtures = iota_common::tempdir();
     let a_ref = {
-        copy_published_package(&a_ref_fixtures, "b", b_ref.0.into()).await?;
+        copy_published_package(&a_ref_fixtures, "b", b_ref.object_id.into()).await?;
         let a_src = copy_published_package(&a_ref_fixtures, "a", IotaAddress::ZERO).await?;
         publish_package(context, a_src).await.0
     };
-    let _a_addr: IotaAddress = a_ref.0.into();
+    let _a_addr: IotaAddress = a_ref.object_id.into();
 
     let client = context.get_client().await?;
     let _verifier = BytecodeSourceVerifier::new(client.read_api());
@@ -309,7 +312,7 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = IotaAddress::random_for_testing_only();
+        let b_id = IotaAddress::random();
         stable_addrs.insert(b_id, "<id>");
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
@@ -323,12 +326,13 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
-    let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::from(package_root), "<id>");
+    let package_root = IotaAddress::random();
+    stable_addrs.insert(package_root, "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_and_deps_at(package_root))
         .await
@@ -338,12 +342,13 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     // <id> below may refer to either the package_root or dependent package `b`
     // (the check reports the first missing object nondeterministically)
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
-    let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::from(package_root), "<id>");
+    let package_root = IotaAddress::random();
+    stable_addrs.insert(package_root, "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_at(package_root))
         .await
@@ -351,8 +356,9 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -365,7 +371,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = IOTA_SYSTEM_STATE_OBJECT_ID.into();
+        let b_id = ObjectID::SYSTEM_STATE.into();
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
@@ -400,7 +406,7 @@ async fn module_not_found_on_chain() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        copy_published_package(&a_pkg_fixtures, "b", b_ref.0.into()).await?;
+        copy_published_package(&a_pkg_fixtures, "b", b_ref.object_id.into()).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
     };
@@ -433,7 +439,7 @@ async fn module_not_found_locally() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = b_ref.0.into();
+        let b_id = b_ref.object_id.into();
         stable_addrs.insert(b_id, "b_id");
         let b_src = copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
@@ -477,7 +483,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
 
     let a_fixtures = iota_common::tempdir();
     let (a_pkg, a_ref) = {
-        let b_id = b_ref.0.into();
+        let b_id = b_ref.object_id.into();
         stable_addrs.insert(b_id, "<b_id>");
         copy_published_package(&a_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_fixtures, "a", IotaAddress::ZERO).await?;
@@ -492,7 +498,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
 
         (compiled, publish_package(context, a_src).await.0)
     };
-    let a_addr: IotaAddress = a_ref.0.into();
+    let a_addr: IotaAddress = a_ref.object_id.into();
     stable_addrs.insert(a_addr, "<a_addr>");
 
     let client = context.get_client().await?;
@@ -506,7 +512,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let Err(err) = verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_addr.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_addr))
         .await
     else {
         panic!("Expected verification to fail");
@@ -531,24 +537,40 @@ async fn linkage_differs() -> anyhow::Result<()> {
 
     let b_v2_fixtures = iota_common::tempdir();
     let b_v2 = {
-        let b_src =
-            copy_upgraded_package(&b_v2_fixtures, "b-v2", b_v1.0.into(), IotaAddress::ZERO).await?;
-        upgrade_package(context, b_v1.0, b_cap.0, b_src).await
+        let b_src = copy_upgraded_package(
+            &b_v2_fixtures,
+            "b-v2",
+            b_v1.object_id.into(),
+            IotaAddress::ZERO,
+        )
+        .await?;
+        upgrade_package(context, b_v1.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish b-v2 a second time, to create a third version of the package that is
     // otherwise byte-for-byte identical with the second version;
     let b_v3_fixtures = iota_common::tempdir();
     let b_v3 = {
-        let b_src =
-            copy_upgraded_package(&b_v3_fixtures, "b-v2", b_v2.0.into(), IotaAddress::ZERO).await?;
-        upgrade_package(context, b_v2.0, b_cap.0, b_src).await
+        let b_src = copy_upgraded_package(
+            &b_v3_fixtures,
+            "b-v2",
+            b_v2.object_id.into(),
+            IotaAddress::ZERO,
+        )
+        .await?;
+        upgrade_package(context, b_v2.object_id, b_cap.object_id, b_src).await
     };
 
     // Publish E pointing at v2 of B.
     let e_v1_fixtures = iota_common::tempdir();
     let (e_v1, _) = {
-        copy_upgraded_package(&e_v1_fixtures, "b-v2", b_v2.0.into(), b_v1.0.into()).await?;
+        copy_upgraded_package(
+            &e_v1_fixtures,
+            "b-v2",
+            b_v2.object_id.into(),
+            b_v1.object_id.into(),
+        )
+        .await?;
         let e_src = copy_published_package(&e_v1_fixtures, "e", IotaAddress::ZERO).await?;
         publish_package(context, e_src).await
     };
@@ -557,16 +579,22 @@ async fn linkage_differs() -> anyhow::Result<()> {
     // nevertheless has a different address.
     let e_v2_fixtures = iota_common::tempdir();
     let e_pkg = {
-        copy_upgraded_package(&e_v2_fixtures, "b-v2", b_v3.0.into(), b_v1.0.into()).await?;
-        let e_src = copy_published_package(&e_v2_fixtures, "e", e_v1.0.into()).await?;
+        copy_upgraded_package(
+            &e_v2_fixtures,
+            "b-v2",
+            b_v3.object_id.into(),
+            b_v1.object_id.into(),
+        )
+        .await?;
+        let e_src = copy_published_package(&e_v2_fixtures, "e", e_v1.object_id.into()).await?;
         compile_package(e_src)
     };
 
     let client = context.get_client().await?;
     let stable_ids = HashMap::from_iter([
-        (b_v1.0.into(), "<b1>"),
-        (b_v2.0.into(), "<b2>"),
-        (b_v3.0.into(), "<b3>"),
+        (b_v1.object_id.into(), "<b1>"),
+        (b_v2.object_id.into(), "<b2>"),
+        (b_v3.object_id.into(), "<b3>"),
     ]);
 
     let error = BytecodeSourceVerifier::new(client.read_api())
@@ -612,8 +640,8 @@ async fn multiple_failures() -> anyhow::Result<()> {
     //   error)
     let d_pkg_fixtures = iota_common::tempdir();
     let d_pkg = {
-        let b_id = b_ref.0.into();
-        let c_id = c_ref.0.into();
+        let b_id = b_ref.object_id.into();
+        let c_id = c_ref.object_id.into();
         stable_addrs.insert(b_id, "<b_id>");
         stable_addrs.insert(c_id, "<c_id>");
         copy_published_package(&d_pkg_fixtures, "b", b_id).await?;
@@ -655,7 +683,7 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
 
     let a_fixtures = iota_common::tempdir();
     let a_pkg = {
-        copy_published_package(&a_fixtures, "versioned-b", b_ref.0.into()).await?;
+        copy_published_package(&a_fixtures, "versioned-b", b_ref.object_id.into()).await?;
         let a_src =
             copy_published_package(&a_fixtures, "versioned-a-depends-on-b", IotaAddress::ZERO)
                 .await?;
@@ -686,7 +714,7 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
             copy_published_package(&tmp_dir.path().join("publish"), "b", IotaAddress::ZERO).await?;
         let b_ref = publish_package(context, b_src).await.0;
         // setup b as a bytecode package
-        let pkg_path = copy_published_package(&tmp_dir, "b", b_ref.0.into()).await?;
+        let pkg_path = copy_published_package(&tmp_dir, "b", b_ref.object_id.into()).await?;
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
         BuildConfig::new_for_testing().build(&pkg_path).unwrap();
         fs::remove_dir_all(pkg_path.join("sources"))?;
@@ -711,12 +739,15 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         .unwrap();
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(a_ref.object_id.into()),
+        )
         .await
         .unwrap();
     Ok(())
@@ -732,7 +763,7 @@ fn compile_package(package: impl AsRef<Path>) -> CompiledPackage {
 
 fn sanitize_id(mut message: String, m: &HashMap<IotaAddress, &str>) -> String {
     for (addr, label) in m {
-        message = message.replace(format!("{addr}").strip_prefix("0x").unwrap(), label);
+        message = message.replace(&addr.to_string(), label);
     }
     message
 }

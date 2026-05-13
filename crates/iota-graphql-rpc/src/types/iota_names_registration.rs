@@ -10,8 +10,11 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
-use move_core_types::language_storage::StructTag;
+use iota_types::{
+    base_types::{IotaAddress as NativeIotaAddress, StructTag},
+    dynamic_field::Field,
+    id::UID,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -27,7 +30,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -41,6 +44,7 @@ use crate::{
     consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    types::object::ObjectOwner,
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -632,7 +636,7 @@ impl NameRegistration {
         move_object: &MoveObject,
         tag: &StructTag,
     ) -> Result<Self, NameRegistrationDowncastError> {
-        if !move_object.native.is_type(tag) {
+        if !move_object.native.is_struct_tag(tag) {
             return Err(NameRegistrationDowncastError::NotAnNameRegistration);
         }
 

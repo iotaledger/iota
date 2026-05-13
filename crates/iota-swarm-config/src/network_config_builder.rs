@@ -621,9 +621,12 @@ mod test {
     use iota_config::genesis::Genesis;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
-        epoch_data::EpochData, gas::IotaGasStatus, in_memory_storage::InMemoryStorage,
-        iota_system_state::IotaSystemStateTrait, metrics::LimitsMetrics,
-        transaction::CheckedInputObjects,
+        epoch_data::EpochData,
+        gas::IotaGasStatus,
+        in_memory_storage::InMemoryStorage,
+        iota_system_state::IotaSystemStateTrait,
+        metrics::LimitsMetrics,
+        transaction::{CheckedInputObjects, TransactionDataAPI},
     };
 
     #[test]
@@ -664,7 +667,7 @@ mod test {
         let epoch = EpochData::new_test();
         let transaction_data = &genesis_transaction.data().intent_message().value;
         let (kind, signer, mut gas_data) = transaction_data.execution_parts();
-        gas_data.payment = vec![];
+        gas_data.objects = vec![];
         let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
 
         let (_inner_temp_store, _, effects, _execution_error) = executor

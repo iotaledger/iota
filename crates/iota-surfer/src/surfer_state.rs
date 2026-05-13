@@ -14,15 +14,15 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
     execution_config_utils::to_binary_config,
+    move_package::MovePackageExt,
     object::{Object, Owner},
     storage::WriteKind,
-    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
 };
 use move_binary_format::{file_format::Visibility, normalized};
-use move_core_types::{identifier::IdentStr, language_storage::StructTag};
+use move_core_types::identifier::IdentStr;
 use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
@@ -162,14 +162,12 @@ impl SurferState {
         args: Vec<CallArg>,
     ) {
         let rgp = self.cluster.get_reference_gas_price().await;
-        let use_shared_object = args
-            .iter()
-            .any(|arg| matches!(arg, CallArg::Object(ObjectArg::SharedObject { .. })));
+        let use_shared_object = args.iter().any(CallArg::is_shared);
         let tx_data = TransactionData::new_move_call(
             self.address,
             package,
-            Identifier::new(module.as_str()).unwrap(),
-            Identifier::new(function.as_str()).unwrap(),
+            Identifier::new(&module).unwrap(),
+            Identifier::new(&function).unwrap(),
             vec![],
             self.gas_object,
             args,
@@ -217,16 +215,16 @@ impl SurferState {
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
     async fn process_tx_effects(&mut self, effects: &IotaTransactionBlockEffects) {
         for (owned_ref, write_kind) in effects.all_changed_objects() {
-            if matches!(owned_ref.owner, Owner::ObjectOwner(_)) {
+            if matches!(owned_ref.owner, Owner::Object(_)) {
                 // For object owned objects, we don't need to do anything.
                 // We also cannot read them because in the case of shared objects, there can be
                 // races and the child object may no longer exist.
                 continue;
             }
-            let obj_ref = owned_ref.reference.to_object_ref();
+            let obj_ref = owned_ref.reference;
             let object = self
                 .cluster
-                .get_object_from_fullnode_store(&obj_ref.0)
+                .get_object_from_fullnode_store(&obj_ref.object_id)
                 .await
                 .unwrap();
             if object.is_package() {
@@ -243,7 +241,7 @@ impl SurferState {
                         .or_default()
                         .push(obj_ref);
                 }
-                Owner::AddressOwner(address) => {
+                Owner::Address(address) => {
                     if address == self.address {
                         self.owned_objects
                             .entry(struct_tag)
@@ -251,24 +249,23 @@ impl SurferState {
                             .insert(obj_ref);
                     }
                 }
-                Owner::ObjectOwner(_) => (),
-                Owner::Shared {
-                    initial_shared_version,
-                } => {
+                Owner::Object(_) => (),
+                Owner::Shared(initial_shared_version) => {
                     if write_kind != WriteKind::Mutate {
                         self.shared_objects
                             .write()
                             .await
                             .entry(struct_tag)
                             .or_default()
-                            .push((obj_ref.0, initial_shared_version));
+                            .push((obj_ref.object_id, initial_shared_version));
                     }
                     // We do not need to insert it if it's a Mutate, because it
                     // means we should already have it in
                     // the inventory.
                 }
+                _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
             }
-            if obj_ref.0 == self.gas_object.0 {
+            if obj_ref.object_id == self.gas_object.object_id {
                 self.gas_object = obj_ref;
             }
         }
@@ -276,13 +273,18 @@ impl SurferState {
 
     async fn discover_entry_functions(&self, package: Object) {
         let package_id = package.id();
-        let move_package = package.into_inner().data.try_into_package().unwrap();
+        let move_package = package.into_inner().data.into_package_opt().unwrap();
         let proto_version = self.cluster.highest_protocol_version();
         let config = ProtocolConfig::get_for_version(proto_version, Chain::Unknown);
         let binary_config = to_binary_config(&config);
         let pool: &mut normalized::ArcPool = &mut *self.pool.write().await;
         let entry_functions: Vec<_> = move_package
-            .normalize(pool, &binary_config, /* include code */ false)
+            .normalize(
+                pool,
+                &binary_config,
+                // include code
+                false,
+            )
             .unwrap()
             .into_iter()
             .flat_map(|(module_name, module)| {
@@ -414,7 +416,7 @@ fn is_type_tx_context(ty: &Type) -> bool {
     match ty {
         Type::Reference(_, inner) => match inner.as_ref() {
             Type::Datatype(dt) => {
-                dt.module.address == IOTA_FRAMEWORK_ADDRESS
+                dt.module.address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
                     && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
                     && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
                     && dt.type_arguments.is_empty()

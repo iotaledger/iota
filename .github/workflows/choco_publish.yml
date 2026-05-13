@@ -23,10 +23,12 @@ jobs:
         shell: bash
         run: echo "artifact_name=iota-${{ inputs.iota_tag }}-windows-x86_64" >> $GITHUB_OUTPUT
 
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Download Windows artifact
         shell: bash
         run: |
-          wget https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz ./tmp
+          mkdir ./tmp
+          curl -L -o ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz
 
       - name: Extract Windows artifact
         shell: bash

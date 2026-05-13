@@ -13,7 +13,8 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType as ExecuteTransactionRequestTypeSchema, IotaExecutionStatus,
     IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
@@ -27,8 +28,7 @@ use iota_protocol_config::Chain;
 use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::default_hash,
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     iota_serde::BigInt,
@@ -42,7 +42,6 @@ use iota_types::{
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_core_types::account_address::AccountAddress;
 use tracing::{Instrument, instrument};
 
 use crate::{
@@ -227,10 +226,23 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = {
-            response.output_objects.map(|output_objects| {
-                ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
-            })
+        // Skip cache (and downstream balance/object_changes) when the validator
+        // returned no input/output objects — e.g. the already-executed early-return.
+        // Without this guard, cache misses fall through to a provider lookup that
+        // races with local state and returns "version higher than latest".
+        let object_cache = if (opts.show_balance_changes || opts.show_object_changes)
+            && (response.input_objects.is_some() || response.output_objects.is_some())
+        {
+            let mut object_cache = ObjectProviderCache::new(self.state.clone());
+            if let Some(input_objects) = response.input_objects {
+                object_cache.insert_objects_into_cache(input_objects);
+            }
+            if let Some(output_objects) = response.output_objects {
+                object_cache.insert_objects_into_cache(output_objects);
+            }
+            Some(object_cache)
+        } else {
+            None
         };
 
         let balance_changes = match &object_cache {
@@ -316,7 +328,7 @@ impl TransactionExecutionApi {
             },
             tx_data,
         );
-        let txn_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         Ok((intent_msg.value, txn_digest, input_objs))
     }
 
@@ -382,9 +394,9 @@ impl WriteApiServer for TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
+        request_type: Option<ExecuteTransactionRequestTypeSchema>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
+        self.execute_transaction_block(tx_bytes, signatures, opts, request_type.map(Into::into))
             .trace_timeout(Duration::from_secs(10))
             .await
     }
@@ -460,7 +472,7 @@ impl WriteApiServer for TransactionExecutionApi {
                     sender_address,
                     tx_kind,
                     gas_price.map(|i| *i),
-                    gas_budget.map(|i| *i),
+                    gas_budget,
                     gas_sponsor,
                     gas_objects,
                     show_raw_txn_data_and_effects,
@@ -494,9 +506,9 @@ impl IotaRpcModule for TransactionExecutionApi {
 
 #[async_trait]
 impl PackageStore for TransactionExecutionApi {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

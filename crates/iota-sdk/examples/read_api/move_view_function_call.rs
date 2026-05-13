@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "clock",
         "timestamp_ms",
         vec![],
-        vec![IotaJsonValue::new(json!(iota_types::IOTA_CLOCK_OBJECT_ID))?],
+        vec![IotaJsonValue::new(json!(ObjectID::CLOCK))?],
     )
     .await?
     .results;
@@ -44,9 +44,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "random",
         "load_inner",
         vec![],
-        vec![IotaJsonValue::new(json!(
-            iota_types::IOTA_RANDOMNESS_STATE_OBJECT_ID
-        ))?],
+        vec![IotaJsonValue::new(json!(ObjectID::RANDOMNESS_STATE))?],
     )
     .await?
     .results;

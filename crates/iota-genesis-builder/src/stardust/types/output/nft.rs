@@ -14,7 +14,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::{
@@ -258,7 +258,7 @@ impl NftExt for Nft {
         // Construct the Nft object.
         let move_nft_object = {
             MoveObject::new_from_execution(
-                Nft::tag().into(),
+                Nft::tag(),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -266,7 +266,7 @@ impl NftExt for Nft {
         };
 
         let move_nft_object = Object::new_from_genesis(
-            Data::Move(move_nft_object),
+            Data::Struct(move_nft_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the nft output object.
             owner,
@@ -336,7 +336,7 @@ impl NftOutputExt for NftOutput {
         // Construct the Nft Output object.
         let move_nft_output_object = {
             MoveObject::new_from_execution(
-                NftOutput::tag(coin_type.to_type_tag()).into(),
+                NftOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -344,15 +344,13 @@ impl NftOutputExt for NftOutput {
         };
 
         let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
+            Owner::Shared(version)
         } else {
-            Owner::AddressOwner(owner)
+            Owner::Address(owner)
         };
 
         let move_nft_output_object = Object::new_from_genesis(
-            Data::Move(move_nft_output_object),
+            Data::Struct(move_nft_output_object),
             owner,
             tx_context.digest(),
         );

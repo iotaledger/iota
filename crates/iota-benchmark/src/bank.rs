@@ -140,12 +140,15 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == init_coin.0.0)
+            .find(|(k, _)| k.object_id == init_coin.0.object_id)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
         init_coin.0 = updated_gas.0;
-        init_coin.1 = updated_gas.1.get_owner_address()?;
+        init_coin.1 = *updated_gas
+            .1
+            .address_or_object()
+            .ok_or_else(|| Error::msg("not an address or object owner"))?;
         init_coin.2 = self.primary_coin.2.clone();
 
         let address_map: HashMap<IotaAddress, Arc<AccountKeyPair>> = coin_configs
@@ -157,7 +160,9 @@ impl BenchmarkBank {
             .created()
             .into_iter()
             .map(|c| {
-                let address = c.1.get_owner_address()?;
+                let address =
+                    *c.1.address_or_object()
+                        .ok_or_else(|| Error::msg("not an address or object owner"))?;
                 let keypair = address_map
                     .get(&address)
                     .ok_or("Owner address missing in the address map")
@@ -191,20 +196,26 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == self.primary_coin.0.0)
+            .find(|(k, _)| k.object_id == self.primary_coin.0.object_id)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
         self.primary_coin = (
             updated_gas.0,
-            updated_gas.1.get_owner_address()?,
+            *updated_gas
+                .1
+                .address_or_object()
+                .ok_or_else(|| Error::msg("not an address or object owner"))?,
             self.primary_coin.2.clone(),
         );
 
         match effects.created().first() {
             Some(created_coin) => Ok((
                 created_coin.0,
-                created_coin.1.get_owner_address()?,
+                *created_coin
+                    .1
+                    .address_or_object()
+                    .ok_or_else(|| Error::msg("not an address or object owner"))?,
                 self.primary_coin.2.clone(),
             )),
             None => panic!("Failed to create initialization coin for workload."),

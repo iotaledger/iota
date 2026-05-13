@@ -210,8 +210,7 @@ pub enum Operation {
         #[arg(long, value_name = "INT", default_value = "400", global = true)]
         maximum_latency: u16,
 
-        /// Switch protocols between mysticeti and starfish every epoch,
-        /// default: false, aka use starfish in every epoch.
+        /// Consensus protocol to use (currently only Starfish is supported).
         #[arg(long, default_value = "starfish", global = true)]
         consensus_protocol: ConsensusProtocol,
 
@@ -371,8 +370,6 @@ pub enum LatencyTopology {
 #[derive(ValueEnum, Clone, Debug, Deserialize, Serialize)]
 pub enum ConsensusProtocol {
     Starfish,
-    Mysticeti,
-    SwapEachEpoch,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
