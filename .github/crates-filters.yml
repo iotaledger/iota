@@ -50,12 +50,8 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
-iota-grpc-client:
-  - "crates/iota-grpc-client/**"
 iota-grpc-server:
   - "crates/iota-grpc-server/**"
-iota-grpc-types:
-  - "crates/iota-grpc-types/**"
 iota-http:
   - "crates/iota-http/**"
 iota-indexer:
@@ -124,8 +120,6 @@ iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
   - "crates/iota-proc-macros/**"
-iota-proto-build:
-  - "crates/iota-proto-build/**"
 iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:

@@ -40,12 +40,6 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9123:9123"
       - "127.0.0.1:50051:50051"
-    healthcheck:
-      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v1/ledger_service.proto localhost:50051 iota.grpc.v1.ledger_service.LedgerService/GetHealth"
-      interval: 1s
-      start_period: 5s
-      timeout: 2s
-      retries: 3
 
   indexer-sync:
     image: iota-indexer
@@ -84,7 +78,7 @@ services:
       retries: 3
     depends_on:
       local-network:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
 
@@ -111,7 +105,7 @@ services:
       - "127.0.0.1:9182:9181/tcp"
     depends_on:
       local-network:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
       indexer-sync:
@@ -138,7 +132,7 @@ services:
       - "127.0.0.1:9184:9181/tcp"
     depends_on:
       local-network:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
       indexer-sync:
@@ -179,7 +173,7 @@ services:
       - "127.0.0.1:9183:9181/tcp"
     depends_on:
       local-network:
-        condition: service_healthy
+        condition: service_started
         restart: true
       postgres:
         condition: service_healthy

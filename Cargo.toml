@@ -88,9 +88,7 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
-  "crates/iota-grpc-client",
   "crates/iota-grpc-server",
-  "crates/iota-grpc-types",
   "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
@@ -126,7 +124,6 @@ members = [
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
-  "crates/iota-proto-build",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
@@ -249,7 +246,6 @@ bcs = "0.1.4"
 better_any = "0.1.1"
 bincode = "1.3.3"
 bip32 = "0.5"
-bitflags = { version = "2.10.0", default-features = false }
 byteorder = "1.4.3"
 bytes = { version = "1.5.0", features = ["serde"] }
 cached = "0.43.0"
@@ -315,7 +311,6 @@ parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
-petgraph = { version = ">=0.6, <=0.7", default-features = false }
 pin-project-lite = "0.2.15"
 prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
@@ -366,7 +361,6 @@ toml = { version = "0.7.4", features = ["preserve_order"] }
 tonic = { version = "0.14", features = ["zstd", "transport"] }
 tonic-build = "0.14"
 tonic-health = "0.14"
-tonic-prost = "0.14"
 tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
 tracing = "0.1.44"
@@ -402,9 +396,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { path = "crates/iota-grpc-client" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "0bb2128fc621c8323f1583f095a53564486ae779" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { path = "crates/iota-grpc-types" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "0bb2128fc621c8323f1583f095a53564486ae779" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -437,14 +431,13 @@ iota-package-dump = { path = "crates/iota-package-dump" }
 iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
-iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "c37fbcc9ad56c92f23582dcdb8203e3594088639", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0bb2128fc621c8323f1583f095a53564486ae779", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
