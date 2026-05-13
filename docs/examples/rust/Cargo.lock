@@ -3490,7 +3490,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c37fbcc9ad56c92f23582dcdb8203e3594088639#c37fbcc9ad56c92f23582dcdb8203e3594088639"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779#0bb2128fc621c8323f1583f095a53564486ae779"
 dependencies = [
  "base64ct",
  "bcs",

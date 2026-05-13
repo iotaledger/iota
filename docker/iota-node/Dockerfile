@@ -31,8 +31,10 @@ COPY Cargo.toml Cargo.lock ./
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-node \
+      --bin iota-tool \
       --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-node ./iota-node
+    cp $TARGET_FOLDER/iota-node ./iota-node && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool
 
 
 # Production image
@@ -59,6 +61,7 @@ fi
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so
 
 COPY --from=builder /iota/iota-node /usr/local/bin
+COPY --from=builder /iota/iota-tool /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION

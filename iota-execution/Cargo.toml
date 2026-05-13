@@ -28,7 +28,7 @@ move-vm-types-latest = { path = "../external-crates/move/crates/move-vm-types", 
 
 [dev-dependencies]
 cargo_metadata = "0.15"
-petgraph = { workspace = true, features = ["graphmap"] }
+petgraph = { version = ">=0.6, <=0.7", default-features = false, features = ["graphmap"] }
 
 [features]
 default = []

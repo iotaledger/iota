@@ -29,8 +29,8 @@ services:
           --epoch-duration-ms=120000 \
           --remote-migration-snapshots=https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/test/stardust_object_snapshot.bin.gz \
           --delegator=0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892 &&
-        sed -i 's/enable-grpc-api: false/enable-grpc-api: true/' /root/.iota/iota_config/fullnode.yaml &&
         iota-localnet start \
+          --with-grpc \
           --with-faucet=0.0.0.0:9123 \
           --fullnode-rpc-port=9000
     expose:
@@ -41,11 +41,11 @@ services:
       - "127.0.0.1:9123:9123"
       - "127.0.0.1:50051:50051"
     healthcheck:
-      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v1/ledger_service.proto localhost:50051 iota.grpc.v1.ledger_service.LedgerService/GetHealth"
-      interval: 1s
-      start_period: 5s
-      timeout: 2s
-      retries: 3
+      test: "iota-tool grpc-health-check --address http://localhost:50051"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   indexer-sync:
     image: iota-indexer

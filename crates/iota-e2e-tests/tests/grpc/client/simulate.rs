@@ -1,6 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_grpc_client::{
+    ReadMask,
+    read_mask_fields::{SimulateExecutedTransactionField, SimulateField},
+};
 use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
 use iota_sdk_types::Transaction;
@@ -53,7 +57,11 @@ async fn simulate_transaction_scenarios() {
     // Test: minimal read mask
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
-        .simulate_transaction(transaction, false, Some("executed_transaction.effects"))
+        .simulate_transaction(
+            transaction,
+            false,
+            Some(ReadMask::from(SimulateExecutedTransactionField::EFFECTS)),
+        )
         .await
         .expect("Failed to simulate transaction with minimal mask");
 
@@ -156,7 +164,13 @@ async fn simulate_transaction_command_results_split_coins() {
     );
 
     let response = client
-        .simulate_transaction(transaction, false, Some("execution_result.command_results"))
+        .simulate_transaction(
+            transaction,
+            false,
+            Some(ReadMask::from(
+                SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
+            )),
+        )
         .await
         .expect("simulate_transaction should succeed");
 

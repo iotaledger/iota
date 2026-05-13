@@ -68,7 +68,7 @@ grpc-api-config:
 use iota_sdk_grpc_client::Client;
 
 // Connect to gRPC node
-let client = Client::connect("http://localhost:50051").await?;
+let client = Client::new("http://localhost:50051").await?;
 
 // Get a service-specific client
 let mut ledger = client.ledger_service_client();

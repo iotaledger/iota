@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_macros::sim_test;
 use tokio::time::timeout;
 
@@ -87,7 +88,11 @@ async fn stream_checkpoints_live() {
     let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
     let latest = client
-        .get_checkpoint_latest(Some(""), None, None)
+        .get_checkpoint_latest(
+            Some(ReadMask::from(CheckpointResponseField::ALL)),
+            None,
+            None,
+        )
         .await
         .expect("get latest checkpoint")
         .body()

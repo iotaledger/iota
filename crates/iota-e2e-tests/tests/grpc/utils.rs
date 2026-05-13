@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
 use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
@@ -63,7 +64,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::connect(test_cluster.grpc_url())
+    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
         .await
         .expect("Failed to connect to gRPC service");
 
@@ -179,7 +180,11 @@ pub async fn wait_for_executed_transactions_checkpointed(
     client: &iota_grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
+        .get_checkpoint_latest(
+            Some(ReadMask::from(CheckpointResponseField::ALL)),
+            None,
+            None,
+        )
         .await
         .expect("get latest checkpoint")
         .body()

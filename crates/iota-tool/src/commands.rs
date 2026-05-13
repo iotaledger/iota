@@ -402,6 +402,15 @@ pub enum ToolCommand {
         #[command(subcommand)]
         fire_drill: crate::fire_drill::FireDrill,
     },
+
+    /// Check the health of a running gRPC server.
+    /// Exits with code 0 if healthy, non-zero otherwise.
+    #[command(name = "grpc-health-check")]
+    GrpcHealthCheck {
+        /// The gRPC server address (e.g., "http://localhost:50051")
+        #[arg(long, default_value = "http://localhost:50051")]
+        address: String,
+    },
 }
 
 async fn check_locked_object(
@@ -1088,6 +1097,11 @@ impl ToolCommand {
             }
             ToolCommand::FireDrill { fire_drill } => {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
+            }
+            ToolCommand::GrpcHealthCheck { address } => {
+                let client = iota_grpc_client::Client::new(address).await?;
+                client.get_health(None).await?;
+                println!("OK");
             }
         };
         Ok(())

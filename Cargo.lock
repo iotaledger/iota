@@ -2960,7 +2960,7 @@ checksum = "718f6cd8c54ae5249fd42b0c86639df0100b8a86eea2e5f1b915cde2e1481453"
 dependencies = [
  "indexmap 2.11.0",
  "lalrpop-util",
- "logos 0.14.2",
+ "logos",
 ]
 
 [[package]]
@@ -5362,7 +5362,7 @@ dependencies = [
  "iota-package-management",
  "iota-protocol-config",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm-config",
@@ -5455,11 +5455,11 @@ dependencies = [
  "iota-analytics-indexer-derive",
  "iota-config",
  "iota-data-ingestion-core",
- "iota-grpc-client",
  "iota-indexer",
  "iota-json-rpc-types",
  "iota-metrics",
  "iota-package-resolver",
+ "iota-sdk-grpc-client",
  "iota-storage",
  "iota-types",
  "move-core-types",
@@ -5570,7 +5570,7 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -5679,7 +5679,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -5787,9 +5787,9 @@ dependencies = [
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
- "iota-grpc-client",
  "iota-kvstore",
  "iota-metrics",
+ "iota-sdk-grpc-client",
  "iota-storage",
  "iota-types",
  "object_store 0.13.1",
@@ -5818,10 +5818,10 @@ dependencies = [
  "futures",
  "iota-common",
  "iota-config",
- "iota-grpc-client",
- "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
+ "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
  "iota-storage",
  "iota-types",
  "notify",
@@ -5860,8 +5860,6 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-genesis-builder",
- "iota-grpc-client",
- "iota-grpc-types",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
@@ -5873,7 +5871,9 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -5963,7 +5963,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
@@ -6073,7 +6073,7 @@ dependencies = [
  "iota-move-natives-latest",
  "iota-protocol-config",
  "iota-sdk-crypto",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-stardust-types",
  "iota-swarm-config",
@@ -6169,7 +6169,6 @@ dependencies = [
  "iota-graphql-config",
  "iota-graphql-rpc-client",
  "iota-graphql-rpc-headers",
- "iota-grpc-client",
  "iota-grpc-server",
  "iota-indexer",
  "iota-indexer-streaming",
@@ -6183,7 +6182,8 @@ dependencies = [
  "iota-node-storage",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-grpc-client",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6235,23 +6235,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-grpc-client"
-version = "1.24.0-alpha"
-dependencies = [
- "async-stream",
- "base64 0.21.7",
- "futures",
- "http 1.4.0",
- "iota-grpc-types",
- "iota-sdk-types",
- "prost 0.14.3",
- "serde",
- "thiserror 1.0.64",
- "tokio",
- "tonic 0.14.2",
-]
-
-[[package]]
 name = "iota-grpc-server"
 version = "1.24.0-alpha"
 dependencies = [
@@ -6261,12 +6244,12 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "iota-config",
- "iota-grpc-client",
- "iota-grpc-types",
  "iota-metrics",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-test-transaction-builder",
  "iota-types",
  "itertools 0.13.0",
@@ -6284,21 +6267,6 @@ dependencies = [
  "tower 0.4.13",
  "tracing",
  "typed-store-error",
-]
-
-[[package]]
-name = "iota-grpc-types"
-version = "1.24.0-alpha"
-dependencies = [
- "bcs",
- "iota-sdk-types",
- "prost 0.14.3",
- "prost-types 0.14.3",
- "serde",
- "serde_json",
- "tap",
- "tonic 0.14.2",
- "tonic-prost",
 ]
 
 [[package]]
@@ -6349,9 +6317,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-data-ingestion-core",
- "iota-grpc-client",
  "iota-grpc-server",
- "iota-grpc-types",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -6364,6 +6330,8 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
+ "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
  "iota-storage",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6483,7 +6451,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -6584,7 +6552,7 @@ dependencies = [
  "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "itertools 0.13.0",
  "json_to_table",
@@ -6610,7 +6578,7 @@ dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "rand 0.8.6",
  "regex",
@@ -6654,7 +6622,7 @@ dependencies = [
  "fastcrypto",
  "hex",
  "hidapi",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
@@ -6674,7 +6642,7 @@ dependencies = [
  "clap",
  "iota-ledger",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "thiserror 1.0.64",
  "tokio",
  "tracing",
@@ -6962,7 +6930,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -7042,7 +7010,7 @@ dependencies = [
  "iota-network-stack",
  "iota-node-storage",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -7177,28 +7145,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "iota-proto-build"
-version = "1.24.0-alpha"
-dependencies = [
- "bitflags 2.10.0",
- "heck 0.4.1",
- "itertools 0.13.0",
- "petgraph 0.6.5",
- "prettyplease",
- "proc-macro2",
- "prost 0.14.3",
- "prost-reflect",
- "prost-types 0.14.3",
- "protox",
- "quote",
- "regex",
- "syn 2.0.117",
- "tonic-build",
- "tonic-prost-build",
- "walkdir",
 ]
 
 [[package]]
@@ -7362,7 +7308,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -7395,7 +7341,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -7422,11 +7368,69 @@ dependencies = [
  "bip32",
  "bip39",
  "ed25519-dalek",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "rand_core 0.6.4",
  "signature 2.2.0",
  "slip10_ed25519",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "iota-sdk-grpc-client"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779#0bb2128fc621c8323f1583f095a53564486ae779"
+dependencies = [
+ "async-stream",
+ "base64 0.22.1",
+ "futures",
+ "http 1.4.0",
+ "iota-sdk-grpc-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779)",
+ "prost 0.14.3",
+ "serde",
+ "thiserror 2.0.18",
+ "tonic 0.14.2",
+]
+
+[[package]]
+name = "iota-sdk-grpc-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779#0bb2128fc621c8323f1583f095a53564486ae779"
+dependencies = [
+ "bcs",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779)",
+ "prost 0.14.3",
+ "prost-types 0.14.3",
+ "serde",
+ "serde_json",
+ "tap",
+ "tonic 0.14.2",
+ "tonic-prost",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0bb2128fc621c8323f1583f095a53564486ae779#0bb2128fc621c8323f1583f095a53564486ae779"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "bytestring",
+ "derive_more 2.1.1",
+ "filetime",
+ "hex",
+ "paste",
+ "roaring",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_with",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "winnow 0.7.11",
 ]
 
 [[package]]
@@ -7723,7 +7727,7 @@ dependencies = [
  "iota-genesis-builder",
  "iota-names",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -7760,7 +7764,7 @@ dependencies = [
  "iota-genesis-builder",
  "iota-move-build",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-types",
  "move-core-types",
 ]
@@ -7820,6 +7824,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-replay",
  "iota-sdk",
+ "iota-sdk-grpc-client",
  "iota-snapshot",
  "iota-storage",
  "iota-tls",
@@ -7947,7 +7952,7 @@ dependencies = [
  "iota-network-stack",
  "iota-proc-macros",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "itertools 0.13.0",
  "lru 0.12.4",
  "move-binary-format",
@@ -8678,16 +8683,7 @@ version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c6b6e02facda28ca5fb8dbe4b152496ba3b1bd5a4b40bb2b1b2d8ad74e0f39b"
 dependencies = [
- "logos-derive 0.14.2",
-]
-
-[[package]]
-name = "logos"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff472f899b4ec2d99161c51f60ff7075eeb3097069a36050d8037a6325eb8154"
-dependencies = [
- "logos-derive 0.15.1",
+ "logos-derive",
 ]
 
 [[package]]
@@ -8706,37 +8702,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "logos-codegen"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "192a3a2b90b0c05b27a0b2c43eecdb7c415e29243acc3f89cc8247a5b693045c"
-dependencies = [
- "beef",
- "fnv",
- "lazy_static",
- "proc-macro2",
- "quote",
- "regex-syntax",
- "rustc_version",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "logos-derive"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e5d0c5463c911ef55624739fc353238b4e310f0144be1f875dc42fec6bfd5ec"
 dependencies = [
- "logos-codegen 0.14.2",
-]
-
-[[package]]
-name = "logos-derive"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "605d9697bcd5ef3a42d38efc51541aa3d6a4a25f7ab6d1ed0da5ac632a26b470"
-dependencies = [
- "logos-codegen 0.15.1",
+ "logos-codegen",
 ]
 
 [[package]]
@@ -11338,18 +11309,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost-reflect"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89a3ac73ec9a9118131a4594c9d336631a07852220a1d0ae03ee36b04503a063"
-dependencies = [
- "logos 0.15.1",
- "miette",
- "prost 0.14.3",
- "prost-types 0.14.3",
-]
-
-[[package]]
 name = "prost-types"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11386,33 +11345,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
 dependencies = [
  "thiserror 1.0.64",
-]
-
-[[package]]
-name = "protox"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8555716f64c546306ddf3383065dc40d4232609e79e0a4c50e94e87d54f30fb4"
-dependencies = [
- "bytes",
- "miette",
- "prost 0.14.3",
- "prost-reflect",
- "prost-types 0.14.3",
- "protox-parse",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "protox-parse"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "072eee358134396a4643dff81cfff1c255c9fbd3fb296be14bdb6a26f9156366"
-dependencies = [
- "logos 0.15.1",
- "miette",
- "prost-types 0.14.3",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -13193,7 +13125,7 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "rand 0.8.6",
  "rs_merkle",
  "serde",
@@ -13221,7 +13153,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fcbc436a1da0e9f46ea22a072627feaf6c518eaf)",
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.4",
@@ -14230,7 +14162,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
- "webpki-roots 1.0.4",
  "zstd",
 ]
 
