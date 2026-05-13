@@ -5,4 +5,11 @@ info:
   edition: legacy
   lint: true
 ---
-
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/linter/true_negative_share_owned.move:79:16
+   │
+79 │     public fun sender(_: &TxContext): address {
+   │                ^^^^^^ Function 'sender' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
