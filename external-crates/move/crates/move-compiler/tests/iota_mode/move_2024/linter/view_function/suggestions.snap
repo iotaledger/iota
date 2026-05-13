@@ -1,0 +1,267 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: 2024.alpha
+  lint: true
+---
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:40:22
+   │
+40 │     public entry fun entry_view(a: u64): u64 {
+   │                      ^^^^^^^^^^ Function 'entry_view' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:44:16
+   │
+44 │     public fun object_immutable_ref(object: &Object): u64 {
+   │                ^^^^^^^^^^^^^^^^^^^^ Function 'object_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:49:16
+   │
+49 │     public fun primitive_by_value(object: &Object, val: u8): u64 {
+   │                ^^^^^^^^^^^^^^^^^^ Function 'primitive_by_value' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:54:16
+   │
+54 │     public fun multiple_generic_object_immutable_ref(
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'multiple_generic_object_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:60:16
+   │
+60 │     public fun wrapped_by_value(wrapped: Wrapped): bool {
+   │                ^^^^^^^^^^^^^^^^ Function 'wrapped_by_value' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:64:16
+   │
+64 │     public fun generic_object_immutable_ref(generic_object: &GenericObject<Wrapped>): u64 {
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'generic_object_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:68:16
+   │
+68 │     public fun template_immutable_ref<T: store>(generic_object: &GenericObject<T>): u64 {
+   │                ^^^^^^^^^^^^^^^^^^^^^^ Function 'template_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:73:16
+   │
+73 │     public fun template_key_store_immutable_ref<T: key + store>(
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'template_key_store_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:80:16
+   │
+80 │     public fun template_copy_drop_store_immutable_ref<T: copy + drop + store>(
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'template_copy_drop_store_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:87:16
+   │
+87 │     public fun non_object_by_value(value: NonObject): u64 {
+   │                ^^^^^^^^^^^^^^^^^^^ Function 'non_object_by_value' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:91:16
+   │
+91 │     public fun templated_non_object_by_value<T: copy + drop + store>(
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'templated_non_object_by_value' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+   ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:98:16
+   │
+98 │     public fun option_primitive_by_value(value: Option<u64>): u64 {
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'option_primitive_by_value' satisfies view constraints and can be annotated with '#[view]'
+   │
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:106:16
+    │
+106 │     public fun option_non_object_by_value(value: Option<NonObject>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'option_non_object_by_value' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:114:16
+    │
+114 │     public fun option_generic_object_immutable_ref(value: &Option<GenericObject<Wrapped>>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'option_generic_object_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:119:16
+    │
+119 │     public fun vector_primitive_by_value(value: vector<u64>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'vector_primitive_by_value' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:123:16
+    │
+123 │     public fun vector_non_object_by_value(value: vector<NonObject>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'vector_non_object_by_value' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:127:16
+    │
+127 │     public fun vector_generic_object_immutable_ref(value: &vector<GenericObject<Wrapped>>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'vector_generic_object_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:131:16
+    │
+131 │     public fun receiving_immutable_ref(receiving: &Receiving<GenericObject<Wrapped>>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^ Function 'receiving_immutable_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:136:16
+    │
+136 │     public fun copy_type_param<T: copy>(value: T): T {
+    │                ^^^^^^^^^^^^^^^ Function 'copy_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:140:16
+    │
+140 │     public fun drop_type_param<T: drop>(value: T): u64 {
+    │                ^^^^^^^^^^^^^^^ Function 'drop_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:145:16
+    │
+145 │     public fun copy_store_type_param<T: copy + store>(value: T): T {
+    │                ^^^^^^^^^^^^^^^^^^^^^ Function 'copy_store_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:149:16
+    │
+149 │     public fun primitive_tuple_return(a: u64, b: bool): (u64, bool) {
+    │                ^^^^^^^^^^^^^^^^^^^^^^ Function 'primitive_tuple_return' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:153:23
+    │
+153 │     public native fun native_view(v: u64): u64;
+    │                       ^^^^^^^^^^^ Function 'native_view' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:155:23
+    │
+155 │     public native fun native_view_no_param(): bool;
+    │                       ^^^^^^^^^^^^^^^^^^^^ Function 'native_view_no_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:157:23
+    │
+157 │     public native fun native_type_param<T: key>(): u64;
+    │                       ^^^^^^^^^^^^^^^^^ Function 'native_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:159:16
+    │
+159 │     public fun unused_unconstrained_type_param<T>(): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unused_unconstrained_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:163:16
+    │
+163 │     public fun unconstrained_type_param_by_ref<T>(x: &T): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_by_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:168:16
+    │
+168 │     public fun unconstrained_type_param_vector_by_ref<T>(x: &vector<T>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_vector_by_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:173:16
+    │
+173 │     public fun unconstrained_type_param_option_by_ref<T>(x: &Option<T>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_option_by_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
