@@ -6683,6 +6683,7 @@ dependencies = [
  "iota-keys",
  "iota-macros",
  "iota-metrics",
+ "iota-protocol-config",
  "iota-sdk",
  "iota-simulator",
  "iota-swarm",

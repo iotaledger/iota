@@ -40,6 +40,7 @@ telemetry-subscribers.workspace = true
 iota-common.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-protocol-config.workspace = true
 iota-simulator.workspace = true
 
 [target.'cfg(msim)'.dependencies]
