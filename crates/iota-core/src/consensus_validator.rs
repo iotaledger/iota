@@ -121,19 +121,17 @@ impl IotaTxValidator {
                 }
 
                 ConsensusTransactionKind::UserTransactionV2(_a) => {
+                    // User signature verification is skipped: the attesting
+                    // validator already verified it in `submit_single_tx` before
+                    // producing the attestation.
+                    //
+                    // Attestor verification is performed in `post_consensus_validation`.
                     if !self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV2 not supported at current protocol version"
                                 .into(),
                         });
                     }
-                    // For UserTransactionV2 (attested transactions), skip user
-                    // signature verification — we trust the
-                    // attestor that the transaction has already
-                    // been validated before entering consensus. Only the
-                    // attestor signature needs to be
-                    // checked. TODO: verify the attestor
-                    // signature on `_a.attestation`.
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)

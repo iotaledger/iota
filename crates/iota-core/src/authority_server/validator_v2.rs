@@ -306,15 +306,15 @@ impl ValidatorService {
                 });
 
             match attestor_index {
-                Some(attestor_index) => ConsensusTransaction::new_attested_transaction(
-                    AttestedTransaction::new(
+                Some(attestor_index) => {
+                    ConsensusTransaction::new_attested_transaction(AttestedTransaction::new(
                         verified_tx.into_inner(),
                         Attestation::Validator {
                             payload: attestation_data,
                             attestor_index,
                         },
-                    ),
-                ),
+                    ))
+                }
                 None => {
                     soft_locks.release(&tx_digest);
                     metrics
@@ -330,11 +330,9 @@ impl ValidatorService {
         };
 
         // Submit to consensus.
-        if let Err(e) = consensus_adapter.submit(
-            consensus_tx,
-            Some(&reconfiguration_lock),
-            epoch_store,
-        ) {
+        if let Err(e) =
+            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), epoch_store)
+        {
             let weight = normalize(&e);
             // Release soft locks so the transaction can be retried.
             tracing::debug!(

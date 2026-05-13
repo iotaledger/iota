@@ -580,18 +580,17 @@ impl ConsensusAdapter {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous: either all
             // CertifiedTransaction (certificate flow), all UserTransactionV1,
-            // or all UserTransactionV2 (white-flag flow). Mixing V1 and V2 is
-            // not allowed. submit_and_wait_inner assumes a single transaction
-            // kind across the batch.
-            let all_certificates = transactions.iter().all(|tx| {
-                matches!(tx.kind, ConsensusTransactionKind::CertifiedTransaction(_))
-            });
-            let all_v1 = transactions.iter().all(|tx| {
-                matches!(tx.kind, ConsensusTransactionKind::UserTransactionV1(_))
-            });
-            let all_v2 = transactions.iter().all(|tx| {
-                matches!(tx.kind, ConsensusTransactionKind::UserTransactionV2(_))
-            });
+            // or all UserTransactionV2 (white-flag flow). submit_and_wait_inner
+            // assumes a single transaction kind across the batch.
+            let all_certificates = transactions
+                .iter()
+                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::CertifiedTransaction(_)));
+            let all_v1 = transactions
+                .iter()
+                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::UserTransactionV1(_)));
+            let all_v2 = transactions
+                .iter()
+                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::UserTransactionV2(_)));
             fp_ensure!(
                 all_certificates || all_v1 || all_v2,
                 IotaError::InvalidTxKindInSoftBundle

@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Post-consensus validation and owned-object conflict resolution for
-//! `UserTransactionV1` transactions.
+//! `UserTransactionV1` and `UserTransactionV2` transactions.
 //!
 //! This module merges two formerly separate pipeline stages into a single pass:
 //!
 //! 1. **Semantic validation** — deduplication, already-executed check,
-//!    structural validity, and deny checks (deny lists, gas, ownership, coin
-//!    deny list, Move authenticator).
+//!    structural validity, attestor verification, and deny checks (deny lists,
+//!    gas, ownership, coin deny list, Move authenticator).
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -18,17 +18,19 @@
 //!
 //! # Per-transaction order within the loop
 //!
-//! 1. Non-`UserTransactionV1` — pass through unchanged.
+//! 1. Non-user transaction — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
 //! 3. Already executed — silent drop.
 //! 4. `validity_check()` — drop with error.
-//! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
+//! 5. Attestor verification (`UserTransactionV2` only) — verifies that the
+//!    claimed attestor matches the block author. Drop with error on mismatch or
+//!    unsupported attestation variant.
+//! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
 //!    with error. Cheap; performed before expensive checks.
-//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
-//!    when all locks are free.
-//! 7. All passed — acquire locks in the local tracking map, keep transaction.
-//!
-//! Non-`UserTransactionV1` transactions pass through unchanged.
+//! 7. `handle_transaction_validation_checks()` — drop with error. Skipped for
+//!    attested transactions (`UserTransactionV2`). Only reached when all locks
+//!    are free.
+//! 8. All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -36,6 +38,7 @@ use std::{
 };
 
 use iota_types::{
+    attestation::Attestation,
     base_types::{ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -54,17 +57,17 @@ use crate::{
     },
 };
 
-/// Validates `UserTransactionV1` transactions and resolves owned-object
+/// Validates `UserTransactionV1/V2` transactions and resolves owned-object
 /// conflicts in a single pass.
 ///
-/// For each `UserTransactionV1` in consensus order:
-/// - Runs deduplication, already-executed check, structural validity, lock
+/// For each `UserTransactionV1` or `UserTransactionV2` in consensus order:
+/// - Runs deduplication, already-executed check, structural validity, attestor verification (V2 only), lock
 ///   conflict check, and deny checks (deny list, gas, ownership, coin deny
 ///   list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 ///
-/// Non-`UserTransactionV1` transactions pass through unchanged.
+/// Non-`UserTransactionV1`/`UserTransactionV2` transactions pass through unchanged.
 ///
 /// # Arguments
 ///
@@ -81,7 +84,7 @@ use crate::{
 ///   are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
-/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
+/// - `all_user_tx_digests` — Every `UserTransactionV1`/`UserTransactionV2` digest that passed dedup
 ///   (both kept and dropped). Used by the caller to release pre-consensus soft
 ///   locks.
 pub async fn validate_and_resolve_conflicts(
@@ -100,15 +103,15 @@ pub async fn validate_and_resolve_conflicts(
     let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
-    // All UserTransactionV1 digests seen in this commit (both kept and dropped),
+    // All UserTransactionV1/V2 digests seen in this commit (both kept and dropped),
     // used by the caller to release pre-consensus soft locks.
     let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
-        // The same UserTransactionV1 may appear in DAG blocks from multiple
-        // validators within the same consensus commit. Only the first occurrence
-        // is kept. Silent drop — not added to `dropped`.
+        // The same UserTransactionV1 or UserTransactionV2 may appear in DAG
+        // blocks from multiple validators within the same consensus commit.
+        // Only the first occurrence is kept. Silent drop — not added to `dropped`.
         if !seen_keys.insert(tx.0.key()) {
             keep[i] = false;
             continue;
@@ -116,15 +119,15 @@ pub async fn validate_and_resolve_conflicts(
 
         // Only validate UserTransactionV1/V2; pass everything else through
         // unchanged.
-        let (transaction, is_attested) = match &tx.0.transaction {
+        let (transaction, attestation, is_attested) = match &tx.0.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => (t, false),
+            }) => (t, None, false),
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV2(a),
                 ..
-            }) => (&a.transaction, true),
+            }) => (&a.transaction, Some(&a.attestation), true),
             _ => continue,
         };
 
@@ -154,7 +157,40 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #3: Extract owned input objects for lock conflict detection.
+        // Check #3: Attestor verification (UserTransactionV2 only).
+        // The block signature transitively authenticates the attestation;
+        // verify the claimed attestor matches the actual block author.
+        if let Some(attestation) = attestation {
+            let block_author =
+                starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
+            let error = match attestation {
+                Attestation::Validator { attestor_index, .. } => {
+                    if *attestor_index != block_author {
+                        Some(IotaError::AttestationAuthorMismatch {
+                            expected: *attestor_index,
+                            actual: block_author,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Attestation::Explicit { .. } | _ => {
+                    Some(IotaError::ExplicitAttestationNotSupported)
+                }
+            };
+            if let Some(e) = error {
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed attestation verification, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+        }
+
+        // Check #4: Extract owned input objects for lock conflict detection.
         let owned_inputs = match extract_owned_input_objects(tx) {
             Ok(inputs) => inputs,
             Err(e) => {
@@ -169,14 +205,14 @@ pub async fn validate_and_resolve_conflicts(
             }
         };
 
-        // Check #4: Three-tier lock conflict check.
+        // Check #5: Three-tier lock conflict check.
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
         // Locks are keyed by full ObjectRef (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
         // versions will NOT conflict here — version freshness is validated
-        // later in Check #5 (deny checks load objects from DB and verify
+        // later in Check #6 (deny checks load objects from DB and verify
         // that the transaction's input refs match the current state).
         //
         // Tier 1: Local HashMap (current commit).
@@ -237,7 +273,7 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #5: Deny list, gas, ownership, coin deny list, Move
+        // Check #6: Deny list, gas, ownership, coin deny list, Move
         // authenticator. Only reached if all locks are free — skips the
         // expensive object loading for transactions that would be dropped
         // by the lock conflict check.

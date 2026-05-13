@@ -530,6 +530,18 @@ pub enum IotaError {
     #[error("Invalid DKG message size")]
     InvalidDkgMessageSize,
 
+    #[error(
+        "Attestation author mismatch: attestation claims attestor {expected:?} \
+         but the block was authored by {actual:?}"
+    )]
+    AttestationAuthorMismatch {
+        expected: starfish_config::AuthorityIndex,
+        actual: starfish_config::AuthorityIndex,
+    },
+
+    #[error("Explicit attestation is not supported in the current protocol version")]
+    ExplicitAttestationNotSupported,
+
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
