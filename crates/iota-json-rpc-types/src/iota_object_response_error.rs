@@ -41,10 +41,7 @@ pub enum IotaObjectResponseError {
         parent_object_id: ObjectID,
     },
     #[error(
-        "Object has been deleted object_id: {:?} at version: {:?} in digest {:?}",
-        object_id,
-        version,
-        digest
+        "Object has been deleted object_id: {object_id:?} at version: {version:?} in digest {digest:?}"
     )]
     Deleted {
         #[schemars(with = "ObjectIDSchema")]
