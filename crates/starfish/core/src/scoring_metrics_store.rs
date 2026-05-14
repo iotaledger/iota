@@ -535,8 +535,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        block_header::BlockRef,
         context::Context,
         dag_state::{DagState, DataSource},
+        error::ConsensusError,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -824,5 +826,105 @@ mod tests {
             persisted_after_first_flush, persisted_after_restart_flush,
             "Persisted counts should not double on restart + flush"
         );
+    }
+
+    // ── Error classification tests ────────────────────────────────────────────
+
+    /// Classifies `error` through `source` and returns
+    /// `(provable_delta, unprovable_delta)` for authority 0.
+    fn classify_via_record(error: &ConsensusError, source: ErrorSource) -> (u64, u64) {
+        let store = MisbehaviorStore::new(4);
+        let authority = AuthorityIndex::new_for_test(0);
+        store.record_faulty_block_header(authority, error, source);
+        let counts = store.in_memory.get(0);
+        (counts.faulty_blocks_provable, counts.faulty_blocks_unprovable)
+    }
+
+    #[test]
+    fn test_subscriber_provable_errors() {
+        let cases: &[ConsensusError] = &[
+            ConsensusError::TooManyAncestors(10, 5),
+            ConsensusError::TooManyTransactions { count: 100, limit: 50 },
+            ConsensusError::InvalidTransaction("bad tx".to_string()),
+        ];
+        for e in cases {
+            let (prov, unprov) = classify_via_record(e, ErrorSource::Subscriber);
+            assert_eq!(prov, 1, "expected provable for {e:?}");
+            assert_eq!(unprov, 0, "expected no unprovable for {e:?}");
+        }
+    }
+
+    #[test]
+    fn test_subscriber_unprovable_errors() {
+        let cases: &[ConsensusError] = &[
+            ConsensusError::WrongEpoch { expected: 1, actual: 2 },
+            ConsensusError::UnexpectedGenesisHeader,
+            ConsensusError::UnexpectedAuthority(
+                AuthorityIndex::new_for_test(0),
+                AuthorityIndex::new_for_test(1),
+            ),
+        ];
+        for e in cases {
+            let (prov, unprov) = classify_via_record(e, ErrorSource::Subscriber);
+            assert_eq!(prov, 0, "expected no provable for {e:?}");
+            assert_eq!(unprov, 1, "expected unprovable for {e:?}");
+        }
+    }
+
+    #[test]
+    fn test_subscriber_untracked_errors() {
+        let e = ConsensusError::BlockRejected {
+            block_ref: BlockRef::MIN,
+            reason: "test".to_string(),
+        };
+        let (prov, unprov) = classify_via_record(&e, ErrorSource::Subscriber);
+        assert_eq!(prov, 0);
+        assert_eq!(unprov, 0);
+    }
+
+    #[test]
+    fn test_synchronizer_downgrades_provable_to_unprovable() {
+        let e = ConsensusError::TooManyAncestors(10, 5);
+        let (prov, unprov) = classify_via_record(&e, ErrorSource::Synchronizer);
+        assert_eq!(prov, 0);
+        assert_eq!(unprov, 1);
+    }
+
+    #[test]
+    fn test_synchronizer_specific_unprovable_errors() {
+        let e = ConsensusError::UnexpectedNumberOfHeadersFetched {
+            authority: AuthorityIndex::new_for_test(0),
+            requested: 5,
+            received_headers: 3,
+        };
+        let (prov, unprov) = classify_via_record(&e, ErrorSource::Synchronizer);
+        assert_eq!(prov, 0);
+        assert_eq!(unprov, 1);
+    }
+
+    #[test]
+    fn test_commit_syncer_downgrades_provable_to_unprovable() {
+        let e = ConsensusError::TooManyAncestors(10, 5);
+        let (prov, unprov) = classify_via_record(&e, ErrorSource::CommitSyncer);
+        assert_eq!(prov, 0);
+        assert_eq!(unprov, 1);
+    }
+
+    #[test]
+    fn test_commit_syncer_specific_unprovable_errors() {
+        let authority = AuthorityIndex::new_for_test(1);
+        let cases: &[ConsensusError] = &[
+            ConsensusError::NoCommitReceived { peer: authority },
+            ConsensusError::FetchedTransactionsMismatch {
+                peer: authority,
+                expected: 3,
+                received: 1,
+            },
+        ];
+        for e in cases {
+            let (prov, unprov) = classify_via_record(e, ErrorSource::CommitSyncer);
+            assert_eq!(prov, 0, "expected no provable for {e:?}");
+            assert_eq!(unprov, 1, "expected unprovable for {e:?}");
+        }
     }
 }
