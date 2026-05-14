@@ -1116,13 +1116,25 @@ async fn test_v2_passes() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().compute_object_reference();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().compute_object_reference();
-    let tx = make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
     // attestor_index 0 == certificate_author_index 0 set by new_test → match.
-    let mut transactions = vec![make_user_tx_v2(tx, starfish_config::AuthorityIndex::new_for_test(0))];
+    let mut transactions = vec![make_user_tx_v2(
+        tx,
+        starfish_config::AuthorityIndex::new_for_test(0),
+    )];
 
     let (dropped, locks, user_tx_digests) =
         post_consensus_validation::validate_and_resolve_conflicts(
@@ -1133,16 +1145,25 @@ async fn test_v2_passes() {
         .await
         .unwrap();
 
-    assert_eq!(transactions.len(), 1, "V2 with matching attestor should be kept");
+    assert_eq!(
+        transactions.len(),
+        1,
+        "V2 with matching attestor should be kept"
+    );
     assert!(dropped.is_empty(), "No errors expected");
-    assert_eq!(locks.len(), 2, "Locks for object and gas should be acquired");
+    assert_eq!(
+        locks.len(),
+        2,
+        "Locks for object and gas should be acquired"
+    );
     assert_eq!(user_tx_digests, vec![digest]);
 }
 
 /// A `UserTransactionV2` whose `attestor_index` does not match the block's
 /// `certificate_author_index` is dropped via Check #3. Critically, its digest
 /// must still appear in `all_user_tx_digests` so the caller can release the
-/// pre-consensus soft lock — this is the invariant the loop restructure protects.
+/// pre-consensus soft lock — this is the invariant the loop restructure
+/// protects.
 #[sim_test]
 async fn test_v2_attestor_mismatch() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -1165,13 +1186,25 @@ async fn test_v2_attestor_mismatch() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
-    let object_ref = authority.get_object(&object_id).await.unwrap().compute_object_reference();
-    let gas_ref = authority.get_object(&gas_id).await.unwrap().compute_object_reference();
-    let tx = make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
     // attestor_index 1 != certificate_author_index 0 → mismatch.
-    let mut transactions = vec![make_user_tx_v2(tx, starfish_config::AuthorityIndex::new_for_test(1))];
+    let mut transactions = vec![make_user_tx_v2(
+        tx,
+        starfish_config::AuthorityIndex::new_for_test(1),
+    )];
 
     let (dropped, locks, user_tx_digests) =
         post_consensus_validation::validate_and_resolve_conflicts(
@@ -1182,14 +1215,24 @@ async fn test_v2_attestor_mismatch() {
         .await
         .unwrap();
 
-    assert!(transactions.is_empty(), "Mismatched V2 should be removed from the batch");
-    assert_eq!(dropped.len(), 1, "Mismatch should produce one dropped entry");
+    assert!(
+        transactions.is_empty(),
+        "Mismatched V2 should be removed from the batch"
+    );
+    assert_eq!(
+        dropped.len(),
+        1,
+        "Mismatch should produce one dropped entry"
+    );
     assert!(
         matches!(dropped[0].1, IotaError::AttestationAuthorMismatch { .. }),
         "expected AttestationAuthorMismatch, got {:?}",
         dropped[0].1,
     );
-    assert!(locks.is_empty(), "No locks should be acquired for a dropped transaction");
+    assert!(
+        locks.is_empty(),
+        "No locks should be acquired for a dropped transaction"
+    );
     // The digest must be in user_tx_digests even though the transaction was
     // dropped — the caller needs it to release the pre-consensus soft lock.
     assert_eq!(

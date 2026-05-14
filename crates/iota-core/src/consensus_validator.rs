@@ -126,7 +126,11 @@ impl IotaTxValidator {
                     // producing the attestation.
                     //
                     // Attestor verification is performed in `post_consensus_validation`.
-                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
+                    if !self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV2 not supported at current protocol version"
                                 .into(),

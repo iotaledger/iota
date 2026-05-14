@@ -17,6 +17,7 @@ use iota_types::{
 };
 use tokio::sync::mpsc;
 
+use super::ValidatorService;
 use crate::{
     authority::test_authority_builder::TestAuthorityBuilder,
     authority_server::{ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks},
@@ -28,12 +29,11 @@ use crate::{
     mock_consensus::with_block_status,
 };
 
-use super::ValidatorService;
-
-/// Submits a transaction to `submit_single_tx` with `enable_validator_attestation`
-/// on and asserts that the message reaching the consensus adapter is a
-/// `UserTransactionV2` carrying an `Attestation::Validator` whose `attestor_index`
-/// matches this validator's own position in the consensus committee.
+/// Submits a transaction to `submit_single_tx` with
+/// `enable_validator_attestation` on and asserts that the message reaching the
+/// consensus adapter is a `UserTransactionV2` carrying an
+/// `Attestation::Validator` whose `attestor_index` matches this validator's own
+/// position in the consensus committee.
 #[tokio::test]
 async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attestation() {
     telemetry_subscribers::init_for_testing();
@@ -117,10 +117,7 @@ async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attes
         .await
         .expect("consensus message should have been captured");
     let ConsensusTransactionKind::UserTransactionV2(attested) = consensus_tx.kind else {
-        panic!(
-            "expected UserTransactionV2, got {:?}",
-            consensus_tx.kind
-        );
+        panic!("expected UserTransactionV2, got {:?}", consensus_tx.kind);
     };
     let Attestation::Validator { attestor_index, .. } = &attested.attestation else {
         panic!(
@@ -145,10 +142,11 @@ async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attes
     assert_eq!(*attestor_index, expected_index);
 }
 
-/// Submits a transaction to `submit_single_tx` with `enable_validator_attestation`
-/// on, where the gas object referenced by the transaction does not exist in the
-/// authority store. Asserts that the call returns `TxStatusUpdate::Rejected`
-/// and that no message is ever forwarded to the consensus adapter.
+/// Submits a transaction to `submit_single_tx` with
+/// `enable_validator_attestation` on, where the gas object referenced by the
+/// transaction does not exist in the authority store. Asserts that the call
+/// returns `TxStatusUpdate::Rejected` and that no message is ever forwarded to
+/// the consensus adapter.
 #[tokio::test]
 async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensus() {
     telemetry_subscribers::init_for_testing();

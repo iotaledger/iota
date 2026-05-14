@@ -1695,7 +1695,7 @@ impl ProtocolConfig {
     }
 
     pub fn enable_validator_attestation(&self) -> bool {
-        self.feature_flags.enable_validator_attestation
+        self.feature_flags.enable_white_flag_flow && self.feature_flags.enable_validator_attestation
     }
 }
 

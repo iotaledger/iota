@@ -16,7 +16,7 @@
 //! and skips expensive validation for transactions that can't acquire object
 //! locks anyway.
 //!
-//! # Per-transaction order within the loop 
+//! # Per-transaction order within the loop
 //!
 //! - Non-user transaction — pass through unchanged.
 //! - Check #0: Dedup by `ConsensusTransactionKey` — silent drop.
@@ -25,7 +25,8 @@
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author. Drop with error on mismatch
 //!   or unsupported attestation variant.
-//! - Check #4: Extract owned input objects (needed for lock conflict detection).
+//! - Check #4: Extract owned input objects (needed for lock conflict
+//!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
 //!   — drop with error. Cheap; performed before expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` — drop with error.
@@ -62,13 +63,14 @@ use crate::{
 /// conflicts in a single pass.
 ///
 /// For each `UserTransactionV1` or `UserTransactionV2` in consensus order:
-/// - Runs deduplication, already-executed check, structural validity, attestor verification (V2 only), lock
-///   conflict check, and deny checks (deny list, gas, ownership, coin deny
-///   list, Move authenticator).
+/// - Runs deduplication, already-executed check, structural validity, attestor
+///   verification (V2 only), lock conflict check, and deny checks (deny list,
+///   gas, ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 ///
-/// Non-`UserTransactionV1`/`UserTransactionV2` transactions pass through unchanged.
+/// Non-`UserTransactionV1`/`UserTransactionV2` transactions pass through
+/// unchanged.
 ///
 /// # Arguments
 ///
@@ -85,9 +87,9 @@ use crate::{
 ///   are **not** included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
-/// - `all_user_tx_digests` — Every `UserTransactionV1`/`UserTransactionV2` digest that passed dedup
-///   (both kept and dropped). Used by the caller to release pre-consensus soft
-///   locks.
+/// - `all_user_tx_digests` — Every `UserTransactionV1`/`UserTransactionV2`
+///   digest that passed dedup (both kept and dropped). Used by the caller to
+///   release pre-consensus soft locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
