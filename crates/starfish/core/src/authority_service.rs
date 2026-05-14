@@ -44,6 +44,7 @@ use crate::{
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
         SerializedTransactionsV2, TransactionFetchMode,
     },
+    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -109,6 +110,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
+    misbehavior_store: Arc<MisbehaviorStore>,
     /// A set contains BlockHeaderDigests for block headers, received from
     /// streaming. It is used to filter the headers if they are received
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
@@ -134,6 +136,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
         cordial_knowledge: Arc<CordialKnowledgeHandle>,
     ) -> Self {
@@ -153,6 +156,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             subscription_counter,
             dag_state,
             store,
+            misbehavior_store,
             received_block_headers: FilterForHeaders::new(),
             transaction_message_sender,
             cordial_knowledge,
@@ -175,13 +179,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
+            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             self.context
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname, "header", "UnexpectedAuthority"])
+                .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
+            self.misbehavior_store
+                .record_faulty_block_header(peer, &e, ErrorSource::Subscriber);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -192,6 +198,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
+            self.misbehavior_store.record_faulty_block_header(
+                signed_block_header.author(),
+                &e,
+                ErrorSource::Subscriber,
+            );
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
@@ -298,6 +309,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block_header(
+                    signed_block_header.author(),
+                    &e,
+                    ErrorSource::Subscriber,
+                );
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
             }
@@ -1652,6 +1668,7 @@ mod tests {
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
         },
+        scoring_metrics_store::MisbehaviorStore,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
@@ -1760,6 +1777,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1772,6 +1790,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -1845,6 +1864,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1857,6 +1877,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -1941,6 +1962,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1953,6 +1975,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2028,6 +2051,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2040,6 +2064,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2166,6 +2191,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2178,6 +2204,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2249,6 +2276,7 @@ mod tests {
             dag_state.clone(),
             true,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2261,6 +2289,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2486,6 +2515,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2497,6 +2527,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2651,6 +2682,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2662,6 +2694,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2832,6 +2865,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Create the authority service
@@ -2845,6 +2879,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge.clone(),
         ));
@@ -3161,6 +3196,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Create the authority service
@@ -3174,6 +3210,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3302,6 +3339,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Create the authority service
@@ -3315,6 +3353,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3469,6 +3508,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Create the authority service
@@ -3482,6 +3522,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3661,6 +3702,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Create the authority service
@@ -3674,6 +3716,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3885,6 +3928,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -3897,6 +3941,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
             tx_message_sender,
             cordial_knowledge,
         ));

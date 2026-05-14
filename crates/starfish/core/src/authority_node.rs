@@ -243,6 +243,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             sync_last_known_own_block,
             fast_sync_active.clone(),
+            misbehavior_store.clone(),
         );
 
         // Both commit syncers run, but only one actively fetches based on the gap.
@@ -257,6 +258,7 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             header_synchronizer.clone(),
+            misbehavior_store.clone(),
             fast_sync_active.clone(),
         )
         .start();
@@ -275,6 +277,7 @@ impl ConsensusAuthority {
                 block_verifier.clone(),
                 dag_state.clone(),
                 header_synchronizer.clone(),
+                misbehavior_store.clone(),
                 flag.clone(),
             )
             .start()
@@ -290,6 +293,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store.clone(),
+            misbehavior_store.clone(),
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.clone(),
         ));

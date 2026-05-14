@@ -37,6 +37,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
+    scoring_metrics_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -146,6 +147,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -157,6 +159,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             block_verifier,
             dag_state,
             header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Fast,
             fast_sync_active: Some(fast_sync_active),
         });

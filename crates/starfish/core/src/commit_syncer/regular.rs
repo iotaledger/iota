@@ -42,6 +42,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    scoring_metrics_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -80,6 +81,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Option<Arc<AtomicBool>>,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -91,6 +93,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             block_verifier,
             dag_state,
             header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Regular,
             fast_sync_active,
         });
@@ -893,6 +896,7 @@ mod tests {
         error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
         network::{BlockBundleStream, NetworkClient},
+        scoring_metrics_store::MisbehaviorStore,
         storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
     };
@@ -1001,6 +1005,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         let mut commit_syncer = RegularCommitSyncer::new(
@@ -1010,8 +1015,9 @@ mod tests {
             commit_consumer_monitor.clone(),
             network_client,
             block_verifier,
-            dag_state,
+            dag_state.clone(),
             header_synchronizer,
+            Arc::new(MisbehaviorStore::new(4)),
             None,
         );
 
@@ -1124,6 +1130,7 @@ mod tests {
                 dag_state.clone(),
                 false,
                 None,
+                Arc::new(MisbehaviorStore::new(context.committee.size())),
             );
 
             let mut commit_syncer = RegularCommitSyncer::new(
@@ -1135,6 +1142,7 @@ mod tests {
                 block_verifier,
                 dag_state,
                 header_synchronizer,
+                Arc::new(MisbehaviorStore::new(4)),
                 fast_sync_active,
             );
 

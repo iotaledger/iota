@@ -62,6 +62,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::NetworkClient,
+    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -164,6 +165,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
+    pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
     /// Present only when `FastCommitSyncer` is constructed (both the
     /// protocol flag `consensus_fast_commit_sync` and the local flag
@@ -511,6 +513,11 @@ where
                         "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
                         inner.sync_type.as_str(),
                         e
+                    );
+                    inner.misbehavior_store.record_faulty_block_header(
+                        authority,
+                        &e,
+                        ErrorSource::CommitSyncer,
                     );
                     let error: &'static str = e.into();
                     inner

@@ -50,6 +50,7 @@ use crate::{
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -351,6 +352,7 @@ pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: Core
     /// reinitialization. `None` on deployments where fast sync is disabled
     /// — the gate becomes an unconditional pass-through.
     fast_sync_active: Option<Arc<AtomicBool>>,
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
@@ -366,6 +368,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
         fast_sync_active: Option<Arc<AtomicBool>>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
@@ -397,6 +400,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 dag_state.clone(),
                 receiver,
                 commands_sender.clone(),
+                misbehavior_store.clone(),
             );
             tasks.spawn(monitored_future!(fetch_blocks_from_authority_async));
             fetch_block_senders.insert(index, sender);
@@ -429,6 +433,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 commands_sender: commands_sender_clone,
                 dag_state,
                 fast_sync_active,
+                misbehavior_store,
             };
             s.run().await;
         }));
@@ -593,6 +598,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         mut receiver: Receiver<BlocksGuard>,
         commands_sender: Sender<Command>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         const MAX_RETRIES: u32 = 3;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -647,7 +653,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 transactions_synchronizer.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
-                                "live"
+                                "live",
+                                misbehavior_store.clone(),
                             ).await {
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
@@ -688,6 +695,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: Arc<Context>,
         commands_sender: Sender<Command>,
         sync_method: &str,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<()> {
         if serialized_headers.is_empty() {
             return Ok(());
@@ -713,6 +721,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let verified_cache = verified_cache.clone();
                 let context = context.clone();
                 let sync_method = sync_method.to_string();
+                let misbehavior_store = misbehavior_store.clone();
                 move || {
                     Self::verify_block_headers(
                         serialized_headers,
@@ -721,6 +730,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         &context,
                         peer_index,
                         &sync_method,
+                        &misbehavior_store,
                     )
                 }
             })
@@ -823,6 +833,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: &Context,
         peer_index: AuthorityIndex,
         sync_method: &str,
+        misbehavior_store: &MisbehaviorStore,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut verified_block_headers = Vec::new();
         let mut skipped_count = 0u64;
@@ -849,6 +860,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
+                misbehavior_store.record_faulty_block_header(peer_index, &e, ErrorSource::Synchronizer);
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -1107,6 +1119,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
         let transactions_synchronizer = self.transactions_synchronizer.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         trace!(
@@ -1191,6 +1204,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         context.clone(),
                         commands_sender.clone(),
                         "periodic",
+                        misbehavior_store.clone(),
                     )
                     .await
                     {
@@ -1582,6 +1596,7 @@ mod tests {
             InflightBlockHeadersMap, SyncMethod,
         },
         network::{BlockBundleStream, NetworkClient},
+        scoring_metrics_store::MisbehaviorStore,
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -2134,6 +2149,7 @@ mod tests {
             dag_state,
             false,
             None,
+            Arc::new(MisbehaviorStore::new(4)),
         );
 
         // Create some test block headers
@@ -2203,6 +2219,7 @@ mod tests {
             dag_state,
             false,
             None,
+            Arc::new(MisbehaviorStore::new(4)),
         );
 
         // Create some test block headers
@@ -2340,6 +2357,7 @@ mod tests {
             dag_state,
             false,
             None,
+            Arc::new(MisbehaviorStore::new(4)),
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2485,6 +2503,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2595,6 +2614,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2750,6 +2770,7 @@ mod tests {
             dag_state,
             true,
             None,
+            Arc::new(MisbehaviorStore::new(context.committee.size())),
         );
 
         // Wait at least for the timeout time
@@ -3229,6 +3250,7 @@ mod tests {
         )));
 
         // Create a Synchronizer
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
         let result = HeaderSynchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
@@ -3245,6 +3267,7 @@ mod tests {
             context.clone(),
             commands_sender.clone(),
             "live",
+            misbehavior_store.clone(),
         )
         .await;
 
@@ -3286,6 +3309,7 @@ mod tests {
             context.clone(),
             commands_sender,
             "live",
+            misbehavior_store,
         )
         .await;
 
