@@ -1323,6 +1323,7 @@
                 "enable_move_authentication": false,
                 "enable_move_authentication_for_sponsor": false,
                 "enable_poseidon": true,
+                "enable_validator_attestation": false,
                 "enable_vdf": true,
                 "enable_white_flag_flow": false,
                 "hardened_otw_check": true,
