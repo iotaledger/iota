@@ -41,6 +41,12 @@ impl MisbehaviorStore {
         }
     }
 
+    /// Resets all counters to zero. Used during fast sync reinitialization.
+    pub(crate) fn reset(&self) {
+        self.in_memory.reset();
+        self.persisted.reset();
+    }
+
     /// Restores persisted counts from storage and computes in-memory counts
     /// from the block refs already loaded into the DAG cache.
     pub(crate) fn initialize_misbehavior_counts(
@@ -425,6 +431,12 @@ impl CommitteeMisbehaviorCounts {
 
     fn to_storage(&self, authority: usize) -> MisbehaviorCounts {
         MisbehaviorCounts::V1(self.get(authority))
+    }
+
+    fn reset(&self) {
+        for m in &self.authorities {
+            *m.lock().unwrap() = MisbehaviorCountsV1::default();
+        }
     }
 
     #[cfg(test)]

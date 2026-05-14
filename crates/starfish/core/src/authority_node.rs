@@ -32,6 +32,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
+    scoring_metrics_store::MisbehaviorStore,
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
@@ -124,7 +125,12 @@ impl ConsensusAuthority {
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
+        let dag_state = Arc::new(RwLock::new(DagState::new_with_misbehavior_store(
+            context.clone(),
+            store.clone(),
+            misbehavior_store.clone(),
+        )));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 

@@ -223,7 +223,7 @@ pub(crate) struct DagState {
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
-    misbehavior_store: MisbehaviorStore,
+    misbehavior_store: Arc<MisbehaviorStore>,
 
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
@@ -238,6 +238,17 @@ pub(crate) struct DagState {
 impl DagState {
     /// Initializes DagState from storage.
     pub(crate) fn new(context: Arc<Context>, store: Arc<dyn Store>) -> Self {
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
+        Self::new_with_misbehavior_store(context, store, misbehavior_store)
+    }
+
+    /// Initializes DagState from storage with an externally-provided
+    /// MisbehaviorStore, allowing it to be shared with other components.
+    pub(crate) fn new_with_misbehavior_store(
+        context: Arc<Context>,
+        store: Arc<dyn Store>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+    ) -> Self {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
@@ -329,7 +340,7 @@ impl DagState {
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
-            misbehavior_store: MisbehaviorStore::new(num_authorities),
+            misbehavior_store,
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
@@ -445,7 +456,7 @@ impl DagState {
         }
 
         // 4. Re-initialize misbehavior counts from storage
-        self.misbehavior_store = MisbehaviorStore::new(num_authorities);
+        self.misbehavior_store.reset();
         let recovered_misbehavior_counts = self
             .store
             .scan_misbehavior_counts()
