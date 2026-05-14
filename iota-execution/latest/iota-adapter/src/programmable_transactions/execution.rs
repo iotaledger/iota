@@ -873,8 +873,8 @@ mod checked {
 
     /// Verifies that any function marked `#[view]` in the current package
     /// remains marked `#[view]` in the upgraded package. Removing the attribute
-    /// would preserve the Move bytecode signature but break clients that rely on
-    /// view-function metadata for read-only execution.
+    /// would preserve the Move bytecode signature but break clients that rely
+    /// on view-function metadata for read-only execution.
     fn check_view_function_compatibility(
         module_name: &str,
         cur_module: &CompiledModule,
@@ -933,12 +933,12 @@ mod checked {
 
         Ok(runtime_metadata
             .fun_attributes_iter()
-            .filter_map(|(function_name, attributes)| {
+            .filter(|&(_function_name, attributes)| {
                 attributes
                     .iter()
                     .any(|attribute| matches!(attribute, IotaAttribute::View))
-                    .then(|| function_name.clone())
             })
+            .map(|(function_name, _attributes)| function_name.clone())
             .collect())
     }
 
