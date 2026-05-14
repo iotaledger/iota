@@ -30,8 +30,10 @@ COPY Cargo.toml Cargo.lock ./
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-localnet \
+      --bin iota-tool \
       --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-localnet ./iota-localnet
+    cp $TARGET_FOLDER/iota-localnet ./iota-localnet && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool
 
 # Production image
 FROM debian:trixie-slim AS runtime
@@ -39,15 +41,10 @@ FROM debian:trixie-slim AS runtime
 ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
-# Install runtime dependencies and tools (grpcurl for gRPC health checks)
-RUN apt update && apt install -y ca-certificates curl libpq5 && \
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "${ARCH}" = "amd64" ]; then GRPCURL_ARCH="x86_64"; else GRPCURL_ARCH="${ARCH}"; fi && \
-    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.1/grpcurl_1.9.1_linux_${GRPCURL_ARCH}.tar.gz" \
-    | tar -xz -C /usr/local/bin grpcurl
-
+# Install runtime dependencies and tools
+RUN apt update && apt install -y ca-certificates curl libpq5
 COPY --from=builder /iota/iota-localnet /usr/local/bin
-COPY --from=builder /iota/crates/iota-grpc-types/proto /iota/proto
+COPY --from=builder /iota/iota-tool /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION

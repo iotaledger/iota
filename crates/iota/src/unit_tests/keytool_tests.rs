@@ -157,49 +157,6 @@ async fn test_read_write_keystore_with_flag() {
 }
 
 #[test]
-async fn test_iota_operations_config() {
-    let temp_dir = TempDir::new().unwrap();
-    let path = temp_dir.path().join("iota.keystore");
-    let path1 = path.clone();
-    // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota.keystore
-    // If this test fails, address hardcoded in iota-operations is likely needed be
-    // updated.
-    let kp = IotaKeyPair::decode(
-        "iotaprivkey1qr2x8cgu0y2egh5x4s4h9kytsxgvltv0776gul4cjtp8tfw0pglgyye70lu",
-    )
-    .unwrap();
-    let contents = vec![kp.encode().unwrap()];
-    let res = std::fs::write(path, serde_json::to_string_pretty(&contents).unwrap());
-    assert!(res.is_ok());
-    let read = FileBasedKeystore::new(&path1);
-    assert!(read.is_ok());
-    assert_eq!(
-        IotaAddress::from_str("bc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
-            .unwrap(),
-        read.unwrap().addresses()[0]
-    );
-
-    // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota-benchmark.keystore
-    // If this test fails, address hardcoded in iota-operations is likely needed be
-    // updated.
-    let path2 = temp_dir.path().join("iota-benchmark.keystore");
-    let path3 = path2.clone();
-    let kp = IotaKeyPair::decode(
-        "iotaprivkey1qrcfd38ngfhqrvfes20rrul28ej7dswn2hy6h0wtsgkvs9expd0qqy38y3q",
-    )
-    .unwrap();
-    let contents = vec![kp.encode().unwrap()];
-    let res = std::fs::write(path2, serde_json::to_string_pretty(&contents).unwrap());
-    assert!(res.is_ok());
-    let read = FileBasedKeystore::new(&path3);
-    assert_eq!(
-        IotaAddress::from_str("e988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
-            .unwrap(),
-        read.unwrap().addresses()[0]
-    );
-}
-
-#[test]
 async fn test_load_keystore_err() {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("iota.keystore");

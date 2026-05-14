@@ -152,7 +152,12 @@ pub struct UpgradeReceipt {
     pub package: ID,
 }
 
-pub trait MovePackageExt {
+mod move_package_ext {
+    pub trait Sealed {}
+    impl Sealed for super::MovePackage {}
+}
+
+pub trait MovePackageExt: Sized + move_package_ext::Sealed {
     fn new_initial<'p>(
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,

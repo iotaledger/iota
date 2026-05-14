@@ -5,11 +5,8 @@ use std::{collections::BTreeMap, time::Duration};
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
-use iota_grpc_client::Client as GrpcClient;
-use iota_grpc_types::{
-    field::{FieldMask, FieldMaskUtil},
-    v1::transaction::ExecutedTransaction,
-};
+use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
+use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffectsAPI, TransactionEvents},
@@ -45,10 +42,10 @@ const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
 
 // As an optimization, we're trying to request only the fields we actually need.
 const EXECUTE_TRANSACTION_READ_MASK: &[&str] = &[
-    "effects.bcs",
-    "events.events.bcs",
-    "input_objects.bcs",
-    "output_objects.bcs",
+    TransactionField::EFFECTS_BCS,
+    TransactionField::EVENTS_EVENTS_BCS,
+    TransactionField::INPUT_OBJECTS_BCS,
+    TransactionField::OUTPUT_OBJECTS_BCS,
 ];
 
 type TransactionDataToCommit = (
@@ -235,15 +232,11 @@ impl OptimisticTransactionExecutor {
             .optimistic_tx_node_response_wait_time
             .start_timer();
 
-        let readmask = FieldMask::from_paths(EXECUTE_TRANSACTION_READ_MASK)
-            .display()
-            .to_string();
-
         let response = self
             .rpc_client
             .execute_transaction(
                 signed_transaction.try_into()?,
-                Some(readmask.as_str()),
+                Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
                 None,
             )
             .await;

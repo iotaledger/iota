@@ -487,6 +487,20 @@ const developer = [
                                     'developer/move/how-tos/account-abstraction/authenticator/dynamic-multisig-account',
                                 ]
                             },
+                            {
+                                type: 'category',
+                                label: 'Authentication Security Best Practices',
+                                link: {
+                                    type: 'generated-index',
+                                    slug: 'developer/move/how-tos/account-abstraction/security',
+                                },
+                                description: 'How to secure abstract accounts.',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/security/inputs-cryptographic-protection',
+                                    'developer/move/how-tos/account-abstraction/security/tx-data-cryptographic-protection',
+                                    'developer/move/how-tos/account-abstraction/security/shared-object-inputs',
+                                ],
+                            },
                         ],
                     },
                     {

@@ -803,7 +803,6 @@ class RustTestOrchestrator:
         test_env = {'IOTA_SKIP_SIMTESTS': '1'}
         
         commands = [
-            f"cargo run --package iota-benchmark --bin stress -- --log-path {self.root_dir}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection",
             "cargo test --doc",
             "cargo doc --all-features --workspace --no-deps",
             f"{self.root_dir}/scripts/execution_layer.py generate-lib",

@@ -9,9 +9,10 @@ use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
     TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
+use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    error::{IotaError, IotaObjectResponseError, UserInputError},
+    error::{IotaError, UserInputError},
     quorum_driver_types::QuorumDriverError,
 };
 use jsonrpsee::{
@@ -86,7 +87,6 @@ impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
             IotaError::UserInput { error } => Self::UserInput(error),
-            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponse(error),
             IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),

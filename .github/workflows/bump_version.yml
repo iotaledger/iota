@@ -39,8 +39,16 @@ jobs:
         with:
           ref: ${{ inputs.base_branch }}
 
+      - name: Get latest bump_version script from commit that triggered this workflow
+        run: |
+          git fetch origin ${{ github.sha }}
+          git checkout ${{ github.sha }} -- scripts/bump_version.sh
+
       - name: Run bump_version.sh
         run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
+
+      - name: Revert bump_version.sh to base branch version
+        run: git checkout HEAD -- scripts/bump_version.sh 2>/dev/null || git rm -f scripts/bump_version.sh
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
@@ -51,3 +59,4 @@ jobs:
           commit-message: "release: bump version to `${{ env.IOTA_VERSION }}`"
           body: Automated version bump to `${{ env.IOTA_VERSION }}`.
           delete-branch: true
+          sign-commits: true

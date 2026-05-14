@@ -7,16 +7,11 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-# external dependencies
-bcs.workspace = true
-
-# internal dependencies
 iota-genesis-builder.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
-move-core-types.workspace = true
 
 [lints]
 workspace = true

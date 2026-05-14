@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::Error;
+use iota_grpc_client::{Error, ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
 use iota_sdk_types::UserSignature;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
@@ -97,7 +97,11 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, Some("effects"), None)
+        .execute_transaction(
+            signed_tx,
+            Some(ReadMask::from(TransactionField::EFFECTS)),
+            None,
+        )
         .await
         .expect("Failed to execute transaction");
 

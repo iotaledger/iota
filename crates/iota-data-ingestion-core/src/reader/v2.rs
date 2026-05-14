@@ -103,7 +103,7 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let grpc_client = GrpcClient::connect(url).await.map(|client| {
+                let grpc_client = GrpcClient::new(url).await.map(|client| {
                     client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
                 })?;
                 RemoteStore::Fullnode(grpc_client)
@@ -323,7 +323,7 @@ impl CheckpointReaderActor {
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
+                Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
                 None,
                 None,
             )

@@ -15,7 +15,6 @@ thiserror.workspace = true
 
 # internal dependencies
 iota-types.workspace = true
-move-core-types.workspace = true
 
 [lints]
 workspace = true

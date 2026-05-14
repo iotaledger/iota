@@ -4,29 +4,45 @@
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
-    error::IotaObjectResponseError as NativeObjectResponseError,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{DeserializeAs, SerializeAs, serde_as};
+use strum::{AsRefStr, IntoStaticStr};
+use thiserror::Error;
 
 use crate::iota_primitives::{
     Base58 as Base58Schema, ObjectID as ObjectIDSchema,
     SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
-#[serde_as]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Eq,
+    PartialEq,
+    Clone,
+    Debug,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    Hash,
+    AsRefStr,
+    IntoStaticStr,
+    Error,
+)]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {
+    #[error("Object {:?} does not exist", object_id)]
     NotExists {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
     },
+    #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
     DynamicFieldNotFound {
         #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
     },
+    #[error(
+        "Object has been deleted object_id: {object_id:?} at version: {version:?} in digest {digest:?}"
+    )]
     Deleted {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
@@ -37,71 +53,8 @@ pub enum IotaObjectResponseError {
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
+    #[error("Unknown Error")]
     Unknown,
-    Display {
-        error: String,
-    },
-}
-
-impl SerializeAs<NativeObjectResponseError> for IotaObjectResponseError {
-    fn serialize_as<S>(source: &NativeObjectResponseError, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        IotaObjectResponseError::from(source.clone()).serialize(serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, NativeObjectResponseError> for IotaObjectResponseError {
-    fn deserialize_as<D>(deserializer: D) -> Result<NativeObjectResponseError, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let schema = IotaObjectResponseError::deserialize(deserializer)?;
-        Ok(NativeObjectResponseError::from(schema))
-    }
-}
-
-impl From<NativeObjectResponseError> for IotaObjectResponseError {
-    fn from(error: NativeObjectResponseError) -> Self {
-        match error {
-            NativeObjectResponseError::NotExists { object_id } => Self::NotExists { object_id },
-            NativeObjectResponseError::DynamicFieldNotFound { parent_object_id } => {
-                Self::DynamicFieldNotFound { parent_object_id }
-            }
-            NativeObjectResponseError::Deleted {
-                object_id,
-                version,
-                digest,
-            } => Self::Deleted {
-                object_id,
-                version,
-                digest,
-            },
-            NativeObjectResponseError::Unknown => Self::Unknown,
-            NativeObjectResponseError::Display { error } => Self::Display { error },
-        }
-    }
-}
-
-impl From<IotaObjectResponseError> for NativeObjectResponseError {
-    fn from(error: IotaObjectResponseError) -> Self {
-        match error {
-            IotaObjectResponseError::NotExists { object_id } => Self::NotExists { object_id },
-            IotaObjectResponseError::DynamicFieldNotFound { parent_object_id } => {
-                Self::DynamicFieldNotFound { parent_object_id }
-            }
-            IotaObjectResponseError::Deleted {
-                object_id,
-                version,
-                digest,
-            } => Self::Deleted {
-                object_id,
-                version,
-                digest,
-            },
-            IotaObjectResponseError::Unknown => Self::Unknown,
-            IotaObjectResponseError::Display { error } => Self::Display { error },
-        }
-    }
+    #[error("Display Error: {:?}", error)]
+    Display { error: String },
 }

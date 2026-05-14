@@ -1698,8 +1698,12 @@ Examples:
     internal_crates_dict = get_package_names_from_cargo_tomls(target_dir, None)
 
     # add special cases
-    internal_crates_dict["iota-sdk-types"] = None
+    internal_crates_dict["iota-grpc-client"] = None
+    internal_crates_dict["iota-grpc-types"] = None
+    internal_crates_dict["iota-sdk-grpc-client"] = None
+    internal_crates_dict["iota-sdk-grpc-types"] = None
     internal_crates_dict["iota-sdk-transaction-builder"] = None
+    internal_crates_dict["iota-sdk-types"] = None
     internal_crates_dict["iota-flamegraph-svg"] = None
 
     print("Processing Cargo.toml files...")

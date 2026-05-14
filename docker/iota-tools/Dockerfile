@@ -33,7 +33,6 @@ COPY Cargo.toml Cargo.lock binary-build-list.json ./
 # Build binaries with their required features looked up from binary-build-list.json
 RUN BINARIES="\
       iota-node \
-      stress \
       iota-analytics-indexer \
       iota \
       iota-localnet \
@@ -63,7 +62,6 @@ WORKDIR "$WORKDIR"
 RUN apt update && apt install -y libpq5 ca-certificates curl git
 
 COPY --from=builder /iota/iota-node /usr/local/bin
-COPY --from=builder /iota/stress /usr/local/bin
 COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
 COPY --from=builder /iota/iota /usr/local/bin
 COPY --from=builder /iota/iota-localnet /usr/local/bin
