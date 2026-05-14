@@ -144,3 +144,79 @@ async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attes
         .expect("authority must be present in the consensus committee");
     assert_eq!(*attestor_index, expected_index);
 }
+
+/// Submits a transaction to `submit_single_tx` with `enable_validator_attestation`
+/// on, where the gas object referenced by the transaction does not exist in the
+/// authority store. Asserts that the call returns `TxStatusUpdate::Rejected`
+/// and that no message is ever forwarded to the consensus adapter.
+#[tokio::test]
+async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensus() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    // Only register object_id; gas_id is intentionally absent from the store.
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[Object::with_id_owner_for_testing(object_id, sender)])
+        .build()
+        .await;
+
+    // Consensus must never be reached — any submit call panics the test.
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    // Build a gas object reference locally so the transaction is structurally
+    // valid, but never store it in the authority — attest_transaction must fail.
+    let gas_ref = Object::with_id_owner_for_testing(gas_id, sender).compute_object_reference();
+
+    let tx_data = TransactionData::new_transfer(
+        dbg_addr(2),
+        object.compute_object_reference(),
+        sender,
+        gas_ref,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    let (update, _weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx,
+    )
+    .await;
+
+    assert!(
+        matches!(update, TxStatusUpdate::Rejected { .. }),
+        "expected Rejected, got {update:?}",
+    );
+}
