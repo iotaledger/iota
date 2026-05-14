@@ -395,13 +395,16 @@ fn classify_synchronizer_error(error: &ConsensusError) -> FaultType {
 
 fn classify_commit_syncer_error(error: &ConsensusError) -> FaultType {
     match error {
+        // These are commit-level faults, not block header faults; tracked separately.
         ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NoCommitReceived { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
-        | ConsensusError::FetchedTransactionsMismatch { .. } => FaultType::Unprovable,
+        | ConsensusError::FetchedTransactionsMismatch { .. }
+        | ConsensusError::TooManyCommitsFromPeer { .. } => FaultType::Untracked,
+        // Block header errors are downgraded to unprovable (can't prove who sent them).
         error => match classify_block_header_error(error) {
             FaultType::Provable => FaultType::Unprovable,
             other => other,
@@ -543,6 +546,7 @@ impl MisbehaviorCounts {
 mod tests {
     use std::sync::Arc;
 
+    use bcs;
     use starfish_config::Parameters;
 
     use super::*;
@@ -923,7 +927,9 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_syncer_specific_unprovable_errors() {
+    fn test_commit_syncer_specific_untracked_errors() {
+        // These are commit-level faults, not block header faults — should not be
+        // recorded in faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
             ConsensusError::NoCommitReceived { peer: authority },
@@ -932,11 +938,12 @@ mod tests {
                 expected: 3,
                 received: 1,
             },
+            ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e, ErrorSource::CommitSyncer);
             assert_eq!(prov, 0, "expected no provable for {e:?}");
-            assert_eq!(unprov, 1, "expected unprovable for {e:?}");
+            assert_eq!(unprov, 0, "expected no unprovable (untracked) for {e:?}");
         }
     }
 }
