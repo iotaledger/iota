@@ -1,6 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+#[path = "../unit_tests/validator_v2_tests.rs"]
+mod validator_v2_tests;
+
 use std::sync::Arc;
 
 use futures::{StreamExt, future::Either, stream};
