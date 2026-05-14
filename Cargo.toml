@@ -219,6 +219,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'
 
 [workspace.lints.clippy]
 redundant_clone = "warn"
+uninlined_format_args = "warn"
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]

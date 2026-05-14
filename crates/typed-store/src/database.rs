@@ -45,8 +45,8 @@ pub(crate) enum ColumnFamily {
 impl std::fmt::Debug for ColumnFamily {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ColumnFamily::Rocks(name) => write!(f, "RocksDB cf: {}", name),
-            ColumnFamily::InMemory(name) => write!(f, "InMemory cf: {}", name),
+            ColumnFamily::Rocks(name) => write!(f, "RocksDB cf: {name}"),
+            ColumnFamily::InMemory(name) => write!(f, "InMemory cf: {name}"),
         }
     }
 }
@@ -82,8 +82,8 @@ pub(crate) enum Storage {
 impl std::fmt::Debug for Storage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Storage::Rocks(db) => write!(f, "RocksDB Storage {:?}", db),
-            Storage::InMemory(db) => write!(f, "InMemoryDB Storage {:?}", db),
+            Storage::Rocks(db) => write!(f, "RocksDB Storage {db:?}"),
+            Storage::InMemory(db) => write!(f, "InMemoryDB Storage {db:?}"),
         }
     }
 }

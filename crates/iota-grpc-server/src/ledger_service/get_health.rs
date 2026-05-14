@@ -30,10 +30,7 @@ pub fn get_health(
     if now_ms.saturating_sub(checkpoint_ts) > threshold_ms {
         return Err(RpcError::new(
             Code::Unavailable,
-            format!(
-                "Latest checkpoint timestamp is beyond the threshold of {}ms",
-                threshold_ms
-            ),
+            format!("Latest checkpoint timestamp is beyond the threshold of {threshold_ms}ms"),
         ));
     }
 

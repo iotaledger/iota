@@ -2915,8 +2915,8 @@ mod tests {
         for i in 0..expected_number {
             match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
                 Ok(Some(bundle)) => received_bundles.push(bundle),
-                Ok(None) => panic!("Stream ended at bundle {} of {}", i, expected_number),
-                Err(_) => panic!("Timeout at bundle {} of {}", i, expected_number),
+                Ok(None) => panic!("Stream ended at bundle {i} of {expected_number}"),
+                Err(_) => panic!("Timeout at bundle {i} of {expected_number}"),
             }
         }
 
@@ -2999,7 +2999,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
             match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
                 Ok(Some(bundle)) => received_bundles.push(bundle),
-                Ok(None) => panic!("Stream ended at round {}", round),
+                Ok(None) => panic!("Stream ended at round {round}"),
                 Err(_) => panic!(
                     "Timeout at round {}, got {} bundles",
                     round,

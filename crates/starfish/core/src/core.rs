@@ -3383,9 +3383,8 @@ mod test {
                     }
                 }
                 _ = tokio::time::sleep(timeout_duration) => {
-                    panic!("Test timed out after {:?}. Received {}/{} notifications. \
-                           This suggests notifications are not being sent properly.",
-                           timeout_duration, received_notifications, expected_notifications);
+                    panic!("Test timed out after {timeout_duration:?}. Received {received_notifications}/{expected_notifications} notifications. \
+                           This suggests notifications are not being sent properly.");
                 }
             }
         }
@@ -3393,8 +3392,7 @@ mod test {
         // Verify we got all expected notifications
         assert_eq!(
             received_notifications, expected_notifications,
-            "Expected {} notifications but only received {}",
-            expected_notifications, received_notifications
+            "Expected {expected_notifications} notifications but only received {received_notifications}"
         );
     }
 }

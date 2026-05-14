@@ -998,7 +998,7 @@ mod tests {
         let transactions_added_count = has_transactions_results.iter().filter(|&&x| x).count();
 
         // Print diagnostic information
-        println!("Suspended full blocks count: {}", suspended_count);
+        println!("Suspended full blocks count: {suspended_count}");
         println!(
             "Transactions added to DagState: {}/{}",
             transactions_added_count,
@@ -1008,8 +1008,7 @@ mod tests {
         // Assert the bug: suspended_blocks should be empty but it's not
         assert_eq!(
             suspended_count, 0,
-            "BUG CONFIRMED: {} full blocks are stuck in suspended_blocks! They should have been processed or dropped.",
-            suspended_count
+            "BUG CONFIRMED: {suspended_count} full blocks are stuck in suspended_blocks! They should have been processed or dropped."
         );
 
         // Assert that transactions should have been added
