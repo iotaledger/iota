@@ -156,3 +156,70 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use starfish_core::{
+        BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCountsV1,
+        VerifiedBlockHeader,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_misbehavior_counts_transposes_per_authority_to_per_field_vecs() {
+        let counts = vec![
+            MisbehaviorCountsV1 {
+                faulty_blocks_provable: 1,
+                faulty_blocks_unprovable: 2,
+                missing_proposals: 3,
+                equivocations: 4,
+            },
+            MisbehaviorCountsV1 {
+                faulty_blocks_provable: 10,
+                faulty_blocks_unprovable: 20,
+                missing_proposals: 30,
+                equivocations: 40,
+            },
+            MisbehaviorCountsV1::default(),
+        ];
+
+        let mut subdag = CommittedSubDag::new(
+            BlockRef::MIN,
+            Vec::<VerifiedBlockHeader>::new(),
+            vec![],
+            vec![],
+            0,
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            counts,
+        );
+        // Sanity: keep the snapshot reachable via the trait even after construction.
+        subdag.misbehavior_counts.shrink_to_fit();
+
+        let out = subdag.misbehavior_counts();
+        assert_eq!(out.faulty_blocks_provable, vec![1, 10, 0]);
+        assert_eq!(out.faulty_blocks_unprovable, vec![2, 20, 0]);
+        assert_eq!(out.missing_proposals, vec![3, 30, 0]);
+        assert_eq!(out.equivocations, vec![4, 40, 0]);
+    }
+
+    #[test]
+    fn test_misbehavior_counts_empty_snapshot_produces_empty_vecs() {
+        let subdag = CommittedSubDag::new(
+            BlockRef::MIN,
+            Vec::<VerifiedBlockHeader>::new(),
+            vec![],
+            vec![],
+            0,
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+        let out = subdag.misbehavior_counts();
+        assert!(out.faulty_blocks_provable.is_empty());
+        assert!(out.faulty_blocks_unprovable.is_empty());
+        assert!(out.missing_proposals.is_empty());
+        assert!(out.equivocations.is_empty());
+    }
+}
