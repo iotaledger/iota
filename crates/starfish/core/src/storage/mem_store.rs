@@ -13,7 +13,6 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use super::{Store, WriteBatch};
-use crate::scoring_metrics_store::StorageScoringMetrics;
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, TransactionsCommitment,
@@ -25,6 +24,7 @@ use crate::{
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    scoring_metrics_store::StorageScoringMetrics,
     storage::rocksdb_store::check_ref_consistency,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
