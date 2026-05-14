@@ -676,6 +676,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect();
 
+            let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
             committed_subdags.push(CommittedSubDag::new(
                 commit.leader(),
                 vec![], // headers - VerifiedBlockHeader, we don't have these in fast sync
@@ -684,6 +685,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commit.timestamp_ms(),
                 commit.reference(),
                 reputation_scores,
+                misbehavior_counts,
             ));
         }
 

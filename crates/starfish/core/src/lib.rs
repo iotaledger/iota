@@ -70,6 +70,7 @@ pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
 pub use network::tonic_network::to_socket_addr;
+pub use misbehavior_store::MisbehaviorCountsV1;
 #[cfg(msim)]
 pub use storage::delete_all_transactions_from_store;
 #[cfg(msim)]
