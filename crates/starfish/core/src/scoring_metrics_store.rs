@@ -12,6 +12,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     block_header::{BlockRef, Round},
     context::Context,
+    error::ConsensusError,
     metrics::NodeMetrics,
 };
 
@@ -169,8 +170,8 @@ impl MisbehaviorStore {
     /// Updates misbehavior counts for one authority during flush.
     /// Must be called before cache eviction is applied, while evicted block
     /// refs are still in `recent_refs`.
-    /// Returns `Some(MisbehaviorCounts)` if the eviction boundary advanced
-    /// (meaning new data needs to be written to storage).
+    /// Returns `Some(MisbehaviorCounts)` if persisted data changed and needs
+    /// to be written to storage.
     pub(crate) fn update_misbehavior_counts_on_eviction(
         &self,
         authority_index: AuthorityIndex,
@@ -186,6 +187,10 @@ impl MisbehaviorStore {
         if threshold_clock_round == 0 || authority_index.value() >= context.committee.size() {
             return None;
         }
+
+        // Move buffered faulty block header counts to persisted.
+        let had_faulty =
+            self.flush_faulty_block_header_buffer(authority_index, node_metrics, hostname);
 
         // Recompute in-memory window from blocks still in cache.
         let in_memory_block_rounds: Vec<Round> = recent_refs
@@ -207,31 +212,190 @@ impl MisbehaviorStore {
             node_metrics,
         );
 
-        if eviction_round == last_eviction_round {
-            return None;
+        let eviction_advanced = eviction_round != last_eviction_round;
+        if eviction_advanced {
+            // Accumulate newly-evicted rounds into persisted.
+            let evicted_block_rounds: Vec<Round> = recent_refs
+                .iter()
+                .map(|b| b.round)
+                .filter(|&r| r <= eviction_round)
+                .collect();
+            let (evicted_eq, evicted_missing) = calculate_misbehavior_counts_for_range(
+                evicted_block_rounds,
+                last_eviction_round + 1,
+                eviction_round,
+            );
+            self.update_missing_blocks_and_equivocations(
+                evicted_missing,
+                evicted_eq,
+                hostname,
+                authority_index,
+                BucketSource::Persisted,
+                node_metrics,
+            );
         }
 
-        // Accumulate newly-evicted rounds into persisted.
-        let evicted_block_rounds: Vec<Round> = recent_refs
-            .iter()
-            .map(|b| b.round)
-            .filter(|&r| r <= eviction_round)
-            .collect();
-        let (evicted_eq, evicted_missing) = calculate_misbehavior_counts_for_range(
-            evicted_block_rounds,
-            last_eviction_round + 1,
-            eviction_round,
-        );
-        self.update_missing_blocks_and_equivocations(
-            evicted_missing,
-            evicted_eq,
-            hostname,
-            authority_index,
-            BucketSource::Persisted,
-            node_metrics,
-        );
+        if eviction_advanced || had_faulty {
+            Some(self.persisted.to_storage(authority_index.value()))
+        } else {
+            None
+        }
+    }
 
-        Some(self.persisted.to_storage(authority_index.value()))
+    /// Flush buffered faulty block header counts from in_memory to persisted
+    /// for one authority. Returns true if any counts were moved.
+    fn flush_faulty_block_header_buffer(
+        &self,
+        authority: AuthorityIndex,
+        node_metrics: &NodeMetrics,
+        hostname: &str,
+    ) -> bool {
+        let idx = authority.value();
+        let buffered = self.in_memory.get(idx);
+        if buffered.faulty_blocks_provable == 0 && buffered.faulty_blocks_unprovable == 0 {
+            return false;
+        }
+        self.persisted.update(idx, |c| {
+            c.faulty_blocks_provable += buffered.faulty_blocks_provable;
+            c.faulty_blocks_unprovable += buffered.faulty_blocks_unprovable;
+        });
+        self.in_memory.update(idx, |c| {
+            c.faulty_blocks_provable = 0;
+            c.faulty_blocks_unprovable = 0;
+        });
+        node_metrics
+            .faulty_blocks_provable_by_authority
+            .with_label_values(&[hostname, "persisted"])
+            .add(buffered.faulty_blocks_provable as i64);
+        node_metrics
+            .faulty_blocks_unprovable_by_peer
+            .with_label_values(&[hostname, "persisted"])
+            .add(buffered.faulty_blocks_unprovable as i64);
+        true
+    }
+
+    /// Records a faulty block header event detected during block header
+    /// validation. Events are buffered in the in_memory bucket and moved
+    /// to persisted on the next flush.
+    pub(crate) fn record_faulty_block_header(
+        &self,
+        authority: AuthorityIndex,
+        error: &ConsensusError,
+        source: ErrorSource,
+    ) {
+        let fault = classify_for_source(error, source);
+        let idx = authority.value();
+        match fault {
+            FaultType::Provable => {
+                self.in_memory.update(idx, |c| {
+                    c.faulty_blocks_provable += 1;
+                });
+            }
+            FaultType::Unprovable => {
+                self.in_memory.update(idx, |c| {
+                    c.faulty_blocks_unprovable += 1;
+                });
+            }
+            FaultType::Untracked => {}
+        }
+    }
+}
+
+/// Whether a block header fault can be cryptographically proven.
+enum FaultType {
+    /// Block has a valid author signature but violates protocol rules.
+    /// The signed block header itself is proof of misbehavior.
+    Provable,
+    /// Can't prove authorship (bad signature, context-dependent error, or
+    /// block came via sync where the sender is unknown).
+    Unprovable,
+    /// Not counted as misbehavior.
+    Untracked,
+}
+
+/// Where the faulty block header was detected. Affects whether a provable
+/// fault stays provable or gets downgraded to unprovable.
+pub(crate) enum ErrorSource {
+    /// Block header received via subscription (streaming). Provable errors
+    /// stay provable because we can verify the author's signature.
+    Subscriber,
+    /// Block header fetched via the header synchronizer. All errors are
+    /// downgraded to unprovable because we can't prove who actually sent it.
+    Synchronizer,
+    /// Block header fetched via the commit syncer. Same downgrade as
+    /// Synchronizer.
+    CommitSyncer,
+}
+
+fn classify_block_header_error(error: &ConsensusError) -> FaultType {
+    match error {
+        // Signature/parsing errors — can't prove authorship
+        ConsensusError::WrongEpoch { .. }
+        | ConsensusError::UnexpectedGenesisHeader
+        | ConsensusError::InvalidAuthorityIndex { .. }
+        | ConsensusError::MalformedHeader(_)
+        | ConsensusError::MalformedSignature(_)
+        | ConsensusError::SignatureVerificationFailure(_)
+        | ConsensusError::SerializationFailure(_)
+        | ConsensusError::DeserializationFailure(_) => FaultType::Unprovable,
+
+        // Signed block header verification — provably the author's fault
+        ConsensusError::TooManyAncestors(..)
+        | ConsensusError::InsufficientParentStakes { .. }
+        | ConsensusError::InvalidAncestorPosition { .. }
+        | ConsensusError::InvalidAncestorRound { .. }
+        | ConsensusError::InvalidGenesisAncestor(_)
+        | ConsensusError::DuplicatedAncestorsAuthority(_)
+        | ConsensusError::InvalidOverlapIndices { .. }
+        | ConsensusError::TransactionTooLarge { .. }
+        | ConsensusError::TooManyTransactions { .. }
+        | ConsensusError::TooManyTransactionBytes { .. }
+        | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
+
+        _ => FaultType::Untracked,
+    }
+}
+
+fn classify_subscriber_error(error: &ConsensusError) -> FaultType {
+    match error {
+        ConsensusError::UnexpectedAuthority(..) => FaultType::Unprovable,
+        ConsensusError::BlockRejected { .. } => FaultType::Untracked,
+        error => classify_block_header_error(error),
+    }
+}
+
+fn classify_synchronizer_error(error: &ConsensusError) -> FaultType {
+    match error {
+        ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
+        | ConsensusError::UnexpectedLastOwnHeader { .. } => FaultType::Unprovable,
+        error => match classify_block_header_error(error) {
+            FaultType::Provable => FaultType::Unprovable,
+            other => other,
+        },
+    }
+}
+
+fn classify_commit_syncer_error(error: &ConsensusError) -> FaultType {
+    match error {
+        ConsensusError::MalformedCommit(_)
+        | ConsensusError::UnexpectedStartCommit { .. }
+        | ConsensusError::UnexpectedCommitSequence { .. }
+        | ConsensusError::NoCommitReceived { .. }
+        | ConsensusError::NotEnoughCommitVotes { .. }
+        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
+        | ConsensusError::FetchedTransactionsMismatch { .. } => FaultType::Unprovable,
+        error => match classify_block_header_error(error) {
+            FaultType::Provable => FaultType::Unprovable,
+            other => other,
+        },
+    }
+}
+
+fn classify_for_source(error: &ConsensusError, source: ErrorSource) -> FaultType {
+    match source {
+        ErrorSource::Subscriber => classify_subscriber_error(error),
+        ErrorSource::Synchronizer => classify_synchronizer_error(error),
+        ErrorSource::CommitSyncer => classify_commit_syncer_error(error),
     }
 }
 
