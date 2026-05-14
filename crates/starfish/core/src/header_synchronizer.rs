@@ -847,7 +847,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
 
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    misbehavior_store.record_faulty_block_header(
+                        peer_index,
+                        peer_index,
+                        e,
+                        ErrorSource::Synchronizer,
+                    );
+                })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
                 // TODO: we might want to use a different metric to track the invalid "served"
@@ -860,7 +869,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
-                misbehavior_store.record_faulty_block_header(peer_index, peer_index, &e, ErrorSource::Synchronizer);
+                misbehavior_store.record_faulty_block_header(
+                    peer_index,
+                    signed_block_header.author(),
+                    &e,
+                    ErrorSource::Synchronizer,
+                );
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -964,6 +978,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
         let core_dispatcher = self.core_dispatcher.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         self.fetch_own_last_header_task
             .spawn(monitored_future!(async move {
@@ -982,7 +997,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let process_block_headers = |block_headers: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
                                     let mut result = Vec::new();
                                     for serialized_block_header in block_headers {
-                                        let signed_block_header = bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+                                        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                                            .map_err(ConsensusError::MalformedHeader)
+                                            .inspect_err(|e| {
+                                                // Author unknown when deserialization fails — blame the peer.
+                                                misbehavior_store.record_faulty_block_header(
+                                                    authority_index,
+                                                    authority_index,
+                                                    e,
+                                                    ErrorSource::Synchronizer,
+                                                );
+                                            })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
                                             let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
@@ -991,6 +1016,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
+                                            misbehavior_store.record_faulty_block_header(
+                                                authority_index,
+                                                signed_block_header.author(),
+                                                err,
+                                                ErrorSource::Synchronizer,
+                                            );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
 

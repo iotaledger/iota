@@ -42,7 +42,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
-    scoring_metrics_store::MisbehaviorStore,
+    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -636,6 +636,17 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         request_block_refs,
                         serialized_block_headers,
                     )
+                    .inspect_err(|e| {
+                        // Author unknown for fetch-shape errors and MalformedHeader —
+                        // blame the serving peer. Only MalformedHeader will be counted
+                        // (fetch-shape errors classify as Untracked).
+                        inner.misbehavior_store.record_faulty_block_header(
+                            target_authority,
+                            target_authority,
+                            e,
+                            ErrorSource::CommitSyncer,
+                        );
+                    })
                 }
             })
             .collect();

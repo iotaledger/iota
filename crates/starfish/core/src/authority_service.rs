@@ -174,8 +174,16 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             serialized_transactions,
         } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
 
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedHeader)
+            .inspect_err(|e| {
+                self.misbehavior_store.record_faulty_block_header(
+                    peer,
+                    peer,
+                    e,
+                    ErrorSource::Subscriber,
+                );
+            })?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
@@ -186,8 +194,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            self.misbehavior_store
-                .record_faulty_block_header(peer, peer, &e, ErrorSource::Subscriber);
+            self.misbehavior_store.record_faulty_block_header(
+                peer,
+                peer,
+                &e,
+                ErrorSource::Subscriber,
+            );
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -283,8 +295,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 continue;
             }
 
-            let signed_block_header: SignedBlockHeader =
-                bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    self.misbehavior_store.record_faulty_block_header(
+                        peer,
+                        peer,
+                        e,
+                        ErrorSource::Subscriber,
+                    );
+                })?;
 
             let header_round = signed_block_header.round();
             if header_round >= block_round {

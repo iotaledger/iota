@@ -250,9 +250,26 @@ impl<C: NetworkClient> Inner<C> {
         let mut verified_voting_headers = Vec::new();
         for serialized_block_header in serialized_vote_blocks_headers {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    self.misbehavior_store.record_faulty_block_header(
+                        peer,
+                        peer,
+                        e,
+                        ErrorSource::CommitSyncer,
+                    );
+                })?;
             // The block signature needs to be verified.
-            self.block_verifier.verify(&signed_block_header)?;
+            if let Err(e) = self.block_verifier.verify(&signed_block_header) {
+                self.misbehavior_store.record_faulty_block_header(
+                    peer,
+                    signed_block_header.author(),
+                    &e,
+                    ErrorSource::CommitSyncer,
+                );
+                return Err(e);
+            }
             for vote in signed_block_header.commit_votes() {
                 if *vote == end_commit_ref {
                     stake_aggregator.add(signed_block_header.author(), &self.context.committee);
@@ -513,12 +530,6 @@ where
                         "[{}] Failed to fetch {commit_range:?} from {hostname}: {}",
                         inner.sync_type.as_str(),
                         e
-                    );
-                    inner.misbehavior_store.record_faulty_block_header(
-                        authority,
-                        authority,
-                        &e,
-                        ErrorSource::CommitSyncer,
                     );
                     let error: &'static str = e.into();
                     inner
