@@ -6,4 +6,4 @@ processed 1 task
 task 0, lines 5-21:
 //# publish
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VmVerificationOrDeserializationError, source: Some(VMError { major_status: WRITEREF_WITHOUT_DROP_ABILITY, sub_status: None, message: None, exec_state: None, location: Module(ModuleId { address: _, name: Identifier("m") }), indices: [(FunctionDefinition, 0)], offsets: [(FunctionDefinitionIndex(0), 5)] }), command: Some(0) } }
+Execution Error: VmVerificationOrDeserializationError: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.; caused by: VMError with status WRITEREF_WITHOUT_DROP_ABILITY at location Module ModuleId { address: _, name: Identifier("m") } at index 0 for function definition at code offset 5 in function definition 0; at command index: 0
