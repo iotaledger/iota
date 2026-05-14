@@ -16,21 +16,22 @@
 //! and skips expensive validation for transactions that can't acquire object
 //! locks anyway.
 //!
-//! # Per-transaction order within the loop
+//! # Per-transaction order within the loop 
 //!
-//! 1. Non-user transaction — pass through unchanged.
-//! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — silent drop.
-//! 4. `validity_check()` — drop with error.
-//! 5. Attestor verification (`UserTransactionV2` only) — verifies that the
-//!    claimed attestor matches the block author. Drop with error on mismatch or
-//!    unsupported attestation variant.
-//! 6. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
-//!    with error. Cheap; performed before expensive checks.
-//! 7. `handle_transaction_validation_checks()` — drop with error. Skipped for
-//!    attested transactions (`UserTransactionV2`). Only reached when all locks
-//!    are free.
-//! 8. All passed — acquire locks in the local tracking map, keep transaction.
+//! - Non-user transaction — pass through unchanged.
+//! - Check #0: Dedup by `ConsensusTransactionKey` — silent drop.
+//! - Check #1: Already executed — silent drop.
+//! - Check #2: `validity_check()` — drop with error.
+//! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
+//!   the claimed attestor matches the block author. Drop with error on mismatch
+//!   or unsupported attestation variant.
+//! - Check #4: Extract owned input objects (needed for lock conflict detection).
+//! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
+//!   — drop with error. Cheap; performed before expensive checks.
+//! - Check #6: `handle_transaction_validation_checks()` — drop with error.
+//!   Skipped for attested transactions (`UserTransactionV2`). Only reached when
+//!   all locks are free.
+//! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -119,15 +120,15 @@ pub async fn validate_and_resolve_conflicts(
 
         // Only validate UserTransactionV1/V2; pass everything else through
         // unchanged.
-        let (transaction, attestation, is_attested) = match &tx.0.transaction {
+        let (transaction, attestation) = match &tx.0.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => (t, None, false),
+            }) => (t, None),
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV2(a),
                 ..
-            }) => (&a.transaction, Some(&a.attestation), true),
+            }) => (&a.transaction, Some(&a.attestation)),
             _ => continue,
         };
 
@@ -174,9 +175,8 @@ pub async fn validate_and_resolve_conflicts(
                         None
                     }
                 }
-                Attestation::Explicit { .. } | _ => {
-                    Some(IotaError::ExplicitAttestationNotSupported)
-                }
+                // Reject Explicit variant as not yet implemented.
+                _ => Some(IotaError::ExplicitAttestationNotSupported),
             };
             if let Some(e) = error {
                 warn!(
@@ -293,7 +293,7 @@ pub async fn validate_and_resolve_conflicts(
         // attestation. Re-running these checks post-consensus would be redundant
         // and could cause divergence if state changes between attestation time
         // and execution time.
-        if !is_attested {
+        if attestation.is_none() {
             let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
             if let Err(e) = authority_state
                 .handle_transaction_validation_checks(&verified_tx, epoch_store)
