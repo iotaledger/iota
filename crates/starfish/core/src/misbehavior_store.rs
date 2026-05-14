@@ -163,6 +163,27 @@ impl MisbehaviorStore {
         true
     }
 
+    /// Returns an absolute per-authority snapshot of `persisted + in_memory`
+    /// counts for emission with `CommittedSubDag`. The sum is invariant
+    /// across the eviction-time move from `in_memory` to `persisted`, so the
+    /// snapshot is consistent regardless of when it is taken relative to
+    /// flush.
+    pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCountsV1> {
+        (0..self.in_memory.authorities.len())
+            .map(|i| {
+                let p = self.persisted.snapshot(i);
+                let m = self.in_memory.snapshot(i);
+                MisbehaviorCountsV1 {
+                    faulty_blocks_provable: p.faulty_blocks_provable + m.faulty_blocks_provable,
+                    faulty_blocks_unprovable: p.faulty_blocks_unprovable
+                        + m.faulty_blocks_unprovable,
+                    missing_proposals: p.missing_proposals + m.missing_proposals,
+                    equivocations: p.equivocations + m.equivocations,
+                }
+            })
+            .collect()
+    }
+
     /// Records a faulty block header event detected during block header
     /// validation. Events are buffered in the in_memory bucket and moved
     /// to persisted on the next flush.
@@ -420,11 +441,11 @@ impl Default for MisbehaviorCounts {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub(crate) struct MisbehaviorCountsV1 {
-    pub(crate) faulty_blocks_provable: u64,
-    pub(crate) faulty_blocks_unprovable: u64,
-    pub(crate) missing_proposals: u64,
-    pub(crate) equivocations: u64,
+pub struct MisbehaviorCountsV1 {
+    pub faulty_blocks_provable: u64,
+    pub faulty_blocks_unprovable: u64,
+    pub missing_proposals: u64,
+    pub equivocations: u64,
 }
 
 #[cfg(test)]
