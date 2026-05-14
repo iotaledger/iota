@@ -152,7 +152,8 @@ struct ProtocolEnvOverride {
 impl ProtocolEnvOverride {
     fn new(overrides: &[(&'static str, &'static str)]) -> Self {
         for (key, val) in overrides {
-            // Set before any node thread is spawned; no concurrent env readers at this point.
+            // Set before any node thread is spawned; no concurrent env readers at this
+            // point.
             #[allow(deprecated)]
             std::env::set_var(key, val);
         }
@@ -248,9 +249,7 @@ impl TestEnvironment {
                 } = change
                 {
                     Some(iota_types::base_types::ObjectRef::new(
-                        *object_id,
-                        *version,
-                        *digest,
+                        *object_id, *version, *digest,
                     ))
                 } else {
                     None
@@ -438,8 +437,8 @@ impl TestEnvironment {
 
 fn abstract_account_type_tag(aa_package_id: &ObjectID) -> iota_types::base_types::TypeTag {
     use std::str::FromStr;
-    iota_types::base_types::TypeTag::from_str(
-        &format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}"),
-    )
+    iota_types::base_types::TypeTag::from_str(&format!(
+        "{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}"
+    ))
     .unwrap()
 }
