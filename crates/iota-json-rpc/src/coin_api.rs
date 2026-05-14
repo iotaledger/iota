@@ -1578,7 +1578,7 @@ mod tests {
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
             let expected = expect![
-                "Failure deserializing object in the requested format: Unable to deserialize TreasuryCap object: remaining input``"
+                "Failure deserializing object in the requested format: Unable to deserialize TreasuryCap object: remaining input"
             ];
             expected.assert_eq(error_result.message());
         }
