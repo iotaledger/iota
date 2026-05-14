@@ -182,7 +182,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
     let sig2: SimpleSignature = kp2.sign(&*msg);
 
     // Any 2 of 3 signatures verifies ok.
-    let multi_sig1 = MultiSig::combine(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
+    let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     Transaction::new(SenderSignedData::new(
         tx.transaction_data().clone(),
         vec![GenericSignature::MultiSig(multi_sig1)],

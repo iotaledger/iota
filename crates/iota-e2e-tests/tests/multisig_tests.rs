@@ -220,9 +220,8 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     //     )
     //     .unwrap(),
     // );
-    let multisig = GenericSignature::MultiSig(
-        MultiSig::combine(vec![sig.into()], multisig_pk.clone()).unwrap(),
-    );
+    let multisig =
+        GenericSignature::MultiSig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
 

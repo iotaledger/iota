@@ -200,7 +200,7 @@ fn get_registry() -> Result<Registry> {
     let sig2: SimpleSignature = kp2.sign(&*msg);
     let sig3: SimpleSignature = kp3.sign(&*msg);
 
-    let multi_sig = MultiSig::combine(
+    let multi_sig = MultiSig::new(
         vec![
             sig1.clone().into(),
             sig2.clone().into(),

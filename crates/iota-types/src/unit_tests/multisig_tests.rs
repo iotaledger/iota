@@ -50,7 +50,7 @@ fn test_combine_sigs() {
     // MultiSigPublicKey contains only 2 public key but 3 signatures are passed,
     // fails to combine.
     assert!(
-        MultiSig::combine(
+        MultiSig::new(
             vec![sig1.clone().into(), sig2.into(), sig3.into()],
             multisig_pk.clone()
         )
@@ -58,8 +58,8 @@ fn test_combine_sigs() {
     );
 
     // Cannot create malformed MultiSig.
-    assert!(MultiSig::combine(vec![], multisig_pk.clone()).is_err());
-    assert!(MultiSig::combine(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
+    assert!(MultiSig::new(vec![], multisig_pk.clone()).is_err());
+    assert!(MultiSig::new(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
 }
 
 #[test]
@@ -84,28 +84,28 @@ fn test_serde_roundtrip() {
     let pk1 = kp1.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk1, 1)], 1).unwrap();
     let sig: Ed25519Signature = kp1.sign(&*msg);
-    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
 
     let pk2 = kp2.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk2, 1)], 1).unwrap();
     let sig: Secp256k1Signature = kp2.sign(&*msg);
-    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
 
     let pk3 = kp3.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk3, 1)], 1).unwrap();
     let sig: Secp256r1Signature = kp3.sign(&*msg);
-    check_roundtrip(MultiSig::new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
 
     // Malformed multisig cannot be deserialized
     let multisig_pk =
         MultiSigPublicKey::insecure_new(vec![MultisigMember::new(kp1.public_key(), 1)], 1);
-    let multisig = MultiSig::new(vec![], 0, multisig_pk);
+    let multisig = MultiSig::insecure_new(vec![], 0, multisig_pk);
     let user_sig = UserSignature::Multisig(multisig);
     assert!(UserSignature::from_bytes(user_sig.to_bytes()).is_err());
 
     // Malformed multisig_pk cannot be deserialized
     let multisig_pk_1 = MultiSigPublicKey::insecure_new(vec![], 0);
-    let multisig_1 = MultiSig::new(vec![], 0, multisig_pk_1);
+    let multisig_1 = MultiSig::insecure_new(vec![], 0, multisig_pk_1);
     let user_sig_1 = UserSignature::Multisig(multisig_1);
     assert!(UserSignature::from_bytes(user_sig_1.to_bytes()).is_err());
 
@@ -230,7 +230,11 @@ fn test_max_sig() {
     };
 
     // multisig_pk with unreachable threshold fails.
-    assert!(!MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16).is_valid());
+    assert!(
+        !MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16)
+            .is_valid()
+            .is_ok()
+    );
 
     // multisig_pk with max weights for each pk and max reachable threshold is ok.
     assert!(
@@ -239,6 +243,7 @@ fn test_max_sig() {
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
         )
         .is_valid()
+        .is_ok()
     );
 
     // multisig_pk with unreachable threshold fails.
@@ -248,6 +253,7 @@ fn test_max_sig() {
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
         )
         .is_valid()
+        .is_ok()
     );
 
     // multisig_pk with max weights for each pk with threshold is 1x max weight
@@ -259,9 +265,10 @@ fn test_max_sig() {
     .unwrap();
     let sig: SimpleSignature = keys[0].sign(&*msg);
     assert!(
-        MultiSig::combine(vec![sig.into()], low_threshold_pk)
+        MultiSig::new(vec![sig.into()], low_threshold_pk)
             .unwrap()
             .is_valid()
+            .is_ok()
     );
 }
 
@@ -284,7 +291,7 @@ fn multisig_get_pk() {
     let sig1: SimpleSignature = kp1.sign(msg.as_ref());
     let sig2: SimpleSignature = kp2.sign(msg.as_ref());
 
-    let multi_sig = MultiSig::combine(
+    let multi_sig = MultiSig::new(
         vec![sig1.clone().into(), sig2.clone().into()],
         multisig_pk.clone(),
     )
@@ -322,13 +329,13 @@ fn multisig_get_indices() {
     let sig2: SimpleSignature = kp2.sign(msg.as_ref());
     let sig3: SimpleSignature = kp3.sign(msg.as_ref());
 
-    let multi_sig1 = MultiSig::combine(
+    let multi_sig1 = MultiSig::new(
         vec![sig2.clone().into(), sig3.clone().into()],
         multisig_pk.clone(),
     )
     .unwrap();
 
-    let multi_sig2 = MultiSig::combine(
+    let multi_sig2 = MultiSig::new(
         vec![
             sig1.clone().into(),
             sig2.clone().into(),
@@ -339,7 +346,7 @@ fn multisig_get_indices() {
     .unwrap();
 
     let invalid_multisig =
-        MultiSig::combine(vec![sig3.into(), sig2.into(), sig1.into()], multisig_pk).unwrap();
+        MultiSig::new(vec![sig3.into(), sig2.into(), sig1.into()], multisig_pk).unwrap();
 
     // Indexes of public keys in multisig public key instance according to the
     // combined sigs.

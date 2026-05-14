@@ -410,7 +410,8 @@ impl TestTransactionBuilder {
             })
             .collect();
 
-        let multisig = GenericSignature::MultiSig(MultiSig::new(signatures, bitmap, multisig_pk));
+        let multisig =
+            GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
         Transaction::from_generic_sig_data(data, vec![multisig])
     }
 }
