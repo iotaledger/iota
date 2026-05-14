@@ -236,7 +236,11 @@ pub(crate) struct DagState {
 }
 
 impl DagState {
-    /// Initializes DagState from storage.
+    /// Initializes DagState from storage with a freshly constructed
+    /// `MisbehaviorStore`. Production code uses `new_with_misbehavior_store`
+    /// to share the store with other components; this constructor exists
+    /// for tests that don't need the shared instance.
+    #[cfg(test)]
     pub(crate) fn new(context: Arc<Context>, store: Arc<dyn Store>) -> Self {
         let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
         Self::new_with_misbehavior_store(context, store, misbehavior_store)
@@ -2503,11 +2507,6 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
         &self.misbehavior_store
-    }
-
-    #[cfg(test)]
-    pub(crate) fn evicted_rounds(&self) -> Vec<Round> {
-        self.evicted_rounds.clone()
     }
 }
 #[cfg(test)]

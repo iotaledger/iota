@@ -481,10 +481,6 @@ pub(crate) struct MisbehaviorCountsV1 {
 
 #[cfg(test)]
 impl MisbehaviorStore {
-    pub(crate) fn dummy_for_test(committee_size: usize) -> Self {
-        Self::new(committee_size)
-    }
-
     pub(crate) fn persisted_missing_proposals(&self) -> Vec<u64> {
         self.persisted.collect(|c| c.missing_proposals)
     }
@@ -523,7 +519,6 @@ impl MisbehaviorCounts {
 mod tests {
     use std::sync::Arc;
 
-    use bcs;
     use starfish_config::Parameters;
 
     use super::*;
@@ -741,7 +736,7 @@ mod tests {
         let persisted_missing_before = scoring.persisted_missing_proposals();
         let in_memory_missing_before_drop = scoring.in_memory_missing_proposals();
         drop(dag_state);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
 
         // Persisted metrics should be restored, and in-memory recomputed from
         // the cached block refs loaded during recovery.
@@ -811,7 +806,7 @@ mod tests {
         drop(dag_state);
 
         // Recover from storage and flush again without new blocks
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
         dag_state.flush();
 
         // Persisted counts must NOT have doubled

@@ -1020,7 +1020,7 @@ mod tests {
             commit_consumer_monitor.clone(),
             network_client,
             block_verifier,
-            dag_state.clone(),
+            dag_state,
             header_synchronizer,
             Arc::new(MisbehaviorStore::new(4)),
             None,
