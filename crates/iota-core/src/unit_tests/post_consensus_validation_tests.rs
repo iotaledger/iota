@@ -7,6 +7,7 @@
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    attestation::{Attestation, AttestationData, AttestedTransaction},
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -42,6 +43,29 @@ fn make_user_tx_v1(
 fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsensusTransaction {
     let consensus_tx = ConsensusTransaction {
         kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+        tracking_id: Default::default(),
+    };
+    VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
+}
+
+/// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
+/// the given `attestor_index`. The block's `certificate_author_index` is always
+/// `0` (set by `new_test`), so passing `0` produces a matching attestation and
+/// any other value produces a mismatch.
+fn make_user_tx_v2(
+    tx: iota_types::transaction::Transaction,
+    attestor_index: starfish_config::AuthorityIndex,
+) -> VerifiedSequencedConsensusTransaction {
+    let attestation = Attestation::Validator {
+        payload: AttestationData::V1 {
+            estimated_computation_cost: 0,
+            object_versions: vec![],
+        },
+        attestor_index,
+    };
+    let attested = AttestedTransaction::new(tx, attestation);
+    let consensus_tx = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested)),
         tracking_id: Default::default(),
     };
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
@@ -1065,4 +1089,112 @@ async fn test_dropped_tx_does_not_acquire_locks() {
     assert!(user_tx_digests.contains(verified_tx2.digest()));
     assert!(user_tx_digests.contains(verified_tx3.digest()));
     assert!(user_tx_digests.contains(verified_tx4.digest()));
+}
+
+/// A `UserTransactionV2` whose `attestor_index` matches the block's
+/// `certificate_author_index` (both `0`) passes Check #3 and is treated the
+/// same as a valid V1 transaction.
+#[sim_test]
+async fn test_v2_passes() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().compute_object_reference();
+    let gas_ref = authority.get_object(&gas_id).await.unwrap().compute_object_reference();
+    let tx = make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+
+    // attestor_index 0 == certificate_author_index 0 set by new_test → match.
+    let mut transactions = vec![make_user_tx_v2(tx, starfish_config::AuthorityIndex::new_for_test(0))];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(transactions.len(), 1, "V2 with matching attestor should be kept");
+    assert!(dropped.is_empty(), "No errors expected");
+    assert_eq!(locks.len(), 2, "Locks for object and gas should be acquired");
+    assert_eq!(user_tx_digests, vec![digest]);
+}
+
+/// A `UserTransactionV2` whose `attestor_index` does not match the block's
+/// `certificate_author_index` is dropped via Check #3. Critically, its digest
+/// must still appear in `all_user_tx_digests` so the caller can release the
+/// pre-consensus soft lock — this is the invariant the loop restructure protects.
+#[sim_test]
+async fn test_v2_attestor_mismatch() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).await.unwrap().compute_object_reference();
+    let gas_ref = authority.get_object(&gas_id).await.unwrap().compute_object_reference();
+    let tx = make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+
+    // attestor_index 1 != certificate_author_index 0 → mismatch.
+    let mut transactions = vec![make_user_tx_v2(tx, starfish_config::AuthorityIndex::new_for_test(1))];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert!(transactions.is_empty(), "Mismatched V2 should be removed from the batch");
+    assert_eq!(dropped.len(), 1, "Mismatch should produce one dropped entry");
+    assert!(
+        matches!(dropped[0].1, IotaError::AttestationAuthorMismatch { .. }),
+        "expected AttestationAuthorMismatch, got {:?}",
+        dropped[0].1,
+    );
+    assert!(locks.is_empty(), "No locks should be acquired for a dropped transaction");
+    // The digest must be in user_tx_digests even though the transaction was
+    // dropped — the caller needs it to release the pre-consensus soft lock.
+    assert_eq!(
+        user_tx_digests,
+        vec![digest],
+        "digest must be collected before Check #3 for soft-lock release",
+    );
 }
