@@ -50,7 +50,7 @@ use crate::{
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
-    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
+    scoring_metrics_store::MisbehaviorStore,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -850,12 +850,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block_header(
-                        peer_index,
-                        peer_index,
-                        e,
-                        ErrorSource::Synchronizer,
-                    );
+                    misbehavior_store
+                        .record_faulty_block_header(peer_index, peer_index, e, context);
                 })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
@@ -873,7 +869,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     peer_index,
                     signed_block_header.author(),
                     &e,
-                    ErrorSource::Synchronizer,
+                    context,
                 );
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -1005,7 +1001,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                     authority_index,
                                                     authority_index,
                                                     e,
-                                                    ErrorSource::Synchronizer,
+                                                    &context,
                                                 );
                                             })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
@@ -1020,7 +1016,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 authority_index,
                                                 signed_block_header.author(),
                                                 err,
-                                                ErrorSource::Synchronizer,
+                                                &context,
                                             );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;

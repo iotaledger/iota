@@ -277,6 +277,17 @@ impl MisbehaviorStore {
             .faulty_blocks_unprovable_by_peer
             .with_label_values(&[hostname, "persisted"])
             .add(buffered.faulty_blocks_unprovable as i64);
+        // Reset the in_memory gauges back to zero — `record_faulty_block_header`
+        // bumps them on every recorded fault, so they otherwise carry the
+        // pre-flush buffered values forward across the move into `persisted`.
+        node_metrics
+            .faulty_blocks_provable_by_authority
+            .with_label_values(&[hostname, "in_memory"])
+            .set(0);
+        node_metrics
+            .faulty_blocks_unprovable_by_peer
+            .with_label_values(&[hostname, "in_memory"])
+            .set(0);
         true
     }
 
@@ -300,28 +311,44 @@ impl MisbehaviorStore {
         peer: AuthorityIndex,
         author: AuthorityIndex,
         error: &ConsensusError,
-        source: ErrorSource,
+        context: &Context,
     ) {
-        let fault = classify_for_source(error, source);
+        let fault = classify_block_header_error(error);
+        let node_metrics = &context.metrics.node_metrics;
         match fault {
             FaultType::Provable => {
                 // Charge the author: the signed header is cryptographic proof they
                 // produced an invalid block.
+                let author_hostname = context.committee.authority(author).hostname.as_str();
                 self.in_memory.update(author.value(), |c| {
                     c.faulty_blocks_provable += 1;
                 });
+                node_metrics
+                    .faulty_blocks_provable_by_authority
+                    .with_label_values(&[author_hostname, "in_memory"])
+                    .inc();
                 // Also charge the peer if they are not the author: they chose to serve
                 // us a block they could have verified themselves.
                 if peer != author {
+                    let peer_hostname = context.committee.authority(peer).hostname.as_str();
                     self.in_memory.update(peer.value(), |c| {
                         c.faulty_blocks_unprovable += 1;
                     });
+                    node_metrics
+                        .faulty_blocks_unprovable_by_peer
+                        .with_label_values(&[peer_hostname, "in_memory"])
+                        .inc();
                 }
             }
             FaultType::Unprovable => {
+                let peer_hostname = context.committee.authority(peer).hostname.as_str();
                 self.in_memory.update(peer.value(), |c| {
                     c.faulty_blocks_unprovable += 1;
                 });
+                node_metrics
+                    .faulty_blocks_unprovable_by_peer
+                    .with_label_values(&[peer_hostname, "in_memory"])
+                    .inc();
             }
             FaultType::Untracked => {}
         }
@@ -340,27 +367,12 @@ enum FaultType {
     Untracked,
 }
 
-/// Where the faulty block header was detected. Affects whether a provable
-/// fault stays provable or gets downgraded to unprovable.
-#[derive(Debug)]
-#[cfg_attr(test, derive(Clone))]
-pub(crate) enum ErrorSource {
-    /// Block header received via subscription (streaming). Provable errors
-    /// stay provable because we can verify the author's signature.
-    Subscriber,
-    /// Block header fetched via the header synchronizer. All errors are
-    /// downgraded to unprovable because we can't prove who actually sent it.
-    Synchronizer,
-    /// Block header fetched via the commit syncer. Same downgrade as
-    /// Synchronizer.
-    CommitSyncer,
-}
-
 fn classify_block_header_error(error: &ConsensusError) -> FaultType {
     match error {
         // Signature/parsing errors — can't prove authorship
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
+        | ConsensusError::UnexpectedAuthority(..)
         | ConsensusError::InvalidAuthorityIndex { .. }
         | ConsensusError::MalformedHeader(_)
         | ConsensusError::MalformedSignature(_)
@@ -383,20 +395,6 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
 
         _ => FaultType::Untracked,
     }
-}
-
-fn classify_for_source(error: &ConsensusError, source: ErrorSource) -> FaultType {
-    // Subscriber-specific override: the subscription protocol guarantees that
-    // peer == author, so a header signed by a different authority is a peer
-    // fault we attribute as Unprovable. Other sources never see this error.
-    if matches!(source, ErrorSource::Subscriber)
-        && matches!(error, ConsensusError::UnexpectedAuthority(..))
-    {
-        return FaultType::Unprovable;
-    }
-    // Anything else — including commit-chain and fetch-shape errors — falls
-    // through to Untracked via classify_block_header_error.
-    classify_block_header_error(error)
 }
 
 /// Per-authority misbehavior counters, one `Mutex<MisbehaviorCountsV1>`
@@ -827,12 +825,14 @@ mod tests {
 
     // ── Error classification tests ────────────────────────────────────────────
 
-    /// Classifies `error` through `source` and returns
-    /// `(provable_delta, unprovable_delta)` for authority 0.
-    fn classify_via_record(error: &ConsensusError, source: ErrorSource) -> (u64, u64) {
+    /// Classifies `error` and returns `(provable_delta, unprovable_delta)` for
+    /// authority 0 (used as both peer and author so there is no peer-vs-author
+    /// split to consider).
+    fn classify_via_record(error: &ConsensusError) -> (u64, u64) {
+        let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(4);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block_header(authority, authority, error, source);
+        store.record_faulty_block_header(authority, authority, error, &context);
         let counts = store.in_memory.get(0);
         (
             counts.faulty_blocks_provable,
@@ -841,7 +841,7 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriber_provable_errors() {
+    fn test_provable_errors() {
         let cases: &[ConsensusError] = &[
             ConsensusError::TooManyAncestors(10, 5),
             ConsensusError::TooManyTransactions {
@@ -851,14 +851,14 @@ mod tests {
             ConsensusError::InvalidTransaction("bad tx".to_string()),
         ];
         for e in cases {
-            let (prov, unprov) = classify_via_record(e, ErrorSource::Subscriber);
+            let (prov, unprov) = classify_via_record(e);
             assert_eq!(prov, 1, "expected provable for {e:?}");
             assert_eq!(unprov, 0, "expected no unprovable for {e:?}");
         }
     }
 
     #[test]
-    fn test_subscriber_unprovable_errors() {
+    fn test_unprovable_errors() {
         let cases: &[ConsensusError] = &[
             ConsensusError::WrongEpoch {
                 expected: 1,
@@ -871,50 +871,23 @@ mod tests {
             ),
         ];
         for e in cases {
-            let (prov, unprov) = classify_via_record(e, ErrorSource::Subscriber);
+            let (prov, unprov) = classify_via_record(e);
             assert_eq!(prov, 0, "expected no provable for {e:?}");
             assert_eq!(unprov, 1, "expected unprovable for {e:?}");
         }
     }
 
     #[test]
-    fn test_subscriber_untracked_errors() {
-        let e = ConsensusError::BlockRejected {
-            block_ref: BlockRef::MIN,
-            reason: "test".to_string(),
-        };
-        let (prov, unprov) = classify_via_record(&e, ErrorSource::Subscriber);
-        assert_eq!(prov, 0);
-        assert_eq!(unprov, 0);
-    }
-
-    #[test]
-    fn test_synchronizer_provable_stays_provable() {
-        // Valid signature + protocol violation: charged to the author, not the serving
-        // peer.
-        let e = ConsensusError::TooManyAncestors(10, 5);
-        let (prov, unprov) = classify_via_record(&e, ErrorSource::Synchronizer);
-        assert_eq!(prov, 1);
-        assert_eq!(unprov, 0);
-    }
-
-    #[test]
-    fn test_commit_syncer_provable_stays_provable() {
-        // Valid signature + protocol violation: charged to the block author.
-        // Recording happens in verify_commits where the actual author is known.
-        let e = ConsensusError::TooManyAncestors(10, 5);
-        let (prov, unprov) = classify_via_record(&e, ErrorSource::CommitSyncer);
-        assert_eq!(prov, 1);
-        assert_eq!(unprov, 0);
-    }
-
-    #[test]
-    fn test_commit_and_fetch_protocol_errors_are_untracked() {
-        // Commit-chain inconsistencies and fetch-shape errors are not block
-        // header faults — they belong to a separate commit-sync metric and
-        // should not increment the faulty_blocks counters.
+    fn test_untracked_errors() {
+        // Subjective rejections, commit-chain inconsistencies, and fetch-shape
+        // errors are not block header faults — they belong to separate metrics
+        // and should not increment the faulty_blocks counters.
         let authority = AuthorityIndex::new_for_test(1);
         let cases: &[ConsensusError] = &[
+            ConsensusError::BlockRejected {
+                block_ref: BlockRef::MIN,
+                reason: "test".to_string(),
+            },
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
@@ -935,15 +908,10 @@ mod tests {
                 received: 1,
             },
         ];
-        for source in [ErrorSource::Synchronizer, ErrorSource::CommitSyncer] {
-            for e in cases {
-                let (prov, unprov) = classify_via_record(e, source.clone());
-                assert_eq!(prov, 0, "expected no provable for {e:?} ({source:?})");
-                assert_eq!(
-                    unprov, 0,
-                    "expected no unprovable (untracked) for {e:?} ({source:?})"
-                );
-            }
+        for e in cases {
+            let (prov, unprov) = classify_via_record(e);
+            assert_eq!(prov, 0, "expected no provable for {e:?}");
+            assert_eq!(unprov, 0, "expected no unprovable (untracked) for {e:?}");
         }
     }
 
@@ -953,29 +921,16 @@ mod tests {
         // violation, both parties are at fault: the author for creating a bad
         // block (provable), and the serving peer for distributing it (unprovable).
         let e = ConsensusError::TooManyAncestors(10, 5);
-        for source in [ErrorSource::Synchronizer, ErrorSource::CommitSyncer] {
-            let store = MisbehaviorStore::new(4);
-            let author = AuthorityIndex::new_for_test(0);
-            let peer = AuthorityIndex::new_for_test(1);
-            store.record_faulty_block_header(peer, author, &e, source.clone());
-            let author_counts = store.in_memory.get(0);
-            let peer_counts = store.in_memory.get(1);
-            assert_eq!(
-                author_counts.faulty_blocks_provable, 1,
-                "author provable ({source:?})"
-            );
-            assert_eq!(
-                author_counts.faulty_blocks_unprovable, 0,
-                "author unprovable ({source:?})"
-            );
-            assert_eq!(
-                peer_counts.faulty_blocks_provable, 0,
-                "peer provable ({source:?})"
-            );
-            assert_eq!(
-                peer_counts.faulty_blocks_unprovable, 1,
-                "peer unprovable ({source:?})"
-            );
-        }
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(4);
+        let author = AuthorityIndex::new_for_test(0);
+        let peer = AuthorityIndex::new_for_test(1);
+        store.record_faulty_block_header(peer, author, &e, &context);
+        let author_counts = store.in_memory.get(0);
+        let peer_counts = store.in_memory.get(1);
+        assert_eq!(author_counts.faulty_blocks_provable, 1);
+        assert_eq!(author_counts.faulty_blocks_unprovable, 0);
+        assert_eq!(peer_counts.faulty_blocks_provable, 0);
+        assert_eq!(peer_counts.faulty_blocks_unprovable, 1);
     }
 }

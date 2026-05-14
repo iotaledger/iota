@@ -62,7 +62,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::NetworkClient,
-    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
+    scoring_metrics_store::MisbehaviorStore,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -253,12 +253,8 @@ impl<C: NetworkClient> Inner<C> {
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    self.misbehavior_store.record_faulty_block_header(
-                        peer,
-                        peer,
-                        e,
-                        ErrorSource::CommitSyncer,
-                    );
+                    self.misbehavior_store
+                        .record_faulty_block_header(peer, peer, e, &self.context);
                 })?;
             // The block signature needs to be verified.
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
@@ -266,7 +262,7 @@ impl<C: NetworkClient> Inner<C> {
                     peer,
                     signed_block_header.author(),
                     &e,
-                    ErrorSource::CommitSyncer,
+                    &self.context,
                 );
                 return Err(e);
             }

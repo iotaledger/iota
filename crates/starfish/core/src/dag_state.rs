@@ -357,7 +357,7 @@ impl DagState {
         // from the block refs already loaded into the cache.
         let recovered_misbehavior_counts = store
             .scan_misbehavior_counts()
-            .expect("Database error reading scoring metrics");
+            .expect("reading misbehavior counts from storage should not fail");
         state.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &state.recent_headers_refs_by_authority,
@@ -440,6 +440,7 @@ impl DagState {
         self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
+        self.misbehavior_store.reset();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -456,11 +457,10 @@ impl DagState {
         }
 
         // 4. Re-initialize misbehavior counts from storage
-        self.misbehavior_store.reset();
         let recovered_misbehavior_counts = self
             .store
             .scan_misbehavior_counts()
-            .expect("Database error reading scoring metrics");
+            .expect("reading misbehavior counts from storage should not fail");
         self.misbehavior_store.initialize_misbehavior_counts(
             recovered_misbehavior_counts,
             &self.recent_headers_refs_by_authority,

@@ -42,7 +42,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
-    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
+    scoring_metrics_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -631,22 +631,16 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         )
                         .await?;
                     // 5. Verify headers: count matches and each reference matches requested.
+                    // TODO: verify_fetched_headers currently only returns fetch-shape
+                    // errors (wrong count/ref) which classify as Untracked. When
+                    // per-header faults become observable here, record them as peer
+                    // misbehavior via
+                    // `inner.misbehavior_store.record_faulty_block_header`.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
                         serialized_block_headers,
                     )
-                    .inspect_err(|e| {
-                        // Author unknown for fetch-shape errors and MalformedHeader —
-                        // blame the serving peer. Only MalformedHeader will be counted
-                        // (fetch-shape errors classify as Untracked).
-                        inner.misbehavior_store.record_faulty_block_header(
-                            target_authority,
-                            target_authority,
-                            e,
-                            ErrorSource::CommitSyncer,
-                        );
-                    })
                 }
             })
             .collect();

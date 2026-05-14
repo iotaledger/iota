@@ -44,7 +44,7 @@ use crate::{
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
         SerializedTransactionsV2, TransactionFetchMode,
     },
-    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
+    scoring_metrics_store::MisbehaviorStore,
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -177,12 +177,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
-                self.misbehavior_store.record_faulty_block_header(
-                    peer,
-                    peer,
-                    e,
-                    ErrorSource::Subscriber,
-                );
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, e, &self.context);
             })?;
 
         // Reject blocks not produced by the peer.
@@ -194,12 +190,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            self.misbehavior_store.record_faulty_block_header(
-                peer,
-                peer,
-                &e,
-                ErrorSource::Subscriber,
-            );
+            self.misbehavior_store
+                .record_faulty_block_header(peer, peer, &e, &self.context);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -217,7 +209,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 peer,
                 signed_block_header.author(),
                 &e,
-                ErrorSource::Subscriber,
+                &self.context,
             );
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
@@ -299,12 +291,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    self.misbehavior_store.record_faulty_block_header(
-                        peer,
-                        peer,
-                        e,
-                        ErrorSource::Subscriber,
-                    );
+                    self.misbehavior_store
+                        .record_faulty_block_header(peer, peer, e, &self.context);
                 })?;
 
             let header_round = signed_block_header.round();
@@ -342,7 +330,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     peer,
                     signed_block_header.author(),
                     &e,
-                    ErrorSource::Subscriber,
+                    &self.context,
                 );
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);

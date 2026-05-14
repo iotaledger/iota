@@ -37,7 +37,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
-    scoring_metrics_store::{ErrorSource, MisbehaviorStore},
+    scoring_metrics_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -793,14 +793,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                // Author is unknown for fetch-shape errors and
-                                // for MalformedHeader — blame the serving peer.
-                                inner.misbehavior_store.record_faulty_block_header(
-                                    authority,
-                                    authority,
-                                    &e,
-                                    ErrorSource::CommitSyncer,
-                                );
+                                // TODO: verify_fetched_headers currently only returns
+                                // fetch-shape errors (wrong count/ref) which classify
+                                // as Untracked. When per-header faults become observable
+                                // here, record them as peer misbehavior via
+                                // `inner.misbehavior_store.record_faulty_block_header`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
