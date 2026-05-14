@@ -883,6 +883,7 @@ mod tests {
             leader_header.timestamp_ms(),
             CommitRef::new(10, CommitDigest::MIN),
             vec![],
+            vec![],
         );
 
         // Test that the consensus handler respects backpressure.

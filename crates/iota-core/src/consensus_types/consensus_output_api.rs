@@ -135,4 +135,24 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
             });
         num_of_committed_headers.into_iter().collect()
     }
+
+    fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
+        let n = self.misbehavior_counts.len();
+        let mut faulty_blocks_provable = Vec::with_capacity(n);
+        let mut faulty_blocks_unprovable = Vec::with_capacity(n);
+        let mut missing_proposals = Vec::with_capacity(n);
+        let mut equivocations = Vec::with_capacity(n);
+        for c in &self.misbehavior_counts {
+            faulty_blocks_provable.push(c.faulty_blocks_provable);
+            faulty_blocks_unprovable.push(c.faulty_blocks_unprovable);
+            missing_proposals.push(c.missing_proposals);
+            equivocations.push(c.equivocations);
+        }
+        ConsensusOutputMisbehaviorCounts {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        }
+    }
 }
