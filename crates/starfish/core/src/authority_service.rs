@@ -187,7 +187,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             self.misbehavior_store
-                .record_faulty_block_header(peer, &e, ErrorSource::Subscriber);
+                .record_faulty_block_header(peer, peer, &e, ErrorSource::Subscriber);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -198,7 +198,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
+            // peer == author is guaranteed by the UnexpectedAuthority check above.
+            // Pass both so record_faulty_block_header can attribute correctly:
+            // provable errors → author, unprovable (bad signature) → peer.
             self.misbehavior_store.record_faulty_block_header(
+                peer,
                 signed_block_header.author(),
                 &e,
                 ErrorSource::Subscriber,
@@ -309,7 +313,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", e.name()])
                     .inc();
+                // Additional headers may be authored by any validator. Pass peer
+                // (the sender) and author separately so provable errors (valid
+                // signature, protocol violation) are charged to the block author
+                // while unprovable errors (bad signature) are charged to the peer.
                 self.misbehavior_store.record_faulty_block_header(
+                    peer,
                     signed_block_header.author(),
                     &e,
                     ErrorSource::Subscriber,

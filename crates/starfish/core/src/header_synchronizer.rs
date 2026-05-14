@@ -860,7 +860,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
-                misbehavior_store.record_faulty_block_header(peer_index, &e, ErrorSource::Synchronizer);
+                misbehavior_store.record_faulty_block_header(peer_index, peer_index, &e, ErrorSource::Synchronizer);
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }

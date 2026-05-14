@@ -516,6 +516,7 @@ where
                     );
                     inner.misbehavior_store.record_faulty_block_header(
                         authority,
+                        authority,
                         &e,
                         ErrorSource::CommitSyncer,
                     );

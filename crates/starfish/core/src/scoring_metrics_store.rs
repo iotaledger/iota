@@ -283,22 +283,34 @@ impl MisbehaviorStore {
     /// Records a faulty block header event detected during block header
     /// validation. Events are buffered in the in_memory bucket and moved
     /// to persisted on the next flush.
+    ///
+    /// `peer` is the authority that sent us the block (always known from the
+    /// network connection). `author` is the claimed block author (from the
+    /// header's author field, only trustworthy if the signature is valid).
+    ///
+    /// Attribution rules:
+    /// - Provable faults (valid signature, protocol violation): charged to
+    ///   `author` — we can cryptographically prove the author signed bad data.
+    /// - Unprovable faults (bad/missing signature): charged to `peer` — we
+    ///   can't verify who authored the block, but we know who sent it to us.
+    /// - Synchronizer / CommitSyncer sources: all faults are downgraded to
+    ///   unprovable, so `peer` is always used regardless.
     pub(crate) fn record_faulty_block_header(
         &self,
-        authority: AuthorityIndex,
+        peer: AuthorityIndex,
+        author: AuthorityIndex,
         error: &ConsensusError,
         source: ErrorSource,
     ) {
         let fault = classify_for_source(error, source);
-        let idx = authority.value();
         match fault {
             FaultType::Provable => {
-                self.in_memory.update(idx, |c| {
+                self.in_memory.update(author.value(), |c| {
                     c.faulty_blocks_provable += 1;
                 });
             }
             FaultType::Unprovable => {
-                self.in_memory.update(idx, |c| {
+                self.in_memory.update(peer.value(), |c| {
                     c.faulty_blocks_unprovable += 1;
                 });
             }
@@ -835,7 +847,7 @@ mod tests {
     fn classify_via_record(error: &ConsensusError, source: ErrorSource) -> (u64, u64) {
         let store = MisbehaviorStore::new(4);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block_header(authority, error, source);
+        store.record_faulty_block_header(authority, authority, error, source);
         let counts = store.in_memory.get(0);
         (counts.faulty_blocks_provable, counts.faulty_blocks_unprovable)
     }
