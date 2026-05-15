@@ -42,7 +42,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
-    scoring_metrics_store::MisbehaviorStore,
+    misbehavior_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -901,7 +901,7 @@ mod tests {
         error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
         network::{BlockBundleStream, NetworkClient},
-        scoring_metrics_store::MisbehaviorStore,
+        misbehavior_store::MisbehaviorStore,
         storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
     };

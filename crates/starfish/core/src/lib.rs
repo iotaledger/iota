@@ -27,7 +27,7 @@ mod metrics;
 mod network;
 #[cfg(msim)]
 pub mod network;
-mod scoring_metrics_store;
+mod misbehavior_store;
 
 mod header_synchronizer;
 mod stake_aggregator;

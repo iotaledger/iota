@@ -35,7 +35,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
-    scoring_metrics_store::{MisbehaviorCounts, MisbehaviorStore},
+    misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},

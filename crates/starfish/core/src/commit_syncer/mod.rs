@@ -62,7 +62,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::NetworkClient,
-    scoring_metrics_store::MisbehaviorStore,
+    misbehavior_store::MisbehaviorStore,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };

@@ -32,7 +32,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
-    scoring_metrics_store::MisbehaviorStore,
+    misbehavior_store::MisbehaviorStore,
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,

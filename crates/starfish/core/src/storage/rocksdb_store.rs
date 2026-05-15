@@ -25,7 +25,7 @@ use crate::{
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::{ConsensusError, ConsensusResult},
-    scoring_metrics_store::MisbehaviorCounts,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -75,7 +75,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
-    const MISBEHAVIOR_COUNTS_CF: &'static str = "scoring_metrics";
+    const MISBEHAVIOR_COUNTS_CF: &'static str = "misbehavior_counts";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {

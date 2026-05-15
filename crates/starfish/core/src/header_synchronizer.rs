@@ -50,7 +50,7 @@ use crate::{
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
-    scoring_metrics_store::MisbehaviorStore,
+    misbehavior_store::MisbehaviorStore,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -1619,7 +1619,7 @@ mod tests {
             InflightBlockHeadersMap, SyncMethod,
         },
         network::{BlockBundleStream, NetworkClient},
-        scoring_metrics_store::MisbehaviorStore,
+        misbehavior_store::MisbehaviorStore,
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,

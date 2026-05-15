@@ -20,7 +20,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
-    scoring_metrics_store::MisbehaviorCounts,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 

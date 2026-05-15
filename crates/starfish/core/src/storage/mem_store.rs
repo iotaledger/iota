@@ -24,7 +24,7 @@ use crate::{
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
-    scoring_metrics_store::MisbehaviorCounts,
+    misbehavior_store::MisbehaviorCounts,
     storage::rocksdb_store::check_ref_consistency,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };

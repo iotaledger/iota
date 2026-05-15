@@ -766,7 +766,7 @@ async fn scan_misbehavior_counts(
 ) {
     use std::collections::BTreeMap;
 
-    use crate::scoring_metrics_store::MisbehaviorCounts;
+    use crate::misbehavior_store::MisbehaviorCounts;
 
     let store = test_store.store();
 

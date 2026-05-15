@@ -37,7 +37,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
-    scoring_metrics_store::MisbehaviorStore,
+    misbehavior_store::MisbehaviorStore,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
