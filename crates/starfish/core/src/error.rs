@@ -350,6 +350,14 @@ pub(crate) enum ConsensusError {
         leader_round: Round,
         leader_authority: AuthorityIndex,
     },
+
+    #[error(
+        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongBlockHeaderVersionForFlag {
+        actual: &'static str,
+        starfish_speed: bool,
+    },
 }
 
 impl ConsensusError {
