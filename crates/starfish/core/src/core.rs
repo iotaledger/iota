@@ -2681,8 +2681,12 @@ mod test {
             let CommittedSubDag {
                 base,
                 transactions,
-                misbehavior_counts: _,
+                misbehavior_counts,
             } = sub_dag;
+
+            // Snapshot is one entry per committee member; non-zero misbehavior
+            // would surface elsewhere in this test, so just confirm shape.
+            assert_eq!(misbehavior_counts.len(), committee_size);
 
             for block_ref in &base.committed_header_refs {
                 existing_headers.insert(*block_ref);

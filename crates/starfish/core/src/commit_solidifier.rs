@@ -198,6 +198,11 @@ impl CommitSolidifier {
                 .map(|tx| tx.expect("Transaction must exist since we checked"))
                 .collect();
 
+            // If this subdag was delayed waiting for missing transactions, the
+            // snapshot reflects current store state, not state at leader-round
+            // commit time. Acceptable: counts are absolute and consumers
+            // merge-max, so a stale-by-newer snapshot only loses fidelity at
+            // intra-epoch granularity, not correctness.
             let misbehavior_counts = dag_state.misbehavior_store().snapshot_totals();
             Ok(CommittedSubDag::new(
                 subdag.leader,
