@@ -6,8 +6,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{
     block_header::{BlockRef, Round},
@@ -28,16 +29,12 @@ pub(crate) struct MisbehaviorStore {
     persisted: CommitteeMisbehaviorCounts,
 }
 
-enum BucketSource {
-    InMemory,
-    Persisted,
-}
-
 impl MisbehaviorStore {
-    pub(crate) fn new(committee_size: usize) -> Self {
+    pub(crate) fn new(context: &Context) -> Self {
+        let metrics = &context.metrics.node_metrics;
         Self {
-            in_memory: CommitteeMisbehaviorCounts::new(committee_size),
-            persisted: CommitteeMisbehaviorCounts::new(committee_size),
+            in_memory: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "in_memory"),
+            persisted: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "persisted"),
         }
     }
 
@@ -57,30 +54,23 @@ impl MisbehaviorStore {
         threshold_clock_round: Round,
         context: &Arc<Context>,
     ) {
-        let node_metrics = &context.metrics.node_metrics;
-
-        for (authority_index, authority) in context.committee.authorities() {
-            let hostname = authority.hostname.as_str();
+        for (authority_index, _) in context.committee.authorities() {
             let idx = authority_index.value();
 
-            // Restore persisted counts from storage.
+            // Restore persisted counts from storage. Match exhaustively so a
+            // future MisbehaviorCounts variant trips the compiler here.
             let storage_metrics = recovered.get(&authority_index).cloned().unwrap_or_default();
-            match &storage_metrics {
+            match storage_metrics {
                 MisbehaviorCounts::V1(inner) => {
-                    self.initialize_faulty_blocks_metrics(
+                    self.persisted.set_block_faults(
+                        idx,
                         inner.faulty_blocks_provable,
                         inner.faulty_blocks_unprovable,
-                        hostname,
-                        authority_index,
-                        node_metrics,
                     );
-                    self.update_missing_blocks_and_equivocations(
+                    self.persisted.set_dag_faults(
+                        idx,
                         inner.missing_proposals,
                         inner.equivocations,
-                        hostname,
-                        authority_index,
-                        BucketSource::Persisted,
-                        node_metrics,
                     );
                 }
             }
@@ -97,78 +87,7 @@ impl MisbehaviorStore {
                     eviction_round + 1,
                     threshold_clock_round.saturating_sub(1),
                 );
-                self.update_missing_blocks_and_equivocations(
-                    missing,
-                    eq,
-                    hostname,
-                    authority_index,
-                    BucketSource::InMemory,
-                    node_metrics,
-                );
-            }
-        }
-    }
-
-    fn initialize_faulty_blocks_metrics(
-        &self,
-        faulty_provable: u64,
-        faulty_unprovable: u64,
-        hostname: &str,
-        authority: AuthorityIndex,
-        node_metrics: &NodeMetrics,
-    ) {
-        self.persisted.update(authority.value(), |c| {
-            c.faulty_blocks_provable = faulty_provable;
-            c.faulty_blocks_unprovable = faulty_unprovable;
-        });
-        node_metrics
-            .faulty_blocks_provable_by_authority
-            .with_label_values(&[hostname, "persisted"])
-            .set(faulty_provable as i64);
-        node_metrics
-            .faulty_blocks_unprovable_by_peer
-            .with_label_values(&[hostname, "persisted"])
-            .set(faulty_unprovable as i64);
-    }
-
-    fn update_missing_blocks_and_equivocations(
-        &self,
-        missing_blocks: u64,
-        equivocations: u64,
-        hostname: &str,
-        authority: AuthorityIndex,
-        bucket: BucketSource,
-        node_metrics: &NodeMetrics,
-    ) {
-        let idx = authority.value();
-        match bucket {
-            BucketSource::InMemory => {
-                self.in_memory.update(idx, |c| {
-                    c.equivocations = equivocations;
-                    c.missing_proposals = missing_blocks;
-                });
-                node_metrics
-                    .equivocations_by_authority
-                    .with_label_values(&[hostname, "in_memory"])
-                    .set(equivocations as i64);
-                node_metrics
-                    .missing_proposals_by_authority
-                    .with_label_values(&[hostname, "in_memory"])
-                    .set(missing_blocks as i64);
-            }
-            BucketSource::Persisted => {
-                self.persisted.update(idx, |c| {
-                    c.equivocations += equivocations;
-                    c.missing_proposals += missing_blocks;
-                });
-                node_metrics
-                    .equivocations_by_authority
-                    .with_label_values(&[hostname, "persisted"])
-                    .add(equivocations as i64);
-                node_metrics
-                    .missing_proposals_by_authority
-                    .with_label_values(&[hostname, "persisted"])
-                    .add(missing_blocks as i64);
+                self.in_memory.set_dag_faults(idx, missing, eq);
             }
         }
     }
@@ -181,22 +100,19 @@ impl MisbehaviorStore {
     pub(crate) fn update_misbehavior_counts_on_eviction(
         &self,
         authority_index: AuthorityIndex,
-        hostname: &str,
         recent_refs: &BTreeSet<BlockRef>,
         eviction_round: Round,
         last_eviction_round: Round,
         threshold_clock_round: Round,
         context: &Arc<Context>,
     ) -> Option<MisbehaviorCounts> {
-        let node_metrics = &context.metrics.node_metrics;
-
         if threshold_clock_round == 0 || authority_index.value() >= context.committee.size() {
             return None;
         }
+        let idx = authority_index.value();
 
         // Move buffered faulty block header counts to persisted.
-        let had_faulty =
-            self.flush_faulty_block_header_buffer(authority_index, node_metrics, hostname);
+        let had_faulty = self.flush_faulty_block_header_buffer(idx);
 
         // Recompute in-memory window from blocks still in cache.
         let in_memory_block_rounds: Vec<Round> = recent_refs
@@ -209,14 +125,8 @@ impl MisbehaviorStore {
             eviction_round + 1,
             threshold_clock_round.saturating_sub(1),
         );
-        self.update_missing_blocks_and_equivocations(
-            in_memory_missing,
-            in_memory_eq,
-            hostname,
-            authority_index,
-            BucketSource::InMemory,
-            node_metrics,
-        );
+        self.in_memory
+            .set_dag_faults(idx, in_memory_missing, in_memory_eq);
 
         let eviction_advanced = eviction_round != last_eviction_round;
         if eviction_advanced {
@@ -231,18 +141,12 @@ impl MisbehaviorStore {
                 last_eviction_round + 1,
                 eviction_round,
             );
-            self.update_missing_blocks_and_equivocations(
-                evicted_missing,
-                evicted_eq,
-                hostname,
-                authority_index,
-                BucketSource::Persisted,
-                node_metrics,
-            );
+            self.persisted
+                .add_dag_faults(idx, evicted_missing, evicted_eq);
         }
 
         if eviction_advanced || had_faulty {
-            Some(self.persisted.to_storage(authority_index.value()))
+            Some(MisbehaviorCounts::V1(self.persisted.snapshot(idx)))
         } else {
             None
         }
@@ -250,44 +154,12 @@ impl MisbehaviorStore {
 
     /// Flush buffered faulty block header counts from in_memory to persisted
     /// for one authority. Returns true if any counts were moved.
-    fn flush_faulty_block_header_buffer(
-        &self,
-        authority: AuthorityIndex,
-        node_metrics: &NodeMetrics,
-        hostname: &str,
-    ) -> bool {
-        let idx = authority.value();
-        let buffered = self.in_memory.get(idx);
-        if buffered.faulty_blocks_provable == 0 && buffered.faulty_blocks_unprovable == 0 {
+    fn flush_faulty_block_header_buffer(&self, idx: usize) -> bool {
+        let (prov, unprov) = self.in_memory.drain_block_faults(idx);
+        if prov == 0 && unprov == 0 {
             return false;
         }
-        self.persisted.update(idx, |c| {
-            c.faulty_blocks_provable += buffered.faulty_blocks_provable;
-            c.faulty_blocks_unprovable += buffered.faulty_blocks_unprovable;
-        });
-        self.in_memory.update(idx, |c| {
-            c.faulty_blocks_provable = 0;
-            c.faulty_blocks_unprovable = 0;
-        });
-        node_metrics
-            .faulty_blocks_provable_by_authority
-            .with_label_values(&[hostname, "persisted"])
-            .add(buffered.faulty_blocks_provable as i64);
-        node_metrics
-            .faulty_blocks_unprovable_by_peer
-            .with_label_values(&[hostname, "persisted"])
-            .add(buffered.faulty_blocks_unprovable as i64);
-        // Reset the in_memory gauges back to zero — `record_faulty_block_header`
-        // bumps them on every recorded fault, so they otherwise carry the
-        // pre-flush buffered values forward across the move into `persisted`.
-        node_metrics
-            .faulty_blocks_provable_by_authority
-            .with_label_values(&[hostname, "in_memory"])
-            .set(0);
-        node_metrics
-            .faulty_blocks_unprovable_by_peer
-            .with_label_values(&[hostname, "in_memory"])
-            .set(0);
+        self.persisted.add_block_faults(idx, prov, unprov);
         true
     }
 
@@ -311,44 +183,20 @@ impl MisbehaviorStore {
         peer: AuthorityIndex,
         author: AuthorityIndex,
         error: &ConsensusError,
-        context: &Context,
     ) {
-        let fault = classify_block_header_error(error);
-        let node_metrics = &context.metrics.node_metrics;
-        match fault {
+        match classify_block_header_error(error) {
             FaultType::Provable => {
                 // Charge the author: the signed header is cryptographic proof they
                 // produced an invalid block.
-                let author_hostname = context.committee.authority(author).hostname.as_str();
-                self.in_memory.update(author.value(), |c| {
-                    c.faulty_blocks_provable += 1;
-                });
-                node_metrics
-                    .faulty_blocks_provable_by_authority
-                    .with_label_values(&[author_hostname, "in_memory"])
-                    .inc();
+                self.in_memory.record_block_fault_provable(author.value());
                 // Also charge the peer if they are not the author: they chose to serve
                 // us a block they could have verified themselves.
                 if peer != author {
-                    let peer_hostname = context.committee.authority(peer).hostname.as_str();
-                    self.in_memory.update(peer.value(), |c| {
-                        c.faulty_blocks_unprovable += 1;
-                    });
-                    node_metrics
-                        .faulty_blocks_unprovable_by_peer
-                        .with_label_values(&[peer_hostname, "in_memory"])
-                        .inc();
+                    self.in_memory.record_block_fault_unprovable(peer.value());
                 }
             }
             FaultType::Unprovable => {
-                let peer_hostname = context.committee.authority(peer).hostname.as_str();
-                self.in_memory.update(peer.value(), |c| {
-                    c.faulty_blocks_unprovable += 1;
-                });
-                node_metrics
-                    .faulty_blocks_unprovable_by_peer
-                    .with_label_values(&[peer_hostname, "in_memory"])
-                    .inc();
+                self.in_memory.record_block_fault_unprovable(peer.value());
             }
             FaultType::Untracked => {}
         }
@@ -360,8 +208,10 @@ enum FaultType {
     /// Block has a valid author signature but violates protocol rules.
     /// The signed block header itself is proof of misbehavior.
     Provable,
-    /// Can't prove authorship (bad signature, context-dependent error, or
-    /// block came via sync where the sender is unknown).
+    /// Can't prove authorship — either because the signature is bad or
+    /// missing, or because the header is rejected by a pre-signature check
+    /// (epoch / genesis / author-vs-peer mismatch) so its `author` field
+    /// can't be trusted. Charged to the sending peer, not the claimed author.
     Unprovable,
     /// Not counted as misbehavior.
     Untracked,
@@ -369,7 +219,8 @@ enum FaultType {
 
 fn classify_block_header_error(error: &ConsensusError) -> FaultType {
     match error {
-        // Signature/parsing errors — can't prove authorship
+        // Pre-signature / parsing errors — the header's author field can't
+        // be trusted, so charge the sender, not the claimed author.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -397,32 +248,124 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
     }
 }
 
-/// Per-authority misbehavior counters, one `Mutex<MisbehaviorCountsV1>`
-/// per authority. Uses per-authority Mutex for interior mutability and to
-/// support future concurrent writes from block validation threads.
+/// The four Prometheus gauges that mirror `MisbehaviorCountsV1` for one
+/// `(authority, source)` pair, pre-resolved at construction so per-call
+/// methods don't repeat `with_label_values` lookups and don't have to
+/// thread `&NodeMetrics` and `hostname` through every call site.
+struct AuthorityGauges {
+    block_fault_provable: IntGauge,
+    block_fault_unprovable: IntGauge,
+    missing_proposals: IntGauge,
+    equivocations: IntGauge,
+}
+
+/// Per-authority misbehavior counters and matching Prometheus gauges.
+/// State mutations and gauge updates always happen together inside the same
+/// per-authority `Mutex` lock, so concurrent observers see counter and gauge
+/// agree.
 struct CommitteeMisbehaviorCounts {
     authorities: Vec<Mutex<MisbehaviorCountsV1>>,
+    gauges: Vec<AuthorityGauges>,
 }
 
 impl CommitteeMisbehaviorCounts {
-    fn new(committee_size: usize) -> Self {
+    /// `source` is the `source` label baked into all gauge updates for this
+    /// instance (`"in_memory"` or `"persisted"`).
+    fn new(committee: &Committee, metrics: &NodeMetrics, source: &'static str) -> Self {
+        let gauges = committee
+            .authorities()
+            .map(|(_, a)| {
+                let labels = &[a.hostname.as_str(), source];
+                AuthorityGauges {
+                    block_fault_provable: metrics
+                        .faulty_blocks_provable_by_authority
+                        .with_label_values(labels),
+                    block_fault_unprovable: metrics
+                        .faulty_blocks_unprovable_by_peer
+                        .with_label_values(labels),
+                    missing_proposals: metrics
+                        .missing_proposals_by_authority
+                        .with_label_values(labels),
+                    equivocations: metrics.equivocations_by_authority.with_label_values(labels),
+                }
+            })
+            .collect();
         Self {
-            authorities: (0..committee_size)
+            authorities: (0..committee.size())
                 .map(|_| Mutex::new(MisbehaviorCountsV1::default()))
                 .collect(),
+            gauges,
         }
     }
 
-    fn get(&self, authority: usize) -> MisbehaviorCountsV1 {
-        self.authorities[authority].lock().unwrap().clone()
+    fn record_block_fault_provable(&self, idx: usize) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.faulty_blocks_provable += 1;
+        self.gauges[idx].block_fault_provable.inc();
     }
 
-    fn update(&self, authority: usize, f: impl FnOnce(&mut MisbehaviorCountsV1)) {
-        f(&mut self.authorities[authority].lock().unwrap());
+    fn record_block_fault_unprovable(&self, idx: usize) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.faulty_blocks_unprovable += 1;
+        self.gauges[idx].block_fault_unprovable.inc();
     }
 
-    fn to_storage(&self, authority: usize) -> MisbehaviorCounts {
-        MisbehaviorCounts::V1(self.get(authority))
+    /// Atomically take both block-fault counters AND zero the matching gauges.
+    /// The caller transfers the returned `(provable, unprovable)` into the
+    /// persisted bucket via `add_block_faults`.
+    fn drain_block_faults(&self, idx: usize) -> (u64, u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        let prov = std::mem::take(&mut c.faulty_blocks_provable);
+        let unprov = std::mem::take(&mut c.faulty_blocks_unprovable);
+        self.gauges[idx].block_fault_provable.set(0);
+        self.gauges[idx].block_fault_unprovable.set(0);
+        (prov, unprov)
+    }
+
+    /// Receive a `drain_block_faults` payload — additive on counters and
+    /// gauges.
+    fn add_block_faults(&self, idx: usize, prov: u64, unprov: u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.faulty_blocks_provable += prov;
+        c.faulty_blocks_unprovable += unprov;
+        self.gauges[idx].block_fault_provable.add(prov as i64);
+        self.gauges[idx].block_fault_unprovable.add(unprov as i64);
+    }
+
+    /// Overwrite both block-fault counters and gauges. Used to restore from
+    /// storage on startup.
+    fn set_block_faults(&self, idx: usize, prov: u64, unprov: u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.faulty_blocks_provable = prov;
+        c.faulty_blocks_unprovable = unprov;
+        self.gauges[idx].block_fault_provable.set(prov as i64);
+        self.gauges[idx].block_fault_unprovable.set(unprov as i64);
+    }
+
+    /// Overwrite the DAG-observed faults (`missing_proposals` +
+    /// `equivocations`) and their gauges. Used on `in_memory` where the
+    /// window is recomputed wholesale on every flush.
+    fn set_dag_faults(&self, idx: usize, missing: u64, equiv: u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.missing_proposals = missing;
+        c.equivocations = equiv;
+        self.gauges[idx].missing_proposals.set(missing as i64);
+        self.gauges[idx].equivocations.set(equiv as i64);
+    }
+
+    /// Accumulate DAG-observed faults — additive on counters and gauges.
+    /// Used on `persisted` to fold in newly-evicted rounds.
+    fn add_dag_faults(&self, idx: usize, missing: u64, equiv: u64) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.missing_proposals += missing;
+        c.equivocations += equiv;
+        self.gauges[idx].missing_proposals.add(missing as i64);
+        self.gauges[idx].equivocations.add(equiv as i64);
+    }
+
+    /// Stable read clone of one authority's counters.
+    fn snapshot(&self, idx: usize) -> MisbehaviorCountsV1 {
+        self.authorities[idx].lock().unwrap().clone()
     }
 
     fn reset(&self) {
@@ -609,15 +552,13 @@ mod tests {
     #[tokio::test]
     async fn test_update_misbehavior_counts_on_eviction_edge_cases() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = MisbehaviorStore::new(4);
+        let store = MisbehaviorStore::new(&context);
         let authority_index = AuthorityIndex::new_for_test(0);
-        let hostname = "test_host";
         let recent_refs = BTreeSet::new();
 
         // threshold_clock_round=0 → always returns None
         let result = store.update_misbehavior_counts_on_eviction(
             authority_index,
-            hostname,
             &recent_refs,
             0,
             0,
@@ -626,10 +567,11 @@ mod tests {
         );
         assert!(result.is_none());
 
-        // No eviction (eviction_round == last_eviction_round) → None
+        // No eviction (eviction_round == last_eviction_round) AND no buffered
+        // faulty headers → None. (Eviction advance OR a faulty flush is what
+        // triggers a write; here neither happens.)
         let result = store.update_misbehavior_counts_on_eviction(
             authority_index,
-            hostname,
             &recent_refs,
             5,
             5,
@@ -641,7 +583,6 @@ mod tests {
         // Eviction happened with empty refs → missing proposals accumulated
         let result = store.update_misbehavior_counts_on_eviction(
             authority_index,
-            hostname,
             &recent_refs,
             3,
             0,
@@ -652,15 +593,8 @@ mod tests {
 
         // Out-of-bounds authority → None
         let oob = AuthorityIndex::new_for_test(4);
-        let result = store.update_misbehavior_counts_on_eviction(
-            oob,
-            hostname,
-            &recent_refs,
-            2,
-            1,
-            3,
-            &context,
-        );
+        let result =
+            store.update_misbehavior_counts_on_eviction(oob, &recent_refs, 2, 1, 3, &context);
         assert!(result.is_none());
     }
 
@@ -825,10 +759,10 @@ mod tests {
     /// split to consider).
     fn classify_via_record(error: &ConsensusError) -> (u64, u64) {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = MisbehaviorStore::new(4);
+        let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
-        store.record_faulty_block_header(authority, authority, error, &context);
-        let counts = store.in_memory.get(0);
+        store.record_faulty_block_header(authority, authority, error);
+        let counts = store.in_memory.snapshot(0);
         (
             counts.faulty_blocks_provable,
             counts.faulty_blocks_unprovable,
@@ -917,12 +851,12 @@ mod tests {
         // block (provable), and the serving peer for distributing it (unprovable).
         let e = ConsensusError::TooManyAncestors(10, 5);
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = MisbehaviorStore::new(4);
+        let store = MisbehaviorStore::new(&context);
         let author = AuthorityIndex::new_for_test(0);
         let peer = AuthorityIndex::new_for_test(1);
-        store.record_faulty_block_header(peer, author, &e, &context);
-        let author_counts = store.in_memory.get(0);
-        let peer_counts = store.in_memory.get(1);
+        store.record_faulty_block_header(peer, author, &e);
+        let author_counts = store.in_memory.snapshot(0);
+        let peer_counts = store.in_memory.snapshot(1);
         assert_eq!(author_counts.faulty_blocks_provable, 1);
         assert_eq!(author_counts.faulty_blocks_unprovable, 0);
         assert_eq!(peer_counts.faulty_blocks_provable, 0);

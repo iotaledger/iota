@@ -850,8 +850,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store
-                        .record_faulty_block_header(peer_index, peer_index, e, context);
+                    misbehavior_store.record_faulty_block_header(peer_index, peer_index, e);
                 })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
@@ -869,7 +868,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     peer_index,
                     signed_block_header.author(),
                     &e,
-                    context,
                 );
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -1001,7 +999,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                     authority_index,
                                                     authority_index,
                                                     e,
-                                                    &context,
                                                 );
                                             })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
@@ -1016,7 +1013,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 authority_index,
                                                 signed_block_header.author(),
                                                 err,
-                                                &context,
                                             );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
@@ -2166,6 +2162,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2176,7 +2173,7 @@ mod tests {
             dag_state,
             false,
             None,
-            Arc::new(MisbehaviorStore::new(4)),
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2236,6 +2233,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2246,7 +2244,7 @@ mod tests {
             dag_state,
             false,
             None,
-            Arc::new(MisbehaviorStore::new(4)),
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2374,6 +2372,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2384,7 +2383,7 @@ mod tests {
             dag_state,
             false,
             None,
-            Arc::new(MisbehaviorStore::new(4)),
+            misbehavior_store,
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2530,7 +2529,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
-            Arc::new(MisbehaviorStore::new(context.committee.size())),
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2641,7 +2640,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
-            Arc::new(MisbehaviorStore::new(context.committee.size())),
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2797,7 +2796,7 @@ mod tests {
             dag_state,
             true,
             None,
-            Arc::new(MisbehaviorStore::new(context.committee.size())),
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Wait at least for the timeout time
@@ -3277,7 +3276,7 @@ mod tests {
         )));
 
         // Create a Synchronizer
-        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let result = HeaderSynchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,

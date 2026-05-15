@@ -125,7 +125,7 @@ impl ConsensusAuthority {
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
-        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let dag_state = Arc::new(RwLock::new(DagState::new_with_misbehavior_store(
             context.clone(),
             store.clone(),

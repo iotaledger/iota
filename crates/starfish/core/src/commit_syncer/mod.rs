@@ -254,7 +254,7 @@ impl<C: NetworkClient> Inner<C> {
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
                     self.misbehavior_store
-                        .record_faulty_block_header(peer, peer, e, &self.context);
+                        .record_faulty_block_header(peer, peer, e);
                 })?;
             // The block signature needs to be verified.
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
@@ -262,7 +262,6 @@ impl<C: NetworkClient> Inner<C> {
                     peer,
                     signed_block_header.author(),
                     &e,
-                    &self.context,
                 );
                 return Err(e);
             }

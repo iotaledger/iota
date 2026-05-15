@@ -242,7 +242,7 @@ impl DagState {
     /// for tests that don't need the shared instance.
     #[cfg(test)]
     pub(crate) fn new(context: Arc<Context>, store: Arc<dyn Store>) -> Self {
-        let misbehavior_store = Arc::new(MisbehaviorStore::new(context.committee.size()));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         Self::new_with_misbehavior_store(context, store, misbehavior_store)
     }
 
@@ -2431,14 +2431,13 @@ impl DagState {
     fn misbehavior_counts_to_write(&self) -> BTreeMap<AuthorityIndex, MisbehaviorCounts> {
         let mut metrics_to_write = BTreeMap::new();
         let threshold_clock_round = self.threshold_clock_round();
-        for (authority_index, authority) in self.context.committee.authorities() {
+        for (authority_index, _) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
             if let Some(metrics) = self
                 .misbehavior_store
                 .update_misbehavior_counts_on_eviction(
                     authority_index,
-                    authority.hostname.as_str(),
                     &self.recent_headers_refs_by_authority[authority_index],
                     current_eviction_round,
                     last_eviction_round,

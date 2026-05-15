@@ -1010,9 +1010,10 @@ mod tests {
             dag_state.clone(),
             false,
             None,
-            Arc::new(MisbehaviorStore::new(context.committee.size())),
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let mut commit_syncer = RegularCommitSyncer::new(
             context,
             core_thread_dispatcher,
@@ -1022,7 +1023,7 @@ mod tests {
             block_verifier,
             dag_state,
             header_synchronizer,
-            Arc::new(MisbehaviorStore::new(4)),
+            misbehavior_store,
             None,
         );
 
@@ -1135,9 +1136,10 @@ mod tests {
                 dag_state.clone(),
                 false,
                 None,
-                Arc::new(MisbehaviorStore::new(context.committee.size())),
+                Arc::new(MisbehaviorStore::new(&context)),
             );
 
+            let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
             let mut commit_syncer = RegularCommitSyncer::new(
                 context.clone(),
                 core_thread_dispatcher,
@@ -1147,7 +1149,7 @@ mod tests {
                 block_verifier,
                 dag_state,
                 header_synchronizer,
-                Arc::new(MisbehaviorStore::new(4)),
+                misbehavior_store,
                 fast_sync_active,
             );
 
