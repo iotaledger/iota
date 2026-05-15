@@ -242,8 +242,8 @@ The upgrade process has three steps:
 ```bash
 iota client ptb \
 --compile-upgrade "." @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 \
---assign digest \
---move-call iota::package::authorize_upgrade @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 0u8 digest \
+--assign package_digest \
+--move-call iota::package::authorize_upgrade @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 0u8 package_digest \
 --assign ticket \
 --execute-upgrade ticket \
 --assign receipt \
@@ -263,8 +263,8 @@ If you have custom Move functions that wrap the standard `authorize_upgrade` and
 ```bash
 iota client ptb \
 --compile-upgrade "." @0xUPGRADE_CAP_ID \
---assign digest \
---move-call YOUR_PKG::admin::authorize @0xSHARED_OBJ digest \
+--assign package_digest \
+--move-call YOUR_PKG::admin::authorize @0xSHARED_OBJ package_digest \
 --assign ticket \
 --execute-upgrade ticket \
 --assign receipt \

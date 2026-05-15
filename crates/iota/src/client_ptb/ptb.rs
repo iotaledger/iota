@@ -565,12 +565,7 @@ pub fn ptb_description() -> clap::Command {
             --execute-upgrade command.\
             \n\nExamples:\
             \n --compile-upgrade \"./my_package\" @upgrade_cap_id\
-            \n --assign digest\
-            \n --move-call my_pkg::admin::authorize @shared_obj digest\
-            \n --assign ticket\
-            \n --execute-upgrade ticket\
-            \n --assign receipt\
-            \n --move-call my_pkg::admin::commit @shared_obj receipt"
+            \n --assign package_digest"
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
             --"execute-upgrade" <EXECUTE_UPGRADE>

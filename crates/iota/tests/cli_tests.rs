@@ -835,7 +835,7 @@ async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
 
     // Upgrade using --compile-upgrade + --execute-upgrade
     // This demonstrates the 3-step upgrade flow:
-    //   1. --compile-upgrade: compile and get digest
+    //   1. --compile-upgrade: compile and get the package digest
     //   2. --move-call authorize_upgrade: authorize with standard function
     //   3. --execute-upgrade: execute the system upgrade
     //   4. --move-call commit_upgrade: finalize the upgrade
@@ -843,8 +843,8 @@ async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
     let upgrade_ptb_string = format!(
         r#"
         --compile-upgrade {package_display} @{upgrade_cap_id}
-        --assign digest
-        --move-call iota::package::authorize_upgrade @{upgrade_cap_id} 0u8 digest
+        --assign package_digest
+        --move-call iota::package::authorize_upgrade @{upgrade_cap_id} 0u8 package_digest
         --assign ticket
         --execute-upgrade ticket
         --assign receipt
