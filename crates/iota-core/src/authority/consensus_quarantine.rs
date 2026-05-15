@@ -902,6 +902,23 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
+    /// Overlay every queued (processed-but-not-yet-flushed) commit's overload
+    /// notifications onto the provided map, in commit (queue) order. Later
+    /// commits overwrite earlier ones, matching the "most recent wins"
+    /// semantics of the persisted `authority_overload_notifications` table.
+    /// Used by `load_overload_notifications` to make reads reflect the logical
+    /// state across the disk/queue split, not just the lagging persisted half.
+    pub(super) fn overlay_queued_overload_notifications(
+        &self,
+        notifications: &mut HashMap<AuthorityName, u8>,
+    ) {
+        for output in &self.output_queue {
+            for (authority, percentage) in &output.overload_notifications {
+                notifications.insert(*authority, *percentage);
+            }
+        }
+    }
+
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
         self.output_queue
             .iter()
