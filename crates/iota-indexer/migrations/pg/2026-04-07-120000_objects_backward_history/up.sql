@@ -28,6 +28,15 @@ CREATE INDEX objects_backward_history_owner
     ON objects_backward_history (superseded_at_checkpoint, owner_type, owner_id)
     WHERE owner_type >= 1 AND owner_type <= 2 AND owner_id IS NOT NULL;
 
+-- Supports the dedupe step of the DF listing path in
+-- `backward_view/dynamic_fields.rs` and `consistent.rs` (with
+-- `apply_filter`): an Index Only Scan that enumerates distinct DF
+-- `object_id`s owned by a given parent without scanning every
+-- backward-history row of those DFs. See issue #11535.
+CREATE INDEX objects_backward_history_owner_df
+    ON objects_backward_history (owner_id, object_id)
+    WHERE owner_type = 2 AND df_kind IS NOT NULL;
+
 CREATE INDEX objects_backward_history_owner_package_module_name_full_type
     ON objects_backward_history (superseded_at_checkpoint, owner_id, object_type_package, object_type_module, object_type_name, object_type);
 

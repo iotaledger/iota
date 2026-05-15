@@ -126,24 +126,43 @@ fn dynamic_fields_from_checkpointed_objects(
 /// records every real version, including tombstone versions). When
 /// `target_v` lands on a tombstone version, no Active state row exists at
 /// that key — the candidate naturally drops out of the result.
+///
+/// The query is shaped so the correlated `MAX(object_version)` subquery
+/// is keyed off a **deduped** set of DF `object_id`s (one row per DF) —
+/// not the un-deduped owner scan of `objects_backward_history` (which for
+/// a parent with deep DF history can have hundreds of thousands of rows
+/// for the same DF). The dedupe inner query relies on the partial index
+/// `objects_backward_history_owner_df` on
+/// `(owner_id, object_id) WHERE owner_type = 2 AND df_kind IS NOT NULL`.
 fn dynamic_fields_from_historical_objects(
     parent_version: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
-    let history_filtered = filter_fn(query!(format!(
-        "SELECT {HISTORY_COLUMNS} FROM objects_backward_history"
-    )));
+    // Distinct DF object_ids owned by the parent. `filter_fn` adds the
+    // `owner_id = $parent AND owner_type = 2 AND df_kind IS NOT NULL`
+    // predicate, which together with the partial index lets Postgres do
+    // an Index Only Scan to find these ids.
+    let df_ids = filter_fn(query!(
+        "SELECT DISTINCT object_id FROM objects_backward_history"
+    ));
 
-    let with_target = filter!(
-        history_filtered,
-        format!(
-            "object_version = (\
-                 SELECT MAX(object_version) FROM objects_version ov \
-                 WHERE ov.object_id = objects_backward_history.object_id \
-                   AND ov.object_version <= {parent_version})"
-        )
+    // For each distinct DF, fetch the backward-history row at target_v
+    // via the correlated MAX subquery.
+    let (df_ids_sql, df_ids_binds) = df_ids.finish();
+    let sql = format!(
+        "SELECT {HISTORY_COLUMNS} FROM ( \
+             SELECT objects_backward_history.* \
+             FROM ({df_ids_sql}) df_ids \
+             JOIN objects_backward_history \
+                 ON objects_backward_history.object_id = df_ids.object_id \
+             WHERE objects_backward_history.object_version = ( \
+                 SELECT MAX(object_version) FROM objects_version \
+                 WHERE object_id = df_ids.object_id \
+                   AND object_version <= {parent_version}) \
+         ) AS objects_backward_history"
     );
+    let with_target = RawQuery::new(sql, df_ids_binds);
 
     let source = query!("SELECT candidates.* FROM ({}) candidates", with_target);
     page.apply::<StoredBackwardObject>(source)
