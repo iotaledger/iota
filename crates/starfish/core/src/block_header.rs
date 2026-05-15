@@ -1830,7 +1830,7 @@ mod tests {
 
         // overlap_start > references.len().
         assert!(matches!(
-            build(4, 4).verify_references_indices(),
+            build(4, 3).verify_references_indices(),
             Err(ConsensusError::InvalidOverlapIndices { .. })
         ));
 
