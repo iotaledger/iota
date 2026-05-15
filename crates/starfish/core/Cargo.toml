@@ -52,7 +52,7 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-tls.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
