@@ -542,8 +542,7 @@ pub(crate) fn assert_field_presence(
     for expected_top_level_field in &expected_top_level_fields {
         assert!(
             actual_top_level_fields.contains(expected_top_level_field),
-            "Invalid field '{}' in '{scenario}': field does not exist on this type",
-            expected_top_level_field
+            "Invalid field '{expected_top_level_field}' in '{scenario}': field does not exist on this type"
         );
     }
 
@@ -573,7 +572,7 @@ pub(crate) fn assert_field_presence(
                 "Contradictory field paths in '{scenario}': '{non_nested_field}' specified both as non-nested (implying no nested fields) and with nested fields ({})",
                 expected_nested_field_paths[non_nested_field]
                     .iter()
-                    .map(|s| format!("{}.{}", non_nested_field, s))
+                    .map(|s| format!("{non_nested_field}.{s}"))
                     .collect::<Vec<_>>()
                     .join(", ")
             );

@@ -33,10 +33,7 @@ pub fn derive_address(
     internal: bool,
 ) -> anyhow::Result<Ed25519Address> {
     let change = if internal { 1 } else { 0 };
-    let path = format!(
-        "m/44'/{}'/{}'/{}'/{}'",
-        coin_type, account_index, change, address_index
-    );
+    let path = format!("m/44'/{coin_type}'/{account_index}'/{change}'/{address_index}'");
 
     let private_key = Ed25519PrivateKey::from_mnemonic_with_path(mnemonic, path, None)?;
     let public_key = private_key.public_key();

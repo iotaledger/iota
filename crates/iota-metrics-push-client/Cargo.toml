@@ -20,3 +20,6 @@ tracing.workspace = true
 iota-metrics.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
+
+[lints]
+workspace = true

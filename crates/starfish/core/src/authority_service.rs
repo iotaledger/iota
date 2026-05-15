@@ -347,6 +347,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?
                 };
 
+            if let Err(e) = check_shard_version_matches_flags(&shard, &self.context.protocol_config)
+            {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
             if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.round(),
@@ -586,6 +598,34 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
         }
     }
+}
+
+/// Rejects a deserialized `ShardWithProof` whose variant does not match the
+/// local protocol-flag configuration. The flag is uniform across the network
+/// within an epoch, so any mismatch implies either a malicious peer or a
+/// misconfigured upgrade path. In the flag-OFF (raw V1 wire form) branch the
+/// check is a tautology — the deserializer always produces V1 — but it is
+/// called there for symmetry.
+pub(crate) fn check_shard_version_matches_flags(
+    shard: &ShardWithProof,
+    protocol_config: &iota_protocol_config::ProtocolConfig,
+) -> ConsensusResult<()> {
+    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
+    let variant_matches_flags = matches!(
+        (shard, fast_commit_sync),
+        (ShardWithProof::V1(_), false) | (ShardWithProof::V2(_), true)
+    );
+    if !variant_matches_flags {
+        let actual = match shard {
+            ShardWithProof::V1(_) => "V1",
+            ShardWithProof::V2(_) => "V2",
+        };
+        return Err(ConsensusError::WrongShardVersionForFlags {
+            actual,
+            fast_commit_sync,
+        });
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -2915,8 +2955,8 @@ mod tests {
         for i in 0..expected_number {
             match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
                 Ok(Some(bundle)) => received_bundles.push(bundle),
-                Ok(None) => panic!("Stream ended at bundle {} of {}", i, expected_number),
-                Err(_) => panic!("Timeout at bundle {} of {}", i, expected_number),
+                Ok(None) => panic!("Stream ended at bundle {i} of {expected_number}"),
+                Err(_) => panic!("Timeout at bundle {i} of {expected_number}"),
             }
         }
 
@@ -2999,7 +3039,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
             match tokio::time::timeout(Duration::from_secs(5), stream.next()).await {
                 Ok(Some(bundle)) => received_bundles.push(bundle),
-                Ok(None) => panic!("Stream ended at round {}", round),
+                Ok(None) => panic!("Stream ended at round {round}"),
                 Err(_) => panic!(
                     "Timeout at round {}, got {} bundles",
                     round,
@@ -4007,5 +4047,41 @@ mod tests {
                 verified_block_header.reference()
             );
         }
+    }
+
+    #[test]
+    fn check_shard_version_matches_flags_when_fast_commit_sync_enabled() {
+        use super::check_shard_version_matches_flags;
+        use crate::{block_header::ShardWithProof, error::ConsensusError};
+        let mut config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_consensus_fast_commit_sync_for_testing(true);
+
+        // V1 reaching a flag-ON receiver — the case the wire-format dispatch
+        // does not catch on its own.
+        let shard_v1 = ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::default(),
+            TransactionsCommitment::default(),
+            false,
+        );
+        let result = check_shard_version_matches_flags(&shard_v1, &config);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::WrongShardVersionForFlags {
+                actual: "V1",
+                fast_commit_sync: true,
+            })
+        ));
+
+        // V2 with flag ON — accepted (positive control).
+        let shard_v2 = ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::default(),
+            TransactionsCommitment::default(),
+            true,
+        );
+        check_shard_version_matches_flags(&shard_v2, &config).unwrap();
     }
 }

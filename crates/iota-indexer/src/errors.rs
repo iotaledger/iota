@@ -218,7 +218,7 @@ impl From<reqwest::Error> for IndexerError {
 
 impl From<url::ParseError> for IndexerError {
     fn from(err: url::ParseError) -> Self {
-        IndexerError::Generic(format!("URL parse error: {}", err))
+        IndexerError::Generic(format!("URL parse error: {err}"))
     }
 }
 

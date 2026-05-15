@@ -317,6 +317,22 @@ pub(crate) enum ConsensusError {
     // rollout phase.
     #[error("Fast commit sync is not enabled in the current protocol version")]
     FastCommitSyncNotEnabled,
+
+    #[error(
+        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongShardVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
+
+    #[error(
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongCommitVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
 }
 
 impl ConsensusError {
