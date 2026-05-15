@@ -50,7 +50,7 @@ pub enum Attestation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AttestationData {
     V1 {
-        /// Expected computation cost, in MIST, used by the sequencer to improve
+        /// Expected computation cost, in NANOS, used by the sequencer to improve
         /// shared-object scheduling before execution.
         estimated_computation_cost: u64,
         /// Shared-object versions observed by the attestor during the dry-run.
