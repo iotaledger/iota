@@ -76,7 +76,7 @@ async fn request_gas_internal(
         }
         Err(err) => {
             warn!("Failed to request gas: {:?}", err);
-            Err(format!("Failed to request gas: {}", err))
+            Err(format!("Failed to request gas: {err}"))
         }
     }
 }

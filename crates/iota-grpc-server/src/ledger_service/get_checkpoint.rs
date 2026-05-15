@@ -378,8 +378,7 @@ pub(crate) fn stream_checkpoints(
             })?;
         if start < lowest_available {
             return Err(Status::not_found(format!(
-                "Requested checkpoint {} is below the lowest available checkpoint {}",
-                start, lowest_available
+                "Requested checkpoint {start} is below the lowest available checkpoint {lowest_available}"
             ))
             .into());
         }

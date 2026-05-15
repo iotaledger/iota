@@ -88,19 +88,18 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                     .ok_or("sender address is missing")?
                     .address;
                 let iota_address = IotaAddress::from_bytes(&address)
-                    .map_err(|e| format!("invalid sender address: {}", e))?;
+                    .map_err(|e| format!("invalid sender address: {e}"))?;
                 Ok(EventFilter::Sender(iota_address))
             }
             ProtoFilter::MovePackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                    .map_err(|e| format!("invalid package_id: {e}"))?;
                 let module = filter
                     .module
                     .map(|m| {
-                        Identifier::new(m.as_str())
-                            .map_err(|e| format!("invalid module name: {}", e))
+                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
                     })
                     .transpose()?;
                 Ok(EventFilter::MovePackageAndModule { package, module })
@@ -109,12 +108,11 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 // TODO: add a function to parse the package and the module name
                 let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                    .map_err(|e| format!("invalid package_id: {e}"))?;
                 let module = filter
                     .module
                     .map(|m| {
-                        Identifier::new(m.as_str())
-                            .map_err(|e| format!("invalid module name: {}", e))
+                        Identifier::new(m.as_str()).map_err(|e| format!("invalid module name: {e}"))
                     })
                     .transpose()?;
                 Ok(EventFilter::MoveEventPackageAndModule { package, module })
@@ -123,7 +121,7 @@ impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
                 let tag: StructTag = filter
                     .struct_tag
                     .parse()
-                    .map_err(|e| format!("invalid struct tag: {}", e))?;
+                    .map_err(|e| format!("invalid struct tag: {e}"))?;
                 Ok(EventFilter::MoveEventType(tag))
             }
             _ => Err("Unsupported event filter type".to_string()),
@@ -170,8 +168,7 @@ impl EventFilter {
     pub(crate) fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
         if current_depth > MAX_FILTER_DEPTH {
             return Err(format!(
-                "Event filter depth exceeds maximum allowed depth of {}",
-                MAX_FILTER_DEPTH
+                "Event filter depth exceeds maximum allowed depth of {MAX_FILTER_DEPTH}"
             ));
         }
 
@@ -229,8 +226,7 @@ impl EventFilter {
         let node_count = self.count_nodes();
         if node_count > MAX_FILTER_NODES {
             return Err(format!(
-                "Event filter complexity exceeds maximum allowed nodes: {} > {}",
-                node_count, MAX_FILTER_NODES
+                "Event filter complexity exceeds maximum allowed nodes: {node_count} > {MAX_FILTER_NODES}"
             ));
         }
 

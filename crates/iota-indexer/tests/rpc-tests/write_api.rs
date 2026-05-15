@@ -101,8 +101,7 @@ async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64
         counter_value_str.parse().unwrap()
     } else {
         panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
+            "Counter value field is not a string (expected u64 serialized as string), got: {value_field:?}"
         );
     }
 }
@@ -744,8 +743,7 @@ fn test_parallel_shared_object_updates() {
                 let counter_value = get_counter_value(counter_obj, client).await;
                 assert_eq!(
                     counter_value, expected_count,
-                    "Counter value should be {} but was {} at iteration {}",
-                    expected_count, counter_value, i
+                    "Counter value should be {expected_count} but was {counter_value} at iteration {i}"
                 );
             }
 

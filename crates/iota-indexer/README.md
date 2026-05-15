@@ -203,17 +203,9 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 ### CLI Reference
 
-The IOTA Indexer is currently transitioning from the old CLI to a new one.
-While both versions are still supported, the old CLI will be deprecated in the future.
-Users are encouraged to start using the new CLI.
-
-To view help information for each version:
+To view help information:
 
 ```sh
-# Old CLI
-cargo run --bin iota-indexer -- help-deprecated
-
-# New CLI
 cargo run --bin iota-indexer -- help
 ```
 
