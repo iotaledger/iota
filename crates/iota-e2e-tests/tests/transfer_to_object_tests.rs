@@ -9,7 +9,7 @@ use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt, TransactionEvents,
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     object::Owner,
     transaction::{CallArg, Transaction},

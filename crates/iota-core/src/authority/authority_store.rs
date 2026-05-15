@@ -14,7 +14,7 @@ use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{SequenceNumber, VerifiedExecutionData},
     digests::TransactionEventsDigest,
-    effects::{TransactionEffects, TransactionEffectsAPIExt as _, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,

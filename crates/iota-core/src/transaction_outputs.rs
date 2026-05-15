@@ -10,7 +10,7 @@ use std::{
 use iota_types::{
     base_types::ObjectRef,
     effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt as _, TransactionEvents,
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},

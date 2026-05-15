@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     IotaAddress,
+    digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
     object::OBJECT_START_VERSION,
 };
@@ -304,15 +305,15 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         }
     }
 
-    fn events_digest(&self) -> Option<&Digest> {
+    fn events_digest(&self) -> Option<&TransactionEventsDigest> {
         self.events_digest.as_ref()
     }
 
-    fn dependencies(&self) -> &[Digest] {
+    fn dependencies(&self) -> &[TransactionDigest] {
         &self.dependencies
     }
 
-    fn transaction_digest(&self) -> &Digest {
+    fn transaction_digest(&self) -> &TransactionDigest {
         &self.transaction_digest
     }
 
@@ -337,11 +338,11 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
         &mut self.gas_used
     }
 
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut Digest {
+    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
         &mut self.transaction_digest
     }
 
-    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<Digest> {
+    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest> {
         &mut self.dependencies
     }
 

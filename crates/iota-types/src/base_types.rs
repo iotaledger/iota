@@ -32,7 +32,7 @@ use crate::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
     },
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     id::RESOLVED_IOTA_ID,

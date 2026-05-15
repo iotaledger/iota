@@ -46,7 +46,7 @@ use iota_types::{
     },
     deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEffectsAPIExt as _, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     epoch_data::EpochData,
     event::Event,
     gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},

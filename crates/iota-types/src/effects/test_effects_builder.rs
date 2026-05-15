@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
-    digests::{Digest, ObjectDigest},
+    digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
         new_from_execution_v1,
@@ -25,7 +25,7 @@ pub struct TestEffectsBuilder {
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
     shared_input_versions: BTreeMap<ObjectID, SequenceNumber>,
-    events_digest: Option<Digest>,
+    events_digest: Option<TransactionEventsDigest>,
     created_objects: Vec<(ObjectID, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
     mutated_objects: Vec<(ObjectID, SequenceNumber, Owner)>,
@@ -69,7 +69,7 @@ impl TestEffectsBuilder {
         self
     }
 
-    pub fn with_events_digest(mut self, digest: Digest) -> Self {
+    pub fn with_events_digest(mut self, digest: TransactionEventsDigest) -> Self {
         self.events_digest = Some(digest);
         self
     }
@@ -127,7 +127,9 @@ impl TestEffectsBuilder {
         let shared_objects = self
             .shared_input_versions
             .iter()
-            .map(|(id, version)| SharedInput::Existing(ObjectRef::new(*id, *version, Digest::MIN)))
+            .map(|(id, version)| {
+                SharedInput::Existing(ObjectRef::new(*id, *version, ObjectDigest::MIN))
+            })
             .collect();
         let epoch = 0;
         let sender = self.transaction.transaction_data().sender();
@@ -196,7 +198,7 @@ impl TestEffectsBuilder {
                         object_id: id,
                         input_state: ObjectIn::Missing,
                         output_state: ObjectOut::ObjectWrite {
-                            digest: Digest::random(),
+                            digest: ObjectDigest::random(),
                             owner,
                         },
                         id_operation: IDOperation::Created,
@@ -262,7 +264,7 @@ impl TestEffectsBuilder {
                         object_id: id,
                         input_state: ObjectIn::Missing,
                         output_state: ObjectOut::ObjectWrite {
-                            digest: Digest::random(),
+                            digest: ObjectDigest::random(),
                             owner,
                         },
                         id_operation: IDOperation::None,

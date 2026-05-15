@@ -610,7 +610,7 @@ pub fn get_transaction_output_objects(
     object_store: &dyn ObjectStore,
     effects: &TransactionEffects,
 ) -> Result<Vec<Object>, StorageError> {
-    use crate::effects::TransactionEffectsAPIExt;
+    use crate::effects::TransactionEffectsExt;
     let output_object_keys = effects
         .all_changed_objects()
         .into_iter()

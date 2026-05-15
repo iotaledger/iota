@@ -17,7 +17,7 @@ use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };

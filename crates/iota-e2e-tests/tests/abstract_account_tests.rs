@@ -32,7 +32,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{PublicKey, SignatureScheme},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},

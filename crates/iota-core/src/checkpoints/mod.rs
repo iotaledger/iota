@@ -28,7 +28,7 @@ use iota_types::{
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt as _},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{

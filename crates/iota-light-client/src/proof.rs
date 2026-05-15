@@ -7,7 +7,7 @@ use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
     effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt as _, TransactionEvents,
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     event::{Event, EventID},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},

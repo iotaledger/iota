@@ -30,7 +30,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt, TransactionEvents,
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     error::ExecutionError,
     iota_serde::BigInt,

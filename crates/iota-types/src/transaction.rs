@@ -785,11 +785,9 @@ impl TransactionKindExt for TransactionKind {
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
-            Self::ConsensusCommitPrologueV1(_) => {
-                Either::Left(Either::Left(iter::once(
-                    SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
-                )))
-            }
+            Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
+                SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+            ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and

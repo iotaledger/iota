@@ -10,7 +10,7 @@ use tap::Pipe;
 use crate::{
     base_types::{ObjectID, ObjectRef},
     effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsAPIExt, TransactionEvents,
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
