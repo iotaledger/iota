@@ -327,6 +327,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
+    #[cfg(test)]
     fn scan_scoring_metrics(
         &self,
     ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {

@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ops::Bound::Included, sync::Arc, time::Duration};
+#[cfg(test)]
+use std::collections::BTreeMap;
+use std::{ops::Bound::Included, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
@@ -681,6 +683,7 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
+    #[cfg(test)]
     fn scan_scoring_metrics(
         &self,
     ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
