@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -20,6 +20,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
+    scoring_metrics_store::StorageScoringMetrics,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -137,6 +138,15 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage. Currently only
+    /// exercised by storage tests; the production caller arrives with
+    /// `DagState` recovery in the follow-up branch.
+    #[cfg(test)]
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
@@ -186,27 +196,10 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
+    pub(crate) scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl WriteBatch {
-    pub(crate) fn new(
-        transactions: Vec<VerifiedTransactions>,
-        block_headers: Vec<VerifiedBlockHeader>,
-        commits: Vec<TrustedCommit>,
-        commit_info: Vec<(CommitRef, CommitInfo)>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: Option<bool>,
-    ) -> Self {
-        WriteBatch {
-            transactions,
-            block_headers,
-            commits,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-        }
-    }
-
     // Test setters.
 
     #[cfg(test)]
@@ -239,6 +232,15 @@ impl WriteBatch {
         voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Self {
         self.voting_block_headers = voting_block_headers;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scoring_metrics(
+        mut self,
+        scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
+    ) -> Self {
+        self.scoring_metrics = scoring_metrics;
         self
     }
 }

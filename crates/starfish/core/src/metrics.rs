@@ -251,6 +251,16 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
+    #[expect(dead_code)]
+    pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) equivocations_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1134,6 +1144,36 @@ impl NodeMetrics {
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
+                registry,
+            ).unwrap(),
+            faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_provable_by_authority",
+                "Provably faulty blocks per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            faulty_blocks_unprovable_by_peer: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_unprovable_by_peer",
+                "Unprovably faulty blocks per peer (source: persisted or in_memory)",
+                &["peer", "source"],
+                registry,
+            ).unwrap(),
+            equivocations_by_authority: register_int_gauge_vec_with_registry!(
+                "equivocations_by_authority",
+                "Equivocations per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
+                "missing_proposals_by_authority",
+                "Missing proposals per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Number of invalid misbehavior reports received from each authority",
+                &["authority"],
                 registry,
             ).unwrap(),
         }

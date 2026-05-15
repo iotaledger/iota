@@ -35,6 +35,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    scoring_metrics_store::StorageScoringMetrics,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
@@ -2230,7 +2231,6 @@ impl DagState {
             .with_label_values(&["DagState::flush"])
             .start_timer();
 
-        // Take ownership of buffered data efficiently using mem::take
         let transactions = std::mem::take(&mut self.transactions_to_write);
         let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
@@ -2238,16 +2238,19 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
+        let scoring_metrics = self.score_updates_to_write();
+
         let has_data_to_write = !transactions.is_empty()
             || !block_headers.is_empty()
             || !commits.is_empty()
             || !commit_info.is_empty()
             || !voting_block_headers.is_empty()
-            || fast_commit_sync_flag.is_some();
+            || fast_commit_sync_flag.is_some()
+            || !scoring_metrics.is_empty();
 
         if has_data_to_write {
             debug!(
-                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
+                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) and {} score updates ({}) to storage.",
                 block_headers.len(),
                 block_headers
                     .iter()
@@ -2267,20 +2270,23 @@ impl DagState {
                     .join(","),
                 fast_commit_sync_flag
                     .map(|f| f.to_string())
-                    .unwrap_or_else(|| "unchanged".to_string())
+                    .unwrap_or_else(|| "unchanged".to_string()),
+                scoring_metrics.len(),
+                scoring_metrics.keys().map(|idx| idx.to_string()).join(","),
             );
 
             // Write all buffered data to storage
             self.store
                 .write(
-                    WriteBatch::new(
+                    WriteBatch {
                         transactions,
                         block_headers,
                         commits,
                         commit_info,
                         voting_block_headers,
                         fast_commit_sync_flag,
-                    ),
+                        scoring_metrics,
+                    },
                     self.context.clone(),
                 )
                 .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
@@ -2413,6 +2419,11 @@ impl DagState {
     /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
+    }
+
+    /// Returns pending validator score updates to include in the write batch.
+    fn score_updates_to_write(&self) -> BTreeMap<AuthorityIndex, StorageScoringMetrics> {
+        BTreeMap::new()
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.

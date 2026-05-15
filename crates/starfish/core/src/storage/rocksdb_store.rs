@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+use std::collections::BTreeMap;
 use std::{ops::Bound::Included, sync::Arc, time::Duration};
 
 use bytes::Bytes;
@@ -25,6 +27,7 @@ use crate::{
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    scoring_metrics_store::StorageScoringMetrics,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -58,6 +61,8 @@ pub(crate) struct RocksDBStore {
     /// Context to access protocol configuration
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
+    /// Stores scoring metrics for each authority.
+    scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -72,6 +77,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
+    const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
@@ -117,7 +123,8 @@ impl RocksDBStore {
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
             (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
-            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options),
+            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_CF, cf_options),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -138,6 +145,7 @@ impl RocksDBStore {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
+            scoring_metrics,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -148,7 +156,8 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
+            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>,
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>
         );
 
         Self {
@@ -163,6 +172,7 @@ impl RocksDBStore {
             voting_block_headers,
             fast_commit_sync_flag,
             context,
+            scoring_metrics,
         }
     }
 }
@@ -309,6 +319,10 @@ impl Store for RocksDBStore {
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
         }
+
+        batch
+            .insert_batch(&self.scoring_metrics, write_batch.scoring_metrics)
+            .map_err(ConsensusError::RocksDBFailure)?;
 
         batch.write()?;
         fail_point!("consensus-store-after-write");
@@ -667,6 +681,16 @@ impl Store for RocksDBStore {
             );
         }
         Ok(blocks)
+    }
+
+    #[cfg(test)]
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
+        self.scoring_metrics
+            .safe_iter()
+            .map(|kv| kv.map_err(ConsensusError::RocksDBFailure))
+            .collect()
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {

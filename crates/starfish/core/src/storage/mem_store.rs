@@ -24,6 +24,7 @@ use crate::{
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    scoring_metrics_store::StorageScoringMetrics,
     storage::rocksdb_store::check_ref_consistency,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -49,6 +50,7 @@ struct Inner {
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     /// Flag indicating fast commit sync is ongoing.
     fast_sync_ongoing: bool,
+    scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl MemStore {
@@ -65,6 +67,7 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 voting_block_headers: BTreeMap::new(),
                 fast_sync_ongoing: false,
+                scoring_metrics: BTreeMap::new(),
             }),
             context,
         }
@@ -151,6 +154,8 @@ impl Store for MemStore {
         if let Some(flag) = write_batch.fast_commit_sync_flag {
             inner.fast_sync_ongoing = flag;
         }
+
+        inner.scoring_metrics.extend(write_batch.scoring_metrics);
 
         Ok(())
     }
@@ -320,6 +325,14 @@ impl Store for MemStore {
             );
         }
         Ok(blocks)
+    }
+
+    #[cfg(test)]
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
+        let inner = self.inner.read();
+        Ok(inner.scoring_metrics.clone())
     }
 
     fn read_verified_block_headers(

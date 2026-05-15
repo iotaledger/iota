@@ -3958,7 +3958,11 @@ mod tests {
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
             .write(
-                WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], Some(false)),
+                WriteBatch {
+                    block_headers: all_headers,
+                    fast_commit_sync_flag: Some(false),
+                    ..WriteBatch::default()
+                },
                 context.clone(),
             )
             .expect("Failed to write block headers to store");
