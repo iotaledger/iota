@@ -25,7 +25,7 @@ use crate::{
     },
     context::Context,
     leader_scoring::ReputationScores,
-    misbehavior_store::MisbehaviorCountsV1,
+    misbehavior_store::MisbehaviorCounts,
     storage::Store,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
@@ -583,8 +583,9 @@ pub struct CommittedSubDag {
     /// snapshotted from `MisbehaviorStore` at the moment this subdag was
     /// emitted. Indexed by `AuthorityIndex` (`vec[i]` = authority `i`).
     /// Consumers in iota-core diff against their own last-seen state if they
-    /// need deltas.
-    pub misbehavior_counts: Vec<MisbehaviorCountsV1>,
+    /// need deltas. Versioned envelope: consumers must `match` exhaustively
+    /// on the enum so adding a new variant is a compile error downstream.
+    pub misbehavior_counts: Vec<MisbehaviorCounts>,
 }
 
 impl CommittedSubDag {
@@ -597,7 +598,7 @@ impl CommittedSubDag {
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-        misbehavior_counts: Vec<MisbehaviorCountsV1>,
+        misbehavior_counts: Vec<MisbehaviorCounts>,
     ) -> Self {
         Self {
             base: SubDagBase {

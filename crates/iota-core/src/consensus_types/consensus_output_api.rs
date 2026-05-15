@@ -137,16 +137,22 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     }
 
     fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
-        let n = self.misbehavior_counts.len();
-        let mut faulty_blocks_provable = Vec::with_capacity(n);
-        let mut faulty_blocks_unprovable = Vec::with_capacity(n);
-        let mut missing_proposals = Vec::with_capacity(n);
-        let mut equivocations = Vec::with_capacity(n);
-        for c in &self.misbehavior_counts {
-            faulty_blocks_provable.push(c.faulty_blocks_provable);
-            faulty_blocks_unprovable.push(c.faulty_blocks_unprovable);
-            missing_proposals.push(c.missing_proposals);
-            equivocations.push(c.equivocations);
+        let authority_count = self.misbehavior_counts.len();
+        let mut faulty_blocks_provable = Vec::with_capacity(authority_count);
+        let mut faulty_blocks_unprovable = Vec::with_capacity(authority_count);
+        let mut missing_proposals = Vec::with_capacity(authority_count);
+        let mut equivocations = Vec::with_capacity(authority_count);
+        // Exhaustive `match` on the versioned envelope: adding a new variant in
+        // starfish-core will fail to compile here until this consumer is updated.
+        for counts in &self.misbehavior_counts {
+            match counts {
+                starfish_core::MisbehaviorCounts::V1(v1) => {
+                    faulty_blocks_provable.push(v1.faulty_blocks_provable);
+                    faulty_blocks_unprovable.push(v1.faulty_blocks_unprovable);
+                    missing_proposals.push(v1.missing_proposals);
+                    equivocations.push(v1.equivocations);
+                }
+            }
         }
         ConsensusOutputMisbehaviorCounts {
             faulty_blocks_provable,
@@ -160,7 +166,7 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
 #[cfg(test)]
 mod tests {
     use starfish_core::{
-        BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCountsV1,
+        BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCounts, MisbehaviorCountsV1,
         VerifiedBlockHeader,
     };
 
@@ -169,22 +175,22 @@ mod tests {
     #[test]
     fn test_misbehavior_counts_transposes_per_authority_to_per_field_vecs() {
         let counts = vec![
-            MisbehaviorCountsV1 {
+            MisbehaviorCounts::V1(MisbehaviorCountsV1 {
                 faulty_blocks_provable: 1,
                 faulty_blocks_unprovable: 2,
                 missing_proposals: 3,
                 equivocations: 4,
-            },
-            MisbehaviorCountsV1 {
+            }),
+            MisbehaviorCounts::V1(MisbehaviorCountsV1 {
                 faulty_blocks_provable: 10,
                 faulty_blocks_unprovable: 20,
                 missing_proposals: 30,
                 equivocations: 40,
-            },
-            MisbehaviorCountsV1::default(),
+            }),
+            MisbehaviorCounts::default(),
         ];
 
-        let mut subdag = CommittedSubDag::new(
+        let subdag = CommittedSubDag::new(
             BlockRef::MIN,
             Vec::<VerifiedBlockHeader>::new(),
             vec![],
@@ -194,8 +200,6 @@ mod tests {
             vec![],
             counts,
         );
-        // Sanity: keep the snapshot reachable via the trait even after construction.
-        subdag.misbehavior_counts.shrink_to_fit();
 
         let out = subdag.misbehavior_counts();
         assert_eq!(out.faulty_blocks_provable, vec![1, 10, 0]);

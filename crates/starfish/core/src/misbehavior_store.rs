@@ -168,18 +168,19 @@ impl MisbehaviorStore {
     /// across the eviction-time move from `in_memory` to `persisted`, so the
     /// snapshot is consistent regardless of when it is taken relative to
     /// flush.
-    pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCountsV1> {
+    pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCounts> {
         (0..self.in_memory.authorities.len())
             .map(|i| {
-                let p = self.persisted.snapshot(i);
-                let m = self.in_memory.snapshot(i);
-                MisbehaviorCountsV1 {
-                    faulty_blocks_provable: p.faulty_blocks_provable + m.faulty_blocks_provable,
-                    faulty_blocks_unprovable: p.faulty_blocks_unprovable
-                        + m.faulty_blocks_unprovable,
-                    missing_proposals: p.missing_proposals + m.missing_proposals,
-                    equivocations: p.equivocations + m.equivocations,
-                }
+                let persisted = self.persisted.snapshot(i);
+                let in_memory = self.in_memory.snapshot(i);
+                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                    faulty_blocks_provable: persisted.faulty_blocks_provable
+                        + in_memory.faulty_blocks_provable,
+                    faulty_blocks_unprovable: persisted.faulty_blocks_unprovable
+                        + in_memory.faulty_blocks_unprovable,
+                    missing_proposals: persisted.missing_proposals + in_memory.missing_proposals,
+                    equivocations: persisted.equivocations + in_memory.equivocations,
+                })
             })
             .collect()
     }
@@ -430,7 +431,7 @@ fn calculate_misbehavior_counts_for_range(
 /// Versioned envelope for persisted scoring metrics. New versions are added as
 /// enum variants so existing RocksDB data deserializes without migration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) enum MisbehaviorCounts {
+pub enum MisbehaviorCounts {
     V1(MisbehaviorCountsV1),
 }
 
@@ -886,14 +887,8 @@ mod tests {
 
         // Flush faulty buffer for authority 0 into persisted; leave authority 1
         // unflushed so the snapshot must sum across both buckets.
-        let _ = store.update_misbehavior_counts_on_eviction(
-            a0,
-            &BTreeSet::new(),
-            0,
-            0,
-            1,
-            &context,
-        );
+        let _ =
+            store.update_misbehavior_counts_on_eviction(a0, &BTreeSet::new(), 0, 0, 1, &context);
 
         // Record 3 more provable faults on authority 0 — these stay in_memory.
         for _ in 0..3 {
