@@ -26,6 +26,14 @@ Tick the boxes that are relevant to your changes, and delete any items that are 
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation
 
+## CI
+
+Tick a box below to trigger the corresponding workflow on this PR's current HEAD.
+Each box auto-unchecks once the run is dispatched — tick again to re-run.
+
+- [ ] Run heavy tests (only changed crates) <!-- ci-trigger: heavy_tests.yml -->
+- [ ] Run heavy tests (full workspace) <!-- ci-trigger: heavy_tests.yml test_only_changed_crates=false -->
+
 ### Release Notes
 
 Check each box that your changes affect. If none of the boxes relate to your changes, release notes aren't required.

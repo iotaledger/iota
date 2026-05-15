@@ -97,10 +97,7 @@ jobs:
     secrets: inherit
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
-      isRustWorkspaceConfig: ${{ needs.diff.outputs.isRustWorkspaceConfig == 'true' }}
       isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
-      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
-      isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
 
   move-ide:
     needs:
@@ -111,19 +108,7 @@ jobs:
     if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_move_ide.yml
 
-  split-cluster:
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-      - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
-    uses: ./.github/workflows/_split_cluster.yml
-
-  split-cluster-sync-check:
-    needs:
-      - diff
-      - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
-    uses: ./.github/workflows/_split_cluster_sync_check.yml
+  # Heavy jobs (split-cluster, split-cluster-sync-check, and the rust-tests /
+  # rust-simtests chain) live in `heavy_tests.yml` and are gated by the
+  # "Run heavy tests" checkbox in the PR description (see
+  # `heavy_tests_trigger.yml`). They also run on push to long-lived branches.

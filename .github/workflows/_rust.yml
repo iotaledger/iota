@@ -5,14 +5,7 @@ on:
     inputs:
       isRust:
         type: boolean
-      isRustWorkspaceConfig:
-        type: boolean
-        default: false
       isRustExample:
-        type: boolean
-      isPgIntegration:
-        type: boolean
-      isMoveExampleUsedByOthers:
         type: boolean
       isNightly:
         type: boolean
@@ -49,55 +42,6 @@ jobs:
     with:
       isRust: ${{ inputs.isRust }}
       isRustExample: ${{ inputs.isRustExample }}
-      isNightly: ${{ inputs.isNightly }}
-
-  crates-changes:
-    needs: rust-lints
-    runs-on: [self-hosted-x64]
-    outputs:
-      components: ${{ steps.filter.outputs.changes }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        id: filter
-        with:
-          list-files: "json"
-          filters: .github/crates-filters.yml
-
-  external-changes:
-    needs: rust-lints
-    runs-on: [self-hosted-x64]
-    if: (!cancelled() && !failure())
-    outputs:
-      components: ${{ steps.filter.outputs.changes }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        id: filter
-        with:
-          list-files: "json"
-          filters: .github/external-crates-filters.yml
-
-  rust-tests:
-    if: (!cancelled() && !failure() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
-    needs:
-      - crates-changes
-      - external-changes
-    uses: ./.github/workflows/_rust_tests.yml
-    with:
-      isRust: ${{ inputs.isRust }}
-      isPgIntegration: ${{ inputs.isPgIntegration }}
-      isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
-      runSimtest: true
-      # Only test changed crates and their dependent crates if there were no workspace-level config changes,
-      # otherwise test all crates since workspace-level config changes can affect all crates.
-      testOnlyChangedCrates: ${{ !inputs.isRustWorkspaceConfig }}
-      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
-      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
       isNightly: ${{ inputs.isNightly }}
 
   execution-cut:

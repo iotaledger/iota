@@ -1,0 +1,158 @@
+name: Heavy tests
+
+# Runs the resource-intensive CI suite (Rust tests + simtests, split-cluster
+# compatibility checks).
+#
+# On PRs this workflow is NOT triggered automatically — it is dispatched
+# only by `ci_trigger.yml` when a user ticks one of the "Run heavy tests"
+# checkboxes in the PR description (one-shot opt-in, auto-unchecked).
+# Two flavors are exposed via the `test_only_changed_crates` input:
+#   * `true`  (default): test only crates that changed in the PR plus their
+#                        reverse-dependents. Faster, recommended.
+#   * `false`           : test the whole workspace. Slower, comprehensive.
+# As a safety override, when workspace-level Rust config has changed (e.g.
+# root `Cargo.toml`/`Cargo.lock`), we ignore `true` and run the whole
+# workspace anyway — a workspace-level change can affect every crate.
+#
+# On the long-lived branches (`develop`, `devnet`, `testnet`, `mainnet`,
+# release branches) heavy tests still run on every push and always cover
+# the whole workspace — those branches need full coverage on every merge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number (for log context only)"
+        required: false
+        type: string
+      head_sha:
+        description: "Commit SHA to test (PR HEAD)"
+        required: true
+        type: string
+      test_only_changed_crates:
+        description: "If true, test only changed crates and their dependents. If false, test the whole workspace."
+        type: boolean
+        default: true
+        required: false
+  push:
+    branches:
+      - "develop"
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
+
+# Concurrency is keyed per-PR (workflow_dispatch) or per-branch (push) — NOT
+# per-SHA: heavy tests only ever make sense for a PR's latest commit, so a
+# newer dispatch for the same PR should supersede an in-flight one (this also
+# means the "changed crates" and "full workspace" variants never run in
+# parallel — the later-dispatched one wins).
+#
+# `cancel-in-progress`:
+#   * workflow_dispatch (PR): true  — newer request wins (changed vs full,
+#                                     or just a re-run).
+#   * push to a long-lived branch: keep the original behavior — never cancel
+#     on `develop` (every merged commit must be fully tested, runs queue),
+#     but cancel on devnet/testnet/mainnet/release branches (latest only).
+concurrency:
+  group: heavy-tests-${{ inputs.pr_number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/develop' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  RUST_BACKTRACE: short
+
+jobs:
+  diff:
+    runs-on: [ubuntu-latest]
+    outputs:
+      isRust: ${{ steps.diff.outputs.isRust }}
+      isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig }}
+      isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
+      isMoveExampleUsedByOthers: ${{ steps.diff.outputs.isMoveExampleUsedByOthers }}
+      isStarfishSynchronization: ${{ steps.diff.outputs.isStarfishSynchronization }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.head_sha || github.sha }}
+          fetch-depth: 0
+      - name: Detect Changes (diff)
+        uses: "./.github/actions/diffs"
+        id: diff
+
+  # Paths-filter pass that produces the list of crates touched by the PR.
+  # Only needed in change-filtered mode — push events and the "full
+  # workspace" workflow_dispatch variant skip this and exercise everything.
+  crates-changes:
+    needs: diff
+    if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
+    runs-on: [self-hosted-x64]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          list-files: "json"
+          filters: .github/crates-filters.yml
+
+  external-changes:
+    needs: diff
+    if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
+    runs-on: [self-hosted-x64]
+    outputs:
+      components: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          list-files: "json"
+          filters: .github/external-crates-filters.yml
+
+  rust-tests:
+    needs: [diff, crates-changes, external-changes]
+    # `!cancelled() && !failure()` is required because `crates-changes` /
+    # `external-changes` are deliberately skipped in full-workspace mode —
+    # default `success()` would propagate that as "needs not satisfied".
+    if: >-
+      !cancelled() && !failure()
+      && (needs.diff.outputs.isRust == 'true'
+          || needs.diff.outputs.isPgIntegration == 'true'
+          || needs.diff.outputs.isMoveExampleUsedByOthers == 'true')
+    uses: ./.github/workflows/_rust_tests.yml
+    with:
+      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
+      isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
+      runSimtest: true
+      # Filter to changed crates only when the user opted in AND no
+      # workspace-level config changed (the latter can affect every crate,
+      # so we expand to the whole workspace as a safety net).
+      testOnlyChangedCrates: >-
+        ${{ github.event_name == 'workflow_dispatch'
+            && inputs.test_only_changed_crates
+            && needs.diff.outputs.isRustWorkspaceConfig != 'true' }}
+      # When `crates-changes`/`external-changes` were skipped these resolve
+      # to '' via the `|| '[]'` fallback; `_rust_tests.yml` ignores
+      # `--changed-crates` when `--test-only-changed-crates` isn't set.
+      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
+      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
+
+  split-cluster:
+    needs: diff
+    if: needs.diff.outputs.isRust == 'true'
+    uses: ./.github/workflows/_split_cluster.yml
+
+  split-cluster-sync-check:
+    needs: diff
+    if: needs.diff.outputs.isStarfishSynchronization == 'true'
+    uses: ./.github/workflows/_split_cluster_sync_check.yml

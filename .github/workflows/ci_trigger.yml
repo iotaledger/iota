@@ -1,0 +1,156 @@
+name: PR CI checkbox trigger
+
+# Generic checkbox-based dispatcher for CI workflows on PRs.
+#
+# How it works:
+#   * The PR description contains one or more checkboxes annotated with a
+#     hidden HTML-comment marker that names the workflow file to dispatch.
+#     The marker may also include extra workflow inputs as `key=value` pairs:
+#
+#       - [ ] Run heavy tests <!-- ci-trigger: heavy_tests.yml -->
+#       - [ ] Run heavy tests (full) <!-- ci-trigger: heavy_tests.yml test_only_changed_crates=false -->
+#
+#   * When a user ticks a box (PR description gets edited), this workflow
+#     finds every checked box matching the marker pattern, unchecks them all
+#     in one edit, and then dispatches each named workflow against the PR's
+#     current HEAD SHA — passing `pr_number` + `head_sha` plus any extra
+#     `key=value` inputs from the marker.
+#   * The unchecking is done BEFORE dispatching so an infinite loop is
+#     impossible — after our edit, the body matches no `[x]` markers, and
+#     the next `edited` event from our own write does nothing.
+#
+# Adding a new on-demand workflow:
+#   1. Give it a `workflow_dispatch` trigger that declares (at minimum) the
+#      `pr_number` (string, optional) and `head_sha` (string, required)
+#      inputs, plus any extra inputs you want to drive from the marker.
+#      Its jobs should check out `${{ inputs.head_sha || github.sha }}`.
+#   2. Add a checkbox line to the relevant PR sub-template(s) with the
+#      `<!-- ci-trigger: <workflow-file>.yml [key=value]... -->` marker.
+#
+# Security note: this uses `pull_request_target` so the trigger has full
+# `GITHUB_TOKEN` permissions even on fork PRs. We never check out or execute
+# PR-author-controlled code here. The dispatched workflows themselves are
+# resolved from the repo's `develop` branch (`ref: 'develop'`), so a fork
+# cannot smuggle in a new workflow file via the PR — only workflows that
+# already exist on `develop` can be dispatched, and only with the inputs
+# this trigger passes.
+
+on:
+  pull_request_target:
+    types: [opened, edited]
+
+# Serialize trigger runs per PR — if a user clicks twice quickly, queue the
+# second run rather than cancelling the first (which could drop a dispatch).
+concurrency:
+  group: ci-trigger-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # Skip the bot's own edits (our own `pulls.update` re-fires `edited`),
+    # and skip if there are no ci-trigger markers in the body at all — saves
+    # spinning a runner for unrelated description edits.
+    if: >-
+      github.event.sender.type != 'Bot'
+      && contains(github.event.pull_request.body, 'ci-trigger:')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Uncheck matched boxes and dispatch their workflows
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // Match: "- [x] <label> <!-- ci-trigger: <workflow>.yml [extra inputs] -->"
+            // Captures:
+            //   1 = label (cosmetic, used for logs)
+            //   2 = workflow filename
+            //   3 = optional extra-inputs blob (e.g. "test_only_changed_crates=false foo=bar"),
+            //       leading/trailing whitespace included; empty for the default case.
+            const re = /- \[x\] (.+?) <!-- ci-trigger: ([\w._-]+\.yml)([^>]*?) -->/g;
+            const matches = [...body.matchAll(re)];
+
+            if (matches.length === 0) {
+              core.info('No checked ci-trigger checkboxes; nothing to do.');
+              return;
+            }
+
+            // Step 1: uncheck every matched box in a single PUT, before
+            // dispatching anything. This guarantees no infinite loop even
+            // if a dispatch step below fails partway. Captures 2 and 3
+            // round-trip unchanged so the marker (and any extra inputs) is
+            // preserved.
+            const newBody = body.replace(
+              re,
+              '- [ ] $1 <!-- ci-trigger: $2$3 -->',
+            );
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              body: newBody,
+            });
+            core.info(`Unchecked ${matches.length} ci-trigger checkbox(es).`);
+
+            // Parse the optional extra-inputs blob into a {key: value} object.
+            // Format is whitespace-separated `key=value` pairs; values cannot
+            // contain spaces (matching shell-style argument expectations).
+            function parseExtraInputs(blob) {
+              const out = {};
+              if (!blob) return out;
+              for (const pair of blob.trim().split(/\s+/)) {
+                if (!pair) continue;
+                const eq = pair.indexOf('=');
+                if (eq < 1 || eq === pair.length - 1) {
+                  core.warning(`Ignoring malformed marker input "${pair}" (expected key=value).`);
+                  continue;
+                }
+                out[pair.slice(0, eq)] = pair.slice(eq + 1);
+              }
+              return out;
+            }
+
+            // Step 2: dispatch each matched workflow. We continue past
+            // individual failures so a typo in one marker doesn't block
+            // other valid dispatches.
+            const headSha = process.env.HEAD_SHA;
+            const prNumber = process.env.PR_NUMBER;
+            let failed = 0;
+            for (const [, label, workflow, extras] of matches) {
+              const extraInputs = parseExtraInputs(extras);
+              const inputs = {
+                pr_number: String(prNumber),
+                head_sha: headSha,
+                ...extraInputs,
+              };
+              const extraDesc = Object.keys(extraInputs).length
+                ? ` with ${JSON.stringify(extraInputs)}`
+                : '';
+              core.info(`Dispatching ${workflow} (label: "${label.trim()}")${extraDesc}`);
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflow,
+                  ref: 'develop',
+                  inputs,
+                });
+              } catch (err) {
+                failed += 1;
+                core.warning(
+                  `Failed to dispatch ${workflow}: ${err.message}. ` +
+                  `Check that the workflow exists on \`develop\` and accepts ` +
+                  `the inputs being passed (${Object.keys(inputs).join(', ')}).`,
+                );
+              }
+            }
+            if (failed > 0) {
+              core.setFailed(`${failed} of ${matches.length} dispatch(es) failed.`);
+            }

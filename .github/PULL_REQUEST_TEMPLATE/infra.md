@@ -23,6 +23,14 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] Deployment of services using Docker.
 - [ ] Verification of API backward compatibility.
 
+## CI
+
+Tick a box below to trigger the corresponding workflow on this PR's current HEAD.
+Each box auto-unchecks once the run is dispatched — tick again to re-run.
+
+- [ ] Run heavy tests (only changed crates) <!-- ci-trigger: heavy_tests.yml -->
+- [ ] Run heavy tests (full workspace) <!-- ci-trigger: heavy_tests.yml test_only_changed_crates=false -->
+
 ### Release Notes
 
 - [ ] Protocol:

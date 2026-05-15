@@ -4,9 +4,11 @@ on:
   workflow_dispatch:
   workflow_call:
 
-concurrency:
-  group: split-cluster-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+# No workflow-level `concurrency` here on purpose: a reusable workflow can't
+# compute a correct concurrency key (it depends on the caller's trigger
+# context). Concurrency is owned by the entry workflows that call this one
+# (`heavy_tests.yml`, `nightly.yml`); cancelling/superseding a parent run
+# cancels this reusable's jobs along with it.
 
 env:
   CARGO_TERM_COLOR: always
