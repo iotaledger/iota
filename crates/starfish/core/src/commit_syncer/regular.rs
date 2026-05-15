@@ -41,8 +41,8 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
-    network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     misbehavior_store::MisbehaviorStore,
+    network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -900,8 +900,8 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
-        network::{BlockBundleStream, NetworkClient},
         misbehavior_store::MisbehaviorStore,
+        network::{BlockBundleStream, NetworkClient},
         storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
     };

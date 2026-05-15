@@ -49,8 +49,8 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
-    network::NetworkClient,
     misbehavior_store::MisbehaviorStore,
+    network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -1618,8 +1618,8 @@ mod tests {
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
             InflightBlockHeadersMap, SyncMethod,
         },
-        network::{BlockBundleStream, NetworkClient},
         misbehavior_store::MisbehaviorStore,
+        network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,

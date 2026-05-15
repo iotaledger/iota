@@ -36,8 +36,8 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
-    network::{NetworkClient, SerializedTransactionsV2},
     misbehavior_store::MisbehaviorStore,
+    network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 

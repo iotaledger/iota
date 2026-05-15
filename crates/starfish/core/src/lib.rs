@@ -23,11 +23,11 @@ mod leader_scoring;
 mod leader_timeout;
 mod linearizer;
 mod metrics;
+mod misbehavior_store;
 #[cfg(not(msim))]
 mod network;
 #[cfg(msim)]
 pub mod network;
-mod misbehavior_store;
 
 mod header_synchronizer;
 mod stake_aggregator;

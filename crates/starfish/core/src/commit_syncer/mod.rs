@@ -61,8 +61,8 @@ use crate::{
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
-    network::NetworkClient,
     misbehavior_store::MisbehaviorStore,
+    network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
