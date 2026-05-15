@@ -327,7 +327,7 @@ pub async fn create_blacklist(
     let blacklist_ref = tx_effects
         .created()
         .first()
-        .map(|blacklist| blacklist.reference.clone())
+        .map(|blacklist| blacklist.reference)
         .expect("There are no created objects");
 
     println!("Blacklist Ref: {blacklist_ref:?}");
