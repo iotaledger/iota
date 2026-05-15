@@ -835,10 +835,12 @@ mod tests {
     }
 
     #[rstest::rstest]
-    #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
     #[case::v1_with_fast_on(Commit::V1(CommitV1::default()), true, false, "V1")]
-    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
     #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, true, "V1")]
+    #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
+    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, true, "V2")]
+    #[case::v3_with_fast_off(Commit::V3(CommitV3::default()), false, false, "V3")]
+    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
     #[tokio::test]
     async fn verify_commits_rejects_wrong_version(
         #[case] commit: Commit,
