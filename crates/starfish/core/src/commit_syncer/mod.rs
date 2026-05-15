@@ -221,12 +221,9 @@ pub(crate) fn check_commit_version_matches_flags(
 ) -> ConsensusResult<()> {
     let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
     let starfish_speed = protocol_config.consensus_starfish_speed();
-    // V3 is gated by `consensus_starfish_speed`, which implies
-    // `consensus_fast_commit_sync` per the protocol-config assertion, so the
-    // `fast_commit_sync` value in the V3 arm is irrelevant.
     let variant_matches_flags = matches!(
         (commit, fast_commit_sync, starfish_speed),
-        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), _, true)
+        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), true, true)
     );
     if !variant_matches_flags {
         let actual = match commit {
@@ -838,12 +835,8 @@ mod tests {
     }
 
     #[rstest::rstest]
-    // Wire-format mismatches that PRs A/B already covered.
     #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
     #[case::v1_with_fast_on(Commit::V1(CommitV1::default()), true, false, "V1")]
-    // StarfishSpeed-era cases added by PR C. `consensus_starfish_speed`
-    // requires `consensus_fast_commit_sync` (asserted in protocol_config), so
-    // the V3-without-starfish case keeps fast_commit_sync on.
     #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
     #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, true, "V1")]
     #[tokio::test]
