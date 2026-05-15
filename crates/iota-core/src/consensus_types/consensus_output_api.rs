@@ -5,6 +5,7 @@
 use std::{collections::BTreeMap, fmt::Display};
 
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
+use itertools::Itertools as _;
 
 use crate::consensus_types::AuthorityIndex;
 /// A list of tuples of:
@@ -137,23 +138,18 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     }
 
     fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
-        let authority_count = self.misbehavior_counts.len();
-        let mut faulty_blocks_provable = Vec::with_capacity(authority_count);
-        let mut faulty_blocks_unprovable = Vec::with_capacity(authority_count);
-        let mut missing_proposals = Vec::with_capacity(authority_count);
-        let mut equivocations = Vec::with_capacity(authority_count);
-        // Exhaustive `match` on the versioned envelope: adding a new variant in
-        // starfish-core will fail to compile here until this consumer is updated.
-        for counts in &self.misbehavior_counts {
-            match counts {
-                starfish_core::MisbehaviorCounts::V1(v1) => {
-                    faulty_blocks_provable.push(v1.faulty_blocks_provable);
-                    faulty_blocks_unprovable.push(v1.faulty_blocks_unprovable);
-                    missing_proposals.push(v1.missing_proposals);
-                    equivocations.push(v1.equivocations);
-                }
-            }
-        }
+        let (faulty_blocks_provable, faulty_blocks_unprovable, missing_proposals, equivocations) =
+            self.misbehavior_counts
+                .iter()
+                .map(|counts| match counts {
+                    starfish_core::MisbehaviorCounts::V1(v1) => (
+                        v1.faulty_blocks_provable,
+                        v1.faulty_blocks_unprovable,
+                        v1.missing_proposals,
+                        v1.equivocations,
+                    ),
+                })
+                .multiunzip();
         ConsensusOutputMisbehaviorCounts {
             faulty_blocks_provable,
             faulty_blocks_unprovable,

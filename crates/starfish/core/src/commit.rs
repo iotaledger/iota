@@ -580,11 +580,8 @@ pub struct CommittedSubDag {
     /// All the committed blocks that are part of this sub-dag
     pub transactions: Vec<VerifiedTransactions>,
     /// Absolute per-authority misbehavior counts (`persisted + in_memory`)
-    /// snapshotted from `MisbehaviorStore` at the moment this subdag was
-    /// emitted. Indexed by `AuthorityIndex` (`vec[i]` = authority `i`).
-    /// Consumers in iota-core diff against their own last-seen state if they
-    /// need deltas. Versioned envelope: consumers must `match` exhaustively
-    /// on the enum so adding a new variant is a compile error downstream.
+    /// snapshotted from `MisbehaviorStore` at emission. Indexed by
+    /// `AuthorityIndex`; consumers diff for deltas.
     pub misbehavior_counts: Vec<MisbehaviorCounts>,
 }
 
