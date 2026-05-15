@@ -140,7 +140,7 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     fn scan_scoring_metrics(
         &self,
     ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>>;

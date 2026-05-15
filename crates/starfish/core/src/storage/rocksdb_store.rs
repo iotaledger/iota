@@ -318,11 +318,9 @@ impl Store for RocksDBStore {
             }
         }
 
-        for (authority, metrics) in write_batch.scoring_metrics {
-            batch
-                .insert_batch(&self.scoring_metrics, [(authority, metrics)])
-                .map_err(ConsensusError::RocksDBFailure)?;
-        }
+        batch
+            .insert_batch(&self.scoring_metrics, write_batch.scoring_metrics)
+            .map_err(ConsensusError::RocksDBFailure)?;
 
         batch.write()?;
         fail_point!("consensus-store-after-write");
@@ -686,12 +684,10 @@ impl Store for RocksDBStore {
     fn scan_scoring_metrics(
         &self,
     ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>> {
-        let mut metrics_by_author = BTreeMap::new();
-        for kv in self.scoring_metrics.safe_iter() {
-            let (authority, metrics) = kv?;
-            metrics_by_author.insert(authority, metrics);
-        }
-        Ok(metrics_by_author)
+        self.scoring_metrics
+            .safe_iter()
+            .map(|kv| kv.map_err(ConsensusError::RocksDBFailure))
+            .collect()
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
