@@ -2230,10 +2230,7 @@ impl DagState {
                     .map(|f| f.to_string())
                     .unwrap_or_else(|| "unchanged".to_string()),
                 scoring_metrics.len(),
-                scoring_metrics
-                    .iter()
-                    .map(|(idx, _)| idx.to_string())
-                    .join(","),
+                scoring_metrics.keys().map(|idx| idx.to_string()).join(","),
             );
 
             // Write all buffered data to storage
