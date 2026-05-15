@@ -36,7 +36,7 @@ use iota_types::{
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
-    traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
+    traffic_control::{ClientIdSource, Weight},
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -59,9 +59,7 @@ use crate::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
     starfish_adapter::LazyStarfishClient,
-    traffic_controller::{
-        TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
-    },
+    traffic_controller::{TrafficController, parse_ip, policies::TrafficTally},
 };
 
 #[cfg(test)]
@@ -377,22 +375,15 @@ impl ValidatorService {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         validator_metrics: Arc<ValidatorServiceMetrics>,
-        traffic_controller_metrics: TrafficControllerMetrics,
-        policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
+        client_id_source: Option<ClientIdSource>,
     ) -> Self {
+        let traffic_controller = state.traffic_controller.clone();
         Self {
             state,
             consensus_adapter,
             metrics: validator_metrics,
-            traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::init(
-                    policy,
-                    traffic_controller_metrics,
-                    firewall_config,
-                ))
-            }),
-            client_id_source: policy_config.map(|policy| policy.client_id_source),
+            traffic_controller,
+            client_id_source,
         }
     }
 

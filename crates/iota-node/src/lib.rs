@@ -75,7 +75,6 @@ use iota_core::{
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     storage::{GrpcReadStore, RocksDbStore},
-    traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
@@ -621,6 +620,8 @@ impl IotaNode {
             chain_identifier,
             pruner_db,
             Some(checkpoint_progress_tracker.clone()),
+            config.policy_config.clone(),
+            config.firewall_config.clone(),
         )
         .await;
 
@@ -1411,9 +1412,7 @@ impl IotaNode {
             state,
             consensus_adapter,
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
-            TrafficControllerMetrics::new(prometheus_registry),
-            config.policy_config.clone(),
-            config.firewall_config.clone(),
+            config.policy_config.clone().map(|p| p.client_id_source),
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();
@@ -2339,11 +2338,12 @@ pub async fn build_http_server(
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
+        let traffic_controller = state.traffic_controller.clone();
         let mut server = JsonRpcServerBuilder::new(
             env!("CARGO_PKG_VERSION"),
             prometheus_registry,
+            traffic_controller,
             config.policy_config.clone(),
-            config.firewall_config.clone(),
         );
 
         let kv_store = build_kv_store(&state, config, prometheus_registry)?;
