@@ -2842,13 +2842,23 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Loads the persisted overload notifications keyed by authority.
+    /// Loads the current overload notifications keyed by authority. Reads the
+    /// persisted `authority_overload_notifications` DBMap, then overlays every
+    /// queued (processed-but-not-yet-flushed) `ConsensusCommitOutput`'s
+    /// notifications on top. Without the overlay, the read would lag behind
+    /// the logical state by however many commits are sitting in
+    /// `ConsensusOutputQuarantine::output_queue` waiting for the checkpoint
+    /// builder to catch up.
     pub(crate) fn load_overload_notifications(&self) -> IotaResult<HashMap<AuthorityName, u8>> {
-        Ok(self
+        let mut notifications: HashMap<AuthorityName, u8> = self
             .tables()?
             .authority_overload_notifications
             .safe_iter()
-            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?)
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?;
+        self.consensus_quarantine
+            .read()
+            .overlay_queued_overload_notifications(&mut notifications);
+        Ok(notifications)
     }
 
     /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
