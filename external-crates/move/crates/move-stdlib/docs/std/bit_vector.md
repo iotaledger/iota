@@ -7,13 +7,14 @@
 
 -  [Struct `BitVector`](#std_bit_vector_BitVector)
 -  [Constants](#@Constants_0)
--  [Function `new`](#std_bit_vector_new)
--  [Function `set`](#std_bit_vector_set)
--  [Function `unset`](#std_bit_vector_unset)
--  [Function `shift_left`](#std_bit_vector_shift_left)
--  [Function `is_index_set`](#std_bit_vector_is_index_set)
--  [Function `length`](#std_bit_vector_length)
--  [Function `longest_set_sequence_starting_at`](#std_bit_vector_longest_set_sequence_starting_at)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`new`](#std_bit_vector_new)
+    -  [`set`](#std_bit_vector_set)
+    -  [`unset`](#std_bit_vector_unset)
+    -  [`shift_left`](#std_bit_vector_shift_left)
+    -  [`is_index_set`](#std_bit_vector_is_index_set)
+    -  [`length`](#std_bit_vector_length)
+    -  [`longest_set_sequence_starting_at`](#std_bit_vector_longest_set_sequence_starting_at)
 
 
 <pre><code></code></pre>
@@ -95,9 +96,14 @@ The maximum allowed bitvector size
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_bit_vector_new"></a>
 
-## Function `new`
+### `new`
 
 
 
@@ -132,7 +138,7 @@ The maximum allowed bitvector size
 
 <a name="std_bit_vector_set"></a>
 
-## Function `set`
+### `set`
 
 Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -159,7 +165,7 @@ Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless o
 
 <a name="std_bit_vector_unset"></a>
 
-## Function `unset`
+### `unset`
 
 Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -186,7 +192,7 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
 
 <a name="std_bit_vector_shift_left"></a>
 
-## Function `shift_left`
+### `shift_left`
 
 Shift the <code>bitvector</code> left by <code>amount</code>. If <code>amount</code> is greater than the
 bitvector's length the bitvector will be zeroed out.
@@ -232,7 +238,7 @@ bitvector's length the bitvector will be zeroed out.
 
 <a name="std_bit_vector_is_index_set"></a>
 
-## Function `is_index_set`
+### `is_index_set`
 
 Return the value of the bit at <code>bit_index</code> in the <code>bitvector</code>. <code><b>true</b></code>
 represents "1" and <code><b>false</b></code> represents a 0
@@ -259,7 +265,7 @@ represents "1" and <code><b>false</b></code> represents a 0
 
 <a name="std_bit_vector_length"></a>
 
-## Function `length`
+### `length`
 
 Return the length (number of usable bits) of this bitvector
 
@@ -284,7 +290,7 @@ Return the length (number of usable bits) of this bitvector
 
 <a name="std_bit_vector_longest_set_sequence_starting_at"></a>
 
-## Function `longest_set_sequence_starting_at`
+### `longest_set_sequence_starting_at`
 
 Returns the length of the longest sequence of set bits starting at (and
 including) <code>start_index</code> in the <code>bitvector</code>. If there is no such

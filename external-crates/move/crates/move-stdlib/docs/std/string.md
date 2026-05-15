@@ -9,25 +9,27 @@ strings.
 
 -  [Struct `String`](#std_string_String)
 -  [Constants](#@Constants_0)
--  [Function `utf8`](#std_string_utf8)
--  [Function `from_ascii`](#std_string_from_ascii)
--  [Function `to_ascii`](#std_string_to_ascii)
--  [Function `try_utf8`](#std_string_try_utf8)
--  [Function `as_bytes`](#std_string_as_bytes)
--  [Function `into_bytes`](#std_string_into_bytes)
--  [Function `is_empty`](#std_string_is_empty)
--  [Function `length`](#std_string_length)
--  [Function `append`](#std_string_append)
--  [Function `append_utf8`](#std_string_append_utf8)
--  [Function `insert`](#std_string_insert)
--  [Function `substring`](#std_string_substring)
--  [Function `index_of`](#std_string_index_of)
--  [Function `internal_check_utf8`](#std_string_internal_check_utf8)
--  [Function `internal_is_char_boundary`](#std_string_internal_is_char_boundary)
--  [Function `internal_sub_string`](#std_string_internal_sub_string)
--  [Function `internal_index_of`](#std_string_internal_index_of)
--  [Function `bytes`](#std_string_bytes)
--  [Function `sub_string`](#std_string_sub_string)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`utf8`](#std_string_utf8)
+    -  [`from_ascii`](#std_string_from_ascii)
+    -  [`to_ascii`](#std_string_to_ascii)
+    -  [`try_utf8`](#std_string_try_utf8)
+    -  [`as_bytes`](#std_string_as_bytes)
+    -  [`into_bytes`](#std_string_into_bytes)
+    -  [`is_empty`](#std_string_is_empty)
+    -  [`length`](#std_string_length)
+    -  [`append`](#std_string_append)
+    -  [`append_utf8`](#std_string_append_utf8)
+    -  [`insert`](#std_string_insert)
+    -  [`substring`](#std_string_substring)
+    -  [`index_of`](#std_string_index_of)
+    -  [`bytes`](#std_string_bytes)
+    -  [`sub_string`](#std_string_sub_string)
+-  [Private Functions](#@Private_Functions_2)
+    -  [`internal_check_utf8`](#std_string_internal_check_utf8)
+    -  [`internal_is_char_boundary`](#std_string_internal_is_char_boundary)
+    -  [`internal_sub_string`](#std_string_internal_sub_string)
+    -  [`internal_index_of`](#std_string_internal_index_of)
 
 
 <pre><code><b>use</b> <a href="../std/ascii.md#std_ascii">std::ascii</a>;
@@ -90,9 +92,14 @@ Index out of range.
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_string_utf8"></a>
 
-## Function `utf8`
+### `utf8`
 
 Creates a new string from a sequence of bytes. Aborts if the bytes do
 not represent valid utf8.
@@ -119,7 +126,7 @@ not represent valid utf8.
 
 <a name="std_string_from_ascii"></a>
 
-## Function `from_ascii`
+### `from_ascii`
 
 Convert an ASCII string to a UTF8 string
 
@@ -144,7 +151,7 @@ Convert an ASCII string to a UTF8 string
 
 <a name="std_string_to_ascii"></a>
 
-## Function `to_ascii`
+### `to_ascii`
 
 Convert an UTF8 string to an ASCII string.
 Aborts if <code>s</code> is not valid ASCII
@@ -171,7 +178,7 @@ Aborts if <code>s</code> is not valid ASCII
 
 <a name="std_string_try_utf8"></a>
 
-## Function `try_utf8`
+### `try_utf8`
 
 Tries to create a new string from a sequence of bytes.
 
@@ -197,7 +204,7 @@ Tries to create a new string from a sequence of bytes.
 
 <a name="std_string_as_bytes"></a>
 
-## Function `as_bytes`
+### `as_bytes`
 
 Returns a reference to the underlying byte vector.
 
@@ -222,7 +229,7 @@ Returns a reference to the underlying byte vector.
 
 <a name="std_string_into_bytes"></a>
 
-## Function `into_bytes`
+### `into_bytes`
 
 Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get its underlying bytes.
 
@@ -248,7 +255,7 @@ Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get 
 
 <a name="std_string_is_empty"></a>
 
-## Function `is_empty`
+### `is_empty`
 
 Checks whether this string is empty.
 
@@ -273,7 +280,7 @@ Checks whether this string is empty.
 
 <a name="std_string_length"></a>
 
-## Function `length`
+### `length`
 
 Returns the length of this string, in bytes.
 
@@ -298,7 +305,7 @@ Returns the length of this string, in bytes.
 
 <a name="std_string_append"></a>
 
-## Function `append`
+### `append`
 
 Appends a string.
 
@@ -323,7 +330,7 @@ Appends a string.
 
 <a name="std_string_append_utf8"></a>
 
-## Function `append_utf8`
+### `append_utf8`
 
 Appends bytes which must be in valid utf8 format.
 
@@ -348,7 +355,7 @@ Appends bytes which must be in valid utf8 format.
 
 <a name="std_string_insert"></a>
 
-## Function `insert`
+### `insert`
 
 Insert the other string at the byte index in given string. The index
 must be at a valid utf8 char boundary.
@@ -381,7 +388,7 @@ must be at a valid utf8 char boundary.
 
 <a name="std_string_substring"></a>
 
-## Function `substring`
+### `substring`
 
 Returns a sub-string using the given byte indices, where <code>i</code> is the first
 byte position and <code>j</code> is the start of the first byte not included (or the
@@ -418,7 +425,7 @@ guaranteeing that the result is valid utf8.
 
 <a name="std_string_index_of"></a>
 
-## Function `index_of`
+### `index_of`
 
 Computes the index of the first occurrence of a string. Returns <code>s.<a href="../std/string.md#std_string_length">length</a>()</code>
 if no occurrence found.
@@ -442,97 +449,9 @@ if no occurrence found.
 
 </details>
 
-<a name="std_string_internal_check_utf8"></a>
-
-## Function `internal_check_utf8`
-
-
-
-<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): bool;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_string_internal_is_char_boundary"></a>
-
-## Function `internal_is_char_boundary`
-
-
-
-<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): bool;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_string_internal_sub_string"></a>
-
-## Function `internal_sub_string`
-
-
-
-<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_string_internal_index_of"></a>
-
-## Function `internal_index_of`
-
-
-
-<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_index_of">internal_index_of</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, r: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/u64.md#std_u64">u64</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_index_of">internal_index_of</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, r: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/u64.md#std_u64">u64</a>;
-</code></pre>
-
-
-
-</details>
-
 <a name="std_string_bytes"></a>
 
-## Function `bytes`
+### `bytes`
 
 
 
@@ -554,7 +473,7 @@ if no occurrence found.
 
 <a name="std_string_sub_string"></a>
 
-## Function `sub_string`
+### `sub_string`
 
 
 
@@ -573,6 +492,105 @@ if no occurrence found.
 </code></pre>
 
 
+
+</details>
+
+<a name="@Private_Functions_2"></a>
+
+## Private Functions
+
+
+<details>
+<summary>Show private functions</summary>
+
+
+<a name="std_string_internal_check_utf8"></a>
+
+### `internal_check_utf8`
+
+
+
+<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_check_utf8">internal_check_utf8</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): bool;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_string_internal_is_char_boundary"></a>
+
+### `internal_is_char_boundary`
+
+
+
+<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_is_char_boundary">internal_is_char_boundary</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): bool;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_string_internal_sub_string"></a>
+
+### `internal_sub_string`
+
+
+
+<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_sub_string">internal_sub_string</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_string_internal_index_of"></a>
+
+### `internal_index_of`
+
+
+
+<pre><code><b>fun</b> <a href="../std/string.md#std_string_internal_index_of">internal_index_of</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, r: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/u64.md#std_u64">u64</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>native</b> <b>fun</b> <a href="../std/string.md#std_string_internal_index_of">internal_index_of</a>(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;, r: &<a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/u64.md#std_u64">u64</a>;
+</code></pre>
+
+
+
+</details>
 
 </details>
 

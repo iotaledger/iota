@@ -41,7 +41,9 @@ use crate::code_writer::{CodeWriter, CodeWriterLabel};
 const MAX_SUBSECTIONS: usize = 6;
 
 /// Options passed into the documentation generator.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Parser)]
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize, Parser,
+)]
 #[serde(default, deny_unknown_fields)]
 pub struct DocgenFlags {
     /// The level where we start sectioning. Often markdown sections are
@@ -71,6 +73,11 @@ pub struct DocgenFlags {
     /// Whether to include call diagrams in the generated docs.
     #[clap(long = "include-call-diagrams")]
     pub include_call_diagrams: bool,
+    /// Whether to emit an in-page module table of contents. Useful when the
+    /// rendered output already provides its own navigation (e.g. Docusaurus
+    /// builds a sidebar from headings) and the duplicate is unwanted.
+    #[clap(long = "no-module-toc", action = clap::ArgAction::SetFalse)]
+    pub include_module_toc: bool,
 }
 
 /// Options passed into the documentation generator.
@@ -126,6 +133,7 @@ impl Default for DocgenFlags {
             no_collapsed_sections: false,
             include_dep_diagrams: false,
             include_call_diagrams: false,
+            include_module_toc: true,
         }
     }
 }
@@ -548,7 +556,7 @@ impl<'env> Docgen<'env> {
         self.doc_text(env, module_info.doc.text());
 
         // If this is a standalone doc, generate TOC header.
-        let toc_label = if !info_is_included {
+        let toc_label = if !info_is_included && self.options.flags.include_module_toc {
             Some(self.gen_toc_header())
         } else {
             None
@@ -614,9 +622,7 @@ impl<'env> Docgen<'env> {
             .sorted_by_key(|f| f.info().index)
             .collect_vec();
         if !funs.is_empty() {
-            for f in funs {
-                self.gen_function(f);
-            }
+            self.gen_functions_by_visibility(funs);
         }
 
         self.decrement_section_nest();
@@ -1094,6 +1100,60 @@ impl<'env> Docgen<'env> {
         self.end_definitions();
     }
 
+    /// Groups module functions into Public / Entry / Public(package) /
+    /// Public(friend) / Private buckets and emits each non-empty bucket under
+    /// its own section header. Within each bucket, the original definition
+    /// order is preserved. Internal-only groups (package / private) are wrapped
+    /// in a collapsed `<details>` so the public surface is what's open by
+    /// default.
+    fn gen_functions_by_visibility(&mut self, funs: Vec<source_model::Function<'_>>) {
+        let mut entry = vec![];
+        let mut public = vec![];
+        let mut package = vec![];
+        let mut friend = vec![];
+        let mut private = vec![];
+        for f in funs {
+            let info = f.info();
+            if info.entry.is_some() {
+                entry.push(f);
+                continue;
+            }
+            match info.visibility {
+                Visibility::Public(_) => public.push(f),
+                Visibility::Package(_) => package.push(f),
+                Visibility::Friend(_) => friend.push(f),
+                Visibility::Internal => private.push(f),
+            }
+        }
+
+        let groups = [
+            ("Public Functions", public, false),
+            ("Entry Functions", entry, false),
+            ("Public Package Functions", package, true),
+            ("Public Friend Functions", friend, true),
+            ("Private Functions", private, true),
+        ];
+
+        for (title, fns, collapse) in groups {
+            if fns.is_empty() {
+                continue;
+            }
+            let label = self.label_for_section(title);
+            self.section_header(title, &label);
+            self.increment_section_nest();
+            if collapse {
+                self.begin_collapsed(&format!("Show {}", title.to_lowercase()));
+            }
+            for f in fns {
+                self.gen_function(f);
+            }
+            if collapse {
+                self.end_collapsed();
+            }
+            self.decrement_section_nest();
+        }
+    }
+
     /// Generates documentation for a function.
     fn gen_function(&mut self, func_env: source_model::Function<'_>) {
         let env = func_env.model();
@@ -1101,15 +1161,12 @@ impl<'env> Docgen<'env> {
         let name = func_env.name();
         let full_name = format!("{}::{}", module_env.ident(), name);
         let func_info = func_env.info();
-        let header = if func_info.macro_.is_some() {
-            "Macro function"
+        let title = if func_info.macro_.is_some() {
+            format!("`{name}` (macro)")
         } else {
-            "Function"
+            format!("`{name}`")
         };
-        self.section_header(
-            &format!("{header} `{name}`"),
-            &self.label_for_module_item(module_env, name),
-        );
+        self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();
         self.doc_text(env, func_info.doc.text());
         let sig = self.function_header_display(name, func_env);

@@ -6,17 +6,23 @@
 Module providing debug functionality.
 
 
--  [Function `print`](#std_debug_print)
--  [Function `print_stack_trace`](#std_debug_print_stack_trace)
+-  [Public Functions](#@Public_Functions_0)
+    -  [`print`](#std_debug_print)
+    -  [`print_stack_trace`](#std_debug_print_stack_trace)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Public_Functions_0"></a>
+
+## Public Functions
+
+
 <a name="std_debug_print"></a>
 
-## Function `print`
+### `print`
 
 
 
@@ -38,7 +44,7 @@ Module providing debug functionality.
 
 <a name="std_debug_print_stack_trace"></a>
 
-## Function `print_stack_trace`
+### `print_stack_trace`
 
 
 

@@ -7,16 +7,22 @@ Provides a way to get address length since it's a
 platform-specific parameter.
 
 
--  [Function `length`](#std_address_length)
+-  [Public Functions](#@Public_Functions_0)
+    -  [`length`](#std_address_length)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Public_Functions_0"></a>
+
+## Public Functions
+
+
 <a name="std_address_length"></a>
 
-## Function `length`
+### `length`
 
 Should be converted to a native function.
 Current implementation only works for IOTA.

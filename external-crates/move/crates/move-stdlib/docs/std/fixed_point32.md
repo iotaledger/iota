@@ -9,12 +9,13 @@ a 32-bit fractional part.
 
 -  [Struct `FixedPoint32`](#std_fixed_point32_FixedPoint32)
 -  [Constants](#@Constants_0)
--  [Function `multiply_u64`](#std_fixed_point32_multiply_u64)
--  [Function `divide_u64`](#std_fixed_point32_divide_u64)
--  [Function `create_from_rational`](#std_fixed_point32_create_from_rational)
--  [Function `create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
--  [Function `get_raw_value`](#std_fixed_point32_get_raw_value)
--  [Function `is_zero`](#std_fixed_point32_is_zero)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`multiply_u64`](#std_fixed_point32_multiply_u64)
+    -  [`divide_u64`](#std_fixed_point32_divide_u64)
+    -  [`create_from_rational`](#std_fixed_point32_create_from_rational)
+    -  [`create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
+    -  [`get_raw_value`](#std_fixed_point32_get_raw_value)
+    -  [`is_zero`](#std_fixed_point32_is_zero)
 
 
 <pre><code></code></pre>
@@ -121,9 +122,14 @@ The computed ratio when converting to a <code><a href="../std/fixed_point32.md#s
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_fixed_point32_multiply_u64"></a>
 
-## Function `multiply_u64`
+### `multiply_u64`
 
 Multiply a u64 integer by a fixed-point number, truncating any
 fractional part of the product. This will abort if the product
@@ -159,7 +165,7 @@ overflows.
 
 <a name="std_fixed_point32_divide_u64"></a>
 
-## Function `divide_u64`
+### `divide_u64`
 
 Divide a u64 integer by a fixed-point number, truncating any
 fractional part of the quotient. This will abort if the divisor
@@ -196,7 +202,7 @@ is zero or if the quotient overflows.
 
 <a name="std_fixed_point32_create_from_rational"></a>
 
-## Function `create_from_rational`
+### `create_from_rational`
 
 Create a fixed-point value from a rational number specified by its
 numerator and denominator. Calling this function should be preferred
@@ -242,7 +248,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 
 <a name="std_fixed_point32_create_from_raw_value"></a>
 
-## Function `create_from_raw_value`
+### `create_from_raw_value`
 
 Create a fixedpoint value from a raw value.
 
@@ -267,7 +273,7 @@ Create a fixedpoint value from a raw value.
 
 <a name="std_fixed_point32_get_raw_value"></a>
 
-## Function `get_raw_value`
+### `get_raw_value`
 
 Accessor for the raw u64 value. Other less common operations, such as
 adding or subtracting FixedPoint32 values, can be done using the raw
@@ -294,7 +300,7 @@ values directly.
 
 <a name="std_fixed_point32_is_zero"></a>
 
-## Function `is_zero`
+### `is_zero`
 
 Returns true if the ratio is zero.
 

@@ -8,7 +8,7 @@ info:
   no_collapsed_sections: false
   include_dep_diagrams: false
   include_call_diagrams: false
-input_file: crates/move-docgen-tests/tests/move/enums/Move.toml
+  include_module_toc: true
 ---
 <a name="a_m"></a>
 
@@ -27,7 +27,8 @@ This is a doc comment above an annotation.
 -  [Struct `Entry`](#a_m_Entry)
 -  [Enum `Enum`](#a_m_Enum)
 -  [Enum `GenericEnum`](#a_m_GenericEnum)
--  [Function `f`](#a_m_f)
+-  [Private Functions](#@Private_Functions_0)
+    -  [`f`](#a_m_f)
 
 
 <pre><code></code></pre>
@@ -374,9 +375,18 @@ Variant <code>B</code>
 
 </details>
 
+<a name="@Private_Functions_0"></a>
+
+## Private Functions
+
+
+<details>
+<summary>Show private functions</summary>
+
+
 <a name="a_m_f"></a>
 
-## Function `f`
+### `f`
 
 Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
 
@@ -396,5 +406,7 @@ Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a h
 </code></pre>
 
 
+
+</details>
 
 </details>

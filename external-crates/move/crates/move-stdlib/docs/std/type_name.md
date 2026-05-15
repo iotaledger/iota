@@ -8,13 +8,14 @@ Functionality for converting Move types into values. Use with care!
 
 -  [Struct `TypeName`](#std_type_name_TypeName)
 -  [Constants](#@Constants_0)
--  [Function `get`](#std_type_name_get)
--  [Function `get_with_original_ids`](#std_type_name_get_with_original_ids)
--  [Function `is_primitive`](#std_type_name_is_primitive)
--  [Function `borrow_string`](#std_type_name_borrow_string)
--  [Function `get_address`](#std_type_name_get_address)
--  [Function `get_module`](#std_type_name_get_module)
--  [Function `into_string`](#std_type_name_into_string)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`get`](#std_type_name_get)
+    -  [`get_with_original_ids`](#std_type_name_get_with_original_ids)
+    -  [`is_primitive`](#std_type_name_is_primitive)
+    -  [`borrow_string`](#std_type_name_borrow_string)
+    -  [`get_address`](#std_type_name_get_address)
+    -  [`get_module`](#std_type_name_get_module)
+    -  [`into_string`](#std_type_name_into_string)
 
 
 <pre><code><b>use</b> <a href="../std/address.md#std_address">std::address</a>;
@@ -143,9 +144,14 @@ The type is not from a package/module. It is a primitive type.
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_type_name_get"></a>
 
-## Function `get`
+### `get`
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
@@ -171,7 +177,7 @@ storage that first introduced the type).
 
 <a name="std_type_name_get_with_original_ids"></a>
 
-## Function `get_with_original_ids`
+### `get_with_original_ids`
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
@@ -198,7 +204,7 @@ later upgrade).
 
 <a name="std_type_name_is_primitive"></a>
 
-## Function `is_primitive`
+### `is_primitive`
 
 Returns true iff the TypeName represents a primitive type, i.e. one of
 u8, u16, u32, u64, u128, u256, bool, address, vector.
@@ -241,7 +247,7 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 <a name="std_type_name_borrow_string"></a>
 
-## Function `borrow_string`
+### `borrow_string`
 
 Get the String representation of <code>self</code>
 
@@ -266,7 +272,7 @@ Get the String representation of <code>self</code>
 
 <a name="std_type_name_get_address"></a>
 
-## Function `get_address`
+### `get_address`
 
 Get Address string (Base16 encoded), first part of the TypeName.
 Aborts if given a primitive type.
@@ -303,7 +309,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_get_module"></a>
 
-## Function `get_module`
+### `get_module`
 
 Get name of the module.
 Aborts if given a primitive type.
@@ -344,7 +350,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_into_string"></a>
 
-## Function `into_string`
+### `into_string`
 
 Convert <code>self</code> into its inner String
 

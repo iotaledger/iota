@@ -8,35 +8,36 @@ This module defines the Option type and its methods to represent and handle an o
 
 -  [Struct `Option`](#std_option_Option)
 -  [Constants](#@Constants_0)
--  [Function `none`](#std_option_none)
--  [Function `some`](#std_option_some)
--  [Function `is_none`](#std_option_is_none)
--  [Function `is_some`](#std_option_is_some)
--  [Function `contains`](#std_option_contains)
--  [Function `borrow`](#std_option_borrow)
--  [Function `borrow_with_default`](#std_option_borrow_with_default)
--  [Function `get_with_default`](#std_option_get_with_default)
--  [Function `fill`](#std_option_fill)
--  [Function `extract`](#std_option_extract)
--  [Function `borrow_mut`](#std_option_borrow_mut)
--  [Function `swap`](#std_option_swap)
--  [Function `swap_or_fill`](#std_option_swap_or_fill)
--  [Function `destroy_with_default`](#std_option_destroy_with_default)
--  [Function `destroy_some`](#std_option_destroy_some)
--  [Function `destroy_none`](#std_option_destroy_none)
--  [Function `to_vec`](#std_option_to_vec)
--  [Macro function `destroy`](#std_option_destroy)
--  [Macro function `do`](#std_option_do)
--  [Macro function `do_ref`](#std_option_do_ref)
--  [Macro function `do_mut`](#std_option_do_mut)
--  [Macro function `or`](#std_option_or)
--  [Macro function `and`](#std_option_and)
--  [Macro function `and_ref`](#std_option_and_ref)
--  [Macro function `map`](#std_option_map)
--  [Macro function `map_ref`](#std_option_map_ref)
--  [Macro function `filter`](#std_option_filter)
--  [Macro function `is_some_and`](#std_option_is_some_and)
--  [Macro function `destroy_or`](#std_option_destroy_or)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`none`](#std_option_none)
+    -  [`some`](#std_option_some)
+    -  [`is_none`](#std_option_is_none)
+    -  [`is_some`](#std_option_is_some)
+    -  [`contains`](#std_option_contains)
+    -  [`borrow`](#std_option_borrow)
+    -  [`borrow_with_default`](#std_option_borrow_with_default)
+    -  [`get_with_default`](#std_option_get_with_default)
+    -  [`fill`](#std_option_fill)
+    -  [`extract`](#std_option_extract)
+    -  [`borrow_mut`](#std_option_borrow_mut)
+    -  [`swap`](#std_option_swap)
+    -  [`swap_or_fill`](#std_option_swap_or_fill)
+    -  [`destroy_with_default`](#std_option_destroy_with_default)
+    -  [`destroy_some`](#std_option_destroy_some)
+    -  [`destroy_none`](#std_option_destroy_none)
+    -  [`to_vec`](#std_option_to_vec)
+    -  [`destroy` (macro)](#std_option_destroy)
+    -  [`do` (macro)](#std_option_do)
+    -  [`do_ref` (macro)](#std_option_do_ref)
+    -  [`do_mut` (macro)](#std_option_do_mut)
+    -  [`or` (macro)](#std_option_or)
+    -  [`and` (macro)](#std_option_and)
+    -  [`and_ref` (macro)](#std_option_and_ref)
+    -  [`map` (macro)](#std_option_map)
+    -  [`map_ref` (macro)](#std_option_map_ref)
+    -  [`filter` (macro)](#std_option_filter)
+    -  [`is_some_and` (macro)](#std_option_is_some_and)
+    -  [`destroy_or` (macro)](#std_option_destroy_or)
 
 
 <pre><code><b>use</b> <a href="../std/vector.md#std_vector">std::vector</a>;
@@ -99,9 +100,14 @@ The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <cod
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_option_none"></a>
 
-## Function `none`
+### `none`
 
 Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></code>
 
@@ -126,7 +132,7 @@ Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></c
 
 <a name="std_option_some"></a>
 
-## Function `some`
+### `some`
 
 Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> containing <code>e</code>
 
@@ -151,7 +157,7 @@ Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> c
 
 <a name="std_option_is_none"></a>
 
-## Function `is_none`
+### `is_none`
 
 Return true if <code>t</code> does not hold a value
 
@@ -176,7 +182,7 @@ Return true if <code>t</code> does not hold a value
 
 <a name="std_option_is_some"></a>
 
-## Function `is_some`
+### `is_some`
 
 Return true if <code>t</code> holds a value
 
@@ -201,7 +207,7 @@ Return true if <code>t</code> holds a value
 
 <a name="std_option_contains"></a>
 
-## Function `contains`
+### `contains`
 
 Return true if the value in <code>t</code> is equal to <code>e_ref</code>
 Always returns <code><b>false</b></code> if <code>t</code> does not hold a value
@@ -227,7 +233,7 @@ Always returns <code><b>false</b></code> if <code>t</code> does not hold a value
 
 <a name="std_option_borrow"></a>
 
-## Function `borrow`
+### `borrow`
 
 Return an immutable reference to the value inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -254,7 +260,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_borrow_with_default"></a>
 
-## Function `borrow_with_default`
+### `borrow_with_default`
 
 Return a reference to the value inside <code>t</code> if it holds one
 Return <code>default_ref</code> if <code>t</code> does not hold a value
@@ -282,7 +288,7 @@ Return <code>default_ref</code> if <code>t</code> does not hold a value
 
 <a name="std_option_get_with_default"></a>
 
-## Function `get_with_default`
+### `get_with_default`
 
 Return the value inside <code>t</code> if it holds one
 Return <code>default</code> if <code>t</code> does not hold a value
@@ -310,7 +316,7 @@ Return <code>default</code> if <code>t</code> does not hold a value
 
 <a name="std_option_fill"></a>
 
-## Function `fill`
+### `fill`
 
 Convert the none option <code>t</code> to a some option by adding <code>e</code>.
 Aborts if <code>t</code> already holds a value
@@ -338,7 +344,7 @@ Aborts if <code>t</code> already holds a value
 
 <a name="std_option_extract"></a>
 
-## Function `extract`
+### `extract`
 
 Convert a <code><a href="../std/option.md#std_option_some">some</a></code> option to a <code><a href="../std/option.md#std_option_none">none</a></code> by removing and returning the value stored inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -365,7 +371,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_borrow_mut"></a>
 
-## Function `borrow_mut`
+### `borrow_mut`
 
 Return a mutable reference to the value inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -392,7 +398,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_swap"></a>
 
-## Function `swap`
+### `swap`
 
 Swap the old value inside <code>t</code> with <code>e</code> and return the old value
 Aborts if <code>t</code> does not hold a value
@@ -422,7 +428,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_swap_or_fill"></a>
 
-## Function `swap_or_fill`
+### `swap_or_fill`
 
 Swap the old value inside <code>t</code> with <code>e</code> and return the old value;
 or if there is no old value, fill it with <code>e</code>.
@@ -453,7 +459,7 @@ Different from swap(), swap_or_fill() allows for <code>t</code> not holding a va
 
 <a name="std_option_destroy_with_default"></a>
 
-## Function `destroy_with_default`
+### `destroy_with_default`
 
 Destroys <code>t.</code> If <code>t</code> holds a value, return it. Returns <code>default</code> otherwise
 
@@ -480,7 +486,7 @@ Destroys <code>t.</code> If <code>t</code> holds a value, return it. Returns <co
 
 <a name="std_option_destroy_some"></a>
 
-## Function `destroy_some`
+### `destroy_some`
 
 Unpack <code>t</code> and return its contents
 Aborts if <code>t</code> does not hold a value
@@ -510,7 +516,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_destroy_none"></a>
 
-## Function `destroy_none`
+### `destroy_none`
 
 Unpack <code>t</code>
 Aborts if <code>t</code> holds a value
@@ -538,7 +544,7 @@ Aborts if <code>t</code> holds a value
 
 <a name="std_option_to_vec"></a>
 
-## Function `to_vec`
+### `to_vec`
 
 Convert <code>t</code> into a vector of length 1 if it is <code>Some</code>,
 and an empty vector otherwise
@@ -565,7 +571,7 @@ and an empty vector otherwise
 
 <a name="std_option_destroy"></a>
 
-## Macro function `destroy`
+### `destroy` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and call the closure <code>f</code> on the value inside if it holds one.
 
@@ -591,7 +597,7 @@ Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</
 
 <a name="std_option_do"></a>
 
-## Macro function `do`
+### `do` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and call the closure <code>f</code> on the value inside if it holds one.
 
@@ -618,7 +624,7 @@ Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</
 
 <a name="std_option_do_ref"></a>
 
-## Macro function `do_ref`
+### `do_ref` (macro)
 
 Execute a closure on the value inside <code>t</code> if it holds one.
 
@@ -644,7 +650,7 @@ Execute a closure on the value inside <code>t</code> if it holds one.
 
 <a name="std_option_do_mut"></a>
 
-## Macro function `do_mut`
+### `do_mut` (macro)
 
 Execute a closure on the mutable reference to the value inside <code>t</code> if it holds one.
 
@@ -670,7 +676,7 @@ Execute a closure on the mutable reference to the value inside <code>t</code> if
 
 <a name="std_option_or"></a>
 
-## Macro function `or`
+### `or` (macro)
 
 Select the first <code>Some</code> value from the two options, or <code>None</code> if both are <code>None</code>.
 Equivalent to Rust's <code>a.<a href="../std/option.md#std_option_or">or</a>(b)</code>.
@@ -702,7 +708,7 @@ Equivalent to Rust's <code>a.<a href="../std/option.md#std_option_or">or</a>(b)<
 
 <a name="std_option_and"></a>
 
-## Macro function `and`
+### `and` (macro)
 
 If the value is <code>Some</code>, call the closure <code>f</code> on it. Otherwise, return <code>None</code>.
 Equivalent to Rust's <code>t.and_then(f)</code>.
@@ -734,7 +740,7 @@ Equivalent to Rust's <code>t.and_then(f)</code>.
 
 <a name="std_option_and_ref"></a>
 
-## Macro function `and_ref`
+### `and_ref` (macro)
 
 If the value is <code>Some</code>, call the closure <code>f</code> on it. Otherwise, return <code>None</code>.
 Equivalent to Rust's <code>t.and_then(f)</code>.
@@ -762,7 +768,7 @@ Equivalent to Rust's <code>t.and_then(f)</code>.
 
 <a name="std_option_map"></a>
 
-## Macro function `map`
+### `map` (macro)
 
 Map an <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> to <code><a href="../std/option.md#std_option_Option">Option</a>&lt;U&gt;</code> by applying a function to a contained value.
 Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f)</code>.
@@ -794,7 +800,7 @@ Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f
 
 <a name="std_option_map_ref"></a>
 
-## Macro function `map_ref`
+### `map_ref` (macro)
 
 Map an <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> value to <code><a href="../std/option.md#std_option_Option">Option</a>&lt;U&gt;</code> by applying a function to a contained value by reference.
 Original <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> is preserved.
@@ -823,7 +829,7 @@ Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f
 
 <a name="std_option_filter"></a>
 
-## Macro function `filter`
+### `filter` (macro)
 
 Return <code>None</code> if the value is <code>None</code>, otherwise return <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> if the predicate <code>f</code> returns true.
 
@@ -850,7 +856,7 @@ Return <code>None</code> if the value is <code>None</code>, otherwise return <co
 
 <a name="std_option_is_some_and"></a>
 
-## Macro function `is_some_and`
+### `is_some_and` (macro)
 
 Return <code><b>false</b></code> if the value is <code>None</code>, otherwise return the result of the predicate <code>f</code>.
 
@@ -876,7 +882,7 @@ Return <code><b>false</b></code> if the value is <code>None</code>, otherwise re
 
 <a name="std_option_destroy_or"></a>
 
-## Macro function `destroy_or`
+### `destroy_or` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and return the value inside if it holds one, or <code>default</code> otherwise.
 Equivalent to Rust's <code>t.unwrap_or(default)</code>.

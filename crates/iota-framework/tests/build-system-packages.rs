@@ -13,6 +13,7 @@ use capitalize::Capitalize;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
+use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
@@ -87,6 +88,13 @@ fn build_packages(
 ) {
     let config = MoveBuildConfig {
         generate_docs: true,
+        // The rendered framework docs live in a Docusaurus site that builds
+        // its own heading-based sidebar, so the in-page module TOC just
+        // duplicates that navigation.
+        docgen_flags: DocgenFlags {
+            include_module_toc: false,
+            ..DocgenFlags::default()
+        },
         warnings_are_errors: true,
         install_dir: Some(PathBuf::from(".")),
         lint_flag: LintFlag::LEVEL_NONE,

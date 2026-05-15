@@ -8,6 +8,7 @@ info:
   no_collapsed_sections: false
   include_dep_diagrams: false
   include_call_diagrams: false
+  include_module_toc: true
 ---
 <a name="a_m"></a>
 
@@ -17,8 +18,9 @@ This is a doc comment above an annotation.
 
 
 -  [Constants](#@Constants_0)
--  [Function `test`](#a_m_test)
--  [Function `test1`](#a_m_test1)
+-  [Private Functions](#@Private_Functions_1)
+    -  [`test`](#a_m_test)
+    -  [`test1`](#a_m_test1)
 
 
 <pre><code></code></pre>
@@ -73,9 +75,18 @@ This is the middle doc comment
 
 
 
+<a name="@Private_Functions_1"></a>
+
+## Private Functions
+
+
+<details>
+<summary>Show private functions</summary>
+
+
 <a name="a_m_test"></a>
 
-## Function `test`
+### `test`
 
 This is a doc comment above a function with an annotation. Above the annotation.
 
@@ -98,7 +109,7 @@ This is a doc comment above a function with an annotation. Above the annotation.
 
 <a name="a_m_test1"></a>
 
-## Function `test1`
+### `test1`
 
 This is a doc comment above a function with an annotation. Below the annotation.
 
@@ -116,5 +127,7 @@ This is a doc comment above a function with an annotation. Below the annotation.
 </code></pre>
 
 
+
+</details>
 
 </details>

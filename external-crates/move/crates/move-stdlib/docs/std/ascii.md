@@ -10,27 +10,29 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 -  [Struct `String`](#std_ascii_String)
 -  [Struct `Char`](#std_ascii_Char)
 -  [Constants](#@Constants_0)
--  [Function `char`](#std_ascii_char)
--  [Function `string`](#std_ascii_string)
--  [Function `try_string`](#std_ascii_try_string)
--  [Function `all_characters_printable`](#std_ascii_all_characters_printable)
--  [Function `push_char`](#std_ascii_push_char)
--  [Function `pop_char`](#std_ascii_pop_char)
--  [Function `length`](#std_ascii_length)
--  [Function `append`](#std_ascii_append)
--  [Function `insert`](#std_ascii_insert)
--  [Function `substring`](#std_ascii_substring)
--  [Function `as_bytes`](#std_ascii_as_bytes)
--  [Function `into_bytes`](#std_ascii_into_bytes)
--  [Function `byte`](#std_ascii_byte)
--  [Function `is_valid_char`](#std_ascii_is_valid_char)
--  [Function `is_printable_char`](#std_ascii_is_printable_char)
--  [Function `is_empty`](#std_ascii_is_empty)
--  [Function `to_uppercase`](#std_ascii_to_uppercase)
--  [Function `to_lowercase`](#std_ascii_to_lowercase)
--  [Function `index_of`](#std_ascii_index_of)
--  [Function `char_to_uppercase`](#std_ascii_char_to_uppercase)
--  [Function `char_to_lowercase`](#std_ascii_char_to_lowercase)
+-  [Public Functions](#@Public_Functions_1)
+    -  [`char`](#std_ascii_char)
+    -  [`string`](#std_ascii_string)
+    -  [`try_string`](#std_ascii_try_string)
+    -  [`all_characters_printable`](#std_ascii_all_characters_printable)
+    -  [`push_char`](#std_ascii_push_char)
+    -  [`pop_char`](#std_ascii_pop_char)
+    -  [`length`](#std_ascii_length)
+    -  [`append`](#std_ascii_append)
+    -  [`insert`](#std_ascii_insert)
+    -  [`substring`](#std_ascii_substring)
+    -  [`as_bytes`](#std_ascii_as_bytes)
+    -  [`into_bytes`](#std_ascii_into_bytes)
+    -  [`byte`](#std_ascii_byte)
+    -  [`is_valid_char`](#std_ascii_is_valid_char)
+    -  [`is_printable_char`](#std_ascii_is_printable_char)
+    -  [`is_empty`](#std_ascii_is_empty)
+    -  [`to_uppercase`](#std_ascii_to_uppercase)
+    -  [`to_lowercase`](#std_ascii_to_lowercase)
+    -  [`index_of`](#std_ascii_index_of)
+-  [Private Functions](#@Private_Functions_2)
+    -  [`char_to_uppercase`](#std_ascii_char_to_uppercase)
+    -  [`char_to_lowercase`](#std_ascii_char_to_lowercase)
 
 
 <pre><code><b>use</b> <a href="../std/option.md#std_option">std::option</a>;
@@ -122,9 +124,14 @@ An invalid index was encountered when creating a substring.
 
 
 
+<a name="@Public_Functions_1"></a>
+
+## Public Functions
+
+
 <a name="std_ascii_char"></a>
 
-## Function `char`
+### `char`
 
 Convert a <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> into a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> that is checked to make sure it is valid ASCII.
 
@@ -150,7 +157,7 @@ Convert a <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> into a 
 
 <a name="std_ascii_string"></a>
 
-## Function `string`
+### `string`
 
 Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Aborts if
 <code>bytes</code> contains non-ASCII characters.
@@ -178,7 +185,7 @@ Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii
 
 <a name="std_ascii_try_string"></a>
 
-## Function `try_string`
+### `try_string`
 
 Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Returns
 <code>Some(&lt;ascii_string&gt;)</code> if the <code>bytes</code> contains all valid ASCII
@@ -207,7 +214,7 @@ characters. Otherwise returns <code>None</code>.
 
 <a name="std_ascii_all_characters_printable"></a>
 
-## Function `all_characters_printable`
+### `all_characters_printable`
 
 Returns <code><b>true</b></code> if all characters in <code><a href="../std/string.md#std_string">string</a></code> are printable characters
 Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii.md#std_ascii_String">String</a></code>s are printable strings.
@@ -233,7 +240,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii
 
 <a name="std_ascii_push_char"></a>
 
-## Function `push_char`
+### `push_char`
 
 Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -258,7 +265,7 @@ Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end
 
 <a name="std_ascii_pop_char"></a>
 
-## Function `pop_char`
+### `pop_char`
 
 Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -283,7 +290,7 @@ Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the en
 
 <a name="std_ascii_length"></a>
 
-## Function `length`
+### `length`
 
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> in bytes.
 
@@ -308,7 +315,7 @@ Returns the length of the <code><a href="../std/string.md#std_string">string</a>
 
 <a name="std_ascii_append"></a>
 
-## Function `append`
+### `append`
 
 Append the <code>other</code> string to the end of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -333,7 +340,7 @@ Append the <code>other</code> string to the end of <code><a href="../std/string.
 
 <a name="std_ascii_insert"></a>
 
-## Function `insert`
+### `insert`
 
 Insert the <code>other</code> string at the <code>at</code> index of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -359,7 +366,7 @@ Insert the <code>other</code> string at the <code>at</code> index of <code><a hr
 
 <a name="std_ascii_substring"></a>
 
-## Function `substring`
+### `substring`
 
 Copy the slice of the <code><a href="../std/string.md#std_string">string</a></code> from <code>i</code> to <code>j</code> into a new <code><a href="../std/ascii.md#std_ascii_String">String</a></code>.
 
@@ -387,7 +394,7 @@ Copy the slice of the <code><a href="../std/string.md#std_string">string</a></co
 
 <a name="std_ascii_as_bytes"></a>
 
-## Function `as_bytes`
+### `as_bytes`
 
 Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a></code> as a reference
 
@@ -412,7 +419,7 @@ Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a
 
 <a name="std_ascii_into_bytes"></a>
 
-## Function `into_bytes`
+### `into_bytes`
 
 Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get its backing bytes
 
@@ -438,7 +445,7 @@ Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get 
 
 <a name="std_ascii_byte"></a>
 
-## Function `byte`
+### `byte`
 
 Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into its underlying bytes.
 
@@ -464,7 +471,7 @@ Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into i
 
 <a name="std_ascii_is_valid_char"></a>
 
-## Function `is_valid_char`
+### `is_valid_char`
 
 Returns <code><b>true</b></code> if <code>b</code> is a valid ASCII character.
 Returns <code><b>false</b></code> otherwise.
@@ -490,7 +497,7 @@ Returns <code><b>false</b></code> otherwise.
 
 <a name="std_ascii_is_printable_char"></a>
 
-## Function `is_printable_char`
+### `is_printable_char`
 
 Returns <code><b>true</b></code> if <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> is a printable ASCII character.
 Returns <code><b>false</b></code> otherwise.
@@ -517,7 +524,7 @@ Returns <code><b>false</b></code> otherwise.
 
 <a name="std_ascii_is_empty"></a>
 
-## Function `is_empty`
+### `is_empty`
 
 Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">string</a></code> is empty.
 
@@ -542,7 +549,7 @@ Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">
 
 <a name="std_ascii_to_uppercase"></a>
 
-## Function `to_uppercase`
+### `to_uppercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its uppercase equivalent.
 
@@ -568,7 +575,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its u
 
 <a name="std_ascii_to_lowercase"></a>
 
-## Function `to_lowercase`
+### `to_lowercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its lowercase equivalent.
 
@@ -594,7 +601,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its l
 
 <a name="std_ascii_index_of"></a>
 
-## Function `index_of`
+### `index_of`
 
 Computes the index of the first occurrence of the <code>substr</code> in the <code><a href="../std/string.md#std_string">string</a></code>.
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> if the <code>substr</code> is not found.
@@ -628,9 +635,18 @@ Returns 0 if the <code>substr</code> is empty.
 
 </details>
 
+<a name="@Private_Functions_2"></a>
+
+## Private Functions
+
+
+<details>
+<summary>Show private functions</summary>
+
+
 <a name="std_ascii_char_to_uppercase"></a>
 
-## Function `char_to_uppercase`
+### `char_to_uppercase`
 
 Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
 
@@ -656,7 +672,7 @@ Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its 
 
 <a name="std_ascii_char_to_lowercase"></a>
 
-## Function `char_to_lowercase`
+### `char_to_lowercase`
 
 Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
 
@@ -677,6 +693,8 @@ Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its 
 </code></pre>
 
 
+
+</details>
 
 </details>
 
