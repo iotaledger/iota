@@ -327,11 +327,12 @@ pub(crate) enum ConsensusError {
     },
 
     #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
     )]
     WrongCommitVersionForFlags {
         actual: &'static str,
         fast_commit_sync: bool,
+        starfish_speed: bool,
     },
 
     #[error("Block has strong_vote field but consensus_starfish_speed is disabled")]
