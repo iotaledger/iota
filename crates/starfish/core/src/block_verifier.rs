@@ -207,11 +207,9 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
-        // Validate strong_vote field.
+        // Validate strong_vote field. Reachable only on V2 headers, which the
+        // version-flag check above already gated on `consensus_starfish_speed`.
         if let Some(strong_vote) = block.strong_vote() {
-            if !self.context.protocol_config.consensus_starfish_speed() {
-                return Err(ConsensusError::UnexpectedStrongVote);
-            }
             if !committee.is_valid_index(strong_vote.leader_authority) {
                 return Err(ConsensusError::InvalidStrongVoteAuthority {
                     index: strong_vote.leader_authority,
@@ -577,17 +575,14 @@ pub(crate) mod test {
 
     #[tokio::test]
     async fn test_verify_block_strong_vote() {
-        let (context_off, keypairs) = Context::new_for_test(4);
-        let (mut context_on, _) = Context::new_for_test(4);
+        let (mut context_on, keypairs) = Context::new_for_test(4);
         context_on
             .protocol_config
             .set_consensus_starfish_speed_for_testing(true);
-        let context_off = Arc::new(context_off);
         let context_on = Arc::new(context_on);
 
         let keypair = &keypairs[2].1;
         let leader_authority = AuthorityIndex::new_for_test(0);
-        let verifier_off = SignedBlockVerifier::new(context_off, Arc::new(TxnSizeVerifier {}));
         let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
 
         let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
@@ -600,16 +595,6 @@ pub(crate) mod test {
             leader_authority,
             missing: AuthoritySet::new(),
         };
-
-        // Flag off + Some(strong_vote) -> UnexpectedStrongVote.
-        {
-            let block = base.clone().set_strong_vote(Some(well_formed)).build();
-            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
-            assert!(matches!(
-                verifier_off.verify(&signed_block),
-                Err(ConsensusError::UnexpectedStrongVote)
-            ));
-        }
 
         // Flag on + missing contains an index >= committee.size() ->
         // InvalidStrongVoteAuthority.
