@@ -195,10 +195,10 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     Ok(ticket.span.wrap(ParsedPTBCommand::ExecuteUpgrade(ticket)))
                 }),
 
-                L(T::UpgradeCompile, src) => command!({
+                L(T::CompileUpgrade, src) => command!({
                     let src = sp.wrap(src.to_owned());
                     let cap = try_!(self.parse_argument());
-                    Ok(cap.span.wrap(ParsedPTBCommand::UpgradeCompile(src, cap)))
+                    Ok(cap.span.wrap(ParsedPTBCommand::CompileUpgrade(src, cap)))
                 }),
 
                 L(T::Command, s) => {

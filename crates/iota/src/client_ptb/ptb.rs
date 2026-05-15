@@ -556,7 +556,7 @@ pub fn ptb_description() -> clap::Command {
             \n --upgrade \"./my_package\" @upgrade_cap_id"
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
-            --"upgrade-compile" <MOVE_PACKAGE_PATH>
+            --"compile-upgrade" <MOVE_PACKAGE_PATH>
             "Compile a Move package for upgrade without executing any transaction commands."
         ).long_help(
             "Compile a Move package for upgrade. Returns the package digest as a pure value \
@@ -564,7 +564,7 @@ pub fn ptb_description() -> clap::Command {
             function. Stores the compiled package data internally for a subsequent \
             --execute-upgrade command.\
             \n\nExamples:\
-            \n --upgrade-compile \"./my_package\" @upgrade_cap_id\
+            \n --compile-upgrade \"./my_package\" @upgrade_cap_id\
             \n --assign digest\
             \n --move-call my_pkg::admin::authorize @shared_obj digest\
             \n --assign ticket\
@@ -576,7 +576,7 @@ pub fn ptb_description() -> clap::Command {
             --"execute-upgrade" <EXECUTE_UPGRADE>
             "Execute the system upgrade using previously compiled package data."
         ).long_help(
-            "Execute the system upgrade step. Must be preceded by --upgrade-compile in the \
+            "Execute the system upgrade step. Must be preceded by --compile-upgrade in the \
             same PTB. Takes the upgrade ticket (from an authorize call) as argument and \
             returns the upgrade receipt.\
             \n\nExamples:\

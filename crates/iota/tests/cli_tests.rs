@@ -818,10 +818,10 @@ async fn publish_package_for_upgrade(
     Ok(upgrade_cap_id)
 }
 
-/// Test the 3-step upgrade flow using --upgrade-compile + --execute-upgrade
+/// Test the 3-step upgrade flow using --compile-upgrade + --execute-upgrade
 /// combined with standard --move-call for authorize and commit.
 #[sim_test]
-async fn test_ptb_upgrade_compile_execute() -> Result<(), anyhow::Error> {
+async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(2)
@@ -833,16 +833,16 @@ async fn test_ptb_upgrade_compile_execute() -> Result<(), anyhow::Error> {
 
     let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
 
-    // Upgrade using --upgrade-compile + --execute-upgrade
+    // Upgrade using --compile-upgrade + --execute-upgrade
     // This demonstrates the 3-step upgrade flow:
-    //   1. --upgrade-compile: compile and get digest
+    //   1. --compile-upgrade: compile and get digest
     //   2. --move-call authorize_upgrade: authorize with standard function
     //   3. --execute-upgrade: execute the system upgrade
     //   4. --move-call commit_upgrade: finalize the upgrade
     let package_display = package_path.display();
     let upgrade_ptb_string = format!(
         r#"
-        --upgrade-compile {package_display} @{upgrade_cap_id}
+        --compile-upgrade {package_display} @{upgrade_cap_id}
         --assign digest
         --move-call iota::package::authorize_upgrade @{upgrade_cap_id} 0u8 digest
         --assign ticket
@@ -863,7 +863,7 @@ async fn test_ptb_upgrade_compile_execute() -> Result<(), anyhow::Error> {
 }
 
 /// Test that the original --upgrade command still works (backward
-/// compatibility) alongside the new --upgrade-compile/--execute-upgrade
+/// compatibility) alongside the new --compile-upgrade/--execute-upgrade
 /// commands.
 #[sim_test]
 async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
@@ -892,6 +892,72 @@ async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    Ok(())
+}
+
+/// Test that misuses of the `--compile-upgrade` / `--execute-upgrade` pair
+/// are rejected:
+///   1. `--execute-upgrade` with no preceding `--compile-upgrade`.
+///   2. Two `--compile-upgrade`s in a row without an intervening
+///      `--execute-upgrade`.
+///   3. A trailing `--compile-upgrade` that is never consumed by an
+///      `--execute-upgrade`.
+#[sim_test]
+async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("ptb_complex_args_test_functions");
+
+    let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
+    let package_display = package_path.display();
+
+    // 1. `--execute-upgrade` with no preceding `--compile-upgrade`.
+    let ptb = format!("--execute-upgrade @{upgrade_cap_id}");
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(result.is_err(), "bare --execute-upgrade should be rejected");
+
+    // 2. Two `--compile-upgrade`s in a row without an intervening
+    //    `--execute-upgrade`.
+    let ptb = format!(
+        r#"
+        --compile-upgrade {package_display} @{upgrade_cap_id}
+        --compile-upgrade {package_display} @{upgrade_cap_id}
+        "#
+    );
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(
+        result.is_err(),
+        "two --compile-upgrade in a row should be rejected"
+    );
+
+    // 3. A trailing `--compile-upgrade` that is never consumed.
+    let ptb = format!("--compile-upgrade {package_display} @{upgrade_cap_id}");
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(
+        result.is_err(),
+        "unconsumed --compile-upgrade should be rejected"
+    );
 
     Ok(())
 }

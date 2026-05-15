@@ -43,7 +43,7 @@ Options:
      --transfer-objects <[OBJECTS]> <TO>                                  Transfer objects to the specified address.
      --publish <MOVE_PACKAGE_PATH>                                        Publish the Move package. It takes as input the folder where the package exists.
      --upgrade <MOVE_PACKAGE_PATH>                                        Upgrade the Move package. It takes as input the folder where the package exists.
-     --upgrade-compile <MOVE_PACKAGE_PATH>                                Compile a Move package for upgrade without executing any transaction commands.
+     --compile-upgrade <MOVE_PACKAGE_PATH>                                Compile a Move package for upgrade without executing any transaction commands.
      --execute-upgrade <TICKET>                                           Execute the system upgrade using previously compiled package data.
      --preview                                                            Preview the list of PTB transactions instead of executing them.
      --tx-digest                                                          Instead of executing the transaction, print its digest.
@@ -228,20 +228,20 @@ iota client ptb \
 
 #### Step-by-step upgrade
 
-For more control over the upgrade process, you can use `--upgrade-compile` and `--execute-upgrade` to perform each step individually. This is especially useful when you want to change the upgrade policy or use custom authorize/commit functions.
+For more control over the upgrade process, you can use `--compile-upgrade` and `--execute-upgrade` to perform each step individually. This is especially useful when you want to change the upgrade policy or use custom authorize/commit functions.
 
 The upgrade process has three steps:
 1. **Authorize** - Call `iota::package::authorize_upgrade` (or a custom function) to get an `UpgradeTicket`.
 2. **Execute** - Execute the system upgrade with the ticket to get an `UpgradeReceipt`.
 3. **Commit** - Call `iota::package::commit_upgrade` (or a custom function) to finalize.
 
-`--upgrade-compile` compiles the package and returns the package digest as an assignable `vector<u8>` value. It also stores the compiled bytecode internally for use by `--execute-upgrade`. `--execute-upgrade` takes an upgrade ticket and executes the system upgrade command, returning the receipt.
+`--compile-upgrade` compiles the package and returns the package digest as an assignable `vector<u8>` value. It also stores the compiled bytecode internally for use by `--execute-upgrade`. `--execute-upgrade` takes an upgrade ticket and executes the system upgrade command, returning the receipt.
 
 **Standard step-by-step upgrade with the framework functions:**
 
 ```bash
 iota client ptb \
---upgrade-compile "." @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 \
+--compile-upgrade "." @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 \
 --assign digest \
 --move-call iota::package::authorize_upgrade @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 0u8 digest \
 --assign ticket \
@@ -262,7 +262,7 @@ If you have custom Move functions that wrap the standard `authorize_upgrade` and
 
 ```bash
 iota client ptb \
---upgrade-compile "." @0xUPGRADE_CAP_ID \
+--compile-upgrade "." @0xUPGRADE_CAP_ID \
 --assign digest \
 --move-call YOUR_PKG::admin::authorize @0xSHARED_OBJ digest \
 --assign ticket \

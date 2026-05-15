@@ -201,12 +201,15 @@ impl<'a> Resolver<'a> for ToPure {
 // PTB Builder and PTB Creation
 // ===========================================================================
 
-/// Stores compiled package data from an authorize-upgrade or upgrade-compile
-/// command, so that a subsequent execute-upgrade can use it.
-struct StoredUpgradeCompile {
+/// Stores compiled package data from a `--compile-upgrade` command, so that a
+/// subsequent `--execute-upgrade` can use it.
+struct StoredCompileUpgrade {
     package_id: ObjectID,
     compiled_modules: Vec<Vec<u8>>,
     dependencies: Vec<ObjectID>,
+    /// Span of the originating `--compile-upgrade` command, used to report
+    /// errors if no matching `--execute-upgrade` follows.
+    span: Span,
 }
 
 /// The PTBBuilder struct is the main workhorse that transforms a sequence of
@@ -249,9 +252,9 @@ pub struct PTBBuilder<'a> {
     /// do not report errors eagerly but instead wait until we have
     /// processed all commands to report any errors.
     errors: Vec<PTBError>,
-    /// Stored compiled package data from authorize-upgrade or upgrade-compile,
-    /// available for a subsequent execute-upgrade command.
-    stored_upgrade_compile: Option<StoredUpgradeCompile>,
+    /// Stored compiled package data from a `--compile-upgrade` command,
+    /// available for a subsequent `--execute-upgrade` command.
+    stored_compile_upgrade: Option<StoredCompileUpgrade>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -306,7 +309,7 @@ impl<'a> PTBBuilder<'a> {
             reader,
             last_command: None,
             errors: Vec::new(),
-            stored_upgrade_compile: None,
+            stored_compile_upgrade: None,
         }
     }
 
@@ -316,12 +319,26 @@ impl<'a> PTBBuilder<'a> {
     /// warnings for any shadowed variables that we encountered during the
     /// building of the PTB.
     pub fn finish(
-        self,
+        mut self,
         warn_on_shadowing: bool,
     ) -> (
         Result<Tx::ProgrammableTransaction, Vec<PTBError>>,
         Vec<PTBError>,
     ) {
+        // A `--compile-upgrade` must always be paired with an
+        // `--execute-upgrade`; otherwise the compiled bytecode is wasted and
+        // the omission is almost certainly a user error.
+        if let Some(stored) = self.stored_compile_upgrade.take() {
+            self.errors.push(PTBError {
+                message: "A --compile-upgrade was issued but never consumed. \
+                          Follow it with --execute-upgrade in the same PTB."
+                    .to_string(),
+                span: stored.span,
+                help: None,
+                severity: Severity::Error,
+            });
+        }
+
         let mut warnings = vec![];
         if warn_on_shadowing {
             for (ident, commands) in self.identifiers.iter() {
@@ -978,12 +995,11 @@ impl<'a> PTBBuilder<'a> {
                 }
 
                 let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = MoveBuildConfig::default();
-                // Save the initial current directory
                 let initial_dir = std::env::current_dir()
                     .map_err(|e| err!(pkg_loc, "Failed to get current directory: {e}"))?;
-                let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
-                    .map_err(|e| err!(pkg_loc, "{e}"))?;
+                let build_config =
+                    resolve_lock_file_path(MoveBuildConfig::default(), Some(package_path))
+                        .map_err(|e| err!(pkg_loc, "{e}"))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
                     iota_package_management::set_package_id(
                         package_path,
@@ -995,17 +1011,8 @@ impl<'a> PTBBuilder<'a> {
                 } else {
                     None
                 };
-                // Restore original ID, then check result.
-                if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
-                    let _ = iota_package_management::set_package_id(
-                        package_path,
-                        build_config.install_dir.clone(),
-                        &chain_id,
-                        previous_id,
-                    )
-                    .map_err(|e| err!(pkg_loc, "{e}"))?;
-                }
-                let compiled_package = compile_package(
+
+                let compile_result = compile_package(
                     self.reader,
                     build_config.clone(),
                     package_path,
@@ -1013,11 +1020,31 @@ impl<'a> PTBBuilder<'a> {
                     false, // skip_dependency_verification
                 )
                 .await
-                .map_err(|e| err!(pkg_loc, "{e}"))?;
+                .map_err(|e| err!(pkg_loc, "{e}"));
 
-                // Restore the initial directory so subsequent commands are not affected
-                std::env::set_current_dir(initial_dir)
-                    .map_err(|e| err!(pkg_loc, "Failed to restore initial directory: {e}"))?;
+                // Restore original ID and the initial directory, regardless of
+                // whether `compile_package` succeeded — otherwise an error here
+                // would leave `Move.lock` mutated and the working directory
+                // changed.
+                let restore_id_result =
+                    if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
+                        iota_package_management::set_package_id(
+                            package_path,
+                            build_config.install_dir.clone(),
+                            &chain_id,
+                            previous_id,
+                        )
+                        .map(|_| ())
+                        .map_err(|e| err!(pkg_loc, "{e}"))
+                    } else {
+                        Ok(())
+                    };
+                let restore_dir_result = std::env::set_current_dir(initial_dir)
+                    .map_err(|e| err!(pkg_loc, "Failed to restore initial directory: {e}"));
+
+                let compiled_package = compile_result?;
+                restore_id_result?;
+                restore_dir_result?;
 
                 let compiled_modules = compiled_package.get_package_bytes(false);
 
@@ -1078,11 +1105,11 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::ExecuteUpgrade(ticket_arg) => {
-                let stored = self.stored_upgrade_compile.take().ok_or_else(|| {
+                let stored = self.stored_compile_upgrade.take().ok_or_else(|| {
                     err!(
                         cmd_span,
                         "No compiled package data available. \
-                         Use --upgrade-compile before --execute-upgrade."
+                         Use --compile-upgrade before --execute-upgrade."
                     )
                 })?;
 
@@ -1096,12 +1123,12 @@ impl<'a> PTBBuilder<'a> {
                 );
                 self.last_command = Some(upgrade_receipt);
             }
-            ParsedPTBCommand::UpgradeCompile(sp!(path_loc, package_path), mut cap_arg) => {
-                if self.stored_upgrade_compile.is_some() {
+            ParsedPTBCommand::CompileUpgrade(sp!(path_loc, package_path), mut cap_arg) => {
+                if self.stored_compile_upgrade.is_some() {
                     return Err(err!(
                         cmd_span,
                         "A compiled package is already pending. \
-                         Use --execute-upgrade before calling --upgrade-compile again."
+                         Use --execute-upgrade before calling --compile-upgrade again."
                     ));
                 }
 
@@ -1123,10 +1150,11 @@ impl<'a> PTBBuilder<'a> {
                     .into_values()
                     .collect();
 
-                self.stored_upgrade_compile = Some(StoredUpgradeCompile {
+                self.stored_compile_upgrade = Some(StoredCompileUpgrade {
                     package_id: *package_id,
                     compiled_modules,
                     dependencies,
+                    span: cmd_span,
                 });
 
                 // Return the digest as a pure value so the user can pass it
@@ -1222,32 +1250,40 @@ impl<'a> PTBBuilder<'a> {
             None
         };
 
-        let (upgrade_policy, compiled_package) = upgrade_package(
+        let upgrade_result = upgrade_package(
             self.reader,
             build_config.clone(),
             &package_path,
-            ObjectID::from_address(IotaAddress::new(upgrade_cap_id.into_inner().into_bytes())),
+            ObjectID::new(upgrade_cap_id.into_bytes()),
             false, // with_unpublished_dependencies
             true,  // skip_dependency_verification
             None,
         )
         .await
-        .map_err(|e| err!(path_loc, "{e}"))?;
+        .map_err(|e| err!(path_loc, "{e}"));
 
-        // Restore original ID
-        if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
-            let _ = iota_package_management::set_package_id(
+        // Restore original ID and the initial directory, regardless of whether
+        // `upgrade_package` succeeded — otherwise an error here would leave
+        // `Move.toml` mutated and the working directory changed.
+        let restore_id_result = if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id)
+        {
+            iota_package_management::set_package_id(
                 &package_path,
                 build_config.install_dir.clone(),
                 &chain_id,
                 previous_id,
             )
-            .map_err(|e| err!(path_loc, "{e}"))?;
-        }
+            .map(|_| ())
+            .map_err(|e| err!(path_loc, "{e}"))
+        } else {
+            Ok(())
+        };
+        let restore_dir_result = std::env::set_current_dir(initial_dir)
+            .map_err(|e| err!(path_loc, "Failed to restore initial directory: {e}"));
 
-        // Restore the initial directory so subsequent commands are not affected
-        std::env::set_current_dir(initial_dir)
-            .map_err(|e| err!(path_loc, "Failed to restore initial directory: {e}"))?;
+        let (upgrade_policy, compiled_package) = upgrade_result?;
+        restore_id_result?;
+        restore_dir_result?;
 
         Ok((upgrade_policy, compiled_package))
     }

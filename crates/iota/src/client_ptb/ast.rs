@@ -27,7 +27,7 @@ pub const MOVE_CALL: &str = "move-call";
 pub const PUBLISH: &str = "publish";
 pub const UPGRADE: &str = "upgrade";
 pub const EXECUTE_UPGRADE: &str = "execute-upgrade";
-pub const UPGRADE_COMPILE: &str = "upgrade-compile";
+pub const COMPILE_UPGRADE: &str = "compile-upgrade";
 pub const ASSIGN: &str = "assign";
 pub const PREVIEW: &str = "preview";
 pub const WARN_SHADOWS: &str = "warn-shadows";
@@ -75,7 +75,7 @@ pub const COMMANDS: &[&str] = &[
     PUBLISH,
     UPGRADE,
     EXECUTE_UPGRADE,
-    UPGRADE_COMPILE,
+    COMPILE_UPGRADE,
     ASSIGN,
     PREVIEW,
     WARN_SHADOWS,
@@ -162,10 +162,10 @@ pub enum ParsedPTBCommand {
     /// Executes the system upgrade using previously compiled package data.
     /// Returns the UpgradeReceipt.
     ExecuteUpgrade(Spanned<Argument>),
-    /// upgrade-compile \<path\> \<upgrade_cap\>
+    /// compile-upgrade \<path\> \<upgrade_cap\>
     /// Compiles the package and returns the digest as a pure value.
     /// Stores compiled data for a subsequent execute-upgrade.
-    UpgradeCompile(Spanned<String>, Spanned<Argument>),
+    CompileUpgrade(Spanned<String>, Spanned<Argument>),
     WarnShadows,
     Preview,
 }
@@ -419,8 +419,8 @@ impl fmt::Display for ParsedPTBCommand {
             ParsedPTBCommand::ExecuteUpgrade(ticket) => {
                 write!(f, "{EXECUTE_UPGRADE} {}", ticket.value)
             }
-            ParsedPTBCommand::UpgradeCompile(s, cap) => {
-                write!(f, "{UPGRADE_COMPILE} {} {}", s.value, cap.value)
+            ParsedPTBCommand::CompileUpgrade(s, cap) => {
+                write!(f, "{COMPILE_UPGRADE} {} {}", s.value, cap.value)
             }
             ParsedPTBCommand::WarnShadows => write!(f, "{WARN_SHADOWS}"),
             ParsedPTBCommand::Preview => write!(f, "{PREVIEW}"),

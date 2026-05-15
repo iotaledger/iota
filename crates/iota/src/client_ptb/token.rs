@@ -63,8 +63,8 @@ pub enum Token {
     Publish,
     /// --upgrade \<shell-token\>
     Upgrade,
-    /// --upgrade-compile \<shell-token\>
-    UpgradeCompile,
+    /// --compile-upgrade \<shell-token\>
+    CompileUpgrade,
 }
 
 impl Lexeme<'_> {
@@ -87,7 +87,7 @@ impl Lexeme<'_> {
                 Token::Command,
                 Token::Publish,
                 Token::Upgrade,
-                Token::UpgradeCompile,
+                Token::CompileUpgrade,
             ]
             .contains(&self.0)
     }
@@ -119,7 +119,7 @@ impl fmt::Display for Lexeme<'_> {
             T::EarlyEof | T::Eof => write!(f, "end of input"),
             T::Publish => write!(f, "command '--publish {:?}'", self.1),
             T::Upgrade => write!(f, "command '--upgrade {:?}'", self.1),
-            T::UpgradeCompile => write!(f, "command '--upgrade-compile {:?}'", self.1),
+            T::CompileUpgrade => write!(f, "command '--compile-upgrade {:?}'", self.1),
         }
     }
 }
@@ -150,7 +150,7 @@ impl fmt::Display for Token {
             T::EarlyEof => write!(f, "unexpected end of input"),
             T::Publish => write!(f, "a '--publish' command"),
             T::Upgrade => write!(f, "an '--upgrade' command"),
-            T::UpgradeCompile => write!(f, "an '--upgrade-compile' command"),
+            T::CompileUpgrade => write!(f, "a '--compile-upgrade' command"),
         }
     }
 }
