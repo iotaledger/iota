@@ -511,7 +511,7 @@ impl DagState {
         // TODO: Move this check to core
         // Ensure we don't write multiple blocks per slot for our own index
         if block_ref.author == self.context.own_index {
-            let existing_blocks = self.get_uncommitted_block_headers_at_slot(block_ref.into());
+            let existing_blocks = self.get_recent_block_headers_at_slot(block_ref.into());
             assert!(
                 existing_blocks.is_empty(),
                 "Block header Rejected! Attempted to add block header {block_header:#?} to own slot where \
@@ -1272,17 +1272,11 @@ impl DagState {
         shards
     }
 
-    /// Gets all uncommitted block headers in a slot.
-    /// Uncommitted block headers must exist in memory, so only in-memory block
-    /// headers are checked.
-    pub(crate) fn get_uncommitted_block_headers_at_slot(
-        &self,
-        slot: Slot,
-    ) -> Vec<VerifiedBlockHeader> {
-        // TODO: either panic below when the slot is at or below the last committed
-        // round, or support reading from storage while limiting storage reads
-        // to edge cases.
-
+    /// Returns headers from `recent_block_headers` at `slot`. Permissive
+    /// lookup with no round bound; `accept_block_header` uses this to dedup
+    /// own slots at the just-committed round. Committer callers should use
+    /// `get_block_headers_at_slot_above_last_commit` instead.
+    pub(crate) fn get_recent_block_headers_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut block_headers = vec![];
         for (_block_ref, block_header) in self.recent_block_headers.range((
             Included(BlockRef::new(
@@ -1301,16 +1295,33 @@ impl DagState {
         block_headers
     }
 
-    /// Gets all uncommitted block headers in a round.
-    /// Uncommitted block headers must exist in memory, so only in-memory block
-    /// headers are checked.
-    pub(crate) fn get_uncommitted_block_headers_at_round(
+    /// Same as `get_recent_block_headers_at_slot` but asserts the slot is
+    /// strictly above `last_commit_round()`. Use from the committer where
+    /// the invariant holds.
+    pub(crate) fn get_block_headers_at_slot_above_last_commit(
+        &self,
+        slot: Slot,
+    ) -> Vec<VerifiedBlockHeader> {
+        assert!(
+            slot.round > self.last_commit_round(),
+            "slot {slot:?} must be above last commit round {}",
+            self.last_commit_round()
+        );
+        self.get_recent_block_headers_at_slot(slot)
+    }
+
+    /// Returns headers from `recent_block_headers` at `round`. The caller MUST
+    /// pass `round > last_commit_round()` so the lookup stays inside the
+    /// not-yet-committed portion of the DAG.
+    pub(crate) fn get_block_headers_at_round_above_last_commit(
         &self,
         round: Round,
     ) -> Vec<VerifiedBlockHeader> {
-        if round <= self.last_commit_round() {
-            panic!("Round {round} have committed block headers!");
-        }
+        assert!(
+            round > self.last_commit_round(),
+            "round {round} must be above last commit round {}",
+            self.last_commit_round()
+        );
 
         let mut block_headers = vec![];
         for (_block_ref, block_header) in self.recent_block_headers.range((
@@ -1330,8 +1341,12 @@ impl DagState {
         block_headers
     }
 
-    /// Gets all ancestors in the history of a block at a certain round.
-    pub(crate) fn ancestors_at_round(
+    /// Returns block headers at exactly `earlier_round` that are reachable
+    /// from `later_block` through ancestor links (transitive closure stopped
+    /// at the target round). The caller MUST pass
+    /// `earlier_round >= last_commit_round()` so the walk stays inside the
+    /// not-yet-committed portion of the DAG.
+    pub(crate) fn linked_block_headers_at_round_above_last_commit(
         &self,
         later_block: &VerifiedBlockHeader,
         earlier_round: Round,
@@ -2422,7 +2437,7 @@ impl DagState {
 
             // Since the wave length is 3 we expect to find a quorum in the
             // uncommitted rounds.
-            let blocks = self.get_uncommitted_block_headers_at_round(round);
+            let blocks = self.get_block_headers_at_round_above_last_commit(round);
             for block in &blocks {
                 if quorum.add(block.author(), &self.context.committee) {
                     return blocks;
@@ -2541,7 +2556,7 @@ mod test {
                         .to_authority_index(author as usize)
                         .unwrap(),
                 );
-                let block_headers = dag_state.get_uncommitted_block_headers_at_slot(slot);
+                let block_headers = dag_state.get_block_headers_at_slot_above_last_commit(slot);
 
                 // We only write one block per slot for own index
                 if AuthorityIndex::new_for_test(author) == own_index {
@@ -2567,13 +2582,13 @@ mod test {
         let slot = Slot::new(non_existent_round, AuthorityIndex::ZERO);
         assert!(
             dag_state
-                .get_uncommitted_block_headers_at_slot(slot)
+                .get_block_headers_at_slot_above_last_commit(slot)
                 .is_empty()
         );
 
         // Check rounds with uncommitted blocks.
         for round in 1..=num_rounds {
-            let block_headers = dag_state.get_uncommitted_block_headers_at_round(round);
+            let block_headers = dag_state.get_block_headers_at_round_above_last_commit(round);
             // Expect 3 blocks per authority except for own authority which should
             // have 1 block.
             assert_eq!(
@@ -2588,7 +2603,7 @@ mod test {
         // Check rounds without uncommitted block headers.
         assert!(
             dag_state
-                .get_uncommitted_block_headers_at_round(non_existent_round)
+                .get_block_headers_at_round_above_last_commit(non_existent_round)
                 .is_empty()
         );
     }
@@ -2735,7 +2750,7 @@ mod test {
         }
 
         // Check ancestors connected to anchor.
-        let ancestors = dag_state.ancestors_at_round(&anchor, 11);
+        let ancestors = dag_state.linked_block_headers_at_round_above_last_commit(&anchor, 11);
         let mut ancestors_refs: Vec<BlockRef> = ancestors.iter().map(|b| b.reference()).collect();
         ancestors_refs.sort();
         let mut expected_refs = vec![
@@ -3626,7 +3641,9 @@ mod test {
                 .write()
                 .accept_block_header(block_header, DataSource::Test);
 
-            let round_4_block_headers = dag_state.read().get_uncommitted_block_headers_at_round(4);
+            let round_4_block_headers = dag_state
+                .read()
+                .get_block_headers_at_round_above_last_commit(4);
 
             let last_quorum = dag_state.read().last_quorum();
 
