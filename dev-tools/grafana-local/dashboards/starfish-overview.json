@@ -7788,8 +7788,8 @@
               "range": true,
               "refId": "A",
               "useBackend": false,
-              "expr": "avg by (reason) (rate(consensus_core_skipped_proposals[2m]))",
-              "legendFormat": "{{reason}}"
+              "expr": "rate(consensus_core_skipped_proposals[2m])",
+              "legendFormat": "{{host}}/{{reason}}"
             }
           ],
           "title": "Reason for skipping block creation",
