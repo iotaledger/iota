@@ -1484,6 +1484,7 @@ pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
+    strong_vote: Option<StrongVote>,
 }
 
 impl TestBlockHeader {
@@ -1500,6 +1501,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1527,6 +1529,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1558,6 +1561,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1601,7 +1605,27 @@ impl TestBlockHeader {
         self
     }
 
+    /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
+    /// `BlockHeader::V2`; otherwise a V1.
+    pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
+        self.strong_vote = strong_vote;
+        self
+    }
+
     pub fn build(mut self) -> BlockHeader {
+        if let Some(strong_vote) = self.strong_vote {
+            return BlockHeader::V2(BlockHeaderV2::new(
+                self.block_header.epoch,
+                self.block_header.round,
+                self.block_header.author,
+                self.block_header.timestamp_ms,
+                self.ancestors,
+                self.acknowledgments,
+                self.block_header.commit_votes,
+                self.block_header.transactions_commitment,
+                Some(strong_vote),
+            ));
+        }
         let (references, overlap_start_index, overlap_end_index) =
             BlockHeader::compress_references(self.ancestors, self.acknowledgments);
         self.block_header.references = references;
@@ -1620,6 +1644,7 @@ mod tests {
     use std::sync::Arc;
 
     use fastcrypto::error::FastCryptoError;
+    use rstest::rstest;
 
     use crate::{
         BlockHeaderAPI,
@@ -1762,5 +1787,57 @@ mod tests {
         for ack in acknowledgments.iter() {
             assert!(compressed_acknowledgments.contains(ack));
         }
+    }
+
+    #[rstest]
+    #[test]
+    fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
+        use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
+        let rng = &mut rand::thread_rng();
+        let refs = vec![
+            BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),
+            BlockRef::new(1, 2.into(), BlockHeaderDigest::random(&mut *rng)),
+        ];
+        let build = |overlap_start: u8, overlap_end: u8| -> BlockHeader {
+            if use_v2 {
+                BlockHeader::V2(BlockHeaderV2 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            } else {
+                BlockHeader::V1(BlockHeaderV1 {
+                    references: refs.clone(),
+                    overlap_start_index: overlap_start,
+                    overlap_end_index: overlap_end,
+                    ..Default::default()
+                })
+            }
+        };
+
+        // Valid indices: 0 <= start <= end <= references.len().
+        build(1, 2).verify_references_indices().unwrap(); // overlap region
+        build(2, 2).verify_references_indices().unwrap(); // no overlap, interior split
+        build(3, 3).verify_references_indices().unwrap(); // no overlap, boundary at len
+
+        // overlap_end > references.len().
+        assert!(matches!(
+            build(0, 4).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > references.len().
+        assert!(matches!(
+            build(4, 3).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
+
+        // overlap_start > overlap_end.
+        assert!(matches!(
+            build(2, 1).verify_references_indices(),
+            Err(ConsensusError::InvalidOverlapIndices { .. })
+        ));
     }
 }

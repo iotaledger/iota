@@ -3836,6 +3836,42 @@ mod test {
         assert_eq!(result, expected);
     }
 
+    #[rstest]
+    #[tokio::test]
+    async fn test_is_data_available(#[values(true, false)] consensus_fast_commit_sync: bool) {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context, store);
+
+        let block = VerifiedBlock::new_for_test(TestBlockHeader::new(5, 1).build());
+        let block_ref = block.reference();
+
+        // Empty DagState.
+        assert!(!dag_state.is_data_available(&block_ref));
+
+        // Header without transactions.
+        dag_state.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
+        assert!(!dag_state.is_data_available(&block_ref));
+
+        // Header and transactions both present.
+        dag_state.add_transactions(block.verified_transactions, DataSource::Test);
+        assert!(dag_state.is_data_available(&block_ref));
+
+        // Transactions without a header: flag-off ignores the header check;
+        // flag-on requires it.
+        let other = VerifiedBlock::new_for_test(TestBlockHeader::new(6, 2).build());
+        let other_ref = other.reference();
+        dag_state.add_transactions(other.verified_transactions, DataSource::Test);
+        assert_eq!(
+            dag_state.is_data_available(&other_ref),
+            !consensus_fast_commit_sync,
+        );
+    }
+
     #[tokio::test]
     async fn test_no_panic_on_future_timestamp() {
         // GIVEN
