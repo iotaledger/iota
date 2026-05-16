@@ -10197,9 +10197,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_reconstruction_jobs_finished [2m])",
+              "expr": "sum by (host) (rate(consensus_reconstruction_jobs_finished[2m]))",
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
@@ -10291,9 +10291,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_reconstruction_queue",
+              "expr": "sum by (host) (consensus_reconstruction_queue)",
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
@@ -10385,9 +10385,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_shard_accumulators",
+              "expr": "sum by (host) (consensus_shard_accumulators)",
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
@@ -10480,11 +10480,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, rate(consensus_reconstruction_lag_bucket[2m]))",
+              "expr": "histogram_quantile(0.99, sum by (le, host) (rate(consensus_reconstruction_lag_bucket[2m])))",
               "fullMetaSearch": false,
               "includeNullMetadata": false,
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
