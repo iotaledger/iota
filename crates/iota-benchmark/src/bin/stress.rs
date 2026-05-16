@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use anyhow::{Context, Result, bail};
 use clap::*;
@@ -18,7 +21,11 @@ use iota_benchmark::{
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use prometheus::Registry;
 use rand::{Rng, seq::SliceRandom};
-use tokio::{runtime::Builder, sync::Barrier, time::sleep};
+use tokio::{
+    runtime::Builder,
+    sync::Barrier,
+    time::{Instant, sleep},
+};
 
 /// To spin up a local cluster and direct some load
 /// at it with 50/50 shared and owned traffic, use
@@ -134,13 +141,81 @@ async fn main() -> Result<()> {
                 system_state_observer.clone(),
             )
             .await?;
+
+            // Optional barrier: signal "ready" and wait for the "start" file
+            // before launching the spam workload. Used by stress-multi.sh to
+            // synchronize spam-window start across multiple stress.rs instances.
+            // The start-file content may carry a wall-clock epoch (ns since
+            // UNIX_EPOCH) used by the intra-spam barrier to align bursts.
+            let mut barrier_epoch_ns: Option<u128> = None;
+            if !opts.ready_file.is_empty() && !opts.start_file.is_empty() {
+                std::fs::write(&opts.ready_file, "ready\n")
+                    .with_context(|| format!("failed to write {}", opts.ready_file))?;
+                tracing::info!(
+                    "Setup complete. Wrote ready file at {}. Waiting for {}...",
+                    opts.ready_file,
+                    opts.start_file
+                );
+                while !std::path::Path::new(&opts.start_file).exists() {
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+                if let Ok(s) = std::fs::read_to_string(&opts.start_file) {
+                    if let Ok(ns) = s.trim().parse::<u128>() {
+                        barrier_epoch_ns = Some(ns);
+                    }
+                }
+                tracing::info!("Start file detected. Launching benchmark.");
+            }
+
             let interval = opts.run_duration;
             // We only show continuous progress in stderr
             // if benchmark is running in unbounded mode,
             // otherwise summarized benchmark results are
             // published in the end
             let show_progress = interval.is_unbounded();
-            let driver = BenchDriver::new(opts.stat_collection_interval, stress_stat_collection);
+            // Extract burst_size from the Bench RunSpec (default 1). When > 1,
+            // each worker releases `burst_size` requests per tick concurrently,
+            // producing bursty admission patterns instead of rate-paced.
+            let burst_size = match &opts.run_spec {
+                iota_benchmark::options::RunSpec::Bench { burst_size, .. } => {
+                    burst_size.first().copied().unwrap_or(1).max(1)
+                }
+                _ => 1,
+            };
+            let mut driver = BenchDriver::new(opts.stat_collection_interval, stress_stat_collection)
+                .with_burst_size(burst_size);
+
+            // Intra-spam barrier: every worker fires its burst at
+            // `t_zero + k × period`. Anchor `t_zero` to the wall-clock epoch
+            // written into the start-file so all workers across all processes
+            // share the same boundaries.
+            if opts.barrier_period_ms > 0 {
+                let period = Duration::from_millis(opts.barrier_period_ms);
+                let now_instant = Instant::now();
+                let now_wall = SystemTime::now();
+                let t_zero = match barrier_epoch_ns {
+                    Some(epoch_ns) => {
+                        let now_wall_ns = now_wall
+                            .duration_since(UNIX_EPOCH)
+                            .map(|d| d.as_nanos())
+                            .unwrap_or(epoch_ns);
+                        if now_wall_ns >= epoch_ns {
+                            let elapsed = Duration::from_nanos((now_wall_ns - epoch_ns) as u64);
+                            now_instant - elapsed
+                        } else {
+                            // Clock skew: epoch is in the future. Use now as t_zero.
+                            now_instant
+                        }
+                    }
+                    None => now_instant,
+                };
+                tracing::info!(
+                    "Intra-spam barrier enabled: period={:?}, t_zero anchored to epoch_ns={:?}",
+                    period,
+                    barrier_epoch_ns
+                );
+                driver = driver.with_barrier(t_zero, period);
+            }
             driver
                 .run(
                     bench_setup.proxies,

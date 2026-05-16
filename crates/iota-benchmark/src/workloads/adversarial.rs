@@ -175,6 +175,7 @@ impl Payload for AdversarialTestPayload {
         let stat = match effects {
             ExecutionEffects::CertifiedTransactionEffects(e, _) => e.data().status(),
             ExecutionEffects::IotaTransactionBlockEffects(_) => unimplemented!("Not impl"),
+            ExecutionEffects::FinalizedTransactionEffects(e, _) => e.data().status(),
         };
 
         debug_assert!(

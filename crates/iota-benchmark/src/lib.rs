@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod bank;
+pub mod bank_cache;
 pub mod benchmark_setup;
 pub mod drivers;
 pub mod embedded_reconfig_observer;
@@ -10,6 +11,8 @@ pub mod fullnode_reconfig_observer;
 pub mod in_memory_wallet;
 pub mod options;
 pub mod system_state_observer;
+pub mod td_embedded_reconfig_observer;
+pub mod td_fullnode_reconfig_observer;
 pub mod util;
 pub mod workloads;
 
@@ -28,6 +31,10 @@ use iota_core::{
         QuorumDriver, QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::ReconfigObserver,
     },
+    transaction_driver::{
+        SubmitTransactionOptions, TransactionDriver, TransactionDriverMetrics,
+    },
+    validator_client_monitor::ValidatorClientMetrics,
 };
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffects,
@@ -47,6 +54,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
     transaction::{Argument, CallArg, SharedObjectRef, Transaction},
+    transaction_driver_types::FinalizedEffects,
 };
 use prometheus::Registry;
 use rand::Rng;
@@ -59,6 +67,11 @@ use tracing::{error, info, warn};
 pub enum ExecutionEffects {
     CertifiedTransactionEffects(CertifiedTransactionEffects, TransactionEvents),
     IotaTransactionBlockEffects(IotaTransactionBlockEffects),
+    /// Result of submitting through TransactionDriver (white-flag flow).
+    /// TD returns `FinalizedEffects` with `EffectsFinalityInfo::QuorumExecuted`
+    /// — never a Certified quorum signature — so we keep it in its own variant
+    /// rather than synthesising a fake `CertifiedTransactionEffects`.
+    FinalizedTransactionEffects(FinalizedEffects, TransactionEvents),
 }
 
 impl ExecutionEffects {
@@ -72,6 +85,9 @@ impl ExecutionEffects {
                 .iter()
                 .map(|refe| (refe.reference, refe.owner))
                 .collect(),
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                finalized.data().mutated().to_vec()
+            }
         }
     }
 
@@ -85,6 +101,9 @@ impl ExecutionEffects {
                 .iter()
                 .map(|refe| (refe.reference, refe.owner))
                 .collect(),
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                finalized.data().created()
+            }
         }
     }
 
@@ -96,6 +115,9 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 iota_tx_effects.deleted().to_vec()
             }
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                finalized.data().deleted().to_vec()
+            }
         }
     }
 
@@ -105,6 +127,9 @@ impl ExecutionEffects {
                 Some(certified_effects.auth_sig())
             }
             ExecutionEffects::IotaTransactionBlockEffects(_) => None,
+            // TD produces `EffectsFinalityInfo::QuorumExecuted(epoch)`, not a
+            // certified quorum sig — see `effects_certifier.rs:743-746`.
+            ExecutionEffects::FinalizedTransactionEffects(..) => None,
         }
     }
 
@@ -116,6 +141,9 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 let refe = &iota_tx_effects.gas_object();
                 (refe.reference, refe.owner)
+            }
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                finalized.data().gas_object()
             }
         }
     }
@@ -131,6 +159,9 @@ impl ExecutionEffects {
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 iota_tx_effects.status().is_ok()
+            }
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                finalized.data().status().is_success()
             }
         }
     }
@@ -157,6 +188,22 @@ impl ExecutionEffects {
                 let status = format!("{}", iota_tx_effects.status());
                 status.contains("ExecutionCancelledDueToSharedObjectCongestion")
             }
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                match finalized.data().status() {
+                    iota_types::execution_status::ExecutionStatus::Success => false,
+                    iota_types::execution_status::ExecutionStatus::Failure {
+                        error:
+                            ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                                ..
+                            }
+                            | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                ..
+                            },
+                        ..
+                    } => true,
+                    _ => false,
+                }
+            }
         }
     }
 
@@ -168,6 +215,9 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 format!("{:#?}", iota_tx_effects.status())
             }
+            ExecutionEffects::FinalizedTransactionEffects(finalized, ..) => {
+                format!("{:#?}", finalized.data().status())
+            }
         }
     }
 
@@ -178,6 +228,9 @@ impl ExecutionEffects {
             }
             crate::ExecutionEffects::IotaTransactionBlockEffects(b) => {
                 std::convert::Into::<GasCostSummary>::into(b.gas_cost_summary().clone())
+            }
+            crate::ExecutionEffects::FinalizedTransactionEffects(finalized, _) => {
+                finalized.data().gas_cost_summary().clone()
             }
         }
     }
@@ -236,14 +289,40 @@ pub trait ValidatorProxy {
     async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
+/// Which validator-side submission stack the proxy uses.
+///
+/// - `Quorum`: the legacy `QuorumDriverHandler` → certificate flow → validator
+///   `transaction()` gRPC. Returns `CertifiedTransactionEffects`.
+/// - `Transaction`: `TransactionDriver` → V2 `submit_tx` gRPC →
+///   white-flag/load-shedding pipeline. Returns `FinalizedEffects` with
+///   `QuorumExecuted` (no quorum signature).
+///
+/// Auto-selected from the genesis protocol config's `enable_white_flag_flow()`
+/// flag — networks with the flag on take the TD path automatically.
+enum SubmitDriver {
+    Quorum {
+        // Keeps the handler alive so its background task isn't dropped.
+        _handler: QuorumDriverHandler<NetworkAuthorityClient>,
+        qd: Arc<QuorumDriver<NetworkAuthorityClient>>,
+    },
+    Transaction {
+        td: Arc<TransactionDriver<NetworkAuthorityClient>>,
+    },
+}
+
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to
 // read objects.
 pub struct LocalValidatorAggregatorProxy {
-    _qd_handler: QuorumDriverHandler<NetworkAuthorityClient>,
-    // Stress client does not verify individual validator signatures since this is very expensive
-    qd: Arc<QuorumDriver<NetworkAuthorityClient>>,
+    driver: SubmitDriver,
     committee: Committee,
     clients: BTreeMap<AuthorityName, NetworkAuthorityClient>,
+    /// Validator display names that TD is allowed to submit transactions to.
+    /// Empty = all validators (TD's default). When non-empty, the same list
+    /// is passed in every `SubmitTransactionOptions.allowed_validators` so
+    /// admissions are concentrated on the chosen subset — useful for
+    /// concentrating per-validator gate pressure (memory:
+    /// project-single-validator-target).
+    allowed_validators: Vec<String>,
 }
 
 impl LocalValidatorAggregatorProxy {
@@ -251,11 +330,54 @@ impl LocalValidatorAggregatorProxy {
         genesis: &Genesis,
         registry: &Registry,
         reconfig_fullnode_rpc_url: Option<&str>,
+        num_validators_to_target: usize,
     ) -> Self {
         let (aggregator, clients) = AuthorityAggregatorBuilder::from_genesis(genesis)
             .with_registry(registry)
             .build_network_clients();
         let committee = genesis.committee().unwrap();
+
+        // Auto-detect from the network's protocol config whether to use
+        // TransactionDriver (white-flag flow) or the legacy QuorumDriver
+        // (certificate flow). No CLI flag — the proxy matches the network.
+        let protocol_version = iota_protocol_config::ProtocolVersion::new(
+            genesis.iota_system_object().protocol_version(),
+        );
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_version(
+            protocol_version,
+            iota_protocol_config::Chain::Unknown,
+        );
+        let use_transaction_driver = protocol_config.enable_white_flag_flow();
+        info!(
+            "LocalValidatorAggregatorProxy: protocol_version={}, use_transaction_driver={}",
+            protocol_version.as_u64(),
+            use_transaction_driver,
+        );
+
+        // Resolve `num_validators_to_target` into a concrete list of validator
+        // display names. 0 or >= committee size = empty list = TD allows all.
+        // Otherwise: take the first N display names by sorted order so
+        // every stress subprocess agrees on which subset to hit.
+        let allowed_validators: Vec<String> = if num_validators_to_target == 0
+            || num_validators_to_target >= aggregator.committee.num_members()
+        {
+            Vec::new()
+        } else {
+            let mut names: Vec<String> = aggregator
+                .authority_clients
+                .keys()
+                .map(|name| aggregator.get_display_name(name))
+                .collect();
+            names.sort();
+            names.truncate(num_validators_to_target);
+            info!(
+                "Targeting {} of {} validators: {:?}",
+                names.len(),
+                aggregator.committee.num_members(),
+                names
+            );
+            names
+        };
 
         Self::new_impl(
             aggregator,
@@ -263,6 +385,8 @@ impl LocalValidatorAggregatorProxy {
             reconfig_fullnode_rpc_url,
             clients,
             committee,
+            use_transaction_driver,
+            allowed_validators,
         )
         .await
     }
@@ -273,7 +397,28 @@ impl LocalValidatorAggregatorProxy {
         reconfig_fullnode_rpc_url: Option<&str>,
         clients: BTreeMap<AuthorityName, NetworkAuthorityClient>,
         committee: Committee,
+        use_transaction_driver: bool,
+        allowed_validators: Vec<String>,
     ) -> Self {
+        let driver = if use_transaction_driver {
+            Self::build_td_driver(aggregator, registry, reconfig_fullnode_rpc_url).await
+        } else {
+            Self::build_qd_driver(aggregator, registry, reconfig_fullnode_rpc_url).await
+        };
+        Self {
+            driver,
+            clients,
+            committee,
+            allowed_validators,
+        }
+    }
+
+    /// Build the QuorumDriver-backed submission stack (certificate flow).
+    async fn build_qd_driver(
+        aggregator: AuthorityAggregator<NetworkAuthorityClient>,
+        registry: &Registry,
+        reconfig_fullnode_rpc_url: Option<&str>,
+    ) -> SubmitDriver {
         let quorum_driver_metrics = Arc::new(QuorumDriverMetrics::new(registry));
         let (aggregator, reconfig_observer): (
             Arc<_>,
@@ -297,7 +442,6 @@ impl LocalValidatorAggregatorProxy {
         } else {
             info!("Using EmbeddedReconfigObserver");
             let reconfig_observer = Arc::new(EmbeddedReconfigObserver::new());
-            // Get the latest committee from config observer
             let aggregator = reconfig_observer
                 .get_committee(Arc::new(aggregator))
                 .await
@@ -307,13 +451,70 @@ impl LocalValidatorAggregatorProxy {
         let qd_handler_builder =
             QuorumDriverHandlerBuilder::new(aggregator, quorum_driver_metrics.clone())
                 .with_reconfig_observer(reconfig_observer.clone());
-        let qd_handler = qd_handler_builder.start();
-        let qd = qd_handler.clone_quorum_driver();
-        Self {
-            _qd_handler: qd_handler,
-            qd,
-            clients,
-            committee,
+        let _handler = qd_handler_builder.start();
+        let qd = _handler.clone_quorum_driver();
+        SubmitDriver::Quorum { _handler, qd }
+    }
+
+    /// Build the TransactionDriver-backed submission stack (white-flag flow).
+    /// Mirrors how `TransactionOrchestrator` constructs TD on the fullnode.
+    async fn build_td_driver(
+        aggregator: AuthorityAggregator<NetworkAuthorityClient>,
+        registry: &Registry,
+        reconfig_fullnode_rpc_url: Option<&str>,
+    ) -> SubmitDriver {
+        use crate::td_embedded_reconfig_observer::TdEmbeddedReconfigObserver;
+        use crate::td_fullnode_reconfig_observer::TdFullNodeReconfigObserver;
+        use iota_core::transaction_driver::reconfig_observer::ReconfigObserver as TdReconfigObserver;
+
+        let (aggregator, reconfig_observer): (
+            Arc<_>,
+            Arc<dyn TdReconfigObserver<NetworkAuthorityClient> + Sync + Send>,
+        ) = if let Some(url) = reconfig_fullnode_rpc_url {
+            info!("Using TdFullNodeReconfigObserver: {:?}", url);
+            let committee_store = aggregator.clone_committee_store();
+            let observer = Arc::new(
+                TdFullNodeReconfigObserver::new(
+                    url,
+                    committee_store,
+                    aggregator.safe_client_metrics_base.clone(),
+                    aggregator.metrics.clone(),
+                )
+                .await,
+            );
+            (Arc::new(aggregator), observer)
+        } else {
+            info!("Using TdEmbeddedReconfigObserver");
+            let observer = TdEmbeddedReconfigObserver::new();
+            // Prime the aggregator with the latest committee before starting
+            // the observer — same as the QD path does at lib.rs:301.
+            let aggregator = observer
+                .get_committee(Arc::new(aggregator))
+                .await
+                .expect("Failed to get latest committee");
+            (aggregator, Arc::new(observer))
+        };
+
+        let td_metrics = Arc::new(TransactionDriverMetrics::new(registry));
+        let client_metrics = Arc::new(ValidatorClientMetrics::new(registry));
+        let td = TransactionDriver::new(
+            aggregator,
+            reconfig_observer,
+            td_metrics,
+            None, // node_config: None → default ValidatorClientMonitorConfig
+            client_metrics,
+        );
+        SubmitDriver::Transaction { td }
+    }
+}
+
+impl LocalValidatorAggregatorProxy {
+    /// Read the current `AuthorityAggregator` from whichever driver is active.
+    /// Both QD and TD hold the aggregator behind an `ArcSwap`.
+    fn current_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {
+        match &self.driver {
+            SubmitDriver::Quorum { qd, .. } => qd.authority_aggregator().load_full(),
+            SubmitDriver::Transaction { td } => td.authority_aggregator().load_full(),
         }
     }
 }
@@ -321,7 +522,7 @@ impl LocalValidatorAggregatorProxy {
 #[async_trait]
 impl ValidatorProxy for LocalValidatorAggregatorProxy {
     async fn get_object(&self, object_id: ObjectID) -> Result<Object, anyhow::Error> {
-        let auth_agg = self.qd.authority_aggregator().load();
+        let auth_agg = self.current_aggregator();
         Ok(auth_agg
             .get_latest_object_version_for_testing(object_id)
             .await?)
@@ -331,13 +532,21 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         &self,
         _account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
-        unimplemented!("Not available for local proxy");
+        // Validators don't expose "list objects by owner" — that's a
+        // fullnode/indexer responsibility. Return Err (rather than panic
+        // via unimplemented!) so callers that probe optimistically — most
+        // notably `bank_cache::verify_all_exist` — can gracefully fall
+        // through to the regeneration path.
+        anyhow::bail!(
+            "get_owned_objects not available on LocalValidatorAggregatorProxy; \
+             use a fullnode for this query"
+        )
     }
 
     async fn get_latest_system_state_object(
         &self,
     ) -> Result<IotaSystemStateSummary, anyhow::Error> {
-        let auth_agg = self.qd.authority_aggregator().load();
+        let auth_agg = self.current_aggregator();
         Ok(auth_agg
             .get_latest_system_state_object_for_testing()
             .await?
@@ -345,71 +554,173 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     }
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects> {
-        let tx_digest = *tx.digest();
-        let mut retry_cnt = 0;
-        while retry_cnt < 3 {
-            let ticket = self
-                .qd
-                .submit_transaction(
-                    iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
-                        transaction: tx.clone(),
-                        include_events: true,
-                        include_input_objects: false,
-                        include_output_objects: false,
-                        include_auxiliary_data: false,
-                    },
-                )
-                .await?;
-            // The ticket only times out when QuorumDriver exceeds the retry times
-            match ticket.await {
-                Ok(resp) => {
-                    let QuorumDriverResponse {
-                        effects_cert,
-                        events,
-                        ..
-                    } = resp;
-                    return Ok(ExecutionEffects::CertifiedTransactionEffects(
-                        effects_cert.into(),
-                        events.unwrap_or_default(),
+        match &self.driver {
+            SubmitDriver::Quorum { qd, .. } => {
+                let tx_digest = *tx.digest();
+                let mut retry_cnt = 0;
+                while retry_cnt < 3 {
+                    let ticket = qd
+                        .submit_transaction(
+                            iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
+                                transaction: tx.clone(),
+                                include_events: true,
+                                include_input_objects: false,
+                                include_output_objects: false,
+                                include_auxiliary_data: false,
+                            },
+                        )
+                        .await?;
+                    match ticket.await {
+                        Ok(resp) => {
+                            let QuorumDriverResponse {
+                                effects_cert,
+                                events,
+                                ..
+                            } = resp;
+                            return Ok(ExecutionEffects::CertifiedTransactionEffects(
+                                effects_cert.into(),
+                                events.unwrap_or_default(),
+                            ));
+                        }
+                        Err(QuorumDriverError::NonRecoverableTransactionError { errors }) => {
+                            bail!(QuorumDriverError::NonRecoverableTransactionError { errors });
+                        }
+                        Err(err) => {
+                            let delay =
+                                Duration::from_millis(rand::thread_rng().gen_range(100..1000));
+                            warn!(
+                                ?tx_digest,
+                                retry_cnt,
+                                "Transaction failed with err: {:?}. Sleeping for {:?} ...",
+                                err,
+                                delay,
+                            );
+                            retry_cnt += 1;
+                            sleep(delay).await;
+                        }
+                    }
+                }
+                bail!("Transaction {:?} failed for {retry_cnt} times", tx_digest);
+            }
+            SubmitDriver::Transaction { td } => {
+                // TD handles retries internally; no outer retry loop here.
+                // 30s matches the WAIT_FOR_FINALITY_TIMEOUT used by the
+                // fullnode's TransactionOrchestrator.
+                const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
+
+                // Fire-and-forget: when STRESS_FIRE_AND_FORGET=1, spawn the
+                // drive_transaction as a background task and return a stub
+                // ExecutionEffects immediately. The validator-side gate
+                // (check_system_overload → submit_and_wait_inner) still
+                // runs and increments num_inflight, but the client doesn't
+                // wait for consensus to commit. Yields much higher admission
+                // rates at the cost of: (a) workloads can't read effects for
+                // make_new_payload (so use this only with stateless spam
+                // workloads — see project_shared_gas_spam_workload memory),
+                // and (b) errors are swallowed. Intended for load-shedding
+                // race-overshoot measurements where we don't care about tx
+                // results.
+                // Build SubmitTransactionOptions with our allowed_validators
+                // list (empty = TD picks freely; non-empty = TD only submits
+                // to the chosen subset, concentrating per-validator pressure).
+                let submit_opts = SubmitTransactionOptions {
+                    allowed_validators: self.allowed_validators.clone(),
+                    ..Default::default()
+                };
+
+                if std::env::var("STRESS_FIRE_AND_FORGET").as_deref() == Ok("1") {
+                    let td = td.clone();
+                    let tx_clone = tx.clone();
+                    let opts = submit_opts.clone();
+                    tokio::spawn(async move {
+                        let _ = td
+                            .drive_transaction(
+                                Some(tx_clone),
+                                opts,
+                                Some(WAIT_FOR_FINALITY_TIMEOUT),
+                            )
+                            .await;
+                    });
+                    // Synthesise a minimal-but-valid TransactionEffects so
+                    // worker code that touches `effects.is_ok()` or similar
+                    // shallow accessors doesn't blow up. Workloads that read
+                    // `mutated()`/`created()` will see empty vecs — they
+                    // need to be designed around that.
+                    let stub = iota_types::effects::TransactionEffects::default();
+                    let finalized = FinalizedEffects {
+                        effects: stub,
+                        finality_info:
+                            iota_types::transaction_driver_types::EffectsFinalityInfo::QuorumExecuted(
+                                self.get_current_epoch(),
+                            ),
+                    };
+                    return Ok(ExecutionEffects::FinalizedTransactionEffects(
+                        finalized,
+                        Default::default(),
                     ));
                 }
-                Err(QuorumDriverError::NonRecoverableTransactionError { errors }) => {
-                    bail!(QuorumDriverError::NonRecoverableTransactionError { errors });
-                }
-                Err(err) => {
-                    let delay = Duration::from_millis(rand::thread_rng().gen_range(100..1000));
-                    warn!(
-                        ?tx_digest,
-                        retry_cnt,
-                        "Transaction failed with err: {:?}. Sleeping for {:?} ...",
-                        err,
-                        delay,
-                    );
-                    retry_cnt += 1;
-                    sleep(delay).await;
-                }
+
+                let resp = td
+                    .drive_transaction(
+                        Some(tx.clone()),
+                        submit_opts,
+                        Some(WAIT_FOR_FINALITY_TIMEOUT),
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!("TransactionDriver failed: {e}"))?;
+                Ok(ExecutionEffects::FinalizedTransactionEffects(
+                    resp.effects,
+                    resp.events.unwrap_or_default(),
+                ))
             }
         }
-        bail!("Transaction {:?} failed for {retry_cnt} times", tx_digest);
     }
 
     fn clone_committee(&self) -> Arc<Committee> {
-        self.qd.clone_committee()
+        match &self.driver {
+            SubmitDriver::Quorum { qd, .. } => qd.clone_committee(),
+            // TD has no `clone_committee()` shortcut — read from the live
+            // aggregator's committee.
+            SubmitDriver::Transaction { td } => td.authority_aggregator().load().committee.clone(),
+        }
     }
 
     fn get_current_epoch(&self) -> EpochId {
-        self.qd.current_epoch()
+        match &self.driver {
+            SubmitDriver::Quorum { qd, .. } => qd.current_epoch(),
+            SubmitDriver::Transaction { td } => {
+                td.authority_aggregator().load().committee.epoch
+            }
+        }
     }
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync> {
-        let qdh = self._qd_handler.clone_new();
-        let qd = qdh.clone_quorum_driver();
-        Box::new(Self {
-            _qd_handler: qdh,
-            qd,
-            clients: self.clients.clone(),
-            committee: self.committee.clone(),
-        })
+        match &self.driver {
+            SubmitDriver::Quorum { _handler, .. } => {
+                let qdh = _handler.clone_new();
+                let qd = qdh.clone_quorum_driver();
+                Box::new(Self {
+                    driver: SubmitDriver::Quorum {
+                        _handler: qdh,
+                        qd,
+                    },
+                    clients: self.clients.clone(),
+                    committee: self.committee.clone(),
+                    allowed_validators: self.allowed_validators.clone(),
+                })
+            }
+            SubmitDriver::Transaction { td } => {
+                // TD has no clone_new — sharing the same Arc is fine: the
+                // single hit on this method (lib.rs:384) doesn't depend on
+                // fresh per-clone background tasks. Trait completeness only.
+                Box::new(Self {
+                    driver: SubmitDriver::Transaction { td: td.clone() },
+                    clients: self.clients.clone(),
+                    committee: self.committee.clone(),
+                    allowed_validators: self.allowed_validators.clone(),
+                })
+            }
+        }
     }
 
     async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
@@ -474,6 +785,14 @@ impl ValidatorProxy for FullNodeProxy {
         &self,
         account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
+        // Request the maximum page size — server-side default is
+        // `DEFAULT_RPC_QUERY_MAX_RESULT_LIMIT = 50`, which makes a
+        // 125K-object cache verify take ~2500 page round-trips.
+        // The server caps to whatever `RPC_QUERY_MAX_RESULT_LIMIT` is set
+        // to on the fullnode (env var); for the local stress network we
+        // bump that to 1000 in docker-compose. Asking for 1000 here is
+        // harmless if the server enforces a lower cap.
+        const PAGE_SIZE: usize = 1000;
         let mut stream = PagedFn::stream(async |cursor| {
             self.iota_client
                 .read_api()
@@ -483,7 +802,7 @@ impl ValidatorProxy for FullNodeProxy {
                         IotaObjectDataOptions::bcs_lossless(),
                     )),
                     cursor,
-                    None,
+                    Some(PAGE_SIZE),
                 )
                 .await
         });

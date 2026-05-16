@@ -210,6 +210,8 @@ scrape_configs:
         labels:
           host: fullnode-4
           network: local
+  # Fullnode_5..8 scrape jobs removed — see docker-compose.yaml for the
+  # full RAM/4-fullnode rationale. Restore alongside those compose blocks.
   - job_name: "tempo"
     static_configs:
       - targets: ["tempo:3200"]

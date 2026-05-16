@@ -66,6 +66,14 @@ pub struct Opts {
     /// Otherwise use EmbeddedReconfigObserver,
     #[arg(long, action = clap::ArgAction::Set, default_value = "false", global = true)]
     pub use_fullnode_for_reconfig: bool,
+    /// How many validators to spam (TD path only). 0 = all (default).
+    /// 1 = pin all spam to one validator (concentrates 4× per-validator
+    /// pressure on the load-shedding gate). Values between 1 and the
+    /// committee size restrict TD's `SubmitTransactionOptions.allowed_validators`
+    /// to the first N validators by display name (sorted). Values > committee
+    /// size behave like 0 (all validators).
+    #[arg(long, default_value = "0", global = true)]
+    pub num_validators_to_target: usize,
     /// Default workload is 100% transfer object
     #[command(subcommand)]
     pub run_spec: RunSpec,
@@ -90,6 +98,34 @@ pub struct Opts {
     /// Path where benchmark stats is stored
     #[arg(long, default_value = "/tmp/bench_result", global = true)]
     pub benchmark_stats_path: String,
+    /// If set, after gas-coin setup finishes, write this file and wait for
+    /// `--start-file` to appear before launching the spam workload. Lets
+    /// multiple stress.rs instances synchronize on a barrier so their spam
+    /// windows start together.
+    #[arg(long, default_value = "", global = true)]
+    pub ready_file: String,
+    /// Path to poll for after setup is done (paired with --ready-file).
+    /// When this file exists, the benchmark workload starts.
+    #[arg(long, default_value = "", global = true)]
+    pub start_file: String,
+    /// When > 0, all workers in this process align their bursts to wall-clock
+    /// boundaries `epoch + k × barrier_period_ms`. The wall-clock epoch (in
+    /// nanoseconds since UNIX_EPOCH) is read from the first whitespace-trimmed
+    /// line of `--start-file`. Workers sleep until the next aligned boundary
+    /// before firing each burst, instead of pacing independently with
+    /// `burst_size / target_qps`. `target_qps` is ignored for the request
+    /// interval; effective per-worker QPS becomes
+    /// `burst_size × 1000 / barrier_period_ms`.
+    #[arg(long, default_value = "0", global = true)]
+    pub barrier_period_ms: u64,
+    /// If set, after coin generation, dump the gas-coin pool (object refs +
+    /// keypairs) to this JSON file. On subsequent runs with the same path
+    /// and matching config-hash, load the pool and skip the (slow) pay_iota
+    /// loop — provided each cached coin still exists on-chain. Each
+    /// stress.rs instance uses its own cache file (the wrapper appends the
+    /// primary_gas_owner suffix).
+    #[arg(long, default_value = "", global = true)]
+    pub gas_pool_cache_path: String,
     /// Path where previous benchmark stats is stored to use for comparison
     #[arg(long, default_value = "", global = true)]
     pub compare_with: String,
@@ -246,6 +282,15 @@ pub enum RunSpec {
         // Max in-flight ratio
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [5])]
         in_flight_ratio: Vec<u64>,
+        // Burst size — how many transactions to release simultaneously per
+        // tick. Default 1 = current rate-paced behavior. Higher values bunch
+        // submissions: each tick fires `burst_size` requests concurrently
+        // and waits `burst_size / target_qps` seconds before the next tick.
+        // Average rate stays at `target_qps`, but the arrival pattern at the
+        // validator gate is concentrated bursts. Useful for surfacing race
+        // overshoot in load-shedding tests.
+        #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [1])]
+        burst_size: Vec<u64>,
 
         // Setting the duration of each benchmark. Benchmarks will run in sequence.
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [Interval::from_str("unbounded").unwrap()])]

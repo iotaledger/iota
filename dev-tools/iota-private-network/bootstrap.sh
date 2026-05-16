@@ -60,18 +60,62 @@ EOF
             cat >> "$GENESIS_TEMPLATE" <<EOF
   - address: "0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
     gas_amounts:
-      - 3500000000000000000
+      - 1500000000000000000
   - address: "0xcd2617da70a7b430103ad101ae570db412156521851fb18cc1acbdd59720c2c1"
     gas_amounts:
-      - 3500000000000000000
+      - 1500000000000000000
   - address: "0x0b75ee76891aeab997785963407e6add2ed6a7cd3a414e11dad8b7204d0d3f4b"
     gas_amounts:
-      - 3500000000000000000
+      - 1500000000000000000
   - address: "0x05febd29e0f349b6fbfbed1f279481517f162c5653c5c98173cc1aa79d4d2fdd"
     gas_amounts:
-      - 3500000000000000000
+      - 1500000000000000000
+  - address: "0x9d7e87c7519b31853f3c3cc471cff15e4dd910c55588acb0c3b8237847e04134"
+    gas_amounts:
+      - 1500000000000000000
+  - address: "0x4380e818ee8f001795742ad87be2dcd6eebf0624884a8871557f3be997aca35b"
+    gas_amounts:
+      - 1500000000000000000
+  - address: "0x9fa4e43c1bebd3d787b44022e7e4c96ff5977456099842cf464d707dde02328d"
+    gas_amounts:
+      - 1500000000000000000
+  - address: "0x6ab84f85ea9c40b3eb6841b66c7baaf63b271c3f198a5b2260b74d007c8c71f5"
+    gas_amounts:
+      - 1500000000000000000
+  - address: "0x5bbc757c117d79fe27533af0c3d112b85299385e8935be0f167b5184222afd12"
+    gas_amounts: [200000000000000000]
+  - address: "0xccc9e62219640cd2c0f48ef49daf8c9755e74c03f649a3ecd2d576b9b03a135f"
+    gas_amounts: [200000000000000000]
+  - address: "0x88d4be6e3236eee110de5c592c90615ddbe6999688ad91c766609f03ad64f6e4"
+    gas_amounts: [200000000000000000]
+  - address: "0x0aad9e9dadacdee74a393efeec28ed60090750a7f6d63343ff1cadf280144402"
+    gas_amounts: [200000000000000000]
+  - address: "0xb2dc6c370b5f475c281c6a7b15f5974acf7fbd331ace6b3f38c9c42c48ba6031"
+    gas_amounts: [200000000000000000]
+  - address: "0xde7b523dafefc8695cc117e168324bfd01b60be7dda1d173177f699feafde734"
+    gas_amounts: [200000000000000000]
+  - address: "0x450451005bf6cf8ec46424ba399e020528dcc3cd3f945edd9551ffb3cd309d56"
+    gas_amounts: [200000000000000000]
+  - address: "0x293210fa0f212e3bdb988a2b413b0579a0f74ca6cf6ca46fa73c801552ea2e52"
+    gas_amounts: [200000000000000000]
+  - address: "0xa45fe7c6081c17266a26f7e2cd3da78d5363a88d3d0358a2365f291ff3a52208"
+    gas_amounts: [200000000000000000]
+  - address: "0x0fff519f4245be4ceb3015f0fa863d97c54f733386e2f72ee294160157b5017f"
+    gas_amounts: [200000000000000000]
+  - address: "0x11c8aa01f82e52aa8200f8c9b4662937bf4ad7a67b066a610a38db38d8343055"
+    gas_amounts: [200000000000000000]
+  - address: "0xf0ff2adeb165d77035bc76f656200929d4675bc83e72815fae3895fc1a6efa1a"
+    gas_amounts: [200000000000000000]
+  - address: "0x0d488eda069891f1c4025edd9ed1dfc5af77ad317713366fc13f17515a2503b2"
+    gas_amounts: [200000000000000000]
+  - address: "0x9b0f7453fe23ee5908edf08fa16b708077ad8ba6c85e9f812bec43871d7aabb3"
+    gas_amounts: [200000000000000000]
+  - address: "0xbdf67fb29e2fb7052a063fbf3d7ee4491171fb9c7dff8c832c87a38eb011ef2d"
+    gas_amounts: [200000000000000000]
+  - address: "0x7fbb8146800a060450e0ae653c34d147e5301b1b2bbd056980da5e4fa72b19e8"
+    gas_amounts: [200000000000000000]
 EOF
-            echo "Benchmark gas accounts added to genesis template"
+            echo "Benchmark gas accounts added to genesis template (24 stress owners)"
         fi
 
         cat >> "$GENESIS_TEMPLATE" <<EOF
@@ -198,7 +242,59 @@ generate_benchmark_keystore() {
       --force
 
   if [[ -f "$BENCH_TEMP_DIR/benchmark.keystore" ]]; then
-    cp "$BENCH_TEMP_DIR/benchmark.keystore" "$GENESIS_DIR/benchmark.keystore"
+    # Merge the auto-generated 4 deterministic keys with 20 additional stress-5..24
+    # keys we use for multi-fullnode stress tests (one gas owner per subprocess).
+    # 24 owners → NUM_PROCS up to 24.
+    python3 -c "
+import json, sys
+auto = json.load(open('$BENCH_TEMP_DIR/benchmark.keystore'))
+extra = [
+    {'alias': 'stress-5', 'address': '0x9d7e87c7519b31853f3c3cc471cff15e4dd910c55588acb0c3b8237847e04134',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qz3gu28qyn293d07zwcm9y7perswzfgfl536nt9f2yqpmz06kez768nx3dp'}},
+    {'alias': 'stress-6', 'address': '0x4380e818ee8f001795742ad87be2dcd6eebf0624884a8871557f3be997aca35b',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qrtl7ltkqrtcdcwzkpstuyfpq93ljyrykschwxw7re2fll2kkwkfcd345ct'}},
+    {'alias': 'stress-7', 'address': '0x9fa4e43c1bebd3d787b44022e7e4c96ff5977456099842cf464d707dde02328d',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qzkq848hz9yddrzu6v44kraxhzzcyd9cmhdjxly9qszty4pulyhnupmfv46'}},
+    {'alias': 'stress-8', 'address': '0x6ab84f85ea9c40b3eb6841b66c7baaf63b271c3f198a5b2260b74d007c8c71f5',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qpwjhf8qamd6naargjtxfd09n9ssy7uwkputw0gqykluf6al22psg3vpmz0'}},
+    {'alias': 'stress-9', 'address': '0x5bbc757c117d79fe27533af0c3d112b85299385e8935be0f167b5184222afd12',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qpvnjvksgm7k0u2y6qxmv4wfyeagssexph5w84p6xs74py3x0dp7gm9nssh'}},
+    {'alias': 'stress-10', 'address': '0xccc9e62219640cd2c0f48ef49daf8c9755e74c03f649a3ecd2d576b9b03a135f',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qp0jcgaxkk3kahnvp9wmjlehk7uhgy94ntmjzettyu2mlzjm2zws65zlw46'}},
+    {'alias': 'stress-11', 'address': '0x88d4be6e3236eee110de5c592c90615ddbe6999688ad91c766609f03ad64f6e4',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qpqxv5dvfq7zdsaa8v5rwnw40qku0sqac6p706mlhx5aklc728vekw3qfpu'}},
+    {'alias': 'stress-12', 'address': '0x0aad9e9dadacdee74a393efeec28ed60090750a7f6d63343ff1cadf280144402',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qp276zva7yskmzpv8hg9hewsr2cfddyu9l2kcnee5jjlkcupdlakjuhzece'}},
+    {'alias': 'stress-13', 'address': '0xb2dc6c370b5f475c281c6a7b15f5974acf7fbd331ace6b3f38c9c42c48ba6031',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qryusx2g5awhqgg0f56d9l6aceqgjn3pp9ca3dclr36vet6qzme4vey6rfu'}},
+    {'alias': 'stress-14', 'address': '0xde7b523dafefc8695cc117e168324bfd01b60be7dda1d173177f699feafde734',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qr3h66v39cc83c0j9dm9n6q9964hs3ysshphw6tq0c0r07u0h4tu7zje6z9'}},
+    {'alias': 'stress-15', 'address': '0x450451005bf6cf8ec46424ba399e020528dcc3cd3f945edd9551ffb3cd309d56',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qqdcflh0w7al6psl8jagdgllxxm7a0c49x3w09set4rjw9f8hjqhugqtm5p'}},
+    {'alias': 'stress-16', 'address': '0x293210fa0f212e3bdb988a2b413b0579a0f74ca6cf6ca46fa73c801552ea2e52',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qzlc6dj9032xect84n4xjmjvcghcjhdxkskcs4fpsf620s87ncakgxy74ym'}},
+    {'alias': 'stress-17', 'address': '0xa45fe7c6081c17266a26f7e2cd3da78d5363a88d3d0358a2365f291ff3a52208',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qpf4cu6lcn3kvyy28pwp86ey5q9psgup004kkqra3raa3zvgpt986vzcct8'}},
+    {'alias': 'stress-18', 'address': '0x0fff519f4245be4ceb3015f0fa863d97c54f733386e2f72ee294160157b5017f',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qprx0gtxqquv55z0zx39l46hw9y3etuuzxpeuj5r8qnm8eclqr55673znm3'}},
+    {'alias': 'stress-19', 'address': '0x11c8aa01f82e52aa8200f8c9b4662937bf4ad7a67b066a610a38db38d8343055',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qrvazg0kxhysg9q5a2hly3gw0lldlqjtgdtfhhfzp0hkkul4lw4m5h6u6wz'}},
+    {'alias': 'stress-20', 'address': '0xf0ff2adeb165d77035bc76f656200929d4675bc83e72815fae3895fc1a6efa1a',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qpf640f8f3g04fnw53dtc4u93yg9cygm8xvzkjsaekkjckmms3r8vm6mhgu'}},
+    {'alias': 'stress-21', 'address': '0x0d488eda069891f1c4025edd9ed1dfc5af77ad317713366fc13f17515a2503b2',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qped20pgvlygckxsawhzx4qjedqxpd8eu652yv8fhyudaxuncp5y5z0gmy7'}},
+    {'alias': 'stress-22', 'address': '0x9b0f7453fe23ee5908edf08fa16b708077ad8ba6c85e9f812bec43871d7aabb3',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qzakf8g6zgv430kzqdrq825qhydmmtvp2dl4jkss4aa4g58duhpq7ca5rfe'}},
+    {'alias': 'stress-23', 'address': '0xbdf67fb29e2fb7052a063fbf3d7ee4491171fb9c7dff8c832c87a38eb011ef2d',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qzpy3mzfkv4qe8cugtxcl50k3h0t5frv7vutx080w3f5w8s6wuuzvfw67fz'}},
+    {'alias': 'stress-24', 'address': '0x7fbb8146800a060450e0ae653c34d147e5301b1b2bbd056980da5e4fa72b19e8',
+     'key': {'type': 'key_pair', 'value': 'iotaprivkey1qz5d78kfxpvqs3sztwttf6x2es6lrae43etlgjumpn09uft093dfypnrg57'}},
+]
+auto['keys'].extend(extra)
+with open('$GENESIS_DIR/benchmark.keystore', 'w') as f:
+    json.dump(auto, f, indent=2)
+print('Appended 20 stress-5..24 keys')
+"
     echo "Benchmark keystore saved to $GENESIS_DIR/benchmark.keystore"
     echo ""
     echo "To run the stress tool against this network:"

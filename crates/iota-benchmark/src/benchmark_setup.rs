@@ -71,6 +71,7 @@ impl Env {
                     opts.use_fullnode_for_reconfig,
                     opts.use_fullnode_for_execution,
                     opts.fullnode_rpc_addresses.clone(),
+                    opts.num_validators_to_target,
                 )
                 .await
             }
@@ -136,7 +137,7 @@ impl Env {
         sleep(Duration::from_secs(5)).await;
         let (genesis, primary_gas) = genesis_recv.await.unwrap();
         let proxy: Arc<dyn ValidatorProxy + Send + Sync> =
-            Arc::new(LocalValidatorAggregatorProxy::from_genesis(&genesis, registry, None).await);
+            Arc::new(LocalValidatorAggregatorProxy::from_genesis(&genesis, registry, None, 0).await);
         Ok(BenchmarkSetup {
             server_handle: join_handle,
             shutdown_notifier: shutdown_sender,
@@ -155,6 +156,7 @@ impl Env {
         use_fullnode_for_reconfig: bool,
         use_fullnode_for_execution: bool,
         fullnode_rpc_address: Vec<String>,
+        num_validators_to_target: usize,
     ) -> Result<BenchmarkSetup> {
         info!("Running benchmark setup in remote mode ..");
         let (sender, recv) = tokio::sync::oneshot::channel::<()>();
@@ -198,6 +200,7 @@ impl Env {
                     genesis,
                     registry,
                     reconfig_fullnode_rpc_url.map(|x| &**x),
+                    num_validators_to_target,
                 )
                 .await,
             )]
@@ -290,10 +293,35 @@ impl Env {
             )
         };
 
+        // Build the bank. In TD mode (use_fullnode_for_execution=false) the
+        // write proxies are LocalValidatorAggregatorProxy which can't do
+        // get_owned_objects, so the cache always misses. Wire a separate
+        // FullNodeProxy as the cache-verify read proxy when one is available
+        // — bank::generate will use it just for `bank_cache::verify_all_exist`.
+        let mut bank = BenchmarkBank::new_multi(proxies.clone(), current_gas);
+        if !use_fullnode_for_execution && !fullnode_rpc_urls.is_empty() {
+            match FullNodeProxy::from_url(&fullnode_rpc_urls[0]).await {
+                Ok(fn_proxy) => {
+                    info!(
+                        "Using FullNodeProxy {:?} as read_proxy for cache verify",
+                        fullnode_rpc_urls[0]
+                    );
+                    bank = bank.with_read_proxy(Arc::new(fn_proxy));
+                }
+                Err(e) => {
+                    info!(
+                        "Failed to create read-only FullNodeProxy at {:?}: {e}; \
+                         cache verify will fall back to the write proxy (which won't work \
+                         in TD mode, so cache will always miss).",
+                        fullnode_rpc_urls[0]
+                    );
+                }
+            }
+        }
         Ok(BenchmarkSetup {
             server_handle: join_handle,
             shutdown_notifier: sender,
-            bank: BenchmarkBank::new(proxy.clone(), current_gas),
+            bank,
             proxies,
         })
     }

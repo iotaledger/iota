@@ -214,6 +214,23 @@ pub struct BenchWorker {
     pub proxy: Arc<dyn ValidatorProxy + Send + Sync>,
     pub group: u32,
     pub duration: Interval,
+    /// Burst size: how many requests this worker releases per tick.
+    /// Default 1 = rate-paced; higher = bursty admission pattern.
+    pub burst_size: u64,
+    /// Pre-computed FIRST barrier deadline shared across all workers in this
+    /// driver. Set when barrier mode is active so all workers fire their
+    /// first burst at the SAME tick boundary, even if they start in
+    /// different period windows. Per-worker recomputation would let workers
+    /// straddling a boundary land on different `k` values, splitting one
+    /// "big burst" across two ticks.
+    pub barrier_first_deadline: Option<Instant>,
+    /// Wall-clock-aligned barrier. When `barrier_period` is `Some`, the worker
+    /// fires each burst at `barrier_t_zero + k × barrier_period` boundaries
+    /// instead of pacing independently. Shared across all workers in the
+    /// process (and across processes when the shell driver writes the same
+    /// epoch into the start-file).
+    pub barrier_t_zero: Option<Instant>,
+    pub barrier_period: Option<Duration>,
 }
 
 impl Debug for BenchWorker {
@@ -233,6 +250,12 @@ pub struct BenchDriver {
     pub stress_stat_collection: bool,
     pub start_time: Instant,
     pub token: CancellationToken,
+    /// How many transactions each worker releases per tick. Default 1.
+    /// > 1 produces concentrated bursts at the validator gate.
+    pub burst_size: u64,
+    /// When set, all workers align bursts to `barrier_t_zero + k × barrier_period`.
+    pub barrier_t_zero: Option<Instant>,
+    pub barrier_period: Option<Duration>,
 }
 
 impl BenchDriver {
@@ -242,7 +265,21 @@ impl BenchDriver {
             stress_stat_collection,
             start_time: Instant::now(),
             token: CancellationToken::new(),
+            burst_size: 1,
+            barrier_t_zero: None,
+            barrier_period: None,
         }
+    }
+
+    pub fn with_burst_size(mut self, burst_size: u64) -> Self {
+        self.burst_size = burst_size.max(1);
+        self
+    }
+
+    pub fn with_barrier(mut self, t_zero: Instant, period: Duration) -> Self {
+        self.barrier_t_zero = Some(t_zero);
+        self.barrier_period = Some(period);
+        self
     }
     pub fn terminate(&self) {
         self.token.cancel()
@@ -288,6 +325,25 @@ impl BenchDriver {
             .workload
             .make_test_payloads(proxy.clone(), system_state_observer.clone())
             .await;
+        // Compute a SHARED first barrier deadline ONCE before the worker
+        // creation loop, so every worker in this driver run fires its first
+        // burst at the same `t_zero + k × period` boundary — even across
+        // procs (since each proc's t_zero is wall-clock-anchored from the
+        // start_file). Per-worker computation would let two workers
+        // starting near a boundary land on different k's, splitting one
+        // big burst across two ticks. SKIP_PERIODS=4 absorbs ~200ms of
+        // worker startup jitter at period=50ms.
+        let barrier_first_deadline = match (self.barrier_t_zero, self.barrier_period) {
+            (Some(t0), Some(period)) => {
+                const SKIP_PERIODS: u128 = 4;
+                let now = Instant::now();
+                let elapsed = now.saturating_duration_since(t0);
+                let period_ns = period.as_nanos().max(1);
+                let k = (elapsed.as_nanos() / period_ns) + SKIP_PERIODS;
+                Some(t0 + Duration::from_nanos((k * period_ns) as u64))
+            }
+            _ => None,
+        };
         let mut total_workers = workload_info.workload_params.num_workers;
         while total_workers > 0 {
             let target_qps = qps / total_workers;
@@ -301,6 +357,10 @@ impl BenchDriver {
                     proxy: proxy.clone(),
                     group: workload_info.workload_params.group,
                     duration: workload_info.workload_params.duration,
+                    burst_size: self.burst_size,
+                    barrier_first_deadline,
+                    barrier_t_zero: self.barrier_t_zero,
+                    barrier_period: self.barrier_period,
                 });
                 payloads = remaining;
                 qps -= target_qps;
@@ -731,7 +791,19 @@ async fn run_bench_worker(
     debug!("Run {:?}", worker);
     let group_benchmark_start_time = Instant::now();
 
-    let request_delay_micros = 1_000_000 / worker.target_qps;
+    // Rate-paced: interval = 1s / target_qps, release 1 tx per tick.
+    // Burst-mode: interval = burst_size / target_qps, release burst_size tx per tick.
+    // Barrier-mode (barrier_period set): fire each burst at t_zero + k×period
+    //   regardless of target_qps. Effective per-worker QPS becomes
+    //   burst_size × 1000 / barrier_period_ms.
+    // Average rate stays at target_qps; bursts concentrate admissions at the gate.
+    let burst_size = worker.burst_size.max(1);
+    let request_delay_micros = (burst_size * 1_000_000) / worker.target_qps;
+    // Use the SHARED first-barrier deadline computed by the driver, not a
+    // per-worker `Instant::now()` calc. This ensures every worker fires
+    // its first burst at the same tick boundary (see BenchDriver::make_workers
+    // for the rationale).
+    let mut next_barrier_deadline: Option<Instant> = worker.barrier_first_deadline;
     let mut pending_digests = vec![];
     let mut num_success_txes = 0;
     let mut num_error_txes = 0;
@@ -957,58 +1029,75 @@ async fn run_bench_worker(
                 stat_start_time = Instant::now();
                 latency_histogram.reset();
             }
-            _ = request_interval.tick() => {
+            _ = async {
+                match next_barrier_deadline {
+                    Some(deadline) => time::sleep_until(deadline).await,
+                    None => { request_interval.tick().await; }
+                }
+            } => {
+                // In barrier mode, schedule the next aligned boundary before
+                // doing any work, so a slow burst doesn't drift subsequent ticks.
+                if let (Some(deadline), Some(period)) =
+                    (next_barrier_deadline.as_mut(), worker.barrier_period)
+                {
+                    *deadline += period;
+                }
 
                 // Update progress for total benchmark
                 if update_progress(0) {
                     break;
                 }
 
-                // If a retry is available send that
-                // (sending retries here subjects them to our rate limit)
-                if let Some(b) = retry_queue.pop_front() {
-                    let tx = b.0;
-                    let payload = b.1;
-                    match payload.get_failure_type() {
-                        Some(ExpectedFailureType::NoFailure) => num_error_txes += 1,
-                        Some(_) => num_expected_error_txes += 1,
-                        None => num_error_txes += 1,
+                // Burst mode: release `burst_size` transactions back-to-back
+                // per tick. Default (burst_size = 1) preserves the original
+                // rate-paced behavior.
+                for _ in 0..burst_size {
+                    // If a retry is available send that
+                    // (sending retries here subjects them to our rate limit)
+                    if let Some(b) = retry_queue.pop_front() {
+                        let tx = b.0;
+                        let payload = b.1;
+                        match payload.get_failure_type() {
+                            Some(ExpectedFailureType::NoFailure) => num_error_txes += 1,
+                            Some(_) => num_expected_error_txes += 1,
+                            None => num_error_txes += 1,
+                        }
+                        num_submitted += 1;
+                        metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
+                        num_in_flight += 1;
+                        metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
+                        // TODO: clone committee for each request is not ideal.
+                        let committee = worker.proxy.clone_committee();
+                        let start = Arc::new(Instant::now());
+                        let res = worker.proxy
+                            .execute_transaction_block(tx.clone())
+                            .then(|res| async move  {
+                                 handle_execute_transaction_response(res, start, tx, payload, committee)
+                            });
+                        futures.push(Box::pin(res));
+                        continue;
                     }
-                    num_submitted += 1;
-                    metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
-                    num_in_flight += 1;
-                    metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
-                    // TODO: clone committee for each request is not ideal.
-                    let committee = worker.proxy.clone_committee();
-                    let start = Arc::new(Instant::now());
-                    let res = worker.proxy
-                        .execute_transaction_block(tx.clone())
-                        .then(|res| async move  {
-                             handle_execute_transaction_response(res, start, tx, payload, committee)
-                        });
-                    futures.push(Box::pin(res));
-                    continue
-                }
 
-                // Otherwise send a fresh request
-                if free_pool.is_empty() {
-                    num_no_gas += 1;
-                } else {
-                    let mut payload = free_pool.pop_front().unwrap();
-                    num_in_flight += 1;
-                    num_submitted += 1;
-                    metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
-                    metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
-                    let tx = payload.make_transaction();
-                    let start = Arc::new(Instant::now());
-                    // TODO: clone committee for each request is not ideal.
-                    let committee = worker.proxy.clone_committee();
-                    let res = worker.proxy
-                        .execute_transaction_block(tx.clone())
-                    .then(|res| async move {
-                        handle_execute_transaction_response(res, start, tx, payload, committee)
-                    });
-                    futures.push(Box::pin(res));
+                    // Otherwise send a fresh request
+                    if free_pool.is_empty() {
+                        num_no_gas += 1;
+                    } else {
+                        let mut payload = free_pool.pop_front().unwrap();
+                        num_in_flight += 1;
+                        num_submitted += 1;
+                        metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
+                        metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
+                        let tx = payload.make_transaction();
+                        let start = Arc::new(Instant::now());
+                        // TODO: clone committee for each request is not ideal.
+                        let committee = worker.proxy.clone_committee();
+                        let res = worker.proxy
+                            .execute_transaction_block(tx.clone())
+                        .then(|res| async move {
+                            handle_execute_transaction_response(res, start, tx, payload, committee)
+                        });
+                        futures.push(Box::pin(res));
+                    }
                 }
             }
             Some(op) = futures.next() => {

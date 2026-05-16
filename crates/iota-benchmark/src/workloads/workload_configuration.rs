@@ -90,6 +90,7 @@ impl WorkloadConfiguration {
                 target_qps,
                 num_workers,
                 in_flight_ratio,
+                burst_size: _, // consumed by BenchDriver::with_burst_size in stress.rs
                 duration,
             } => {
                 info!(
@@ -137,11 +138,25 @@ impl WorkloadConfiguration {
                     workload_builders.extend(builders);
                 }
 
+                let cache_path = if opts.gas_pool_cache_path.is_empty() {
+                    None
+                } else {
+                    Some(std::path::PathBuf::from(&opts.gas_pool_cache_path))
+                };
+                let config_hash = Some(crate::bank_cache::config_hash(
+                    bank.primary_coin.1,
+                    &target_qps,
+                    &in_flight_ratio,
+                    &num_workers,
+                    opts.num_transfer_accounts,
+                ));
                 Self::build(
                     workload_builders,
                     bank,
                     system_state_observer,
                     opts.gas_request_chunk_size,
+                    cache_path,
+                    config_hash,
                 )
                 .await
             }
@@ -190,6 +205,8 @@ impl WorkloadConfiguration {
                     bank,
                     system_state_observer,
                     opts.gas_request_chunk_size,
+                    None,
+                    None,
                 )
                 .await
             }
@@ -201,6 +218,8 @@ impl WorkloadConfiguration {
         mut bank: BenchmarkBank,
         system_state_observer: Arc<SystemStateObserver>,
         gas_request_chunk_size: u64,
+        cache_path: Option<std::path::PathBuf>,
+        config_hash: Option<String>,
     ) -> Result<BTreeMap<GroupID, Vec<WorkloadInfo>>> {
         // Generate the workloads and init them
         let reference_gas_price = system_state_observer.state.borrow().reference_gas_price;
@@ -214,6 +233,8 @@ impl WorkloadConfiguration {
                 workload_builders,
                 reference_gas_price,
                 gas_request_chunk_size,
+                cache_path,
+                config_hash,
             )
             .await?;
         for workload in workloads.iter_mut() {

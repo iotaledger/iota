@@ -7,6 +7,10 @@ x-common-validator: &common-validator
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
     - CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL:-}
+    # Bump get_owned_objects page size cap from the 50-default → 1000 so
+    # cache verify (which has to fetch all coins per owner address)
+    # finishes in ~10s instead of ~200s. See iota-json-rpc-api/src/lib.rs:46.
+    - RPC_QUERY_MAX_RESULT_LIMIT=${RPC_QUERY_MAX_RESULT_LIMIT:-1000}
     # TODO: Remove these overrides once white flag flow is enabled by default in the protocol config on develop.
     - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=${IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE:-0}
     - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW:-false}
@@ -39,6 +43,17 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.11
+    # Bind to a unique 127.0.0.X loopback alias so host-side stress clients
+    # can reach all 4 validators on the same port 8080 — required because
+    # genesis encodes `/dns/validator-N/tcp/8080/http` (single port, must
+    # work for both peer-comms inside docker AND host-side TD clients).
+    # Host needs /etc/hosts entries:
+    #   127.0.0.11 validator-1
+    #   127.0.0.12 validator-2
+    #   127.0.0.13 validator-3
+    #   127.0.0.14 validator-4
+    ports:
+      - "127.0.0.11:8080:8080"
     volumes:
       - ./configs/validators/validator-1-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
@@ -51,6 +66,8 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.12
+    ports:
+      - "127.0.0.12:8080:8080"
     volumes:
       - ./configs/validators/validator-2-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
@@ -63,6 +80,8 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.13
+    ports:
+      - "127.0.0.13:8080:8080"
     volumes:
       - ./configs/validators/validator-3-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
@@ -75,6 +94,8 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.14
+    ports:
+      - "127.0.0.14:8080:8080"
     volumes:
       - ./configs/validators/validator-4-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
@@ -321,6 +342,16 @@ services:
     ports:
       - "127.0.0.1:9003:9000/tcp"
       - "127.0.0.1:9187:9184/tcp"
+
+  # Fullnodes 5-8 disabled: each iota-node holds ~6.5 GB after a stress run,
+  # so 8 fullnodes + 4 validators = ~73 GB resident, which OOM-killed spam
+  # procs. Dropping to 4 fullnodes frees ~26 GB. Restore these blocks if a
+  # test needs the extra fan-out and the host has the RAM headroom.
+  #
+  # fullnode-5: port 9200 metrics 9289 ip 10.0.0.50
+  # fullnode-6: port 9201 metrics 9290 ip 10.0.0.51
+  # fullnode-7: port 9202 metrics 9291 ip 10.0.0.52
+  # fullnode-8: port 9203 metrics 9292 ip 10.0.0.53
 
   indexer-1:
     image: iotaledger/iota-indexer
