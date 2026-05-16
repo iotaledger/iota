@@ -7879,11 +7879,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "rate(consensus_sub_dags_per_commit_count_sum[2m])/rate(consensus_sub_dags_per_commit_count_count[2m])",
+              "expr": "sum by (host) (rate(consensus_sub_dags_per_commit_count_sum[2m])) / sum by (host) (rate(consensus_sub_dags_per_commit_count_count[2m]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
