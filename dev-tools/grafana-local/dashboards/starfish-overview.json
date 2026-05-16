@@ -14065,7 +14065,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Suspended-header dwell time, p50/p90/p99 per source authority. With GC eviction the long tail should be bounded; growing p99 indicates suspended state is not being evicted.",
+          "description": "Suspended-header dwell time, p50/p95 per source authority. With GC eviction the long tail should be bounded; growing p95 indicates suspended state is not being evicted.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -14159,26 +14159,14 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.9, sum by (le, authority) (rate(consensus_suspended_block_header_time_bucket[2m])))",
+              "expr": "histogram_quantile(0.95, sum by (le, authority) (rate(consensus_suspended_block_header_time_bucket[2m])))",
               "instant": false,
-              "legendFormat": "{{authority}} p90",
+              "legendFormat": "{{authority}} p95",
               "range": true,
               "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by (le, authority) (rate(consensus_suspended_block_header_time_bucket[2m])))",
-              "instant": false,
-              "legendFormat": "{{authority}} p99",
-              "range": true,
-              "refId": "C"
             }
           ],
-          "title": "Suspended header dwell time (p50/p90/p99 by authority)",
+          "title": "Suspended header dwell time (p50/p95 by authority)",
           "type": "timeseries"
         },
         {

@@ -252,7 +252,7 @@ impl BaseCommitter {
         let potential_certificates = self
             .dag_state
             .read()
-            .linked_block_headers_at_round_above_last_commit(anchor, certifying_round);
+            .reachable_headers_at_round_above_last_commit(anchor, certifying_round);
 
         // Use those potential certificates to determine which (if any) of the target
         // leader blocks can be committed.
