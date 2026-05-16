@@ -364,9 +364,6 @@ pub(crate) enum ConsensusError {
         starfish_speed: bool,
     },
 
-    #[error("Block has strong_vote field but consensus_starfish_speed is disabled")]
-    UnexpectedStrongVote,
-
     #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
     InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
 
