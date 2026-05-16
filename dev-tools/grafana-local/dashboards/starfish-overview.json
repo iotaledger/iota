@@ -9775,9 +9775,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_rejected_blocks[2m])",
+              "expr": "sum by (host, reason) (rate(consensus_rejected_blocks[2m]))",
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "{{host}} - {{reason}}",
               "range": true,
               "refId": "A"
             }
