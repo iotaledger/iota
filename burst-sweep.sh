@@ -18,11 +18,15 @@ OUT_LOG="burst-sweep.log"
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-# Grid sweep: each burst × each barrier × ITERS. 3×3×5 = 45 runs ≈ 3.75h.
-# Restrict either array (or drop ITERS) to shrink.
-BURSTS=(1200 1500 1800)
-BARS=(300 500 700)
-ITERS=3
+# Locked-in best config from the 27-run grid sweep:
+#   BURST=1800 BAR=500 IFR=20 NUM_PROCS=24 TARGET=1
+# → mean 33×, max 52× (n=3), variance still wide (heavy-tail).
+# Single-cell mode: arrays of length 1 so the nested loop fires ITERS
+# samples on the winning config. Bump ITERS for tighter distribution
+# estimates of mean/median/max.
+BURSTS=(1800)
+BARS=(500)
+ITERS=10
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 
