@@ -259,11 +259,9 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
-        // Validate strong_vote field.
+        // Validate strong_vote field. Reachable only on V2 headers, which the
+        // version-flag check above already gated on `consensus_starfish_speed`.
         if let Some(strong_vote) = block.strong_vote() {
-            if !self.context.protocol_config.consensus_starfish_speed() {
-                return Err(ConsensusError::UnexpectedStrongVote);
-            }
             if !committee.is_valid_index(strong_vote.leader_authority) {
                 return Err(ConsensusError::InvalidStrongVoteAuthority {
                     index: strong_vote.leader_authority,
@@ -327,7 +325,8 @@ pub(crate) mod test {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader},
+        authority_set::AuthoritySet,
+        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
@@ -759,6 +758,94 @@ pub(crate) mod test {
                     starfish_speed: false,
                 })
             ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_block_strong_vote() {
+        let (mut context_on, keypairs) = Context::new_for_test(4);
+        context_on
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let context_on = Arc::new(context_on);
+
+        let keypair = &keypairs[2].1;
+        let leader_authority = AuthorityIndex::new_for_test(0);
+        let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
+
+        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
+        let well_formed = StrongVote {
+            leader_authority,
+            missing: AuthoritySet::new(),
+        };
+
+        // Flag on + missing contains an index >= committee.size() ->
+        // InvalidStrongVoteAuthority.
+        {
+            let mut missing = AuthoritySet::new();
+            missing.insert(AuthorityIndex::new_for_test(99));
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority,
+                    missing,
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + leader_authority >= committee.size() ->
+        // InvalidStrongVoteAuthority. Trips the leader_authority bound check
+        // before the leader-in-ancestors check below.
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(99),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + valid leader_authority but pinned leader not in ancestors
+        // at round-1 -> StrongVoteLeaderNotInAncestors. Authority 3 is in the
+        // base block's ancestors only at round 7, not at round 9
+        // (= leader_round).
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(3),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::StrongVoteLeaderNotInAncestors { .. })
+            ));
+        }
+
+        // Flag on + well-formed strong_vote (empty missing, leader at R-1 in
+        // ancestors) -> Ok.
+        {
+            let block = base.set_strong_vote(Some(well_formed)).build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            verifier_on.verify(&signed_block).unwrap();
         }
     }
 }
