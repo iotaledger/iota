@@ -7293,7 +7293,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "histogram_quantile(0.66, sum(rate(consensus_delay_in_sending_blocks_bucket[2m])) by (le)) / 1000",
+              "expr": "histogram_quantile(0.66, sum(rate(consensus_delay_in_sending_blocks_bucket[2m])) by (le, host)) / 1000",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
