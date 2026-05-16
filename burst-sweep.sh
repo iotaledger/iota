@@ -49,14 +49,24 @@ else
   PREFLIGHT_OK=0
 fi
 
-# 2. target/ not root-owned? cargo build will fail if any artifact is root.
-ROOTOWNED=$(find "$REPO/target" -uid 0 2>/dev/null | head -1)
-if [ -z "$ROOTOWNED" ]; then
-  echo "  target/ own ✓ user-owned"
+# 2. target/ writable by current user? cargo build fails if mixed-ownership.
+# On the workstation we run as roman → check no root-owned artifacts leaked in
+# from a prior `sudo ./burst-sweep.sh`. On the EPYC server we run as root →
+# everything is uid 0 by design, and the workstation-style check would always
+# trip. So: when running as root, skip the check entirely. When not root,
+# look for files NOT owned by the current user (catches root-leaked artifacts
+# AND any other foreign-uid contamination).
+if [ "$EUID" -eq 0 ]; then
+  echo "  target/ own ✓ skipped (running as root)"
 else
-  echo "  target/ own ✗ found root-owned file: $ROOTOWNED"
-  echo "    fix: sudo chown -R \$USER:\$USER $REPO/target"
-  PREFLIGHT_OK=0
+  FOREIGN=$(find "$REPO/target" ! -uid "$(id -u)" 2>/dev/null | head -1)
+  if [ -z "$FOREIGN" ]; then
+    echo "  target/ own ✓ user-owned"
+  else
+    echo "  target/ own ✗ found foreign-owned file: $FOREIGN"
+    echo "    fix: sudo chown -R \$USER:\$USER $REPO/target"
+    PREFLIGHT_OK=0
+  fi
 fi
 
 # 3. /etc/hosts has validator-N aliases (required for TD path).
