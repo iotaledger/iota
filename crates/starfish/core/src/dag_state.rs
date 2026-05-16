@@ -1272,10 +1272,7 @@ impl DagState {
         shards
     }
 
-    /// Returns headers from `recent_block_headers` at `slot`. Permissive
-    /// lookup with no round bound; `accept_block_header` uses this to dedup
-    /// own slots at the just-committed round. Committer callers should use
-    /// `get_block_headers_at_slot_above_last_commit` instead.
+    /// Returns headers from `recent_block_headers` at `slot`.
     pub(crate) fn get_recent_block_headers_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut block_headers = vec![];
         for (_block_ref, block_header) in self.recent_block_headers.range((
@@ -1296,8 +1293,8 @@ impl DagState {
     }
 
     /// Same as `get_recent_block_headers_at_slot` but asserts the slot is
-    /// strictly above `last_commit_round()`. Use from the committer where
-    /// the invariant holds.
+    /// strictly above last committed round. The caller, e.g. committer, must
+    /// ensure that the invariant holds.
     pub(crate) fn get_block_headers_at_slot_above_last_commit(
         &self,
         slot: Slot,
@@ -1310,7 +1307,7 @@ impl DagState {
         self.get_recent_block_headers_at_slot(slot)
     }
 
-    /// Returns headers from `recent_block_headers` at `round`. The caller MUST
+    /// Returns headers from `recent_block_headers` at `round`. The caller must
     /// pass `round > last_commit_round()` so the lookup stays inside the
     /// not-yet-committed portion of the DAG.
     pub(crate) fn get_block_headers_at_round_above_last_commit(
@@ -1343,9 +1340,8 @@ impl DagState {
 
     /// Returns block headers at exactly `earlier_round` that are reachable
     /// from `later_block` through ancestor links (transitive closure stopped
-    /// at the target round). The caller MUST pass
-    /// `earlier_round >= last_commit_round()` so the walk stays inside the
-    /// not-yet-committed portion of the DAG.
+    /// at the target round). The caller must ensure that the earlier round is
+    /// strictly above last committed round.
     pub(crate) fn linked_block_headers_at_round_above_last_commit(
         &self,
         later_block: &VerifiedBlockHeader,
