@@ -1348,8 +1348,7 @@ impl DagState {
         earlier_round: Round,
     ) -> Vec<VerifiedBlockHeader> {
         // Iterate through ancestors of later_block in round descending order.
-        let mut reachable: BTreeSet<BlockRef> =
-            later_block.ancestors().iter().cloned().collect();
+        let mut reachable: BTreeSet<BlockRef> = later_block.ancestors().iter().cloned().collect();
         while !reachable.is_empty() {
             let round = reachable.last().unwrap().round;
             // Stop after finishing traversal for ancestors above earlier_round.
@@ -2747,8 +2746,7 @@ mod test {
         }
 
         // Check ancestors connected to anchor.
-        let ancestors =
-            dag_state.reachable_headers_at_round_above_last_commit(&anchor, 11);
+        let ancestors = dag_state.reachable_headers_at_round_above_last_commit(&anchor, 11);
         let mut ancestors_refs: Vec<BlockRef> = ancestors.iter().map(|b| b.reference()).collect();
         ancestors_refs.sort();
         let mut expected_refs = vec![
