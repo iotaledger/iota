@@ -18,21 +18,23 @@ OUT_LOG="burst-sweep.log"
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-# Ceiling-probe sweep: push burst high to test whether peak ratio scales
-# linearly with burst size at ~55% of theoretical ceiling (burst/sem_cap).
-# Workstation+EPYC both hit ~55-58% of ceiling at burst=1800/2000 → if the
-# linear-fraction hypothesis holds:
-#   burst=3000 → predicted max ~82×  (ceiling 150×)
-#   burst=4000 → predicted max ~110× (ceiling 200×)
-# IFR=40 so per-worker pool = (40000/24)×40/16 = 4167 payloads — just
-# enough to cover BURST=4000 without truncation. (IFR=20 truncates
-# BURST=3000: pool=2082 < 3000. IFR=50 worked for pool size but the
-# init-coin sizing in bank.rs scales with IFR, and at IFR=50 with
-# NUM_PROCS=24 the per-process init coin exceeds genesis allocation —
-# every iter panics with "Failed to create initialization coin" in
-# bank.rs:532. IFR=40 is the sweet spot: covers BURST=4000 and stays
-# within the gas budget the benchmark address can fund.)
-BURSTS=(3000 4000)
+# Cold-gate test: hold IFR=20 (the known-good regime) and sweep BURST
+# right up against the per-worker pool ceiling. Pool/worker = (40000/24)
+# × 20 / 16 = 2082, so BURST ≤ ~2080 avoids payload truncation.
+#
+# Why IFR=20: prior IFR=40 sweep at BURST=3000/4000 showed peak/total
+# drop from 2.3% (at IFR=20) to 0.4-1.3% (at IFR=40) — bigger IFR
+# prebuffers more steady-state inflight per worker, so by the time the
+# synchronized burst fires, num_inflight is already partially saturating
+# the gate and the race window has shrunk. IFR=20 keeps the gate
+# near-empty at barrier_first_deadline, preserving the wide race window
+# that produced ratio 50× in earlier runs.
+#
+# Hypothesis: peak ratio is maximized when burst ≈ pool size, not when
+# burst >> pool. Sweet spot should be BURST=2050 (98% of pool capacity)
+# with negligible margin so almost every payload races through the gate
+# at barrier moment.
+BURSTS=(1800 2000 2050)
 BARS=(500)
 ITERS=10
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
@@ -168,11 +170,12 @@ for burst in "${BURSTS[@]}"; do
 
     # Run
     cd "$REPO"
-    # IFR=40: per-worker pool = (40000/24) × 40 / 16 = 4167 payloads,
-    # covers BURST up to ~4000 without truncation, and stays within the
-    # init-coin gas budget that NUM_PROCS=24 procs can fund from genesis.
+    # IFR=20: per-worker pool = (40000/24) × 20 / 16 = 2082 payloads.
+    # BURST ≤ 2080 fits without truncation; BURST=2050 leaves only ~32
+    # payloads of margin per worker (intentional — we want the burst to
+    # nearly drain the pool to maximize racing arrivals at the gate).
     NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
-      WORKERS=16 IN_FLIGHT_RATIO=40 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
+      WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
       | tee /tmp/burst-sweep-iter.log
 
@@ -230,3 +233,12 @@ awk -F, 'NR>1 && $6 != "FAIL" && $6+0 > 0 {
       substr(k, 1, index(k,",")-1), substr(k, index(k,",")+1), n[k], med, max[k]
   }
 }' "$OUT_CSV" | sort
+
+# -------- Teardown: stop grafana + iota network so nothing hogs ports/CPU ---------
+echo
+echo "=== tearing down stacks ==="
+echo "  stopping grafana + prometheus..."
+(cd "$REPO/dev-tools/grafana-local" && docker compose down 2>&1 | tail -3) || true
+echo "  stopping iota private network..."
+(cd "$PRIVNET" && docker compose down -v 2>&1 | tail -3) || true
+echo "  done."
