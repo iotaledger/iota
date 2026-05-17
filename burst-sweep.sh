@@ -18,13 +18,16 @@ OUT_LOG="burst-sweep.log"
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-# Locked-in best config from the 27-run grid sweep:
-#   BURST=1800 BAR=500 IFR=20 NUM_PROCS=24 TARGET=1
-# → mean 33×, max 52× (n=3), variance still wide (heavy-tail).
-# Single-cell mode: arrays of length 1 so the nested loop fires ITERS
-# samples on the winning config. Bump ITERS for tighter distribution
-# estimates of mean/median/max.
-BURSTS=(1800)
+# Ceiling-probe sweep: push burst high to test whether peak ratio scales
+# linearly with burst size at ~55% of theoretical ceiling (burst/sem_cap).
+# Workstation+EPYC both hit ~55-58% of ceiling at burst=1800/2000 → if the
+# linear-fraction hypothesis holds:
+#   burst=3000 → predicted max ~82×  (ceiling 150×)
+#   burst=4000 → predicted max ~110× (ceiling 200×)
+# IFR bumped to 50 so per-worker pool = (40000/24)×50/16 = 5208 payloads,
+# cleanly handles BURST up to ~5000 without truncation. (IFR=20 would
+# truncate BURST=3000: pool = 2082 < 3000.)
+BURSTS=(3000 4000)
 BARS=(500)
 ITERS=10
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
@@ -160,11 +163,10 @@ for burst in "${BURSTS[@]}"; do
 
     # Run
     cd "$REPO"
-    # IFR=20: per-worker pool = (40000/24) × 20 / 16 = 2082 payloads,
-    # cleanly handles BURST up to 2082 without truncation. (IFR=15 truncates
-    # BURST=1800 because pool would only be 1562 < 1800.)
+    # IFR=50: per-worker pool = (40000/24) × 50 / 16 = 5208 payloads,
+    # cleanly handles BURST up to ~5000 without truncation.
     NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
-      WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
+      WORKERS=16 IN_FLIGHT_RATIO=50 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
       | tee /tmp/burst-sweep-iter.log
 
