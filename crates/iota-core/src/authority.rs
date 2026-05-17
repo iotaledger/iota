@@ -1172,12 +1172,12 @@ impl AuthorityState {
                 self.update_overload_metrics("execution_pending");
             })?;
 
-        // if white_flag_flow_enabled {
-        //     self.check_consensus_queue_overload(consensus_adapter, tx_data)
-        //         .tap_err(|_| {
-        //             self.update_overload_metrics("consensus_graduated");
-        //         })?;
-        // }
+        if white_flag_flow_enabled {
+            self.check_consensus_queue_overload(consensus_adapter, tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("consensus_graduated");
+                })?;
+        }
         if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
             self.update_overload_metrics(reason.metric_label());
             return Err(IotaError::TooManyTransactionsPendingConsensus);

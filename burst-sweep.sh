@@ -18,25 +18,24 @@ OUT_LOG="burst-sweep.log"
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-# Cold-gate test: hold IFR=20 (the known-good regime) and sweep BURST
-# right up against the per-worker pool ceiling. Pool/worker = (40000/24)
-# × 20 / 16 = 2082, so BURST ≤ ~2080 avoids payload truncation.
+# Graduated-shedding A/B baseline arm: the canonical config that reliably
+# triggers the race-up-to-max_pending pathology (~21% hit rate for ≥50×
+# across all prior runs). Single-cell, large N to characterize the
+# bimodal distribution under hard-binary load shedding (no graduated):
+#   - 21% rolls overshoot to ratio ~50× (capped by max_pending=1000)
+#   - 79% rolls stay in 5-10× steady-state regime
+#   - ~0% rolls in the 11-49× middle band
 #
-# Why IFR=20: prior IFR=40 sweep at BURST=3000/4000 showed peak/total
-# drop from 2.3% (at IFR=20) to 0.4-1.3% (at IFR=40) — bigger IFR
-# prebuffers more steady-state inflight per worker, so by the time the
-# synchronized burst fires, num_inflight is already partially saturating
-# the gate and the race window has shrunk. IFR=20 keeps the gate
-# near-empty at barrier_first_deadline, preserving the wide race window
-# that produced ratio 50× in earlier runs.
+# This same config will be re-run with graduated shedding enabled to
+# show the bimodal collapses to ~1-2× — the cleanest A/B demonstration
+# of graduated vs hard-binary defense.
 #
-# Hypothesis: peak ratio is maximized when burst ≈ pool size, not when
-# burst >> pool. Sweet spot should be BURST=2050 (98% of pool capacity)
-# with negligible margin so almost every payload races through the gate
-# at barrier moment.
-BURSTS=(1800 2000 2050)
+# Other params (held constant for both arms):
+#   NUM_PROCS=24, IFR=20, TARGET=1, QPS=40000, WORKERS=16,
+#   DURATION=15s, GAS_CHUNK_SIZE=500
+BURSTS=(1800)
 BARS=(500)
-ITERS=10
+ITERS=20
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 
