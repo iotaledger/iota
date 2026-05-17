@@ -18,7 +18,7 @@ use std::{
 
 use dashmap::DashMap;
 use fs::File;
-use iota_common::{debug_fatal, fatal};
+use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     error::IotaError,
@@ -332,7 +332,7 @@ impl TrafficController {
                     // that clearly the system is overloaded
                 }
                 Err(TrySendError::Closed(_)) => {
-                    debug_fatal!("TrafficController tally channel closed unexpectedly");
+                    warn!("TrafficController tally channel closed unexpectedly");
                 }
                 Ok(_) => {}
             }
