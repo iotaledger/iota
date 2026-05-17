@@ -769,8 +769,8 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_provable_errors() {
+    #[tokio::test]
+    async fn test_provable_errors() {
         let cases: &[ConsensusError] = &[
             ConsensusError::TooManyAncestors(10, 5),
             ConsensusError::TooManyTransactions {
@@ -786,8 +786,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_unprovable_errors() {
+    #[tokio::test]
+    async fn test_unprovable_errors() {
         let cases: &[ConsensusError] = &[
             ConsensusError::WrongEpoch {
                 expected: 1,
@@ -806,8 +806,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_untracked_errors() {
+    #[tokio::test]
+    async fn test_untracked_errors() {
         // Subjective rejections, commit-chain inconsistencies, and fetch-shape
         // errors are not block header faults — they belong to separate metrics
         // and should not increment the faulty_blocks counters.
@@ -844,8 +844,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_provable_fault_charges_both_author_and_serving_peer() {
+    #[tokio::test]
+    async fn test_provable_fault_charges_both_author_and_serving_peer() {
         // When a peer serves us a block with a valid signature but a protocol
         // violation, both parties are at fault: the author for creating a bad
         // block (provable), and the serving peer for distributing it (unprovable).
