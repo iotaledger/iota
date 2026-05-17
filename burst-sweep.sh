@@ -24,9 +24,14 @@ export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 # linear-fraction hypothesis holds:
 #   burst=3000 → predicted max ~82×  (ceiling 150×)
 #   burst=4000 → predicted max ~110× (ceiling 200×)
-# IFR bumped to 50 so per-worker pool = (40000/24)×50/16 = 5208 payloads,
-# cleanly handles BURST up to ~5000 without truncation. (IFR=20 would
-# truncate BURST=3000: pool = 2082 < 3000.)
+# IFR=40 so per-worker pool = (40000/24)×40/16 = 4167 payloads — just
+# enough to cover BURST=4000 without truncation. (IFR=20 truncates
+# BURST=3000: pool=2082 < 3000. IFR=50 worked for pool size but the
+# init-coin sizing in bank.rs scales with IFR, and at IFR=50 with
+# NUM_PROCS=24 the per-process init coin exceeds genesis allocation —
+# every iter panics with "Failed to create initialization coin" in
+# bank.rs:532. IFR=40 is the sweet spot: covers BURST=4000 and stays
+# within the gas budget the benchmark address can fund.)
 BURSTS=(3000 4000)
 BARS=(500)
 ITERS=10
@@ -163,10 +168,11 @@ for burst in "${BURSTS[@]}"; do
 
     # Run
     cd "$REPO"
-    # IFR=50: per-worker pool = (40000/24) × 50 / 16 = 5208 payloads,
-    # cleanly handles BURST up to ~5000 without truncation.
+    # IFR=40: per-worker pool = (40000/24) × 40 / 16 = 4167 payloads,
+    # covers BURST up to ~4000 without truncation, and stays within the
+    # init-coin gas budget that NUM_PROCS=24 procs can fund from genesis.
     NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
-      WORKERS=16 IN_FLIGHT_RATIO=50 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
+      WORKERS=16 IN_FLIGHT_RATIO=40 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
       | tee /tmp/burst-sweep-iter.log
 
