@@ -12,6 +12,7 @@ a 32-bit fractional part.
         -  [`get_raw_value` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_get_raw_value)
         -  [`is_zero` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_is_zero)
 -  [Constants](#@Constants_1)
+    -  [`MAX_U64` <span class="move-vis move-vis-const">const</span>](#std_fixed_point32_MAX_U64)
     -  [`EDENOMINATOR` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EDENOMINATOR)
     -  [`EDIVISION` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EDIVISION)
     -  [`EMULTIPLICATION` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EMULTIPLICATION)
@@ -126,6 +127,8 @@ Returns true if the ratio is zero.
 
 
 <a name="std_fixed_point32_MAX_U64"></a>
+
+### `MAX_U64` <span class="move-vis move-vis-const">const</span>
 
 > TODO: This is a basic constant and should be provided somewhere centrally in the framework.
 

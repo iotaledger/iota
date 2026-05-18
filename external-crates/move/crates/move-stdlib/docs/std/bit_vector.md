@@ -16,6 +16,8 @@
 -  [Constants](#@Constants_1)
     -  [`EINDEX` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_EINDEX)
     -  [`ELENGTH` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_ELENGTH)
+    -  [`WORD_SIZE` <span class="move-vis move-vis-const">const</span>](#std_bit_vector_WORD_SIZE)
+    -  [`MAX_SIZE` <span class="move-vis move-vis-const">const</span>](#std_bit_vector_MAX_SIZE)
 -  [Module Functions](#@Module_Functions_2)
     -  [`new` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_bit_vector_new)
 
@@ -277,6 +279,8 @@ An invalid length of bitvector was given
 
 <a name="std_bit_vector_WORD_SIZE"></a>
 
+### `WORD_SIZE` <span class="move-vis move-vis-const">const</span>
+
 
 
 <pre><code><b>const</b> <a href="../std/bit_vector.md#std_bit_vector_WORD_SIZE">WORD_SIZE</a>: <a href="../std/u64.md#std_u64">u64</a> = 1;
@@ -285,6 +289,8 @@ An invalid length of bitvector was given
 
 
 <a name="std_bit_vector_MAX_SIZE"></a>
+
+### `MAX_SIZE` <span class="move-vis move-vis-const">const</span>
 
 The maximum allowed bitvector size
 

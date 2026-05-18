@@ -930,12 +930,11 @@ impl<'env> Docgen<'env> {
         self.end_items();
     }
 
-    /// Generates documentation for all named constants. Error constants — by
+    /// Generates documentation for all named constants. Each constant becomes
+    /// a section header so it appears in the right-hand TOC, with an inline
+    /// tag conveying its role: `err` (red) for error constants — by
     /// convention `E` followed by another capital letter, e.g.
-    /// `EMaximumSupplyReached` — are emitted as section headers with an
-    /// `err` tag so they appear in the right-hand TOC under `Constants`.
-    /// Non-error constants stay as flat code blocks under the heading so the
-    /// TOC doesn't get cluttered with numeric / config-style constants.
+    /// `EMaximumSupplyReached` — and `const` for everything else.
     fn gen_named_constants(&mut self, env: &Model) {
         let label = self.label_for_section("Constants");
         self.section_header("Constants", &label);
@@ -944,20 +943,17 @@ impl<'env> Docgen<'env> {
         let current_module = env.module(current_module);
         for const_env in current_module.named_constants() {
             let name = const_env.name();
-            if Self::is_error_constant(name.as_str()) {
-                let title = format!(
-                    "`{name}` <span class=\"move-vis move-vis-error\">err</span>"
-                );
-                self.section_header(&title, &self.label_for_module_item(current_module, name));
-                self.increment_section_nest();
-                self.doc_text(env, const_env.info().doc.text());
-                self.code_block(env, &self.named_constant_display(const_env));
-                self.decrement_section_nest();
+            let tag = if Self::is_error_constant(name.as_str()) {
+                "<span class=\"move-vis move-vis-error\">err</span>"
             } else {
-                self.label(&self.label_for_module_item(current_module, name));
-                self.doc_text(env, const_env.info().doc.text());
-                self.code_block(env, &self.named_constant_display(const_env));
-            }
+                "<span class=\"move-vis move-vis-const\">const</span>"
+            };
+            let title = format!("`{name}` {tag}");
+            self.section_header(&title, &self.label_for_module_item(current_module, name));
+            self.increment_section_nest();
+            self.doc_text(env, const_env.info().doc.text());
+            self.code_block(env, &self.named_constant_display(const_env));
+            self.decrement_section_nest();
         }
 
         self.decrement_section_nest();

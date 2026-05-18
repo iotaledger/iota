@@ -14,6 +14,13 @@ Functionality for converting Move types into values. Use with care!
         -  [`into_string` <span class="move-vis move-vis-public">pub</span>](#std_type_name_into_string)
         -  [`is_primitive` <span class="move-vis move-vis-public">pub</span>](#std_type_name_is_primitive)
 -  [Constants](#@Constants_1)
+    -  [`ASCII_COLON` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_COLON)
+    -  [`ASCII_V` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_V)
+    -  [`ASCII_E` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_E)
+    -  [`ASCII_C` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_C)
+    -  [`ASCII_T` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_T)
+    -  [`ASCII_O` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_O)
+    -  [`ASCII_R` <span class="move-vis move-vis-const">const</span>](#std_type_name_ASCII_R)
     -  [`ENonModuleType` <span class="move-vis move-vis-error">err</span>](#std_type_name_ENonModuleType)
 -  [Module Functions](#@Module_Functions_2)
     -  [`get` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_type_name_get)
@@ -244,6 +251,8 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 <a name="std_type_name_ASCII_COLON"></a>
 
+### `ASCII_COLON` <span class="move-vis move-vis-const">const</span>
+
 ASCII Character code for the <code>:</code> (colon) symbol.
 
 
@@ -253,6 +262,8 @@ ASCII Character code for the <code>:</code> (colon) symbol.
 
 
 <a name="std_type_name_ASCII_V"></a>
+
+### `ASCII_V` <span class="move-vis move-vis-const">const</span>
 
 ASCII Character code for the <code>v</code> (lowercase v) symbol.
 
@@ -264,6 +275,8 @@ ASCII Character code for the <code>v</code> (lowercase v) symbol.
 
 <a name="std_type_name_ASCII_E"></a>
 
+### `ASCII_E` <span class="move-vis move-vis-const">const</span>
+
 ASCII Character code for the <code>e</code> (lowercase e) symbol.
 
 
@@ -273,6 +286,8 @@ ASCII Character code for the <code>e</code> (lowercase e) symbol.
 
 
 <a name="std_type_name_ASCII_C"></a>
+
+### `ASCII_C` <span class="move-vis move-vis-const">const</span>
 
 ASCII Character code for the <code>c</code> (lowercase c) symbol.
 
@@ -284,6 +299,8 @@ ASCII Character code for the <code>c</code> (lowercase c) symbol.
 
 <a name="std_type_name_ASCII_T"></a>
 
+### `ASCII_T` <span class="move-vis move-vis-const">const</span>
+
 ASCII Character code for the <code>t</code> (lowercase t) symbol.
 
 
@@ -294,6 +311,8 @@ ASCII Character code for the <code>t</code> (lowercase t) symbol.
 
 <a name="std_type_name_ASCII_O"></a>
 
+### `ASCII_O` <span class="move-vis move-vis-const">const</span>
+
 ASCII Character code for the <code>o</code> (lowercase o) symbol.
 
 
@@ -303,6 +322,8 @@ ASCII Character code for the <code>o</code> (lowercase o) symbol.
 
 
 <a name="std_type_name_ASCII_R"></a>
+
+### `ASCII_R` <span class="move-vis move-vis-const">const</span>
 
 ASCII Character code for the <code>r</code> (lowercase r) symbol.
 

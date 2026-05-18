@@ -711,6 +711,11 @@ article pre > code a:hover {
   color: #ff7c7c;
 }
 
+.move-vis-const {
+  background: rgba(64, 188, 196, 0.18);
+  color: #6ed5dd;
+}
+
 /* Match the tag font in the TOC link as well. */
 .table-of-contents__link .move-vis,
 [class*="tableOfContents"] .move-vis {
