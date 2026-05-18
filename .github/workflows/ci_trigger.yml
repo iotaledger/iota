@@ -53,11 +53,17 @@ concurrency:
 
 jobs:
   dispatch:
-    # Skip the bot's own edits (our own `pulls.update` re-fires `edited`),
-    # and skip if there are no ci-trigger markers in the body at all — saves
-    # spinning a runner for unrelated description edits.
+    # Skip the bot's own edits (our own `pulls.update` re-fires `edited`).
+    # The `'- [x] '` + `'ci-trigger:'` substring checks are a cheap pre-filter
+    # that prevents spinning a runner when there's no plausible ticked
+    # ci-trigger box in the body (in particular, on every `opened` event for
+    # a PR that just used the template with all boxes unchecked). It's a
+    # loose check (any `[x]` anywhere in the body passes, e.g. an unrelated
+    # checklist item), but the script below does the precise per-line regex
+    # match before doing anything — false positives just cost an empty run.
     if: >-
       github.event.sender.type != 'Bot'
+      && contains(github.event.pull_request.body, '- [x] ')
       && contains(github.event.pull_request.body, 'ci-trigger:')
     runs-on: ubuntu-latest
     permissions:
