@@ -35,7 +35,7 @@ export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 #   DURATION=15s, GAS_CHUNK_SIZE=500
 BURSTS=(1800)
 BARS=(500)
-ITERS=20
+ITERS=30
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 
@@ -207,6 +207,15 @@ for burst in "${BURSTS[@]}"; do
       echo "$iso,$burst,$bar,$i,FAIL,FAIL,0" >> "$OUT_CSV"
       echo ">>> RESULT: burst=$burst bar=$bar iter=$i FAILED"
     fi
+
+    # Disk-leak prevention: runs/multi-* dirs accumulate 24 process logs each
+    # (~80 MB per process → ~2 GB per iter). A full sweep at ITERS=30 is ~60 GB;
+    # back-to-back graduated-sweep runs were filling the EPYC's 1.8T root
+    # within hours. The CSV already holds the result we care about, so we
+    # only need to keep the most recent N run dirs for forensic debugging.
+    # Keep last 2 (current iter + previous, in case the current one is the
+    # one we want to inspect post-mortem).
+    ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
   done
  done
 done
