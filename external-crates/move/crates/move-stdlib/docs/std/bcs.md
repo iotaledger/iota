@@ -10,7 +10,7 @@ details on BCS.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [`to_bytes` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_bcs_to_bytes)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `to_bytes`](#std_bcs_to_bytes)
 
 
 <pre><code></code></pre>
@@ -24,7 +24,7 @@ details on BCS.
 
 <a name="std_bcs_to_bytes"></a>
 
-### `to_bytes` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `to_bytes`
 
 Return the binary representation of <code>v</code> in BCS (Binary Canonical Serialization) format
 

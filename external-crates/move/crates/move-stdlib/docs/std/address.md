@@ -8,7 +8,7 @@ platform-specific parameter.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [`length` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_address_length)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `length`](#std_address_length)
 
 
 <pre><code></code></pre>
@@ -22,7 +22,7 @@ platform-specific parameter.
 
 <a name="std_address_length"></a>
 
-### `length` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `length`
 
 Should be converted to a native function.
 Current implementation only works for IOTA.

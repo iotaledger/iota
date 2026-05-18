@@ -6,41 +6,41 @@
 This module defines the Option type and its methods to represent and handle an optional value.
 
 
--  [Structs](#@Structs_0)
-    -  [`Option` <span class="move-vis move-vis-struct">struct</span>](#std_option_Option)
-        -  [`and` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_and)
-        -  [`and_ref` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_and_ref)
-        -  [`borrow` <span class="move-vis move-vis-public">pub</span>](#std_option_borrow)
-        -  [`borrow_mut` <span class="move-vis move-vis-public">pub</span>](#std_option_borrow_mut)
-        -  [`borrow_with_default` <span class="move-vis move-vis-public">pub</span>](#std_option_borrow_with_default)
-        -  [`contains` <span class="move-vis move-vis-public">pub</span>](#std_option_contains)
-        -  [`destroy` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_destroy)
-        -  [`destroy_none` <span class="move-vis move-vis-public">pub</span>](#std_option_destroy_none)
-        -  [`destroy_or` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_destroy_or)
-        -  [`destroy_some` <span class="move-vis move-vis-public">pub</span>](#std_option_destroy_some)
-        -  [`destroy_with_default` <span class="move-vis move-vis-public">pub</span>](#std_option_destroy_with_default)
-        -  [`do` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_do)
-        -  [`do_mut` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_do_mut)
-        -  [`do_ref` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_do_ref)
-        -  [`extract` <span class="move-vis move-vis-public">pub</span>](#std_option_extract)
-        -  [`fill` <span class="move-vis move-vis-public">pub</span>](#std_option_fill)
-        -  [`filter` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_filter)
-        -  [`get_with_default` <span class="move-vis move-vis-public">pub</span>](#std_option_get_with_default)
-        -  [`is_none` <span class="move-vis move-vis-public">pub</span>](#std_option_is_none)
-        -  [`is_some` <span class="move-vis move-vis-public">pub</span>](#std_option_is_some)
-        -  [`is_some_and` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_is_some_and)
-        -  [`map` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_map)
-        -  [`map_ref` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_map_ref)
-        -  [`or` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_or)
-        -  [`swap` <span class="move-vis move-vis-public">pub</span>](#std_option_swap)
-        -  [`swap_or_fill` <span class="move-vis move-vis-public">pub</span>](#std_option_swap_or_fill)
-        -  [`to_vec` <span class="move-vis move-vis-public">pub</span>](#std_option_to_vec)
--  [Constants](#@Constants_1)
-    -  [`EOPTION_IS_SET` <span class="move-vis move-vis-error">err</span>](#std_option_EOPTION_IS_SET)
-    -  [`EOPTION_NOT_SET` <span class="move-vis move-vis-error">err</span>](#std_option_EOPTION_NOT_SET)
--  [Module Functions](#@Module_Functions_2)
-    -  [`none` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_option_none)
-    -  [`some` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_option_some)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `none`](#std_option_none)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `some`](#std_option_some)
+-  [Structs](#@Structs_1)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Option`](#std_option_Option)
+        -  [<span class="move-vis move-vis-public">pub</span> `and` (macro)](#std_option_and)
+        -  [<span class="move-vis move-vis-public">pub</span> `and_ref` (macro)](#std_option_and_ref)
+        -  [<span class="move-vis move-vis-public">pub</span> `borrow`](#std_option_borrow)
+        -  [<span class="move-vis move-vis-public">pub</span> `borrow_mut`](#std_option_borrow_mut)
+        -  [<span class="move-vis move-vis-public">pub</span> `borrow_with_default`](#std_option_borrow_with_default)
+        -  [<span class="move-vis move-vis-public">pub</span> `contains`](#std_option_contains)
+        -  [<span class="move-vis move-vis-public">pub</span> `destroy` (macro)](#std_option_destroy)
+        -  [<span class="move-vis move-vis-public">pub</span> `destroy_none`](#std_option_destroy_none)
+        -  [<span class="move-vis move-vis-public">pub</span> `destroy_or` (macro)](#std_option_destroy_or)
+        -  [<span class="move-vis move-vis-public">pub</span> `destroy_some`](#std_option_destroy_some)
+        -  [<span class="move-vis move-vis-public">pub</span> `destroy_with_default`](#std_option_destroy_with_default)
+        -  [<span class="move-vis move-vis-public">pub</span> `do` (macro)](#std_option_do)
+        -  [<span class="move-vis move-vis-public">pub</span> `do_mut` (macro)](#std_option_do_mut)
+        -  [<span class="move-vis move-vis-public">pub</span> `do_ref` (macro)](#std_option_do_ref)
+        -  [<span class="move-vis move-vis-public">pub</span> `extract`](#std_option_extract)
+        -  [<span class="move-vis move-vis-public">pub</span> `fill`](#std_option_fill)
+        -  [<span class="move-vis move-vis-public">pub</span> `filter` (macro)](#std_option_filter)
+        -  [<span class="move-vis move-vis-public">pub</span> `get_with_default`](#std_option_get_with_default)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_none`](#std_option_is_none)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_some`](#std_option_is_some)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_some_and` (macro)](#std_option_is_some_and)
+        -  [<span class="move-vis move-vis-public">pub</span> `map` (macro)](#std_option_map)
+        -  [<span class="move-vis move-vis-public">pub</span> `map_ref` (macro)](#std_option_map_ref)
+        -  [<span class="move-vis move-vis-public">pub</span> `or` (macro)](#std_option_or)
+        -  [<span class="move-vis move-vis-public">pub</span> `swap`](#std_option_swap)
+        -  [<span class="move-vis move-vis-public">pub</span> `swap_or_fill`](#std_option_swap_or_fill)
+        -  [<span class="move-vis move-vis-public">pub</span> `to_vec`](#std_option_to_vec)
+-  [Constants](#@Constants_2)
+    -  [<span class="move-vis move-vis-error">err</span> `EOPTION_IS_SET`](#std_option_EOPTION_IS_SET)
+    -  [<span class="move-vis move-vis-error">err</span> `EOPTION_NOT_SET`](#std_option_EOPTION_NOT_SET)
 
 
 <pre><code><b>use</b> <a href="../std/vector.md#std_vector">std::vector</a>;
@@ -48,14 +48,69 @@ This module defines the Option type and its methods to represent and handle an o
 
 
 
-<a name="@Structs_0"></a>
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
+<a name="std_option_none"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `none`
+
+Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></code>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_none">none</a>&lt;Element&gt;(): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;Element&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_none">none</a>&lt;Element&gt;(): <a href="../std/option.md#std_option_Option">Option</a>&lt;Element&gt; {
+    <a href="../std/option.md#std_option_Option">Option</a> { vec: <a href="../std/vector.md#std_vector_empty">vector::empty</a>() }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_option_some"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `some`
+
+Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> containing <code>e</code>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_some">some</a>&lt;Element&gt;(e: Element): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;Element&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_some">some</a>&lt;Element&gt;(e: Element): <a href="../std/option.md#std_option_Option">Option</a>&lt;Element&gt; {
+    <a href="../std/option.md#std_option_Option">Option</a> { vec: <a href="../std/vector.md#std_vector_singleton">vector::singleton</a>(e) }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Structs_1"></a>
 
 ## Structs
 
 
 <a name="std_option_Option"></a>
 
-### `Option` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `Option`
 
 Abstraction of a value that may or may not be present. Implemented with a vector of size
 zero or one because Move bytecode does not have ADTs.
@@ -83,7 +138,7 @@ zero or one because Move bytecode does not have ADTs.
 
 <a name="std_option_and"></a>
 
-#### `and` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `and` (macro)
 
 If the value is <code>Some</code>, call the closure <code>f</code> on it. Otherwise, return <code>None</code>.
 Equivalent to Rust's <code>t.and_then(f)</code>.
@@ -115,7 +170,7 @@ Equivalent to Rust's <code>t.and_then(f)</code>.
 
 <a name="std_option_and_ref"></a>
 
-#### `and_ref` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `and_ref` (macro)
 
 If the value is <code>Some</code>, call the closure <code>f</code> on it. Otherwise, return <code>None</code>.
 Equivalent to Rust's <code>t.and_then(f)</code>.
@@ -143,7 +198,7 @@ Equivalent to Rust's <code>t.and_then(f)</code>.
 
 <a name="std_option_borrow"></a>
 
-#### `borrow` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `borrow`
 
 Return an immutable reference to the value inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -170,7 +225,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_borrow_mut"></a>
 
-#### `borrow_mut` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `borrow_mut`
 
 Return a mutable reference to the value inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -197,7 +252,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_borrow_with_default"></a>
 
-#### `borrow_with_default` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `borrow_with_default`
 
 Return a reference to the value inside <code>t</code> if it holds one
 Return <code>default_ref</code> if <code>t</code> does not hold a value
@@ -225,7 +280,7 @@ Return <code>default_ref</code> if <code>t</code> does not hold a value
 
 <a name="std_option_contains"></a>
 
-#### `contains` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `contains`
 
 Return true if the value in <code>t</code> is equal to <code>e_ref</code>
 Always returns <code><b>false</b></code> if <code>t</code> does not hold a value
@@ -251,7 +306,7 @@ Always returns <code><b>false</b></code> if <code>t</code> does not hold a value
 
 <a name="std_option_destroy"></a>
 
-#### `destroy` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `destroy` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and call the closure <code>f</code> on the value inside if it holds one.
 
@@ -277,7 +332,7 @@ Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</
 
 <a name="std_option_destroy_none"></a>
 
-#### `destroy_none` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `destroy_none`
 
 Unpack <code>t</code>
 Aborts if <code>t</code> holds a value
@@ -305,7 +360,7 @@ Aborts if <code>t</code> holds a value
 
 <a name="std_option_destroy_or"></a>
 
-#### `destroy_or` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `destroy_or` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and return the value inside if it holds one, or <code>default</code> otherwise.
 Equivalent to Rust's <code>t.unwrap_or(default)</code>.
@@ -341,7 +396,7 @@ deprecated in favor of this function.
 
 <a name="std_option_destroy_some"></a>
 
-#### `destroy_some` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `destroy_some`
 
 Unpack <code>t</code> and return its contents
 Aborts if <code>t</code> does not hold a value
@@ -371,7 +426,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_destroy_with_default"></a>
 
-#### `destroy_with_default` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `destroy_with_default`
 
 Destroys <code>t.</code> If <code>t</code> holds a value, return it. Returns <code>default</code> otherwise
 
@@ -398,7 +453,7 @@ Destroys <code>t.</code> If <code>t</code> holds a value, return it. Returns <co
 
 <a name="std_option_do"></a>
 
-#### `do` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `do` (macro)
 
 Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> and call the closure <code>f</code> on the value inside if it holds one.
 
@@ -425,7 +480,7 @@ Destroy <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</
 
 <a name="std_option_do_mut"></a>
 
-#### `do_mut` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `do_mut` (macro)
 
 Execute a closure on the mutable reference to the value inside <code>t</code> if it holds one.
 
@@ -451,7 +506,7 @@ Execute a closure on the mutable reference to the value inside <code>t</code> if
 
 <a name="std_option_do_ref"></a>
 
-#### `do_ref` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `do_ref` (macro)
 
 Execute a closure on the value inside <code>t</code> if it holds one.
 
@@ -477,7 +532,7 @@ Execute a closure on the value inside <code>t</code> if it holds one.
 
 <a name="std_option_extract"></a>
 
-#### `extract` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `extract`
 
 Convert a <code><a href="../std/option.md#std_option_some">some</a></code> option to a <code><a href="../std/option.md#std_option_none">none</a></code> by removing and returning the value stored inside <code>t</code>
 Aborts if <code>t</code> does not hold a value
@@ -504,7 +559,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_fill"></a>
 
-#### `fill` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `fill`
 
 Convert the none option <code>t</code> to a some option by adding <code>e</code>.
 Aborts if <code>t</code> already holds a value
@@ -532,7 +587,7 @@ Aborts if <code>t</code> already holds a value
 
 <a name="std_option_filter"></a>
 
-#### `filter` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `filter` (macro)
 
 Return <code>None</code> if the value is <code>None</code>, otherwise return <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> if the predicate <code>f</code> returns true.
 
@@ -559,7 +614,7 @@ Return <code>None</code> if the value is <code>None</code>, otherwise return <co
 
 <a name="std_option_get_with_default"></a>
 
-#### `get_with_default` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `get_with_default`
 
 Return the value inside <code>t</code> if it holds one
 Return <code>default</code> if <code>t</code> does not hold a value
@@ -587,7 +642,7 @@ Return <code>default</code> if <code>t</code> does not hold a value
 
 <a name="std_option_is_none"></a>
 
-#### `is_none` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `is_none`
 
 Return true if <code>t</code> does not hold a value
 
@@ -612,7 +667,7 @@ Return true if <code>t</code> does not hold a value
 
 <a name="std_option_is_some"></a>
 
-#### `is_some` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `is_some`
 
 Return true if <code>t</code> holds a value
 
@@ -637,7 +692,7 @@ Return true if <code>t</code> holds a value
 
 <a name="std_option_is_some_and"></a>
 
-#### `is_some_and` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `is_some_and` (macro)
 
 Return <code><b>false</b></code> if the value is <code>None</code>, otherwise return the result of the predicate <code>f</code>.
 
@@ -663,7 +718,7 @@ Return <code><b>false</b></code> if the value is <code>None</code>, otherwise re
 
 <a name="std_option_map"></a>
 
-#### `map` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `map` (macro)
 
 Map an <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> to <code><a href="../std/option.md#std_option_Option">Option</a>&lt;U&gt;</code> by applying a function to a contained value.
 Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f)</code>.
@@ -695,7 +750,7 @@ Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f
 
 <a name="std_option_map_ref"></a>
 
-#### `map_ref` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `map_ref` (macro)
 
 Map an <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> value to <code><a href="../std/option.md#std_option_Option">Option</a>&lt;U&gt;</code> by applying a function to a contained value by reference.
 Original <code><a href="../std/option.md#std_option_Option">Option</a>&lt;T&gt;</code> is preserved.
@@ -724,7 +779,7 @@ Equivalent to Rust's <code>t.<a href="../std/option.md#std_option_map">map</a>(f
 
 <a name="std_option_or"></a>
 
-#### `or` (macro) <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `or` (macro)
 
 Select the first <code>Some</code> value from the two options, or <code>None</code> if both are <code>None</code>.
 Equivalent to Rust's <code>a.<a href="../std/option.md#std_option_or">or</a>(b)</code>.
@@ -756,7 +811,7 @@ Equivalent to Rust's <code>a.<a href="../std/option.md#std_option_or">or</a>(b)<
 
 <a name="std_option_swap"></a>
 
-#### `swap` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `swap`
 
 Swap the old value inside <code>t</code> with <code>e</code> and return the old value
 Aborts if <code>t</code> does not hold a value
@@ -786,7 +841,7 @@ Aborts if <code>t</code> does not hold a value
 
 <a name="std_option_swap_or_fill"></a>
 
-#### `swap_or_fill` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `swap_or_fill`
 
 Swap the old value inside <code>t</code> with <code>e</code> and return the old value;
 or if there is no old value, fill it with <code>e</code>.
@@ -817,7 +872,7 @@ Different from swap(), swap_or_fill() allows for <code>t</code> not holding a va
 
 <a name="std_option_to_vec"></a>
 
-#### `to_vec` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `to_vec`
 
 Convert <code>t</code> into a vector of length 1 if it is <code>Some</code>,
 and an empty vector otherwise
@@ -842,14 +897,14 @@ and an empty vector otherwise
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
 
 <a name="std_option_EOPTION_IS_SET"></a>
 
-### `EOPTION_IS_SET` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `EOPTION_IS_SET`
 
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <code>Some</code> while it should be <code>None</code>.
@@ -862,7 +917,7 @@ The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <cod
 
 <a name="std_option_EOPTION_NOT_SET"></a>
 
-### `EOPTION_NOT_SET` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `EOPTION_NOT_SET`
 
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <code>None</code> while it should be <code>Some</code>.
@@ -870,63 +925,6 @@ The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <cod
 
 <pre><code><b>const</b> <a href="../std/option.md#std_option_EOPTION_NOT_SET">EOPTION_NOT_SET</a>: <a href="../std/u64.md#std_u64">u64</a> = 262145;
 </code></pre>
-
-
-
-<a name="@Module_Functions_2"></a>
-
-## Module Functions
-
-
-<a name="std_option_none"></a>
-
-### `none` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></code>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_none">none</a>&lt;Element&gt;(): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;Element&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_none">none</a>&lt;Element&gt;(): <a href="../std/option.md#std_option_Option">Option</a>&lt;Element&gt; {
-    <a href="../std/option.md#std_option_Option">Option</a> { vec: <a href="../std/vector.md#std_vector_empty">vector::empty</a>() }
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_option_some"></a>
-
-### `some` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> containing <code>e</code>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_some">some</a>&lt;Element&gt;(e: Element): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;Element&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/option.md#std_option_some">some</a>&lt;Element&gt;(e: Element): <a href="../std/option.md#std_option_Option">Option</a>&lt;Element&gt; {
-    <a href="../std/option.md#std_option_Option">Option</a> { vec: <a href="../std/vector.md#std_vector_singleton">vector::singleton</a>(e) }
-}
-</code></pre>
-
-
-
-</details>
 
 
 [//]: # ("File containing references which can be used from documentation")

@@ -17,10 +17,10 @@ info:
 
 
 -  [Constants](#@Constants_0)
-    -  [`AString` <span class="move-vis move-vis-const">const</span>](#a_m_AString)
-    -  [`ErrorNotString` <span class="move-vis move-vis-const">const</span>](#a_m_ErrorNotString)
-    -  [`AStringNotError` <span class="move-vis move-vis-const">const</span>](#a_m_AStringNotError)
-    -  [`NotAString` <span class="move-vis move-vis-const">const</span>](#a_m_NotAString)
+    -  [<span class="move-vis move-vis-const">const</span> `AString`](#a_m_AString)
+    -  [<span class="move-vis move-vis-const">const</span> `ErrorNotString`](#a_m_ErrorNotString)
+    -  [<span class="move-vis move-vis-const">const</span> `AStringNotError`](#a_m_AStringNotError)
+    -  [<span class="move-vis move-vis-const">const</span> `NotAString`](#a_m_NotAString)
 
 
 <pre><code></code></pre>
@@ -34,7 +34,7 @@ info:
 
 <a name="a_m_AString"></a>
 
-### `AString` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `AString`
 
 This is a doc comment above an error constant that should be rendered as a string
 
@@ -47,7 +47,7 @@ This is a doc comment above an error constant that should be rendered as a strin
 
 <a name="a_m_ErrorNotString"></a>
 
-### `ErrorNotString` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `ErrorNotString`
 
 This is a doc comment above an error constant that should not be rendered as a string
 
@@ -60,7 +60,7 @@ This is a doc comment above an error constant that should not be rendered as a s
 
 <a name="a_m_AStringNotError"></a>
 
-### `AStringNotError` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `AStringNotError`
 
 
 
@@ -71,7 +71,7 @@ This is a doc comment above an error constant that should not be rendered as a s
 
 <a name="a_m_NotAString"></a>
 
-### `NotAString` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `NotAString`
 
 
 

@@ -18,18 +18,18 @@ This is a doc comment above an annotation.
 
 
 -  [Structs](#@Structs_0)
-    -  [`X` <span class="move-vis move-vis-struct">struct</span>](#a_m_X)
-    -  [`Y` <span class="move-vis move-vis-struct">struct</span>](#a_m_Y)
-    -  [`XG` <span class="move-vis move-vis-struct">struct</span>](#a_m_XG)
-    -  [`YG` <span class="move-vis move-vis-struct">struct</span>](#a_m_YG)
-    -  [`XGG` <span class="move-vis move-vis-struct">struct</span>](#a_m_XGG)
-    -  [`YGG` <span class="move-vis move-vis-struct">struct</span>](#a_m_YGG)
-    -  [`VecMap` <span class="move-vis move-vis-struct">struct</span>](#a_m_VecMap)
-        -  [`f` <span class="move-vis move-vis-private">prv</span>](#a_m_f)
-    -  [`Entry` <span class="move-vis move-vis-struct">struct</span>](#a_m_Entry)
+    -  [<span class="move-vis move-vis-struct">struct</span> `X`](#a_m_X)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Y`](#a_m_Y)
+    -  [<span class="move-vis move-vis-struct">struct</span> `XG`](#a_m_XG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `YG`](#a_m_YG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `XGG`](#a_m_XGG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `YGG`](#a_m_YGG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `VecMap`](#a_m_VecMap)
+        -  [<span class="move-vis move-vis-private">prv</span> `f`](#a_m_f)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Entry`](#a_m_Entry)
 -  [Enums](#@Enums_1)
-    -  [`Enum` <span class="move-vis move-vis-enum">enum</span>](#a_m_Enum)
-    -  [`GenericEnum` <span class="move-vis move-vis-enum">enum</span>](#a_m_GenericEnum)
+    -  [<span class="move-vis move-vis-enum">enum</span> `Enum`](#a_m_Enum)
+    -  [<span class="move-vis move-vis-enum">enum</span> `GenericEnum`](#a_m_GenericEnum)
 
 
 <pre><code></code></pre>
@@ -43,7 +43,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_X"></a>
 
-### `X` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `X`
 
 
 
@@ -66,7 +66,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_Y"></a>
 
-### `Y` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `Y`
 
 
 
@@ -89,7 +89,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XG"></a>
 
-### `XG` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `XG`
 
 
 
@@ -112,7 +112,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YG"></a>
 
-### `YG` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `YG`
 
 
 
@@ -135,7 +135,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XGG"></a>
 
-### `XGG` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `XGG`
 
 
 
@@ -158,7 +158,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YGG"></a>
 
-### `YGG` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `YGG`
 
 
 
@@ -181,7 +181,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_VecMap"></a>
 
-### `VecMap` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `VecMap`
 
 
 
@@ -204,7 +204,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_f"></a>
 
-#### `f` <span class="move-vis move-vis-private">prv</span>
+#### <span class="move-vis move-vis-private">prv</span> `f`
 
 Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
 
@@ -226,7 +226,7 @@ Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a h
 
 <a name="a_m_Entry"></a>
 
-### `Entry` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `Entry`
 
 An entry in the map
 
@@ -260,7 +260,7 @@ An entry in the map
 
 <a name="a_m_Enum"></a>
 
-### `Enum` <span class="move-vis move-vis-enum">enum</span>
+### <span class="move-vis move-vis-enum">enum</span> `Enum`
 
 This is a doc comment above an enum
 
@@ -343,7 +343,7 @@ Variant <code>E</code>
 
 <a name="a_m_GenericEnum"></a>
 
-### `GenericEnum` <span class="move-vis move-vis-enum">enum</span>
+### <span class="move-vis move-vis-enum">enum</span> `GenericEnum`
 
 
 

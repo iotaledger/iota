@@ -610,8 +610,8 @@ impl<'env> Docgen<'env> {
         // Partition functions into methods (first parameter is a datatype defined in
         // this module) and free functions. Methods are emitted under their
         // datatype's section so a reader can see the API surface of `Coin` next
-        // to the struct itself; free functions fall through into the visibility
-        // buckets at the bottom of the module.
+        // to the struct itself; free functions fall through into the
+        // `Module Functions` section emitted first below.
         let mut methods_by_datatype: BTreeMap<Symbol, Vec<source_model::Function<'_>>> =
             BTreeMap::new();
         let mut free_funs = Vec::with_capacity(funs.len());
@@ -622,50 +622,60 @@ impl<'env> Docgen<'env> {
             }
         }
 
+        // Collect structs/enums and claim each datatype's methods up front so the
+        // remaining `methods_by_datatype` entries (if any — defensive, only fires
+        // for methods of a filtered-out datatype) can be merged back into
+        // `free_funs` before we emit the `Module Functions` section.
         let structs = module_env
             .structs()
             .sorted_by_key(|s| s.compiled().def_idx)
             .collect_vec();
+        let enums = module_env
+            .enums()
+            .sorted_by_key(|e| e.compiled().def_idx)
+            .collect_vec();
+        let struct_methods: Vec<_> = structs
+            .iter()
+            .map(|s| methods_by_datatype.remove(&s.name()).unwrap_or_default())
+            .collect();
+        let enum_methods: Vec<_> = enums
+            .iter()
+            .map(|e| methods_by_datatype.remove(&e.name()).unwrap_or_default())
+            .collect();
+        for (_, mut leftover) in std::mem::take(&mut methods_by_datatype) {
+            free_funs.append(&mut leftover);
+        }
+
+        // Emit `Module Functions` first — modules usually have only a handful of
+        // free functions, while a struct can have many methods, so this keeps
+        // the top of the right-hand TOC scannable.
+        if !free_funs.is_empty() {
+            self.gen_functions_by_visibility(free_funs);
+        }
+
         if !structs.is_empty() {
             let label = self.label_for_section("Structs");
             self.section_header("Structs", &label);
             self.increment_section_nest();
-            for s in structs {
-                let methods = methods_by_datatype.remove(&s.name()).unwrap_or_default();
+            for (s, methods) in structs.into_iter().zip(struct_methods) {
                 self.gen_struct(s, methods);
             }
             self.decrement_section_nest();
         }
 
-        let enums = module_env
-            .enums()
-            .sorted_by_key(|e| e.compiled().def_idx)
-            .collect_vec();
         if !enums.is_empty() {
             let label = self.label_for_section("Enums");
             self.section_header("Enums", &label);
             self.increment_section_nest();
-            for e in enums {
-                let methods = methods_by_datatype.remove(&e.name()).unwrap_or_default();
+            for (e, methods) in enums.into_iter().zip(enum_methods) {
                 self.gen_enum(e, methods);
             }
             self.decrement_section_nest();
         }
 
-        // Any leftover methods reference a datatype we didn't iterate (e.g. filtered
-        // out); fall back to treating them as free functions so they still
-        // appear somewhere.
-        for (_, mut leftover) in std::mem::take(&mut methods_by_datatype) {
-            free_funs.append(&mut leftover);
-        }
-
         if module_env.named_constants().next().is_some() {
             // Introduce a Constant section
             self.gen_named_constants(env);
-        }
-
-        if !free_funs.is_empty() {
-            self.gen_functions_by_visibility(free_funs);
         }
 
         self.decrement_section_nest();
@@ -948,7 +958,7 @@ impl<'env> Docgen<'env> {
             } else {
                 "<span class=\"move-vis move-vis-const\">const</span>"
             };
-            let title = format!("`{name}` {tag}");
+            let title = format!("{tag} `{name}`");
             self.section_header(&title, &self.label_for_module_item(current_module, name));
             self.increment_section_nest();
             self.doc_text(env, const_env.info().doc.text());
@@ -984,7 +994,7 @@ impl<'env> Docgen<'env> {
         let name = struct_env.name();
         let struct_info = struct_env.info();
         self.section_header(
-            &format!("`{name}` <span class=\"move-vis move-vis-struct\">struct</span>"),
+            &format!("<span class=\"move-vis move-vis-struct\">struct</span> `{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -1022,7 +1032,7 @@ impl<'env> Docgen<'env> {
         let name = enum_env.name();
         let enum_info = enum_env.info();
         self.section_header(
-            &format!("`{name}` <span class=\"move-vis move-vis-enum\">enum</span>"),
+            &format!("<span class=\"move-vis move-vis-enum\">enum</span> `{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -1281,9 +1291,9 @@ impl<'env> Docgen<'env> {
         let func_info = func_env.info();
         let marker = Self::visibility_marker(&func_env);
         let title = if func_info.macro_.is_some() {
-            format!("`{name}` (macro) {marker}{extra_marker}")
+            format!("{marker}{extra_marker} `{name}` (macro)")
         } else {
-            format!("`{name}` {marker}{extra_marker}")
+            format!("{marker}{extra_marker} `{name}`")
         };
         self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();

@@ -5,35 +5,75 @@
 
 
 
--  [Structs](#@Structs_0)
-    -  [`BitVector` <span class="move-vis move-vis-struct">struct</span>](#std_bit_vector_BitVector)
-        -  [`is_index_set` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_is_index_set)
-        -  [`length` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_length)
-        -  [`longest_set_sequence_starting_at` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_longest_set_sequence_starting_at)
-        -  [`set` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_set)
-        -  [`shift_left` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_shift_left)
-        -  [`unset` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_unset)
--  [Constants](#@Constants_1)
-    -  [`EINDEX` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_EINDEX)
-    -  [`ELENGTH` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_ELENGTH)
-    -  [`WORD_SIZE` <span class="move-vis move-vis-const">const</span>](#std_bit_vector_WORD_SIZE)
-    -  [`MAX_SIZE` <span class="move-vis move-vis-const">const</span>](#std_bit_vector_MAX_SIZE)
--  [Module Functions](#@Module_Functions_2)
-    -  [`new` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_bit_vector_new)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `new`](#std_bit_vector_new)
+-  [Structs](#@Structs_1)
+    -  [<span class="move-vis move-vis-struct">struct</span> `BitVector`](#std_bit_vector_BitVector)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_index_set`](#std_bit_vector_is_index_set)
+        -  [<span class="move-vis move-vis-public">pub</span> `length`](#std_bit_vector_length)
+        -  [<span class="move-vis move-vis-public">pub</span> `longest_set_sequence_starting_at`](#std_bit_vector_longest_set_sequence_starting_at)
+        -  [<span class="move-vis move-vis-public">pub</span> `set`](#std_bit_vector_set)
+        -  [<span class="move-vis move-vis-public">pub</span> `shift_left`](#std_bit_vector_shift_left)
+        -  [<span class="move-vis move-vis-public">pub</span> `unset`](#std_bit_vector_unset)
+-  [Constants](#@Constants_2)
+    -  [<span class="move-vis move-vis-error">err</span> `EINDEX`](#std_bit_vector_EINDEX)
+    -  [<span class="move-vis move-vis-error">err</span> `ELENGTH`](#std_bit_vector_ELENGTH)
+    -  [<span class="move-vis move-vis-const">const</span> `WORD_SIZE`](#std_bit_vector_WORD_SIZE)
+    -  [<span class="move-vis move-vis-const">const</span> `MAX_SIZE`](#std_bit_vector_MAX_SIZE)
 
 
 <pre><code></code></pre>
 
 
 
-<a name="@Structs_0"></a>
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
+<a name="std_bit_vector_new"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `new`
+
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/bit_vector.md#std_bit_vector_new">new</a>(<a href="../std/bit_vector.md#std_bit_vector_length">length</a>: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/bit_vector.md#std_bit_vector_BitVector">std::bit_vector::BitVector</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/bit_vector.md#std_bit_vector_new">new</a>(<a href="../std/bit_vector.md#std_bit_vector_length">length</a>: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/bit_vector.md#std_bit_vector_BitVector">BitVector</a> {
+    <b>assert</b>!(<a href="../std/bit_vector.md#std_bit_vector_length">length</a> &gt; 0, <a href="../std/bit_vector.md#std_bit_vector_ELENGTH">ELENGTH</a>);
+    <b>assert</b>!(<a href="../std/bit_vector.md#std_bit_vector_length">length</a> &lt; <a href="../std/bit_vector.md#std_bit_vector_MAX_SIZE">MAX_SIZE</a>, <a href="../std/bit_vector.md#std_bit_vector_ELENGTH">ELENGTH</a>);
+    <b>let</b> <b>mut</b> counter = 0;
+    <b>let</b> <b>mut</b> bit_field = <a href="../std/vector.md#std_vector_empty">vector::empty</a>();
+    <b>while</b> (counter &lt; <a href="../std/bit_vector.md#std_bit_vector_length">length</a>) {
+        bit_field.push_back(<b>false</b>);
+        counter = counter + 1;
+    };
+    <a href="../std/bit_vector.md#std_bit_vector_BitVector">BitVector</a> {
+        <a href="../std/bit_vector.md#std_bit_vector_length">length</a>,
+        bit_field,
+    }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Structs_1"></a>
 
 ## Structs
 
 
 <a name="std_bit_vector_BitVector"></a>
 
-### `BitVector` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `BitVector`
 
 
 
@@ -64,7 +104,7 @@
 
 <a name="std_bit_vector_is_index_set"></a>
 
-#### `is_index_set` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `is_index_set`
 
 Return the value of the bit at <code>bit_index</code> in the <code>bitvector</code>. <code><b>true</b></code>
 represents "1" and <code><b>false</b></code> represents a 0
@@ -91,7 +131,7 @@ represents "1" and <code><b>false</b></code> represents a 0
 
 <a name="std_bit_vector_length"></a>
 
-#### `length` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `length`
 
 Return the length (number of usable bits) of this bitvector
 
@@ -116,7 +156,7 @@ Return the length (number of usable bits) of this bitvector
 
 <a name="std_bit_vector_longest_set_sequence_starting_at"></a>
 
-#### `longest_set_sequence_starting_at` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `longest_set_sequence_starting_at`
 
 Returns the length of the longest sequence of set bits starting at (and
 including) <code>start_index</code> in the <code>bitvector</code>. If there is no such
@@ -150,7 +190,7 @@ sequence, then <code>0</code> is returned.
 
 <a name="std_bit_vector_set"></a>
 
-#### `set` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `set`
 
 Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -177,7 +217,7 @@ Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless o
 
 <a name="std_bit_vector_shift_left"></a>
 
-#### `shift_left` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `shift_left`
 
 Shift the <code>bitvector</code> left by <code>amount</code>. If <code>amount</code> is greater than the
 bitvector's length the bitvector will be zeroed out.
@@ -223,7 +263,7 @@ bitvector's length the bitvector will be zeroed out.
 
 <a name="std_bit_vector_unset"></a>
 
-#### `unset` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `unset`
 
 Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -248,14 +288,14 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
 
 <a name="std_bit_vector_EINDEX"></a>
 
-### `EINDEX` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `EINDEX`
 
 The provided index is out of bounds
 
@@ -267,7 +307,7 @@ The provided index is out of bounds
 
 <a name="std_bit_vector_ELENGTH"></a>
 
-### `ELENGTH` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `ELENGTH`
 
 An invalid length of bitvector was given
 
@@ -279,7 +319,7 @@ An invalid length of bitvector was given
 
 <a name="std_bit_vector_WORD_SIZE"></a>
 
-### `WORD_SIZE` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `WORD_SIZE`
 
 
 
@@ -290,55 +330,13 @@ An invalid length of bitvector was given
 
 <a name="std_bit_vector_MAX_SIZE"></a>
 
-### `MAX_SIZE` <span class="move-vis move-vis-const">const</span>
+### <span class="move-vis move-vis-const">const</span> `MAX_SIZE`
 
 The maximum allowed bitvector size
 
 
 <pre><code><b>const</b> <a href="../std/bit_vector.md#std_bit_vector_MAX_SIZE">MAX_SIZE</a>: <a href="../std/u64.md#std_u64">u64</a> = 1024;
 </code></pre>
-
-
-
-<a name="@Module_Functions_2"></a>
-
-## Module Functions
-
-
-<a name="std_bit_vector_new"></a>
-
-### `new` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/bit_vector.md#std_bit_vector_new">new</a>(<a href="../std/bit_vector.md#std_bit_vector_length">length</a>: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/bit_vector.md#std_bit_vector_BitVector">std::bit_vector::BitVector</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/bit_vector.md#std_bit_vector_new">new</a>(<a href="../std/bit_vector.md#std_bit_vector_length">length</a>: <a href="../std/u64.md#std_u64">u64</a>): <a href="../std/bit_vector.md#std_bit_vector_BitVector">BitVector</a> {
-    <b>assert</b>!(<a href="../std/bit_vector.md#std_bit_vector_length">length</a> &gt; 0, <a href="../std/bit_vector.md#std_bit_vector_ELENGTH">ELENGTH</a>);
-    <b>assert</b>!(<a href="../std/bit_vector.md#std_bit_vector_length">length</a> &lt; <a href="../std/bit_vector.md#std_bit_vector_MAX_SIZE">MAX_SIZE</a>, <a href="../std/bit_vector.md#std_bit_vector_ELENGTH">ELENGTH</a>);
-    <b>let</b> <b>mut</b> counter = 0;
-    <b>let</b> <b>mut</b> bit_field = <a href="../std/vector.md#std_vector_empty">vector::empty</a>();
-    <b>while</b> (counter &lt; <a href="../std/bit_vector.md#std_bit_vector_length">length</a>) {
-        bit_field.push_back(<b>false</b>);
-        counter = counter + 1;
-    };
-    <a href="../std/bit_vector.md#std_bit_vector_BitVector">BitVector</a> {
-        <a href="../std/bit_vector.md#std_bit_vector_length">length</a>,
-        bit_field,
-    }
-}
-</code></pre>
-
-
-
-</details>
 
 
 [//]: # ("File containing references which can be used from documentation")

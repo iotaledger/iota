@@ -7,34 +7,34 @@ The <code>ASCII</code> module defines basic string and char newtypes in Move tha
 that characters are valid ASCII, and that strings consist of only valid ASCII characters.
 
 
--  [Structs](#@Structs_0)
-    -  [`String` <span class="move-vis move-vis-struct">struct</span>](#std_ascii_String)
-        -  [`all_characters_printable` <span class="move-vis move-vis-public">pub</span>](#std_ascii_all_characters_printable)
-        -  [`append` <span class="move-vis move-vis-public">pub</span>](#std_ascii_append)
-        -  [`as_bytes` <span class="move-vis move-vis-public">pub</span>](#std_ascii_as_bytes)
-        -  [`index_of` <span class="move-vis move-vis-public">pub</span>](#std_ascii_index_of)
-        -  [`insert` <span class="move-vis move-vis-public">pub</span>](#std_ascii_insert)
-        -  [`into_bytes` <span class="move-vis move-vis-public">pub</span>](#std_ascii_into_bytes)
-        -  [`is_empty` <span class="move-vis move-vis-public">pub</span>](#std_ascii_is_empty)
-        -  [`length` <span class="move-vis move-vis-public">pub</span>](#std_ascii_length)
-        -  [`pop_char` <span class="move-vis move-vis-public">pub</span>](#std_ascii_pop_char)
-        -  [`push_char` <span class="move-vis move-vis-public">pub</span>](#std_ascii_push_char)
-        -  [`substring` <span class="move-vis move-vis-public">pub</span>](#std_ascii_substring)
-        -  [`to_lowercase` <span class="move-vis move-vis-public">pub</span>](#std_ascii_to_lowercase)
-        -  [`to_uppercase` <span class="move-vis move-vis-public">pub</span>](#std_ascii_to_uppercase)
-    -  [`Char` <span class="move-vis move-vis-struct">struct</span>](#std_ascii_Char)
-        -  [`byte` <span class="move-vis move-vis-public">pub</span>](#std_ascii_byte)
--  [Constants](#@Constants_1)
-    -  [`EInvalidASCIICharacter` <span class="move-vis move-vis-error">err</span>](#std_ascii_EInvalidASCIICharacter)
-    -  [`EInvalidIndex` <span class="move-vis move-vis-error">err</span>](#std_ascii_EInvalidIndex)
--  [Module Functions](#@Module_Functions_2)
-    -  [`char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_char)
-    -  [`is_printable_char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_is_printable_char)
-    -  [`is_valid_char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_is_valid_char)
-    -  [`string` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_string)
-    -  [`try_string` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_try_string)
-    -  [`char_to_lowercase` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_char_to_lowercase)
-    -  [`char_to_uppercase` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_ascii_char_to_uppercase)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `char`](#std_ascii_char)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_printable_char`](#std_ascii_is_printable_char)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_valid_char`](#std_ascii_is_valid_char)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `string`](#std_ascii_string)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_string`](#std_ascii_try_string)
+    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `char_to_lowercase`](#std_ascii_char_to_lowercase)
+    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `char_to_uppercase`](#std_ascii_char_to_uppercase)
+-  [Structs](#@Structs_1)
+    -  [<span class="move-vis move-vis-struct">struct</span> `String`](#std_ascii_String)
+        -  [<span class="move-vis move-vis-public">pub</span> `all_characters_printable`](#std_ascii_all_characters_printable)
+        -  [<span class="move-vis move-vis-public">pub</span> `append`](#std_ascii_append)
+        -  [<span class="move-vis move-vis-public">pub</span> `as_bytes`](#std_ascii_as_bytes)
+        -  [<span class="move-vis move-vis-public">pub</span> `index_of`](#std_ascii_index_of)
+        -  [<span class="move-vis move-vis-public">pub</span> `insert`](#std_ascii_insert)
+        -  [<span class="move-vis move-vis-public">pub</span> `into_bytes`](#std_ascii_into_bytes)
+        -  [<span class="move-vis move-vis-public">pub</span> `is_empty`](#std_ascii_is_empty)
+        -  [<span class="move-vis move-vis-public">pub</span> `length`](#std_ascii_length)
+        -  [<span class="move-vis move-vis-public">pub</span> `pop_char`](#std_ascii_pop_char)
+        -  [<span class="move-vis move-vis-public">pub</span> `push_char`](#std_ascii_push_char)
+        -  [<span class="move-vis move-vis-public">pub</span> `substring`](#std_ascii_substring)
+        -  [<span class="move-vis move-vis-public">pub</span> `to_lowercase`](#std_ascii_to_lowercase)
+        -  [<span class="move-vis move-vis-public">pub</span> `to_uppercase`](#std_ascii_to_uppercase)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Char`](#std_ascii_Char)
+        -  [<span class="move-vis move-vis-public">pub</span> `byte`](#std_ascii_byte)
+-  [Constants](#@Constants_2)
+    -  [<span class="move-vis move-vis-error">err</span> `EInvalidASCIICharacter`](#std_ascii_EInvalidASCIICharacter)
+    -  [<span class="move-vis move-vis-error">err</span> `EInvalidIndex`](#std_ascii_EInvalidIndex)
 
 
 <pre><code><b>use</b> <a href="../std/option.md#std_option">std::option</a>;
@@ -43,14 +43,207 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 
 
-<a name="@Structs_0"></a>
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
+<a name="std_ascii_char"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `char`
+
+Convert a <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> into a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> that is checked to make sure it is valid ASCII.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_char">char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/ascii.md#std_ascii_Char">std::ascii::Char</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_char">char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/ascii.md#std_ascii_Char">Char</a> {
+    <b>assert</b>!(<a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>), <a href="../std/ascii.md#std_ascii_EInvalidASCIICharacter">EInvalidASCIICharacter</a>);
+    <a href="../std/ascii.md#std_ascii_Char">Char</a> { <a href="../std/ascii.md#std_ascii_byte">byte</a> }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_is_printable_char"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_printable_char`
+
+Returns <code><b>true</b></code> if <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> is a printable ASCII character.
+Returns <code><b>false</b></code> otherwise.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_printable_char">is_printable_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_printable_char">is_printable_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): bool {
+    <a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x20 && // Disallow metacharacters
+        <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x7E // Don't allow DEL metacharacter
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_is_valid_char"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_valid_char`
+
+Returns <code><b>true</b></code> if <code>b</code> is a valid ASCII character.
+Returns <code><b>false</b></code> otherwise.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(b: <a href="../std/u8.md#std_u8">u8</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(b: <a href="../std/u8.md#std_u8">u8</a>): bool {
+    b &lt;= 0x7F
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_string"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `string`
+
+Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Aborts if
+<code>bytes</code> contains non-ASCII characters.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/string.md#std_string">string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/string.md#std_string">string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/ascii.md#std_ascii_String">String</a> {
+    <b>let</b> x = <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes);
+    <b>assert</b>!(x.is_some(), <a href="../std/ascii.md#std_ascii_EInvalidASCIICharacter">EInvalidASCIICharacter</a>);
+    x.destroy_some()
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_try_string"></a>
+
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_string`
+
+Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Returns
+<code>Some(&lt;ascii_string&gt;)</code> if the <code>bytes</code> contains all valid ASCII
+characters. Otherwise returns <code>None</code>.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): Option&lt;<a href="../std/ascii.md#std_ascii_String">String</a>&gt; {
+    <b>let</b> is_valid = bytes.all!(|<a href="../std/ascii.md#std_ascii_byte">byte</a>| <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(*<a href="../std/ascii.md#std_ascii_byte">byte</a>));
+    <b>if</b> (is_valid) <a href="../std/option.md#std_option_some">option::some</a>(<a href="../std/ascii.md#std_ascii_String">String</a> { bytes })
+    <b>else</b> <a href="../std/option.md#std_option_none">option::none</a>()
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_char_to_lowercase"></a>
+
+### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `char_to_lowercase`
+
+Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
+
+
+<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_lowercase">char_to_lowercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_lowercase">char_to_lowercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a> {
+    <b>if</b> (<a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x41 && <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x5A) <a href="../std/ascii.md#std_ascii_byte">byte</a> + 0x20
+    <b>else</b> <a href="../std/ascii.md#std_ascii_byte">byte</a>
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_ascii_char_to_uppercase"></a>
+
+### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `char_to_uppercase`
+
+Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
+
+
+<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_uppercase">char_to_uppercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_uppercase">char_to_uppercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a> {
+    <b>if</b> (<a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x61 && <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x7A) <a href="../std/ascii.md#std_ascii_byte">byte</a> - 0x20
+    <b>else</b> <a href="../std/ascii.md#std_ascii_byte">byte</a>
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Structs_1"></a>
 
 ## Structs
 
 
 <a name="std_ascii_String"></a>
 
-### `String` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `String`
 
 The <code><a href="../std/ascii.md#std_ascii_String">String</a></code> struct holds a vector of bytes that all represent
 valid ASCII characters. Note that these ASCII characters may not all
@@ -81,7 +274,7 @@ defined in this module.
 
 <a name="std_ascii_all_characters_printable"></a>
 
-#### `all_characters_printable` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `all_characters_printable`
 
 Returns <code><b>true</b></code> if all characters in <code><a href="../std/string.md#std_string">string</a></code> are printable characters
 Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii.md#std_ascii_String">String</a></code>s are printable strings.
@@ -107,7 +300,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii
 
 <a name="std_ascii_append"></a>
 
-#### `append` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `append`
 
 Append the <code>other</code> string to the end of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -132,7 +325,7 @@ Append the <code>other</code> string to the end of <code><a href="../std/string.
 
 <a name="std_ascii_as_bytes"></a>
 
-#### `as_bytes` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `as_bytes`
 
 Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a></code> as a reference
 
@@ -157,7 +350,7 @@ Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a
 
 <a name="std_ascii_index_of"></a>
 
-#### `index_of` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `index_of`
 
 Computes the index of the first occurrence of the <code>substr</code> in the <code><a href="../std/string.md#std_string">string</a></code>.
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> if the <code>substr</code> is not found.
@@ -193,7 +386,7 @@ Returns 0 if the <code>substr</code> is empty.
 
 <a name="std_ascii_insert"></a>
 
-#### `insert` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `insert`
 
 Insert the <code>other</code> string at the <code>at</code> index of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -219,7 +412,7 @@ Insert the <code>other</code> string at the <code>at</code> index of <code><a hr
 
 <a name="std_ascii_into_bytes"></a>
 
-#### `into_bytes` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `into_bytes`
 
 Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get its backing bytes
 
@@ -245,7 +438,7 @@ Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get 
 
 <a name="std_ascii_is_empty"></a>
 
-#### `is_empty` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `is_empty`
 
 Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">string</a></code> is empty.
 
@@ -270,7 +463,7 @@ Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">
 
 <a name="std_ascii_length"></a>
 
-#### `length` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `length`
 
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> in bytes.
 
@@ -295,7 +488,7 @@ Returns the length of the <code><a href="../std/string.md#std_string">string</a>
 
 <a name="std_ascii_pop_char"></a>
 
-#### `pop_char` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `pop_char`
 
 Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -320,7 +513,7 @@ Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the en
 
 <a name="std_ascii_push_char"></a>
 
-#### `push_char` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `push_char`
 
 Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -345,7 +538,7 @@ Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end
 
 <a name="std_ascii_substring"></a>
 
-#### `substring` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `substring`
 
 Copy the slice of the <code><a href="../std/string.md#std_string">string</a></code> from <code>i</code> to <code>j</code> into a new <code><a href="../std/ascii.md#std_ascii_String">String</a></code>.
 
@@ -373,7 +566,7 @@ Copy the slice of the <code><a href="../std/string.md#std_string">string</a></co
 
 <a name="std_ascii_to_lowercase"></a>
 
-#### `to_lowercase` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `to_lowercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its lowercase equivalent.
 
@@ -399,7 +592,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its l
 
 <a name="std_ascii_to_uppercase"></a>
 
-#### `to_uppercase` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `to_uppercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its uppercase equivalent.
 
@@ -425,7 +618,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its u
 
 <a name="std_ascii_Char"></a>
 
-### `Char` <span class="move-vis move-vis-struct">struct</span>
+### <span class="move-vis move-vis-struct">struct</span> `Char`
 
 An ASCII character.
 
@@ -452,7 +645,7 @@ An ASCII character.
 
 <a name="std_ascii_byte"></a>
 
-#### `byte` <span class="move-vis move-vis-public">pub</span>
+#### <span class="move-vis move-vis-public">pub</span> `byte`
 
 Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into its underlying bytes.
 
@@ -476,14 +669,14 @@ Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into i
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
 
 <a name="std_ascii_EInvalidASCIICharacter"></a>
 
-### `EInvalidASCIICharacter` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `EInvalidASCIICharacter`
 
 An invalid ASCII character was encountered when creating an ASCII string.
 
@@ -495,208 +688,13 @@ An invalid ASCII character was encountered when creating an ASCII string.
 
 <a name="std_ascii_EInvalidIndex"></a>
 
-### `EInvalidIndex` <span class="move-vis move-vis-error">err</span>
+### <span class="move-vis move-vis-error">err</span> `EInvalidIndex`
 
 An invalid index was encountered when creating a substring.
 
 
 <pre><code><b>const</b> <a href="../std/ascii.md#std_ascii_EInvalidIndex">EInvalidIndex</a>: <a href="../std/u64.md#std_u64">u64</a> = 65537;
 </code></pre>
-
-
-
-<a name="@Module_Functions_2"></a>
-
-## Module Functions
-
-
-<a name="std_ascii_char"></a>
-
-### `char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Convert a <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> into a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> that is checked to make sure it is valid ASCII.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_char">char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/ascii.md#std_ascii_Char">std::ascii::Char</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_char">char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/ascii.md#std_ascii_Char">Char</a> {
-    <b>assert</b>!(<a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>), <a href="../std/ascii.md#std_ascii_EInvalidASCIICharacter">EInvalidASCIICharacter</a>);
-    <a href="../std/ascii.md#std_ascii_Char">Char</a> { <a href="../std/ascii.md#std_ascii_byte">byte</a> }
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_is_printable_char"></a>
-
-### `is_printable_char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Returns <code><b>true</b></code> if <code><a href="../std/ascii.md#std_ascii_byte">byte</a></code> is a printable ASCII character.
-Returns <code><b>false</b></code> otherwise.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_printable_char">is_printable_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_printable_char">is_printable_char</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): bool {
-    <a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x20 && // Disallow metacharacters
-        <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x7E // Don't allow DEL metacharacter
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_is_valid_char"></a>
-
-### `is_valid_char` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Returns <code><b>true</b></code> if <code>b</code> is a valid ASCII character.
-Returns <code><b>false</b></code> otherwise.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(b: <a href="../std/u8.md#std_u8">u8</a>): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(b: <a href="../std/u8.md#std_u8">u8</a>): bool {
-    b &lt;= 0x7F
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_string"></a>
-
-### `string` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Aborts if
-<code>bytes</code> contains non-ASCII characters.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/string.md#std_string">string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/string.md#std_string">string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/ascii.md#std_ascii_String">String</a> {
-    <b>let</b> x = <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes);
-    <b>assert</b>!(x.is_some(), <a href="../std/ascii.md#std_ascii_EInvalidASCIICharacter">EInvalidASCIICharacter</a>);
-    x.destroy_some()
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_try_string"></a>
-
-### `try_string` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
-
-Convert a vector of bytes <code>bytes</code> into an <code><a href="../std/ascii.md#std_ascii_String">String</a></code>. Returns
-<code>Some(&lt;ascii_string&gt;)</code> if the <code>bytes</code> contains all valid ASCII
-characters. Otherwise returns <code>None</code>.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/ascii.md#std_ascii_try_string">try_string</a>(bytes: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/u8.md#std_u8">u8</a>&gt;): Option&lt;<a href="../std/ascii.md#std_ascii_String">String</a>&gt; {
-    <b>let</b> is_valid = bytes.all!(|<a href="../std/ascii.md#std_ascii_byte">byte</a>| <a href="../std/ascii.md#std_ascii_is_valid_char">is_valid_char</a>(*<a href="../std/ascii.md#std_ascii_byte">byte</a>));
-    <b>if</b> (is_valid) <a href="../std/option.md#std_option_some">option::some</a>(<a href="../std/ascii.md#std_ascii_String">String</a> { bytes })
-    <b>else</b> <a href="../std/option.md#std_option_none">option::none</a>()
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_char_to_lowercase"></a>
-
-### `char_to_lowercase` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
-
-Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
-
-
-<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_lowercase">char_to_lowercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_lowercase">char_to_lowercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a> {
-    <b>if</b> (<a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x41 && <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x5A) <a href="../std/ascii.md#std_ascii_byte">byte</a> + 0x20
-    <b>else</b> <a href="../std/ascii.md#std_ascii_byte">byte</a>
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_ascii_char_to_uppercase"></a>
-
-### `char_to_uppercase` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
-
-Convert a <code><a href="../std/ascii.md#std_ascii_char">char</a></code> to its lowercase equivalent.
-
-
-<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_uppercase">char_to_uppercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>fun</b> <a href="../std/ascii.md#std_ascii_char_to_uppercase">char_to_uppercase</a>(<a href="../std/ascii.md#std_ascii_byte">byte</a>: <a href="../std/u8.md#std_u8">u8</a>): <a href="../std/u8.md#std_u8">u8</a> {
-    <b>if</b> (<a href="../std/ascii.md#std_ascii_byte">byte</a> &gt;= 0x61 && <a href="../std/ascii.md#std_ascii_byte">byte</a> &lt;= 0x7A) <a href="../std/ascii.md#std_ascii_byte">byte</a> - 0x20
-    <b>else</b> <a href="../std/ascii.md#std_ascii_byte">byte</a>
-}
-</code></pre>
-
-
-
-</details>
 
 
 [//]: # ("File containing references which can be used from documentation")
