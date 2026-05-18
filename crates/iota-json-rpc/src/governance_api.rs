@@ -368,7 +368,7 @@ impl GovernanceReadApi {
 
 #[async_trait]
 impl GovernanceReadApiServer for GovernanceReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, staked_iota_ids), fields(staked_iota_ids = staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_stakes_by_ids(
         &self,
         staked_iota_ids: Vec<ObjectID>,
@@ -376,12 +376,12 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         self.get_stakes_by_ids(staked_iota_ids).trace().await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes(owner).trace().await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, timelocked_staked_iota_ids), fields(timelocked_staked_iota_ids = timelocked_staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_timelocked_stakes_by_ids(
         &self,
         timelocked_staked_iota_ids: Vec<ObjectID>,
@@ -391,7 +391,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
             .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_timelocked_stakes(
         &self,
         owner: IotaAddress,

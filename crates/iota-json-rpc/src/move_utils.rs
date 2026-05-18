@@ -89,7 +89,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         package: ObjectID,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error> {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
-            warn!("failed to call get_move_modules_by_package for package: {package:?}");
+            warn!("failed to call get_move_modules_by_package for package: {package}");
         })?;
         let pool = &mut normalized::RcPool::new();
         match object_read {
@@ -103,10 +103,13 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                             pool,
                             p.serialized_module_map().values(),
                             &binary_config,
-                            /* include code */ false,
+                            // include code
+                            false,
                         )
                         .map_err(|e| {
-                            error!("failed to call get_move_modules_by_package for package: {package:?}");
+                            error!(
+                                "failed to call get_move_modules_by_package for package: {package}"
+                            );
                             Error::from(e)
                         })
                     }
@@ -151,7 +154,7 @@ impl IotaRpcModule for MoveUtils {
 
 #[async_trait]
 impl MoveUtilsServer for MoveUtils {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_modules_by_package(
         &self,
         package: ObjectID,
@@ -167,7 +170,7 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_module(
         &self,
         package: ObjectID,
@@ -181,7 +184,7 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_struct(
         &self,
         package: ObjectID,
@@ -204,7 +207,7 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_normalized_move_function(
         &self,
         package: ObjectID,
@@ -227,7 +230,7 @@ impl MoveUtilsServer for MoveUtils {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, package), fields(package = %package))]
     async fn get_move_function_arg_types(
         &self,
         package: ObjectID,

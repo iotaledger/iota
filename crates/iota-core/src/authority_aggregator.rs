@@ -1483,7 +1483,7 @@ where
                 } else {
                     // TODO: Figure out a more reliable way to detect invariance violations.
                     error!(
-                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest:?}. Non-quorum effects: {non_quorum_effects:?}."
+                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest}. Non-quorum effects: {non_quorum_effects:?}."
                     );
                 }
             }

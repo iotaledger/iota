@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fmt::Debug};
+use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
@@ -90,11 +90,7 @@ pub enum UserInputError {
     MutableObjectUsedMoreThanOnce { object_id: ObjectID },
     #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
-    #[error(
-        "Could not find the referenced object {:?} at version {:?}",
-        object_id,
-        version
-    )]
+    #[error("Could not find the referenced object {object_id} at version {version:?}")]
     ObjectNotFound {
         object_id: ObjectID,
         version: Option<SequenceNumber>,
@@ -107,25 +103,23 @@ pub enum UserInputError {
         provided_obj_ref: ObjectRef,
         current_version: SequenceNumber,
     },
-    #[error("Package verification failed: {err:?}")]
+    #[error("Package verification failed: {err}")]
     PackageVerificationTimedout { err: String },
-    #[error("Dependent package not found on-chain: {package_id:?}")]
+    #[error("Dependent package not found on-chain: {package_id}")]
     DependentPackageNotFound { package_id: ObjectID },
     #[error("Mutable parameter provided, immutable parameter expected")]
     ImmutableParameterExpected { object_id: ObjectID },
     #[error("Size limit exceeded: {limit} is {value}")]
     SizeLimitExceeded { limit: String, value: String },
     #[error(
-        "Object {child_id:?} is owned by object {parent_id:?}. \
+        "Object {child_id} is owned by object {parent_id}. \
         Objects owned by other objects cannot be used as input arguments"
     )]
     InvalidChildObjectArgument {
         child_id: ObjectID,
         parent_id: ObjectID,
     },
-    #[error(
-        "Invalid Object digest for object {object_id:?}. Expected digest : {expected_digest:?}"
-    )]
+    #[error("Invalid Object digest for object {object_id}. Expected digest : {expected_digest}")]
     InvalidObjectDigest {
         object_id: ObjectID,
         expected_digest: ObjectDigest,
@@ -149,14 +143,14 @@ pub enum UserInputError {
     // Gas related errors
     #[error("Transaction gas payment missing")]
     MissingGasPayment,
-    #[error("Gas object is not an owned object with owner: {:?}", owner)]
+    #[error("Gas object is not an owned object with owner: {}", owner)]
     GasObjectNotOwnedObject { owner: Owner },
-    #[error("Gas budget: {:?} is higher than max: {:?}", gas_budget, max_budget)]
+    #[error("Gas budget: {} is higher than max: {}", gas_budget, max_budget)]
     GasBudgetTooHigh { gas_budget: u64, max_budget: u64 },
-    #[error("Gas budget: {:?} is lower than min: {:?}", gas_budget, min_budget)]
+    #[error("Gas budget: {} is lower than min: {}", gas_budget, min_budget)]
     GasBudgetTooLow { gas_budget: u64, min_budget: u64 },
     #[error(
-        "Balance of gas object {:?} is lower than the needed amount: {:?}",
+        "Balance of gas object {} is lower than the needed amount: {}",
         gas_balance,
         needed_gas_amount
     )]
@@ -167,7 +161,7 @@ pub enum UserInputError {
     #[error("Transaction kind does not support Sponsored Transaction")]
     UnsupportedSponsoredTransactionKind,
     #[error(
-        "Gas price {:?} under reference gas price (RGP) {:?}",
+        "Gas price {} under reference gas price (RGP) {}",
         gas_price,
         reference_gas_price
     )]
@@ -175,7 +169,7 @@ pub enum UserInputError {
         gas_price: u64,
         reference_gas_price: u64,
     },
-    #[error("Gas price cannot exceed {:?} nanos", max_gas_price)]
+    #[error("Gas price cannot exceed {} nanos", max_gas_price)]
     GasPriceTooHigh { max_gas_price: u64 },
     #[error("Object {object_id} is not a gas object")]
     InvalidGasObject { object_id: ObjectID },
@@ -183,7 +177,7 @@ pub enum UserInputError {
     InsufficientBalanceToCoverMinimalGas,
 
     #[error(
-        "Could not find the referenced object {:?} as the asked version {:?} is higher than the latest {:?}",
+        "Could not find the referenced object {} as the asked version {} is higher than the latest {}",
         object_id,
         asked_version,
         latest_version
@@ -201,7 +195,7 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
-    #[error("Invalid Move View Function call: {error:?}")]
+    #[error("Invalid Move View Function call: {error}")]
     InvalidMoveViewFunction { error: String },
 
     #[error(
@@ -226,7 +220,7 @@ pub enum UserInputError {
     )]
     EmptyCommandInput,
 
-    #[error("Transaction is denied: {}", error)]
+    #[error("Transaction is denied: {error}")]
     TransactionDenied { error: String },
 
     #[error("Feature is not supported: {0}")]
@@ -253,10 +247,7 @@ pub enum UserInputError {
     #[error("Transaction {0} not found")]
     TransactionCursorNotFound(u64),
 
-    #[error(
-        "Object {:?} is a system object and cannot be accessed by user transactions",
-        object_id
-    )]
+    #[error("Object {object_id} is a system object and cannot be accessed by user transactions")]
     InaccessibleSystemObject { object_id: ObjectID },
     #[error(
         "{max_publish_commands} max publish/upgrade commands allowed, {publish_count} provided"
@@ -266,7 +257,7 @@ pub enum UserInputError {
         publish_count: u64,
     },
 
-    #[error("Immutable parameter provided, mutable parameter expected")]
+    #[error("Immutable parameter provided, mutable parameter expected for {object_id}")]
     MutableParameterExpected { object_id: ObjectID },
 
     #[error("Address {address} is denied for coin {coin_type}")]
@@ -279,28 +270,20 @@ pub enum UserInputError {
     PostRandomCommandRestrictions,
 
     // Soft Bundle related errors
-    #[error(
-        "Number of transactions exceeds the maximum allowed ({:?}) in a Soft Bundle",
-        limit
-    )]
+    #[error("Number of transactions exceeds the maximum allowed ({limit}) in a Soft Bundle")]
     TooManyTransactionsInSoftBundle { limit: u64 },
     #[error(
-        "Total transactions size ({:?})bytes exceeds the maximum allowed ({:?})bytes in a Soft Bundle",
-        size,
-        limit
+        "Total transactions size ({size}) bytes exceeds the maximum allowed ({limit}) bytes in a Soft Bundle"
     )]
     SoftBundleTooLarge { size: u64, limit: u64 },
-    #[error("Transaction {:?} in Soft Bundle contains no shared objects", digest)]
+    #[error("Transaction {} in Soft Bundle contains no shared objects", digest)]
     NoSharedObject { digest: TransactionDigest },
-    #[error("Transaction {:?} in Soft Bundle has already been executed", digest)]
+    #[error("Transaction {} in Soft Bundle has already been executed", digest)]
     AlreadyExecuted { digest: TransactionDigest },
     #[error("At least one certificate in Soft Bundle has already been processed")]
     CertificateAlreadyProcessed,
     #[error(
-        "Gas price for transaction {:?} in Soft Bundle mismatch: want {:?}, have {:?}",
-        digest,
-        expected,
-        actual
+        "Gas price for transaction {digest} in Soft Bundle mismatch: want {expected}, have {actual}"
     )]
     GasPriceMismatch {
         digest: TransactionDigest,
@@ -316,7 +299,7 @@ pub enum UserInputError {
 
     // `MoveAuthenticator` related errors
     #[error(
-        "Account object {account_id:?} with version {account_version:?} was deleted in transaction {transaction_digest:?}"
+        "Account object {account_id} with version {account_version} was deleted in transaction {transaction_digest}"
     )]
     AccountObjectDeleted {
         account_id: ObjectID,
@@ -324,16 +307,16 @@ pub enum UserInputError {
         transaction_digest: TransactionDigest,
     },
     #[error(
-        "Account object {account_id:?} with version {account_version:?} is used in a canceled transaction"
+        "Account object {account_id} with version {account_version} is used in a canceled transaction"
     )]
     AccountObjectInCanceledTransaction {
         account_id: ObjectID,
         account_version: SequenceNumber,
     },
-    #[error("Account object {object_id:?} is not a shared or immutable object that is unsupported")]
+    #[error("Account object {object_id} is not a shared or immutable object that is unsupported")]
     AccountObjectNotSupported { object_id: ObjectID },
     #[error(
-        "The fetched account object version {actual_version:?} does not match the expected version {expected_version:?}, object id: {object_id:?}"
+        "The fetched account object version {actual_version} does not match the expected version {expected_version}, object id: {object_id}"
     )]
     AccountObjectVersionMismatch {
         object_id: ObjectID,
@@ -341,7 +324,7 @@ pub enum UserInputError {
         actual_version: SequenceNumber,
     },
     #[error(
-        "The fetched account object digest {actual_digest:?} does not match the expected digest {expected_digest:?}, object id: {object_id:?}"
+        "The fetched account object digest {actual_digest} does not match the expected digest {expected_digest}, object id: {object_id}"
     )]
     InvalidAccountObjectDigest {
         object_id: ObjectID,
@@ -350,32 +333,32 @@ pub enum UserInputError {
     },
 
     #[error(
-        "AuthenticatorFunctionRef {authenticator_function_ref_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+        "AuthenticatorFunctionRef {authenticator_function_ref_id} not found for account {account_object_id} with version {account_object_version}"
     )]
     MoveAuthenticatorNotFound {
         authenticator_function_ref_id: ObjectID,
         account_object_id: ObjectID,
         account_object_version: SequenceNumber,
     },
-    #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
+    #[error("Unable to get a `MoveAuthenticator` object ID for account {account_object_id}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
     #[error(
-        "Invalid authenticator function ref field value found for the account {account_object_id:?}"
+        "Invalid authenticator function ref field value found for the account {account_object_id}"
     )]
     InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
 
-    #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
+    #[error("Package {package_id} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
     #[error(
-        "Address-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+        "Address-owned object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Object-owned object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+        "Object-owned object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
     #[error(
-        "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
+        "Mutable shared object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
 }
@@ -418,7 +401,7 @@ pub enum IotaError {
     // Signature verification
     #[error("Signature is not valid: {}", error)]
     InvalidSignature { error: String },
-    #[error("Required Signature from {expected} is absent {:?}", actual)]
+    #[error("Required Signature from {expected} is absent {actual:?}")]
     SignerSignatureAbsent {
         expected: String,
         actual: Vec<String>,
@@ -438,9 +421,7 @@ pub enum IotaError {
         committee: Box<Committee>,
     },
     #[error(
-        "Validator {:?} responded multiple signatures for the same message, conflicting: {:?}",
-        signer,
-        conflicting_sig
+        "Validator {signer:?} responded multiple signatures for the same message, conflicting: {conflicting_sig}"
     )]
     StakeAggregatorRepeatedSigner {
         signer: AuthorityName,
@@ -448,10 +429,7 @@ pub enum IotaError {
     },
     // TODO: Used for distinguishing between different occurrences of invalid signatures, to allow
     // retries in some cases.
-    #[error(
-        "Signature is not valid, but a retry may result in a valid one: {}",
-        error
-    )]
+    #[error("Signature is not valid, but a retry may result in a valid one: {error}")]
     PotentiallyTemporarilyInvalidSignature { error: String },
 
     // Certificate verification and execution
@@ -474,7 +452,7 @@ pub enum IotaError {
         effects_map: BTreeMap<TransactionEffectsDigest, (Vec<AuthorityName>, StakeUnit)>,
     },
     #[error(
-        "Failed to verify Tx certificate with executed effects, error: {error:?}, validator: {validator_name:?}"
+        "Failed to verify Tx certificate with executed effects, error: {error}, validator: {validator_name:?}"
     )]
     FailedToVerifyTxCertWithExecutedEffects {
         validator_name: AuthorityName,
@@ -488,9 +466,9 @@ pub enum IotaError {
     InvalidAuthenticator,
     #[error("Invalid address")]
     InvalidAddress,
-    #[error("Invalid transaction digest.")]
+    #[error("Invalid transaction digest")]
     InvalidTransactionDigest,
-    #[error("Invalid move authentication digest.")]
+    #[error("Invalid move authentication digest")]
     InvalidMoveAuthenticatorDigest,
 
     #[error("Invalid digest length. Expected {expected}, got {actual}")]
@@ -498,38 +476,36 @@ pub enum IotaError {
     #[error("Invalid DKG message size")]
     InvalidDkgMessageSize,
 
-    #[error("Unexpected message.")]
+    #[error("Unexpected message")]
     UnexpectedMessage,
 
-    #[error("Failed to execute the Move authenticator, reason: {error:?}.")]
+    #[error("Failed to execute the Move authenticator, reason: {error}")]
     MoveAuthenticatorExecutionFailure { error: String },
 
     // Move module publishing related errors
-    #[error("Failed to verify the Move module, reason: {error:?}.")]
+    #[error("Failed to verify the Move module, reason: {error}")]
     ModuleVerificationFailure { error: String },
-    #[error("Failed to deserialize the Move module, reason: {error:?}.")]
+    #[error("Failed to deserialize the Move module, reason: {error}")]
     ModuleDeserializationFailure { error: String },
     #[error("Failed to publish the Move module(s), reason: {error}")]
     ModulePublishFailure { error: String },
-    #[error("Failed to build Move modules: {error}.")]
+    #[error("Failed to build Move modules: {error}")]
     ModuleBuildFailure { error: String },
 
     // Move call related errors
-    #[error("Function resolution failure: {error:?}.")]
+    #[error("Function resolution failure: {error}")]
     FunctionNotFound { error: String },
-    #[error("Module not found in package: {module_name:?}.")]
+    #[error("Module not found in package: {module_name:?}")]
     ModuleNotFound { module_name: String },
-    #[error("Type error while binding function arguments: {error:?}.")]
+    #[error("Type error while binding function arguments: {error}")]
     Type { error: String },
     #[error("Circular object ownership detected")]
     CircularObjectOwnership,
 
     // Internal state errors
-    #[error("Attempt to re-initialize a transaction lock for objects {:?}.", refs)]
+    #[error("Attempt to re-initialize a transaction lock for objects {refs:?}")]
     ObjectLockAlreadyInitialized { refs: Vec<ObjectRef> },
-    #[error(
-        "Object {obj_ref:?} already locked by a different transaction: {pending_transaction:?}"
-    )]
+    #[error("Object {obj_ref:?} already locked by a different transaction: {pending_transaction}")]
     ObjectLockConflict {
         obj_ref: ObjectRef,
         pending_transaction: TransactionDigest,
@@ -543,15 +519,14 @@ pub enum IotaError {
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
-    #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{:?}].", digest)]
+    #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },
-    #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{:?}].", digests)]
+    #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{digests:?}]")]
     TransactionsNotFound { digests: Vec<TransactionDigest> },
-    #[error("Could not find the referenced transaction events [{digest:?}].")]
+    #[error("Could not find the referenced transaction events [{digest}]")]
     TransactionEventsNotFound { digest: TransactionDigest },
     #[error(
-        "Attempt to move to `Executed` state an transaction that has already been executed: {:?}.",
-        digest
+        "Attempt to move to `Executed` state an transaction that has already been executed: {digest}"
     )]
     TransactionAlreadyExecuted { digest: TransactionDigest },
     #[error("Object ID did not have the expected type")]
@@ -561,7 +536,7 @@ pub enum IotaError {
 
     #[error("Execution invariant violated")]
     ExecutionInvariantViolation,
-    #[error("Validator {authority:?} is faulty in a Byzantine manner: {reason:?}")]
+    #[error("Validator {authority:?} is faulty in a Byzantine manner: {reason}")]
     ByzantineAuthoritySuspicion {
         authority: AuthorityName,
         reason: String,
@@ -576,43 +551,40 @@ pub enum IotaError {
         actual_owner: Owner,
     },
 
-    #[error("Authority Error: {error:?}")]
+    #[error("Authority Error: {error}")]
     GenericAuthority { error: String },
 
-    #[error("Failed to dispatch subscription: {error:?}")]
+    #[error("Failed to dispatch subscription: {error}")]
     FailedToDispatchSubscription { error: String },
 
-    #[error("Failed to serialize Owner: {error:?}")]
+    #[error("Failed to serialize Owner: {error}")]
     OwnerFailedToSerialize { error: String },
 
-    #[error("Failed to deserialize fields into JSON: {error:?}")]
+    #[error("Failed to deserialize fields into JSON: {error}")]
     ExtraFieldFailedToDeserialize { error: String },
 
-    #[error("Failed to execute transaction locally by Orchestrator: {error:?}")]
+    #[error("Failed to execute transaction locally by Orchestrator: {error}")]
     TransactionOrchestratorLocalExecution { error: String },
 
     // Errors returned by authority and client read API's
-    #[error("Failure serializing transaction in the requested format: {:?}", error)]
+    #[error("Failure serializing transaction in the requested format: {error}")]
     TransactionSerialization { error: String },
-    #[error("Failure serializing object in the requested format: {:?}", error)]
+    #[error("Failure serializing object in the requested format: {error}")]
     ObjectSerialization { error: String },
-    #[error("Failure deserializing object in the requested format: {:?}", error)]
+    #[error("Failure deserializing object in the requested format: {error}")]
     ObjectDeserialization { error: String },
-    #[error(
-        "Failure deserializing runtime module metadata in the requested format: {:?}",
-        error
-    )]
+    #[error("Failure deserializing runtime module metadata in the requested format: {error}")]
     RuntimeModuleMetadataDeserialization { error: String },
     #[error("Event store component is not active on this node")]
     NoEventStore,
 
     // Client side error
-    #[error("Too many authority errors were detected for {}: {:?}", action, errors)]
+    #[error("Too many authority errors were detected for {action}: {errors:?}")]
     TooManyIncorrectAuthorities {
         errors: Vec<(AuthorityName, IotaError)>,
         action: String,
     },
-    #[error("Invalid transaction range query to the fullnode: {:?}", error)]
+    #[error("Invalid transaction range query to the fullnode: {error}")]
     FullNodeInvalidTxRangeQuery { error: String },
 
     // Errors related to the authority-consensus interface.
@@ -642,7 +614,7 @@ pub enum IotaError {
     ValidatorHaltedAtEpochEnd,
     #[error("Operations for epoch {0} have ended")]
     EpochEnded(EpochId),
-    #[error("Error when advancing epoch: {:?}", error)]
+    #[error("Error when advancing epoch: {error}")]
     AdvanceEpoch { error: String },
 
     #[error("Transaction Expired")]
@@ -657,10 +629,10 @@ pub enum IotaError {
     InvalidRpcMethod,
 
     // TODO: We should fold this into UserInputError::Unsupported.
-    #[error("Use of disabled feature: {:?}", error)]
+    #[error("Use of disabled feature: {error}")]
     UnsupportedFeature { error: String },
 
-    #[error("Unable to communicate with the Quorum Driver channel: {:?}", error)]
+    #[error("Unable to communicate with the Quorum Driver channel: {error}")]
     QuorumDriverCommunication { error: String },
 
     #[error("Operation timed out")]
@@ -675,7 +647,7 @@ pub enum IotaError {
     #[error("Missing committee information for epoch {0}")]
     MissingCommitteeAtEpoch(EpochId),
 
-    #[error("Index store not available on this Fullnode.")]
+    #[error("Index store not available on this Fullnode")]
     IndexStoreNotAvailable,
 
     #[error("Failed to read dynamic field from table in the object store: {0}")]
@@ -703,7 +675,7 @@ pub enum IotaError {
     Storage(String),
 
     #[error(
-        "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds."
+        "Validator cannot handle the request at the moment. Please retry after at least {retry_after_secs} seconds"
     )]
     ValidatorOverloadedRetryAfter { retry_after_secs: u64 },
 
@@ -818,7 +790,7 @@ impl TryFrom<IotaError> for UserInputError {
     fn try_from(err: IotaError) -> Result<Self, Self::Error> {
         match err {
             IotaError::UserInput { error } => Ok(error),
-            other => anyhow::bail!("error {:?} is not UserInput", other),
+            other => anyhow::bail!("error `{other}` is not UserInput"),
         }
     }
 }
@@ -1000,7 +972,14 @@ impl ExecutionError {
 
 impl std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ExecutionError: {self:?}")
+        write!(f, "{}: {}", self.inner.kind.as_ref(), self.inner.kind)?;
+        if let Some(source) = self.inner.source.as_ref() {
+            write!(f, "; caused by: {source}")?;
+        }
+        if let Some(command) = self.inner.command {
+            write!(f, "; at command index: {command}")?;
+        }
+        Ok(())
     }
 }
 

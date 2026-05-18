@@ -30,18 +30,18 @@ use crate::iota_primitives::{
 )]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {
-    #[error("Object {:?} does not exist", object_id)]
+    #[error("Object {object_id} does not exist")]
     NotExists {
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
     },
-    #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
+    #[error("Cannot find dynamic field for parent object {parent_object_id}")]
     DynamicFieldNotFound {
         #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
     },
     #[error(
-        "Object has been deleted object_id: {object_id:?} at version: {version:?} in digest {digest:?}"
+        "Object has been deleted object_id: {object_id} at version: {version} in digest {digest}"
     )]
     Deleted {
         #[schemars(with = "ObjectIDSchema")]
@@ -55,6 +55,6 @@ pub enum IotaObjectResponseError {
     },
     #[error("Unknown Error")]
     Unknown,
-    #[error("Display Error: {:?}", error)]
+    #[error("Display Error: {error}")]
     Display { error: String },
 }

@@ -1225,7 +1225,7 @@ impl AuthorityState {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
-                    "Unexpected effects digest for transaction {tx_digest:?}"
+                    "Unexpected effects digest for transaction {tx_digest}"
                 );
             }
             tx_guard.release();
@@ -2558,7 +2558,7 @@ impl AuthorityState {
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
             match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
+                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
                 Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
                 Owner::Object(object_id) => {
@@ -2578,7 +2578,7 @@ impl AuthorityState {
             if let WriteKind::Mutate = kind {
                 let Some(old_version) = modified_at_version.get(id) else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
                     );
                 };
                 // When we process the index, the latest object hasn't been written yet so
@@ -2588,7 +2588,7 @@ impl AuthorityState {
                     .try_get_object_by_key(id, *old_version)?
                 else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}"
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {id} at version {old_version:?}"
                     );
                 };
                 if old_object.owner != owner {
@@ -2607,12 +2607,12 @@ impl AuthorityState {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -2638,12 +2638,12 @@ impl AuthorityState {
                 }
                 Owner::Object(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -5872,7 +5872,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .collect())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],

@@ -342,7 +342,7 @@ impl IotaObjectData {
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
         self.type_
             .as_ref()
-            .ok_or_else(|| anyhow!("type is missing for object {:?}", self.object_id))
+            .ok_or_else(|| anyhow!("type is missing for object {}", self.object_id))
             .cloned()
     }
 

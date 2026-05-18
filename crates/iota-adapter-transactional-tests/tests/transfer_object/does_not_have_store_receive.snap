@@ -124,7 +124,7 @@ task 13, lines 108-110:
 //> 0: test::m::parent_uid(Input(0));
 //> 1: iota::transfer::public_receive<test::m::S>(Result(0), Input(1));
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VmVerificationOrDeserializationError, source: Some(VMError { major_status: CONSTRAINT_NOT_SATISFIED, sub_status: None, message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: VmVerificationOrDeserializationError: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.; caused by: VMError with status CONSTRAINT_NOT_SATISFIED at location Module ModuleId { address: iota, name: Identifier("transfer") }; at command index: 1
 
 task 14, lines 112-118:
 //# programmable --sender A --inputs object(10,0) receiving(10,1)
@@ -134,7 +134,7 @@ task 14, lines 112-118:
 // 1. Not be able to call `receive` to receive it.
 // 2. Be able to call `public_receive` to receive it.
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive"), command: Some(1) } }
+Execution Error: NonEntryFunctionInvoked: Non Entry Function Invoked. Move Call must start with an entry function; caused by: Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive; at command index: 1
 
 task 15, line 120:
 //# run test::m::mint_store --sender A
@@ -172,7 +172,7 @@ task 18, lines 126-130:
 //> 1: iota::transfer::receive<test::m::Store>(Result(0), Input(1));
 // Can receive it via a direct `public_receive` call since `Store` has the `store` ability.
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive"), command: Some(1) } }
+Execution Error: NonEntryFunctionInvoked: Non Entry Function Invoked. Move Call must start with an entry function; caused by: Cannot directly call iota::transfer::receive. Use the public variant instead, iota::transfer::public_receive; at command index: 1
 
 task 19, lines 131-135:
 //# programmable --sender A --inputs object(15,0) receiving(15,1)

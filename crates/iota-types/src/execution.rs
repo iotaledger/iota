@@ -144,7 +144,7 @@ impl ExecutionResultsV1 {
                     assert_eq!(
                         *initial_shared_version,
                         SequenceNumber::default(),
-                        "Initial version should be blank before this point for {id:?}",
+                        "Initial version should be blank before this point for {id}",
                     );
                     *initial_shared_version = lamport_version;
                 }

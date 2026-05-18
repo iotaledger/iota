@@ -53,7 +53,7 @@ task 5, lines 37-42:
 //> 1: test::m1::purchase_(Result(0));
 // call a non-entry function, and transfer the object
 Error: Transaction Effects Status: Unused result without the drop ability. Command result 1, return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result: 1, subresult: 0 }, source: None, command: None } }
+Execution Error: UnusedValueWithoutDrop: Unused result without the drop ability. Command result 1, return value 0
 
 task 6, lines 43-48:
 //# programmable --sender A --inputs 100 @A  --gas-budget 10000000000

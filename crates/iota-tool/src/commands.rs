@@ -438,7 +438,7 @@ async fn check_locked_object(
 
     let tx_digest = top_record.2;
     if !rescue {
-        println!("Object {id} is rescueable, top tx: {tx_digest:?}");
+        println!("Object {id} is rescueable, top tx: {tx_digest}");
         return Ok(());
     }
     println!("Object {id} is rescueable, trying tx {tx_digest}");
@@ -465,10 +465,10 @@ async fn check_locked_object(
         .await;
     match res {
         Ok(_) => {
-            println!("Transaction executed successfully ({tx_digest:?})");
+            println!("Transaction executed successfully ({tx_digest})");
         }
         Err(e) => {
-            println!("Failed to execute transaction ({tx_digest:?}): {e:?}");
+            println!("Failed to execute transaction ({tx_digest}): {e:?}");
         }
     }
     Ok(())

@@ -20,17 +20,17 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 3, lines 31-33:
 //# run test::sponsor::is_sponsored --sender A --args true
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::sponsor::is_sponsored (function index 0) at offset 10, Abort Code: 100
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("test"), module: Identifier("sponsor"), function: 0, instruction: 10, function_name: Some(Identifier("is_sponsored")) }, code: 100 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(100), message: Some("test::sponsor::is_sponsored at offset 10"), exec_state: None, location: Module(ModuleId { address: test, name: Identifier("sponsor") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 10)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::sponsor::is_sponsored (function index 0) at offset 10, Abort Code: 100; caused by: VMError with status ABORTED with sub status 100 at location Module ModuleId { address: test, name: Identifier("sponsor") } and message test::sponsor::is_sponsored at offset 10 at code offset 10 in function definition 0; at command index: 0
 
 task 4, lines 34-36:
 //# run test::sponsor::check_sponsor --sender A --args @A
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 8, Abort Code: 100
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("test"), module: Identifier("sponsor"), function: 1, instruction: 8, function_name: Some(Identifier("check_sponsor")) }, code: 100 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(100), message: Some("test::sponsor::check_sponsor at offset 8"), exec_state: None, location: Module(ModuleId { address: test, name: Identifier("sponsor") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 8)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 8, Abort Code: 100; caused by: VMError with status ABORTED with sub status 100 at location Module ModuleId { address: test, name: Identifier("sponsor") } and message test::sponsor::check_sponsor at offset 8 at code offset 8 in function definition 1; at command index: 0
 
 task 5, lines 37-39:
 //# run test::sponsor::check_sponsor --sender A --args @B
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 8, Abort Code: 100
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("test"), module: Identifier("sponsor"), function: 1, instruction: 8, function_name: Some(Identifier("check_sponsor")) }, code: 100 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(100), message: Some("test::sponsor::check_sponsor at offset 8"), exec_state: None, location: Module(ModuleId { address: test, name: Identifier("sponsor") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 8)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 8, Abort Code: 100; caused by: VMError with status ABORTED with sub status 100 at location Module ModuleId { address: test, name: Identifier("sponsor") } and message test::sponsor::check_sponsor at offset 8 at code offset 8 in function definition 1; at command index: 0
 
 task 6, lines 40-43:
 //# programmable --sender A --sponsor B --inputs true
@@ -44,14 +44,14 @@ task 7, lines 44-47:
 //> test::sponsor::is_sponsored(Input(0))
 // abort(101), wrong sponsor
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::sponsor::is_sponsored (function index 0) at offset 16, Abort Code: 101
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("test"), module: Identifier("sponsor"), function: 0, instruction: 16, function_name: Some(Identifier("is_sponsored")) }, code: 101 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(101), message: Some("test::sponsor::is_sponsored at offset 16"), exec_state: None, location: Module(ModuleId { address: test, name: Identifier("sponsor") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 16)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::sponsor::is_sponsored (function index 0) at offset 16, Abort Code: 101; caused by: VMError with status ABORTED with sub status 101 at location Module ModuleId { address: test, name: Identifier("sponsor") } and message test::sponsor::is_sponsored at offset 16 at code offset 16 in function definition 0; at command index: 0
 
 task 8, lines 48-51:
 //# programmable --sender A --sponsor B --inputs @A
 //> test::sponsor::check_sponsor(Input(0))
 // success, sponsored transaction with correct sponsor
 Error: Transaction Effects Status: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 16, Abort Code: 101
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("test"), module: Identifier("sponsor"), function: 1, instruction: 16, function_name: Some(Identifier("check_sponsor")) }, code: 101 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(101), message: Some("test::sponsor::check_sponsor at offset 16"), exec_state: None, location: Module(ModuleId { address: test, name: Identifier("sponsor") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 16)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: test::sponsor::check_sponsor (function index 1) at offset 16, Abort Code: 101; caused by: VMError with status ABORTED with sub status 101 at location Module ModuleId { address: test, name: Identifier("sponsor") } and message test::sponsor::check_sponsor at offset 16 at code offset 16 in function definition 1; at command index: 0
 
 task 9, lines 52-53:
 //# programmable --sender A --sponsor B --inputs @B

@@ -88,7 +88,7 @@ impl IotaRpcModule for CoinReadApi {
 
 #[async_trait]
 impl CoinReadApiServer for CoinReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_coins(
         &self,
         owner: IotaAddress,
@@ -117,7 +117,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_coins(
         &self,
         owner: IotaAddress,
@@ -163,7 +163,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_balance(
         &self,
         owner: IotaAddress,
@@ -176,7 +176,7 @@ impl CoinReadApiServer for CoinReadApi {
                 .get_balance(owner, coin_type_tag.clone())
                 .await
                 .tap_err(|e| {
-                    debug!(?owner, "Failed to get balance with error: {:?}", e);
+                    debug!(%owner, "Failed to get balance with error: {e}");
                 })?;
             Ok(Balance {
                 coin_type: coin_type_tag.to_string(),
@@ -188,11 +188,11 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
         async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
-                debug!(?owner, "Failed to get all balance with error: {:?}", e);
+                debug!(%owner, "Failed to get all balance with error: {e}");
             })?;
             Ok(all_balance
                 .iter()
@@ -945,7 +945,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
 
@@ -1211,7 +1211,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
 
@@ -1323,7 +1323,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
     }
@@ -1578,7 +1578,7 @@ mod tests {
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
             let expected = expect![
-                "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
+                "Failure deserializing object in the requested format: Unable to deserialize TreasuryCap object: remaining input"
             ];
             expected.assert_eq(error_result.message());
         }

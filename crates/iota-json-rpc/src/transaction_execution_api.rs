@@ -449,7 +449,7 @@ impl WriteApiServer for TransactionExecutionApi {
         )
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
     async fn dev_inspect_transaction_block(
         &self,
         sender_address: IotaAddress,

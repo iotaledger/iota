@@ -18,7 +18,7 @@ pub enum Error {
     #[error("Cannot check local module for {package}: {message}")]
     CannotCheckLocalModules { package: Symbol, message: String },
 
-    #[error("Could not read a dependency's on-chain object: {0:?}")]
+    #[error("Could not read a dependency's on-chain object: {0}")]
     DependencyObjectReadFailure(SdkError),
 
     #[error("On-chain package {0} is empty")]
@@ -63,7 +63,7 @@ pub enum Error {
     #[error("{0}. Please supply an explicit on-chain address for the package")]
     PublishedAt(#[from] PublishedAtError),
 
-    #[error("Dependency object does not exist or was deleted: {0:?}")]
+    #[error("Dependency object does not exist or was deleted: {0}")]
     IotaObjectRefFailure(IotaObjectResponseError),
 
     #[error("On-chain address cannot be zero")]

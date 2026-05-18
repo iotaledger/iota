@@ -994,7 +994,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         let address = address_from_iota_pub_key(pk);
         if author != address {
             return Err(IotaError::IncorrectSigner {
-                error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
+                error: format!("Incorrect signer, expected {author}, got {address}"),
             });
         }
 

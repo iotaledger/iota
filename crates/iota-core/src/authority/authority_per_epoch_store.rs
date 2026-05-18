@@ -1568,7 +1568,7 @@ impl AuthorityPerEpochStore {
                         let Some(version) = assigned_shared_versions.get(id) else {
                             panic!(
                                 "Shared object version should have been assigned. key: {key:?}, \
-                                obj id: {id:?}, assigned_shared_versions: {assigned_shared_versions:?}",
+                                obj id: {id}, assigned_shared_versions: {assigned_shared_versions:?}",
                             )
                         };
                         InputKey::VersionedObject {
@@ -2687,7 +2687,7 @@ impl AuthorityPerEpochStore {
             // for the same tx digest
             assert!(
                 user_sigs.insert(digest, sigs).is_none(),
-                "duplicate user signatures for transaction digest: {digest:?}"
+                "duplicate user signatures for transaction digest: {digest}"
             );
         }
     }

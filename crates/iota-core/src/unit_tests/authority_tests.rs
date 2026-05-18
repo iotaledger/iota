@@ -552,7 +552,7 @@ async fn test_dev_inspect_dynamic_field() {
     // produces an error
     let err = error.unwrap();
     assert!(
-        err.contains("kind: CircularObjectOwnership"),
+        err.contains("CircularObjectOwnership"),
         "unexpected error: {err}"
     );
 

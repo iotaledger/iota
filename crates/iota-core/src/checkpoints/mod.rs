@@ -1833,7 +1833,7 @@ impl CheckpointBuilder {
                 .map(|(opt, digest)| match opt {
                     Some(x) => x,
                     None => panic!(
-                        "Can not find effect for transaction {digest:?}, however transaction that depend on it was already executed"
+                        "Can not find effect for transaction {digest}, however transaction that depend on it was already executed"
                     ),
                 })
                 .collect::<Vec<_>>();
@@ -2158,7 +2158,7 @@ impl CheckpointSignatureAggregator {
                 .into_iter()
                 .sorted_by_key(|(_, (_, stake))| -(*stake as i64))
                 .map(|(digest, (_authorities, total_stake))| {
-                    format!("{digest:?} (total stake: {total_stake})")
+                    format!("{digest} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
             error!(
@@ -2335,8 +2335,8 @@ async fn diagnose_split_brain(
             let other_validator = name.concise();
             format!(
                 "Checkpoint: {seq_number:?}\n\
-                Local validator (original): {local_validator:?}, digest: {local_digest:?}\n\
-                Other validator (modified): {other_validator:?}, digest: {other_digest:?}\n\n\
+                Local validator (original): {local_validator:?}, digest: {local_digest}\n\
+                Other validator (modified): {other_validator:?}, digest: {other_digest}\n\n\
                 Summary Diff: \n{summary_patch}\n\n\
                 Contents Diff: \n{contents_patch}\n\n\
                 Transactions Diff: \n{transactions_patch}\n\n\
