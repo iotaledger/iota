@@ -156,6 +156,10 @@ impl Linearizer {
                     refs.clone(),
                 ));
             }
+            // The order in which transactions are added to the committed_transactions
+            // in above loop is not deterministic and depends on local state of validator,
+            // so we need to sort them.
+            committed_transactions.sort();
         }
 
         // Check that there are no duplicates in the committed transactions
