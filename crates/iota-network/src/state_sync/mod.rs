@@ -256,10 +256,15 @@ impl PeerHeights {
     }
 
     pub fn cleanup_old_checkpoints(&mut self, sequence_number: CheckpointSequenceNumber) {
+        // `retain` leaves tombstones that count toward the load factor; without
+        // the follow-up `shrink_to_fit`, the bucket array keeps doubling on
+        // subsequent inserts during long syncs.
         self.unprocessed_checkpoints
             .retain(|_digest, checkpoint| *checkpoint.sequence_number() > sequence_number);
+        self.unprocessed_checkpoints.shrink_to_fit();
         self.sequence_number_to_digest
             .retain(|&s, _digest| s > sequence_number);
+        self.sequence_number_to_digest.shrink_to_fit();
     }
 
     // TODO: also record who gives this checkpoint info for peer quality
