@@ -21,7 +21,7 @@ use futures::StreamExt;
 use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
-    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject, LiveObjectV2},
+    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObjectV2},
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
@@ -32,7 +32,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
+    messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
 use tokio::{
@@ -47,9 +47,9 @@ use tracing::debug;
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FILE_MAX_BYTES, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_DIGEST_BYTES,
-    OBJECT_FILE_MAGIC, OBJECT_REF_BYTES_V2, REFERENCE_FILE_MAGIC_V2, SEQUENCE_NUM_BYTES,
-    compute_sha3_checksum, create_file_metadata,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_FILE_MAGIC,
+    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, compute_sha3_checksum,
+    create_file_metadata,
 };
 
 /// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
@@ -89,12 +89,12 @@ impl LiveObjectSetWriterV1 {
         })
     }
 
-    /// Writes a live object to the object file and the reference (with its
-    /// `previous_transaction_checkpoint` trailer) to the V2 reference file.
+    /// Writes a live object to the object file and the reference to the
+    /// reference file.
     pub fn write(&mut self, object: &LiveObjectV2) -> Result<()> {
         let object_reference = object.live.object_reference();
-        self.write_object(&object.live)?;
-        self.write_object_ref(&object_reference, object.previous_transaction_checkpoint)?;
+        self.write_object(object)?;
+        self.write_object_ref(&object_reference)?;
         Ok(())
     }
 
@@ -124,7 +124,7 @@ impl LiveObjectSetWriterV1 {
         Ok((n, f))
     }
 
-    /// Creates a new V2 reference file for the provided bucket number and part
+    /// Creates a new reference file for the provided bucket number and part
     /// number, and returns the file and the number of bytes written to the
     /// file.
     fn ref_file(dir_path: PathBuf, bucket_num: u32, part_num: u32) -> Result<File> {
@@ -133,7 +133,7 @@ impl LiveObjectSetWriterV1 {
         let mut f = File::create(ref_tmp_path.clone())?;
         f.rewind()?;
         let mut metab = [0u8; MAGIC_BYTES];
-        BigEndian::write_u32(&mut metab, REFERENCE_FILE_MAGIC_V2);
+        BigEndian::write_u32(&mut metab, REFERENCE_FILE_MAGIC);
         let n = f.write(&metab)?;
         drop(f);
         fs::rename(ref_tmp_path, ref_path.clone())?;
@@ -219,9 +219,9 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Writes a live object to the object file. Creates a new partition (new
-    /// object file and reference file) if it exceeds the maximum size.
-    fn write_object(&mut self, object: &LiveObject) -> Result<()> {
+    /// Writes a `LiveObjectV2` to the object file. Creates a new partition
+    /// (new object file and reference file) if it exceeds the maximum size.
+    fn write_object(&mut self, object: &LiveObjectV2) -> Result<()> {
         let blob = Blob::encode(object, BlobEncoding::Bcs)?;
         let mut blob_size = blob.data.len().required_space();
         blob_size += BLOB_ENCODING_BYTES;
@@ -236,31 +236,23 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Writes a V2 object reference record to the reference file:
-    /// `ObjectID(32) | SequenceNumber(8 BE) | ObjectDigest(32) |
-    /// PrevTxCheckpoint(8 BE)`.
-    fn write_object_ref(
-        &mut self,
-        object_ref: &ObjectRef,
-        previous_transaction_checkpoint: CheckpointSequenceNumber,
-    ) -> Result<()> {
-        let mut buf = [0u8; OBJECT_REF_BYTES_V2];
-        let id_end = ObjectID::LENGTH;
-        let seq_end = id_end + SEQUENCE_NUM_BYTES;
-        let digest_end = seq_end + OBJECT_DIGEST_BYTES;
-        buf[0..id_end].copy_from_slice(object_ref.object_id.as_ref());
-        BigEndian::write_u64(&mut buf[id_end..seq_end], object_ref.version.as_u64());
-        buf[seq_end..digest_end].copy_from_slice(object_ref.digest.as_ref());
-        BigEndian::write_u64(&mut buf[digest_end..], previous_transaction_checkpoint);
+    /// Writes an object reference to the reference file.
+    fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
+        let mut buf = [0u8; OBJECT_REF_BYTES];
+        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
+        BigEndian::write_u64(
+            &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
+            object_ref.version.as_u64(),
+        );
+        buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
+            .copy_from_slice(object_ref.digest.as_ref());
         self.ref_wbuf.write_all(&buf)?;
         Ok(())
     }
 }
 
-/// Writes snapshot files to a local staging dir and simultaneously uploads
-/// them to a remote object store. The `V1` suffix refers to the
-/// orchestration-layer revision of this struct (its public API surface),
-/// not the snapshot wire format — this writer emits V2 snapshots.
+/// StateSnapshotWriterV1 writes snapshot files to a local staging dir and
+/// simultaneously uploads them to a remote object store
 pub struct StateSnapshotWriterV1 {
     local_staging_dir: PathBuf,
     file_compression: FileCompression,
@@ -419,8 +411,8 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Writes the provided live object set in the form of reference files,
-    /// object files, EPOCH_INFO file, and MANIFEST. These files are staged
-    /// locally and their `FileMetadata` is sent to the upload channel.
+    /// object files, EPOCH_INFO, and MANIFEST. These files are stored in the
+    /// local staging directory and the FileMetadata is sent to the channel.
     fn write_live_object_set<F>(
         &mut self,
         epoch: u64,
@@ -431,7 +423,7 @@ impl StateSnapshotWriterV1 {
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()>
     where
-        F: Fn(&LiveObject) -> u32,
+        F: Fn(&LiveObjectV2) -> u32,
     {
         let mut object_writers: HashMap<u32, LiveObjectSetWriterV1> = HashMap::new();
         let local_staging_dir_path =
@@ -439,7 +431,7 @@ impl StateSnapshotWriterV1 {
         let mut acc = GlobalStateHash::default();
         for entry in perpetual_db.iter_live_object_set_v2() {
             GlobalStateHasher::accumulate_live_object(&mut acc, &entry.live);
-            let bucket_num = bucket_func(&entry.live);
+            let bucket_num = bucket_func(&entry);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
             if let Vacant(slot) = object_writers.entry(bucket_num) {
                 slot.insert(LiveObjectSetWriterV1::new(
@@ -584,7 +576,7 @@ impl StateSnapshotWriterV1 {
         Ok((f, manifest_file_path))
     }
 
-    fn bucket_func(_object: &LiveObject) -> u32 {
+    fn bucket_func(_object: &LiveObjectV2) -> u32 {
         // TODO: Use the hash bucketing function used for accumulator tree if there is
         // one
         1u32

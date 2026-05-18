@@ -468,7 +468,8 @@ impl AuthorityPerpetualTables {
 
     /// Like `iter_live_object_set` but additionally surfaces each live
     /// object's `previous_transaction_checkpoint`. Used by the snapshot V2
-    /// writer to populate the per-object trailer of the reference file.
+    /// writer to populate the per-object `LiveObjectV2` records emitted into
+    /// the bucketed `.obj` files.
     pub fn iter_live_object_set_v2(&self) -> LiveSetIterV2<'_> {
         LiveSetIterV2 {
             iter: Box::new(self.objects.safe_iter()),
@@ -501,8 +502,24 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
+        self.insert_object_test_only_with_checkpoint(
+            object,
+            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+        )
+    }
+
+    /// Like `insert_object_test_only` but stamps a caller-provided
+    /// `previous_transaction_checkpoint` instead of the sentinel. Used by
+    /// snapshot wire-format tests to verify the per-object checkpoint
+    /// round-trips end-to-end through `LiveSetIterV2` → `.obj` →
+    /// `bulk_insert_live_objects`.
+    pub fn insert_object_test_only_with_checkpoint(
+        &self,
+        object: Object,
+        previous_transaction_checkpoint: CheckpointSequenceNumber,
+    ) -> IotaResult {
         let object_reference = object.compute_object_reference();
-        let wrapper = get_store_object(object, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT);
+        let wrapper = get_store_object(object, previous_transaction_checkpoint);
         let mut wb = self.objects.batch();
         wb.insert_batch(
             &self.objects,
@@ -549,24 +566,8 @@ impl ObjectStore for AuthorityPerpetualTables {
     }
 }
 
-/// Yields the same live-object set as `LiveSetIterV2` but strips the
-/// per-object `previous_transaction_checkpoint` trailer, for callers that do
-/// not need it.
 pub struct LiveSetIter<'a>(LiveSetIterV2<'a>);
 
-/// A row that the live-set iterator surfaces. `LiveSetIter` filters
-/// `StoreObject::Wrapped` and `StoreObject::Deleted` at the source, so
-/// wrapped and deleted objects never reach downstream consumers (snapshot
-/// writer, state-hash accumulator, restore path) - every yielded row is
-/// a live `Object`.
-// `Serialize`/`Deserialize` are load-bearing: the snapshot writer
-// BCS-encodes each `LiveObject` into the bucketed `.obj` files
-// (`iota-snapshot::writer::write_object`), and the reader BCS-decodes
-// them (`iota-snapshot::reader::LiveObjectIter`). Collapsing this from
-// the previous single-variant enum drops the 1-byte variant tag from
-// the wire format - that's fine because snapshot V2 is new (V1 readers
-// reject V2 magic and vice versa), so no existing files carry the old
-// shape.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct LiveObject(pub Object);
 
@@ -595,7 +596,14 @@ impl Iterator for LiveSetIter<'_> {
 /// A live object together with the checkpoint sequence number that contained
 /// the transaction whose effects produced this object version. Yielded by
 /// `LiveSetIterV2`.
-#[derive(Eq, PartialEq, Debug, Clone)]
+// `Serialize`/`Deserialize` are load-bearing: the snapshot V2 writer
+// BCS-encodes each `LiveObjectV2` into the bucketed `.obj` files
+// (`iota-snapshot::writer::write_object`), and the reader BCS-decodes them
+// (`iota-snapshot::reader::LiveObjectIter`). The per-object
+// `previous_transaction_checkpoint` is carried inline in the object stream so
+// the restore path can populate `StoreObjectV2` with the real value rather
+// than the sentinel.
+#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct LiveObjectV2 {
     pub live: LiveObject,
     pub previous_transaction_checkpoint: CheckpointSequenceNumber,
@@ -781,10 +789,13 @@ mod tests {
     }
 
     /// `LiveSetIterV2` must surface the exact `previous_transaction_checkpoint`
-    /// stored on `StoreObjectValueV2` - it is the load-bearing input to the
-    /// snapshot V2 writer's per-record trailer. A bug that, e.g., always
-    /// stamped `0` here would silently corrupt every snapshot's per-record
-    /// trailer; this is the focused canary for that contract.
+    /// stored on `StoreObjectValueV2` - it is the load-bearing input to each
+    /// `LiveObjectV2` record the snapshot V2 writer emits into `.obj` files
+    /// (and, on restore, to the `previous_transaction_checkpoint` field
+    /// stamped onto `StoreObjectV2` via `bulk_insert_live_objects`). A bug
+    /// that, e.g., always stamped `0` here would silently corrupt every
+    /// snapshot's per-object record; this is the focused canary for that
+    /// contract.
     fn live_set_iter_v2_propagates_previous_transaction_checkpoint() {
         let tmp_dir = iota_common::tempdir();
         let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);

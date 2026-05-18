@@ -37,7 +37,7 @@ use typed_store::{
 };
 
 use super::{
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject, LiveObjectV2},
     *,
 };
 use crate::{
@@ -47,10 +47,7 @@ use crate::{
             AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
         },
         authority_store_tables::TotalIotaSupplyCheck,
-        authority_store_types::{
-            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, StoreObject, StoreObjectWrapper,
-            get_store_object,
-        },
+        authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     global_state_hasher::GlobalStateHashStore,
@@ -762,21 +759,19 @@ impl AuthorityStore {
 
     pub fn bulk_insert_live_objects(
         perpetual_db: &AuthorityPerpetualTables,
-        live_objects: impl Iterator<Item = LiveObject>,
+        live_objects: impl Iterator<Item = LiveObjectV2>,
         expected_sha3_digest: &[u8; 32],
     ) -> IotaResult<()> {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
-        for object in live_objects {
-            hasher.update(object.object_reference().digest.inner());
-            let LiveObject(object) = object;
-            // V2 ref records carry an 8-byte `previous_transaction_checkpoint`
-            // trailer, but `ObjectRefIter` reads past it without surfacing the
-            // value, so stamp the sentinel here.
-            // TODO(snapshot-v2-backfill): rewrite these rows once the iterator
-            // surfaces the trailer or a backfill is run.
+        for live_object in live_objects {
+            hasher.update(live_object.live.object_reference().digest.inner());
+            let LiveObjectV2 {
+                live: LiveObject(object),
+                previous_transaction_checkpoint,
+            } = live_object;
             let store_object_wrapper =
-                get_store_object(object.clone(), SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT);
+                get_store_object(object.clone(), previous_transaction_checkpoint);
             batch.insert_batch(
                 &perpetual_db.objects,
                 std::iter::once((

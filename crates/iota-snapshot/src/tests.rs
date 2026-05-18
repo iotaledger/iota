@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, fs, io::Write, num::NonZeroUsize, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    io::Write,
+    num::NonZeroUsize,
+    sync::Arc,
+};
 
 use byteorder::{BigEndian, ByteOrder};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
@@ -20,7 +26,7 @@ use iota_types::{
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FileCompression, FileMetadata, FileType,
-    MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_REF_BYTES_V2,
+    MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_REF_BYTES,
     reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
 };
 
@@ -103,15 +109,14 @@ async fn snapshot_round_trip(
         .await?;
 
     // On-wire size assertion: with no compression the uploaded `.ref` file
-    // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES_V2`. This
-    // locks the V2 trailer width - a bug that wrote records of the wrong
-    // size would still pass the round-trip if writer and reader agreed on
-    // the wrong size. Reads from the remote store, since `sync_file_to_remote`
-    // removes the local copy after upload.
+    // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES`. A bug that
+    // wrote records of the wrong size would still pass the round-trip if
+    // writer and reader agreed on the wrong size. Reads from the remote
+    // store, since `sync_file_to_remote` removes the local copy after upload.
     if file_compression == FileCompression::None && num_objects > 0 {
         let ref_file = tmp_dir.join("remote_dir").join("epoch_0").join("1_1.ref");
         let actual_size = fs::metadata(&ref_file)?.len() as usize;
-        let expected_size = MAGIC_BYTES + (num_objects as usize) * OBJECT_REF_BYTES_V2;
+        let expected_size = MAGIC_BYTES + (num_objects as usize) * OBJECT_REF_BYTES;
         assert_eq!(
             actual_size, expected_size,
             "ref-file on-wire size mismatch: expected {expected_size}, got {actual_size}"
@@ -191,6 +196,108 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
     // directly against the staged file.
     let uncompressed_dir = iota_common::tempdir();
     snapshot_round_trip(uncompressed_dir.path(), 100, FileCompression::None).await?;
+    // Per-object `previous_transaction_checkpoint` round-trip. Lives in the
+    // same `#[tokio::test]` as the other sub-cases to sidestep the
+    // `typed_store::DBMetrics` global Prometheus registry race (see comment
+    // on `snapshot_round_trip`).
+    let checkpoint_dir = iota_common::tempdir();
+    snapshot_restores_per_object_checkpoint(checkpoint_dir.path()).await?;
+    Ok(())
+}
+
+/// Asserts that per-object `previous_transaction_checkpoint` survives the
+/// snapshot round-trip end-to-end: stamped on `StoreObjectV2` at insert
+/// time, surfaced by `LiveSetIterV2`, BCS-encoded into `LiveObjectV2`
+/// records in the `.obj` files, decoded by `LiveObjectIter`, and re-stamped
+/// onto the restored DB by `bulk_insert_live_objects`. Without this, a
+/// regression that, e.g., reverted the restore path to stamping
+/// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` would still pass
+/// `snapshot_round_trip` (which only compares `object_reference`s) - this
+/// helper is the focused canary for the per-object checkpoint contract.
+async fn snapshot_restores_per_object_checkpoint(
+    tmp_dir: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("remote_dir")),
+        ..Default::default()
+    };
+
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        FileCompression::None,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+
+    // Insert objects with distinct, recognizable per-object checkpoints.
+    // The pattern avoids the two values most likely to mask a bug: the
+    // sentinel (`u64::MAX`) and `0` (the default a buggy restore might
+    // stamp). Each object gets a unique value so a swap or off-by-one bug
+    // surfaces as a specific mismatch rather than a uniform clobber.
+    const NUM_OBJECTS: u64 = 32;
+    const CHECKPOINT_BASE: u64 = 0xC0FF_EE00_0000_0000;
+    let mut expected: HashMap<ObjectID, u64> = HashMap::new();
+    let mut id = ObjectID::ZERO;
+    for i in 0..NUM_OBJECTS {
+        let object = Object::immutable_with_id_for_testing(id);
+        let checkpoint = CHECKPOINT_BASE | i;
+        perpetual_db.insert_object_test_only_with_checkpoint(object, checkpoint)?;
+        expected.insert(id, checkpoint);
+        id = id.next_lexicographical();
+    }
+
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    let checkpoint_store = CheckpointStore::new(&tmp_dir.join("checkpoint_store"));
+    snapshot_writer
+        .write_internal(0, perpetual_db.clone(), checkpoint_store, root_accumulator)
+        .await?;
+
+    let local_store_restore_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir_restore")),
+        ..Default::default()
+    };
+    let mut snapshot_reader = StateSnapshotReaderV1::new(
+        0,
+        &remote_store_config,
+        &local_store_restore_config,
+        NonZeroUsize::new(1).unwrap(),
+        MultiProgress::new(),
+        false,
+    )
+    .await?;
+    let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    snapshot_reader
+        .read(&restored_perpetual_db, abort_registration, None)
+        .await?;
+
+    // Read every restored row through `LiveSetIterV2` (the only iterator
+    // that surfaces the per-object checkpoint) and compare against the
+    // values written before the snapshot was taken.
+    let restored: HashMap<ObjectID, u64> = restored_perpetual_db
+        .iter_live_object_set_v2()
+        .map(|live_object_v2| {
+            (
+                live_object_v2.live.object_id(),
+                live_object_v2.previous_transaction_checkpoint,
+            )
+        })
+        .collect();
+    assert_eq!(
+        restored, expected,
+        "per-object previous_transaction_checkpoint did not round-trip through the snapshot"
+    );
     Ok(())
 }
 

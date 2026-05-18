@@ -51,24 +51,32 @@ use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-/// The following describes the on-disk format of a snapshot, as written by
-/// `StateSnapshotWriterV1` and consumed by `StateSnapshotReaderV1`. The
-/// snapshot is taken at the end of every epoch and stores the live object
-/// set bucketed by the same hash function used for the global state hash
-/// accumulator, allowing a single bucket to be consumed in parallel. Each
-/// bucket is split across one or more partitions; a partition is a single
-/// `.obj` file with a maximum size of 128 MB and a matching `.ref` file
-/// listing the object references in that partition. Partition files are
-/// optionally zstd-compressed.
+/// The following describes the format of an object file (*.obj) used for
+/// persisting live iota objects. The maximum size per .obj file is 128MB. State
+/// snapshot will be taken at the end of every epoch. Live object set is split
+/// into and stored across multiple hash buckets. The hashing function used
+/// for bucketing objects is the same as the one used to build the accumulator
+/// tree for computing state root hash. Buckets are further subdivided into
+/// partitions. A partition is a smallest storage unit which holds a subset of
+/// objects in one bucket. Each partition is a single *.obj file where
+/// objects are appended to in an append-only fashion. A new partition is
+/// created when the current one reaches its maximum size. i.e. 128MB.
+/// Partitions allow a single hash bucket to be consumed in parallel. Partition
+/// files are optionally compressed with the zstd compression format. Partition
+/// filenames follows the format <bucket_number>_<partition_number>.obj. Object
+/// references for hash. There is one single ref file per hash bucket. Object
+/// references are written in an append-only manner as well. Finally, the
+/// MANIFEST file contains per file metadata of every file in the snapshot
+/// directory.
 ///
 /// Snapshot-format V2 additions over V1 (this "V2" refers to the on-wire
 /// snapshot format, not to `StoreObjectV2` or `EpochInfo::V*`, which are
 /// independent type-level version axes):
-/// - REFERENCE file magic is `0xCAFEBEEF` (V1 was `0xDEADBEEF`); a V2 reader
-///   fails fast on a V1 magic and vice versa.
-/// - REFERENCE records carry an extra 8-byte big-endian
-///   `previous_transaction_checkpoint` trailer per record (80-byte records
-///   instead of V1's 72).
+/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
+///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
+///   `LiveObjectV2` instead of `LiveObject`, carrying the per-object
+///   `previous_transaction_checkpoint` inline.
+/// - REFERENCE file format is unchanged from V1.
 /// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
 ///   carrying one entry per epoch in `[0, snapshot_epoch]` from
 ///   `CheckpointStore::epoch_info`.
@@ -81,10 +89,11 @@ use tokio::time::Instant;
 ///        - 1_3.obj
 ///        - 2_1.obj
 ///        - ...
-///        - 1_1.ref
-///        - 1_2.ref
-///        - 2_1.ref
+///        - 1000_1.obj
+///        - REFERENCE-1
+///        - REFERENCE-2
 ///        - ...
+///        - REFERENCE-1000
 ///        - EPOCH_INFO
 ///        - MANIFEST
 ///     - epoch_1/
@@ -93,7 +102,7 @@ use tokio::time::Instant;
 ///
 /// Object File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0x00B7EC75) <4 byte>  │
+/// │  magic(0x00B7EC76) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         Object 1         │ │
@@ -108,23 +117,22 @@ use tokio::time::Instant;
 /// │ len <uvarint> │ encoding <1 byte> │ data <bytes> │
 /// └───────────────┴───────────────────┴──────────────┘
 ///
-/// REFERENCE File Disk Format (V2)
+/// REFERENCE File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0xCAFEBEEF) <4 byte>  │
+/// │  magic(0xDEADBEEF) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
-/// │ │       ObjectRefV2 1      │ │
+/// │ │         ObjectRef 1      │ │
 /// │ ├──────────────────────────┤ │
 /// │ │          ...             │ │
 /// │ ├──────────────────────────┤ │
-/// │ │       ObjectRefV2 N      │ │
+/// │ │         ObjectRef N      │ │
 /// │ └──────────────────────────┘ │
 /// └──────────────────────────────┘
-/// ObjectRefV2: 80 bytes total, fields concatenated in declaration order:
-///   - ObjectID                          : 32 bytes
-///   - SequenceNumber                    :  8 bytes
-///   - ObjectDigest                      : 32 bytes
-///   - previous_transaction_checkpoint   :  8 bytes (big-endian u64)
+/// ObjectRef (ObjectID, SequenceNumber, ObjectDigest)
+/// ┌───────────────┬───────────────────┬──────────────┐
+/// │         data (<(address_len + 8 + 32) bytes>)    │
+/// └───────────────┴───────────────────┴──────────────┘
 ///
 /// EPOCH_INFO File Disk Format
 /// ┌──────────────────────────────┐
@@ -144,12 +152,13 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
-const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
-/// Magic for V2 reference files. Distinct from the V1 magic (`0xDEADBEEF`) so
-/// a V1 reader fails fast on the magic check rather than silently decoding
-/// a V2 ref record's extra `previous_transaction_checkpoint` trailer into
-/// the wrong shape.
-const REFERENCE_FILE_MAGIC_V2: u32 = 0xCAFEBEEF;
+/// V2 object file magic (V1 was `0x00B7EC75`). Encoded records are
+/// BCS-serialized `LiveObjectV2` instead of `LiveObject`, carrying the
+/// per-object `previous_transaction_checkpoint` inline. The magic is bumped
+/// so a V1 reader fails fast on the magic check rather than silently
+/// decoding the extra trailing u64 as part of the next record.
+const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
+const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
 const MAGIC_BYTES: usize = 4;
@@ -162,12 +171,7 @@ const FILE_MAX_BYTES: usize = 128 * 1024 * 1024;
 const OBJECT_ID_BYTES: usize = ObjectID::LENGTH;
 const SEQUENCE_NUM_BYTES: usize = 8;
 const OBJECT_DIGEST_BYTES: usize = 32;
-/// Size of a V2 reference record: 72-byte V1 ObjectRef (ObjectID +
-/// SequenceNumber + ObjectDigest) plus an 8-byte big-endian
-/// `previous_transaction_checkpoint` trailer.
-const PREV_TX_CHECKPOINT_BYTES: usize = 8;
-const OBJECT_REF_BYTES_V2: usize =
-    OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES + PREV_TX_CHECKPOINT_BYTES;
+const OBJECT_REF_BYTES: usize = OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES + OBJECT_DIGEST_BYTES;
 const FILE_TYPE_BYTES: usize = 1;
 const BUCKET_BYTES: usize = 4;
 const BUCKET_PARTITION_BYTES: usize = 4;
@@ -179,6 +183,10 @@ const FILE_METADATA_BYTES: usize =
     Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive, IntoPrimitive,
 )]
 #[repr(u8)]
+// Discriminants are pinned: this enum is BCS-serialized inside `FileMetadata`
+// in the `Manifest`, so changing or shifting a tag breaks every existing
+// snapshot on disk. Adding a new variant must use a fresh, unused tag - never
+// reuse a tag and never insert in the middle without an explicit tag.
 pub enum FileType {
     Object = 0,
     Reference = 1,
@@ -220,8 +228,9 @@ impl FileMetadata {
 /// the on-disk wire format is the same and the BCS variant tag on `Manifest`
 /// distinguishes them. V2 differs only in semantic associations: the
 /// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
-/// `.ref` files carry 80-byte records (with a `previous_transaction_checkpoint`
-/// trailer). `address_length` is preserved as a sanity check across versions.
+/// `.obj` records are BCS-encoded `LiveObjectV2` (the live `Object` plus an
+/// inline `previous_transaction_checkpoint`) rather than `LiveObject`.
+/// `address_length` is preserved as a sanity check across versions.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ManifestBody {
     pub snapshot_version: u8,

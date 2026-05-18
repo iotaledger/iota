@@ -147,10 +147,10 @@ pub struct StoreObjectValueV2 {
     /// rows lifted to V2 by `migrate()` and on rows produced by the
     /// snapshot restore path.
     ///
-    /// **Consumer.** Emitted by the snapshot V2 writer as the 8-byte
-    /// big-endian trailer on each reference record. The indexer reads it
-    /// to populate object-history tables (i.e. "which checkpoint last
-    /// touched this object") without an archive replay.
+    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObjectV2`
+    /// records the snapshot V2 writer emits into bucketed `.obj` files.
+    /// The indexer reads it to populate object-history tables (i.e. "which
+    /// checkpoint last touched this object") without an archive replay.
     pub previous_transaction_checkpoint: CheckpointSequenceNumber,
     pub storage_rebate: u64,
 }
