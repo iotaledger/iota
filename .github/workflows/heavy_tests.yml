@@ -58,11 +58,6 @@ concurrency:
   group: heavy-tests-${{ inputs.pr_number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/develop' }}
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_LOG: "error"
-  RUST_BACKTRACE: short
-
 jobs:
   diff:
     runs-on: [ubuntu-latest]
