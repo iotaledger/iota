@@ -19,7 +19,7 @@ use iota_types::{
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEffectsAPI, TransactionEvents, estimate_effects_size_upperbound_v1,
+        TransactionEffectsAPI, TransactionEvents,
     },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
@@ -492,7 +492,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        estimate_effects_size_upperbound_v1(
+        TransactionEffects::estimate_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),

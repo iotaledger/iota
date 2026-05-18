@@ -183,6 +183,29 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Returns all root shared objects (i.e. not child object) that are
     /// read-only in the transaction.
     fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
+
+    /// Upper-bound estimate of the serialized size in bytes of effects with
+    /// the given number of writes, modifies, and dependencies under the V1
+    /// protocol shape.
+    fn estimate_size_upperbound_v1(
+        num_writes: usize,
+        num_modifies: usize,
+        num_deps: usize,
+    ) -> usize {
+        let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
+            + APPROX_SIZE_OF_EPOCH_ID
+            + APPROX_SIZE_OF_GAS_COST_SUMMARY
+            + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
+
+        // We store object ref and owner for both old objects and new objects.
+        let approx_change_entry_size = 1_000
+            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
+            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_modifies;
+
+        let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
+
+        fixed_sizes + approx_change_entry_size + deps_size
+    }
 }
 
 /// Test-only mutable accessors and unchecked builders for
@@ -256,26 +279,6 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// Returns a condensed [`TransactionEffectsDebugSummary`] suitable for
     /// logging and inspection.
     fn summary_for_debug(&self) -> TransactionEffectsDebugSummary;
-}
-
-pub fn estimate_effects_size_upperbound_v1(
-    num_writes: usize,
-    num_modifies: usize,
-    num_deps: usize,
-) -> usize {
-    let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
-        + APPROX_SIZE_OF_EPOCH_ID
-        + APPROX_SIZE_OF_GAS_COST_SUMMARY
-        + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
-
-    // We store object ref and owner for both old objects and new objects.
-    let approx_change_entry_size = 1_000
-        + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
-        + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_modifies;
-
-    let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
-
-    fixed_sizes + approx_change_entry_size + deps_size
 }
 
 // Helper macro to reduce boilerplate code
