@@ -838,15 +838,15 @@ pub struct AuthorityEpochTables {
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
-    /// reporter's `AuthorityIndex` (the in-memory `Vec` index used by
-    /// `ReportAggregator`). Each entry is the merged-max observation set plus
+    /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
+    /// at 256 by Starfish). Each entry is the merged-max observation set plus
     /// invalid-report counter, snapshotted from the live aggregator when its
     /// state changes inside a consensus commit. Written atomically with the
     /// rest of `ConsensusCommitOutput::write_to_batch`. Survives restart;
     /// `ReportAggregator::restore_from_tables` loads it during epoch-store
     /// construction.
     pub(crate) received_reports_state:
-        DBMap<u32, report_aggregator::DBReceivedReportsStatePerAuthority>,
+        DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -4222,8 +4222,10 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(&report.authority)
                     .expect("authority in committee");
-                self.report_aggregator
+                let snapshot = self
+                    .report_aggregator
                     .process_report(authority_index, report);
+                output.record_report_state_snapshot(authority_index, snapshot);
 
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }

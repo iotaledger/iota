@@ -10,8 +10,9 @@ use arc_swap::ArcSwapOption;
 use iota_types::messages_consensus::{MisbehaviorObservations, VersionedMisbehaviorReport};
 use typed_store::Map;
 
-use crate::authority::authority_per_epoch_store::misbehavior::{
-    MisbehaviorReportVersion, merge_max,
+use crate::{
+    authority::authority_per_epoch_store::misbehavior::{MisbehaviorReportVersion, merge_max},
+    consensus_types::AuthorityIndex,
 };
 
 /// Reasons a peer-submitted report fails `validate_report`. Surfaced in the
@@ -84,11 +85,18 @@ impl ReportAggregator {
 
     /// Processes a validated report from a peer: performs a monotone merge
     /// (element-wise max) with any previously received observations from the
-    /// same authority.
+    /// same authority. Returns the **post-merge** snapshot for the touched
+    /// authority — callers persist this verbatim against the active
+    /// `ConsensusCommitOutput`, so the on-disk row for commit N is exactly
+    /// the aggregator state produced by commit N's processing.
     ///
     /// Uses `rcu` so the load + merge + store is atomic against concurrent
     /// callers; the closure may run more than once under contention.
-    pub(crate) fn process_report(&self, authority: u32, report: &VersionedMisbehaviorReport) {
+    pub(crate) fn process_report(
+        &self,
+        authority: AuthorityIndex,
+        report: &VersionedMisbehaviorReport,
+    ) -> DBReceivedReportsStatePerAuthority {
         let incoming = &report.payload;
         let state = &self.received_reports_state[authority as usize];
         state.received_metrics.rcu(|current| {
@@ -97,6 +105,7 @@ impl ReportAggregator {
                 None => incoming.clone(),
             }))
         });
+        state.to_serializable()
     }
 
     /// Repopulates the in-memory aggregator from persisted rows. Authorities
@@ -105,7 +114,7 @@ impl ReportAggregator {
     /// would indicate cross-epoch table contamination.
     pub(crate) fn restore_from_iter(
         &self,
-        rows: impl Iterator<Item = (u32, DBReceivedReportsStatePerAuthority)>,
+        rows: impl Iterator<Item = (AuthorityIndex, DBReceivedReportsStatePerAuthority)>,
     ) -> iota_types::error::IotaResult<()> {
         let committee_size = self.received_reports_state.len();
         for (authority_index, db_state) in rows {
@@ -128,6 +137,8 @@ impl ReportAggregator {
 
     /// Production restore: streams every row of
     /// `AuthorityEpochTables::received_reports_state` into the aggregator.
+    /// Widens the on-disk `u8` key to the in-memory `AuthorityIndex` at this
+    /// storage boundary.
     pub(crate) fn restore_from_tables(
         &self,
         tables: &super::AuthorityEpochTables,
@@ -135,14 +146,20 @@ impl ReportAggregator {
         let rows = tables
             .received_reports_state
             .safe_iter()
+            .map(|res| res.map(|(idx, state)| (AuthorityIndex::from(idx), state)))
             .collect::<Result<Vec<_>, _>>()?;
         self.restore_from_iter(rows.into_iter())
     }
 
     /// Increments the invalid report counter for the given authority.
     ///
-    /// On this branch the counter is in-memory only and resets on restart.
-    pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
+    /// Called from `verify_consensus_transaction`, which runs outside the
+    /// per-commit `ConsensusCommitOutput` scope. The bump updates the
+    /// in-memory `AtomicU64` correctly, but the persisted row is only
+    /// refreshed when a subsequent `process_report` for the same authority
+    /// captures a fresh snapshot. The counter is observability-only, so
+    /// losing isolated bumps across crashes is acceptable.
+    pub(crate) fn increment_invalid_reports_count(&self, authority: AuthorityIndex) {
         self.received_reports_state[authority as usize]
             .invalid_reports_count
             .fetch_add(1, Ordering::Relaxed);
@@ -151,7 +168,7 @@ impl ReportAggregator {
     #[cfg(test)]
     pub(crate) fn received_reports_state_per_authority_snapshot(
         &self,
-        authority_index: u32,
+        authority_index: AuthorityIndex,
     ) -> DBReceivedReportsStatePerAuthority {
         self.received_reports_state[authority_index as usize].to_serializable()
     }
@@ -213,11 +230,14 @@ mod tests {
         MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
     };
 
-    use crate::authority::authority_per_epoch_store::{
-        misbehavior::MisbehaviorReportVersion,
-        report_aggregator::{
-            DBReceivedReportsStatePerAuthority, ReportAggregator, ReportValidationError,
+    use crate::{
+        authority::authority_per_epoch_store::{
+            misbehavior::MisbehaviorReportVersion,
+            report_aggregator::{
+                DBReceivedReportsStatePerAuthority, ReportAggregator, ReportValidationError,
+            },
         },
+        consensus_types::AuthorityIndex,
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -342,9 +362,9 @@ mod tests {
 
         // Simulate restored DB rows: authority 0 has observations, authority 2
         // has only an invalid-count bump, authority 1 has no row at all.
-        let rows = vec![
+        let rows: Vec<(AuthorityIndex, DBReceivedReportsStatePerAuthority)> = vec![
             (
-                0u32,
+                0,
                 DBReceivedReportsStatePerAuthority {
                     received_metrics: Some(MisbehaviorObservations::V1(
                         MisbehaviorObservationsV1 {
@@ -358,7 +378,7 @@ mod tests {
                 },
             ),
             (
-                2u32,
+                2,
                 DBReceivedReportsStatePerAuthority {
                     received_metrics: None,
                     invalid_reports_count: 9,
@@ -381,8 +401,8 @@ mod tests {
     #[test]
     fn test_restore_from_iter_rejects_out_of_range_authority() {
         let aggregator = mock_aggregator(3);
-        let rows = vec![(
-            7u32, // committee size is 3, so 7 is out of range
+        let rows: Vec<(AuthorityIndex, DBReceivedReportsStatePerAuthority)> = vec![(
+            7, // committee size is 3, so 7 is out of range
             DBReceivedReportsStatePerAuthority {
                 received_metrics: None,
                 invalid_reports_count: 1,
@@ -406,5 +426,53 @@ mod tests {
             aggregator.validate_report(&report),
             Err(ReportValidationError::PayloadShape)
         );
+    }
+
+    #[tokio::test]
+    async fn test_restore_round_trip_through_dbmap() {
+        use iota_types::base_types::EpochId;
+
+        use crate::authority::authority_per_epoch_store::AuthorityEpochTables;
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let epoch: EpochId = 0;
+        let tables = AuthorityEpochTables::open(epoch, tempdir.path(), None);
+
+        // Original aggregator: process a report for authority 0 and bump
+        // invalid-reports count for authority 2.
+        let original = mock_aggregator(3);
+        let report = report_v1(&[vec![1, 2, 3], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]]);
+        original.process_report(0, &report);
+        original.increment_invalid_reports_count(2);
+
+        // Write what `ConsensusCommitOutput::write_to_batch` would write for
+        // dirty authorities {0, 2}: snapshot current state, insert into DBMap.
+        // DBMap key is `u8`; truncate at this storage boundary.
+        let dirty: std::collections::BTreeSet<AuthorityIndex> = [0, 2].into_iter().collect();
+        let mut batch = tables.received_reports_state.batch();
+        let rows: Vec<(u8, DBReceivedReportsStatePerAuthority)> = dirty
+            .iter()
+            .map(|&i| {
+                (
+                    i as u8,
+                    original.received_reports_state_per_authority_snapshot(i),
+                )
+            })
+            .collect();
+        batch
+            .insert_batch(&tables.received_reports_state, rows)
+            .unwrap();
+        batch.write().unwrap();
+
+        // Restore into a fresh aggregator from the same tables.
+        let restored = mock_aggregator(3);
+        restored.restore_from_tables(&tables).unwrap();
+
+        let snap = full_snapshot(&restored, 3);
+        assert!(snap[0].received_metrics.is_some());
+        assert_eq!(snap[0].invalid_reports_count, 0);
+        assert_eq!(snap[1], empty_state());
+        assert!(snap[2].received_metrics.is_none());
+        assert_eq!(snap[2].invalid_reports_count, 1);
     }
 }
