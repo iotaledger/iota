@@ -148,31 +148,17 @@ pub(crate) struct ReceivedReportsStatePerAuthority {
 }
 
 impl ReceivedReportsStatePerAuthority {
-    #[cfg(test)]
-    pub fn invalid_reports_count_snapshot(&self) -> u64 {
-        self.invalid_reports_count.load(Ordering::Relaxed)
-    }
-
-    #[cfg(test)]
-    pub fn received_metrics_snapshot(&self) -> Option<MisbehaviorObservations> {
-        self.received_metrics.load().as_deref().cloned()
-    }
-
-    #[cfg(test)]
     pub fn to_serializable(&self) -> DBReceivedReportsStatePerAuthority {
         DBReceivedReportsStatePerAuthority {
-            received_metrics: self.received_metrics_snapshot(),
-            invalid_reports_count: self.invalid_reports_count_snapshot(),
+            received_metrics: self.received_metrics.load().as_deref().cloned(),
+            invalid_reports_count: self.invalid_reports_count.load(Ordering::Relaxed),
         }
     }
 }
 
 /// Serializable snapshot of a single authority's received-reports state.
-/// Scaffolding for the storage layer of `ReportAggregator`: a future PR will
-/// persist these records via `DBMap<u32, DBReceivedReportsStatePerAuthority>`
-/// in `AuthorityEpochTables`, enabling report state to survive restarts.
-/// Until then, this struct is only used in tests.
-#[cfg(test)]
+/// Persisted to `AuthorityEpochTables::received_reports_state` so the
+/// aggregator survives restarts.
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
 pub(crate) struct DBReceivedReportsStatePerAuthority {
     pub received_metrics: Option<MisbehaviorObservations>,
