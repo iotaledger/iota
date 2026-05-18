@@ -1973,8 +1973,8 @@ impl DagState {
         taken.into_iter().collect()
     }
 
-    /// Check if a block's transaction data is locally available.
-    pub(crate) fn is_data_available(&self, block_ref: &BlockRef) -> bool {
+    /// Check if a block's transactions are locally available.
+    pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
         let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             let Some(header) = self.recent_block_headers.get(block_ref) else {
                 return false;
@@ -3885,7 +3885,9 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_is_data_available(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    async fn test_are_transactions_available(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
@@ -3898,15 +3900,15 @@ mod test {
         let block_ref = block.reference();
 
         // Empty DagState.
-        assert!(!dag_state.is_data_available(&block_ref));
+        assert!(!dag_state.are_transactions_available(&block_ref));
 
         // Header without transactions.
         dag_state.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
-        assert!(!dag_state.is_data_available(&block_ref));
+        assert!(!dag_state.are_transactions_available(&block_ref));
 
         // Header and transactions both present.
         dag_state.add_transactions(block.verified_transactions, DataSource::Test);
-        assert!(dag_state.is_data_available(&block_ref));
+        assert!(dag_state.are_transactions_available(&block_ref));
 
         // Transactions without a header: flag-off ignores the header check;
         // flag-on requires it.
@@ -3914,7 +3916,7 @@ mod test {
         let other_ref = other.reference();
         dag_state.add_transactions(other.verified_transactions, DataSource::Test);
         assert_eq!(
-            dag_state.is_data_available(&other_ref),
+            dag_state.are_transactions_available(&other_ref),
             !consensus_fast_commit_sync,
         );
     }

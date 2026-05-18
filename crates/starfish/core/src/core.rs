@@ -1484,7 +1484,7 @@ impl Core {
 
     /// Builds the `StrongVote` payload for a block voting on `leader_header`:
     /// pins the leader's authority and records the set of authorities (the
-    /// leader itself and those it acknowledges) whose transaction data is not
+    /// leader itself and those it acknowledges) whose transactions are not
     /// locally available. An empty `missing` set means a strong vote; a
     /// non-empty set means strong blame.
     pub(crate) fn compute_strong_vote(
@@ -1494,12 +1494,12 @@ impl Core {
         let mut missing = AuthoritySet::new();
 
         let leader_ref = leader_header.reference();
-        if !dag_state.is_data_available(&leader_ref) {
+        if !dag_state.are_transactions_available(&leader_ref) {
             missing.insert(leader_ref.author);
         }
 
         for ack_ref in leader_header.acknowledgments() {
-            if !dag_state.is_data_available(ack_ref) {
+            if !dag_state.are_transactions_available(ack_ref) {
                 missing.insert(ack_ref.author);
             }
         }

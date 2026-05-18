@@ -85,8 +85,8 @@ fn pin_strong_vote(
     })
 }
 
-/// Marks `header`'s transaction data as locally available, so
-/// `DagState::is_data_available` returns true for that ref.
+/// Marks `header`'s transactions as locally available, so
+/// `DagState::are_transactions_available` returns true for that ref.
 fn add_transactions_for(dag_state: &Arc<RwLock<DagState>>, header: &VerifiedBlockHeader) {
     let verified = VerifiedTransactions::new_for_test(header, vec![]);
     dag_state
@@ -758,14 +758,14 @@ async fn pending_leader_resolves_to_standard() {
 /// A strong vote computed against one leader must not be counted as evidence
 /// for a different canonical leader (e.g. across a leader-schedule swap).
 /// Asserts the StarfishSpeed safety invariant: every ref in
-/// `committed_transaction_refs` has locally-available transaction data.
+/// `committed_transaction_refs` has locally-available transactions.
 ///
 /// Setup: round-3 leaders have asymmetric ack lists — A (auth 0) acks
 /// nothing; B (auth 1) acks `r2[3]`. Local data state covers everything
 /// except `r2[3]`. Round-4 voters cast strong votes computed against A.
 /// The committer's swap table designates B as canonical leader of round 3.
 #[tokio::test]
-async fn optimistic_commits_ref_without_actual_data_backing() {
+async fn optimistic_commits_ref_without_actual_transactions() {
     telemetry_subscribers::init_for_testing();
     let (context, dag_state) = test_context_with_flag(true);
     let auth_1 = AuthorityIndex::from(1u8);
@@ -829,7 +829,7 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
         r3_blocks.push(block);
     }
 
-    // Mark transaction data available for everything except `r2[3]` and
+    // Mark transactions available for everything except `r2[3]` and
     // round-3 blocks other than A.
     for block in &r1_blocks {
         add_transactions_for(&dag_state, block);
@@ -922,11 +922,11 @@ async fn optimistic_commits_ref_without_actual_data_backing() {
             GenericTransactionRef::BlockRef(br) => br.round == 2 && br.author == auth_3,
             GenericTransactionRef::TransactionRef(tr) => tr.round == 2 && tr.author == auth_3,
         });
-    let p_data_available = dag_state.read().is_data_available(&r2_refs[3]);
+    let p_transactions_available = dag_state.read().are_transactions_available(&r2_refs[3]);
 
     assert!(
-        !p_committed || p_data_available,
-        "ref {:?} committed without locally-available transaction data",
+        !p_committed || p_transactions_available,
+        "ref {:?} committed without locally-available transactions",
         r2_refs[3]
     );
 }
