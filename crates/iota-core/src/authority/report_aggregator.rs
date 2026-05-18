@@ -8,6 +8,7 @@ use std::sync::{
 
 use arc_swap::ArcSwapOption;
 use iota_types::messages_consensus::{MisbehaviorObservations, VersionedMisbehaviorReport};
+use typed_store::Map;
 
 use crate::authority::authority_per_epoch_store::misbehavior::{
     MisbehaviorReportVersion, merge_max,
@@ -96,6 +97,46 @@ impl ReportAggregator {
                 None => incoming.clone(),
             }))
         });
+    }
+
+    /// Repopulates the in-memory aggregator from persisted rows. Authorities
+    /// without a row keep their default (empty) state. Returns an error if a
+    /// row's key is out of range for the configured committee size — that
+    /// would indicate cross-epoch table contamination.
+    pub(crate) fn restore_from_iter(
+        &self,
+        rows: impl Iterator<Item = (u32, DBReceivedReportsStatePerAuthority)>,
+    ) -> iota_types::error::IotaResult<()> {
+        let committee_size = self.received_reports_state.len();
+        for (authority_index, db_state) in rows {
+            let idx = authority_index as usize;
+            if idx >= committee_size {
+                return Err(iota_types::error::IotaError::Storage(format!(
+                    "received_reports_state row for authority {authority_index} \
+                     is out of range for committee size {committee_size}"
+                )));
+            }
+            let slot = &self.received_reports_state[idx];
+            if let Some(observations) = db_state.received_metrics {
+                slot.received_metrics.store(Some(Arc::new(observations)));
+            }
+            slot.invalid_reports_count
+                .store(db_state.invalid_reports_count, Ordering::Relaxed);
+        }
+        Ok(())
+    }
+
+    /// Production restore: streams every row of
+    /// `AuthorityEpochTables::received_reports_state` into the aggregator.
+    pub(crate) fn restore_from_tables(
+        &self,
+        tables: &super::AuthorityEpochTables,
+    ) -> iota_types::error::IotaResult<()> {
+        let rows = tables
+            .received_reports_state
+            .safe_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+        self.restore_from_iter(rows.into_iter())
     }
 
     /// Increments the invalid report counter for the given authority.
@@ -293,6 +334,61 @@ mod tests {
         let aggregator = mock_aggregator(3);
         let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
         assert!(aggregator.validate_report(&report).is_ok());
+    }
+
+    #[test]
+    fn test_restore_from_iter_populates_in_memory_state() {
+        let aggregator = mock_aggregator(3);
+
+        // Simulate restored DB rows: authority 0 has observations, authority 2
+        // has only an invalid-count bump, authority 1 has no row at all.
+        let rows = vec![
+            (
+                0u32,
+                DBReceivedReportsStatePerAuthority {
+                    received_metrics: Some(MisbehaviorObservations::V1(
+                        MisbehaviorObservationsV1 {
+                            faulty_blocks_provable: vec![1, 2, 3],
+                            faulty_blocks_unprovable: vec![0, 0, 0],
+                            missing_proposals: vec![0, 0, 0],
+                            equivocations: vec![0, 0, 0],
+                        },
+                    )),
+                    invalid_reports_count: 5,
+                },
+            ),
+            (
+                2u32,
+                DBReceivedReportsStatePerAuthority {
+                    received_metrics: None,
+                    invalid_reports_count: 9,
+                },
+            ),
+        ];
+
+        aggregator
+            .restore_from_iter(rows.into_iter())
+            .expect("restore");
+
+        let snapshot = full_snapshot(&aggregator, 3);
+        assert_eq!(snapshot[0].invalid_reports_count, 5);
+        assert!(snapshot[0].received_metrics.is_some());
+        assert_eq!(snapshot[1], empty_state());
+        assert_eq!(snapshot[2].invalid_reports_count, 9);
+        assert!(snapshot[2].received_metrics.is_none());
+    }
+
+    #[test]
+    fn test_restore_from_iter_rejects_out_of_range_authority() {
+        let aggregator = mock_aggregator(3);
+        let rows = vec![(
+            7u32, // committee size is 3, so 7 is out of range
+            DBReceivedReportsStatePerAuthority {
+                received_metrics: None,
+                invalid_reports_count: 1,
+            },
+        )];
+        assert!(aggregator.restore_from_iter(rows.into_iter()).is_err());
     }
 
     #[test]

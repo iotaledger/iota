@@ -836,6 +836,17 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Per-validator received misbehavior reports state. Keyed by the
+    /// reporter's `AuthorityIndex` (the in-memory `Vec` index used by
+    /// `ReportAggregator`). Each entry is the merged-max observation set plus
+    /// invalid-report counter, snapshotted from the live aggregator when its
+    /// state changes inside a consensus commit. Written atomically with the
+    /// rest of `ConsensusCommitOutput::write_to_batch`. Survives restart;
+    /// `ReportAggregator::restore_from_tables` loads it during epoch-store
+    /// construction.
+    pub(crate) received_reports_state:
+        DBMap<u32, report_aggregator::DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
