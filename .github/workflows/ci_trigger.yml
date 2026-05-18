@@ -141,6 +141,19 @@ jobs:
             // Step 2: dispatch each matched workflow. We continue past
             // individual failures so a typo in one marker doesn't block
             // other valid dispatches.
+            //
+            // Before dispatching we also check whether a run of the same
+            // workflow already exists for the same SHA in a non-terminal
+            // state (queued/in_progress/waiting/...). If so we skip — the
+            // user just re-ticked while a previous request is still being
+            // handled, and we'd rather let in-flight progress finish than
+            // restart from scratch via heavy_tests.yml's `cancel-in-progress`.
+            //
+            // Note this is a coarse "any active run blocks any new dispatch
+            // of the same workflow" — it also blocks legitimate variant
+            // switches (e.g. user wants to switch from changed-crates to
+            // full-workspace mid-run). If that becomes a problem we can
+            // refine the check to compare dispatch inputs.
             const headSha = process.env.HEAD_SHA;
             const prNumber = process.env.PR_NUMBER;
             let failed = 0;
@@ -154,6 +167,36 @@ jobs:
               const extraDesc = Object.keys(extraInputs).length
                 ? ` with ${JSON.stringify(extraInputs)}`
                 : '';
+
+              // Best-effort active-run check. If the API call fails for any
+              // reason (workflow not on default branch yet, transient 5xx,
+              // rate limit) we fall through and dispatch anyway — better
+              // than silently dropping a user-requested run.
+              let activeRun = null;
+              try {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflow,
+                  head_sha: headSha,
+                  per_page: 10,
+                });
+                activeRun = data.workflow_runs.find(r => r.status !== 'completed');
+              } catch (err) {
+                core.warning(
+                  `Couldn't list existing runs of ${workflow} for SHA ${headSha}: ${err.message}. ` +
+                  `Proceeding with dispatch.`,
+                );
+              }
+              if (activeRun) {
+                core.notice(
+                  `${workflow} is already active for ${headSha} ` +
+                  `(run #${activeRun.id}, status: ${activeRun.status}) — skipping dispatch. ` +
+                  `Wait for that run to finish, then tick the box again to re-run.`,
+                );
+                continue;
+              }
+
               // >>> TEMP — REVERT BEFORE MERGE <<<
               // Dry-run: log what WOULD be dispatched instead of actually
               // calling createWorkflowDispatch. heavy_tests.yml isn't on
