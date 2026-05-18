@@ -18,9 +18,9 @@ This is a doc comment above an annotation.
 
 
 -  [Constants](#@Constants_0)
--  [Private Functions](#@Private_Functions_1)
-    -  [`test`](#a_m_test)
-    -  [`test1`](#a_m_test1)
+-  [Module Functions](#@Module_Functions_1)
+    -  [`test` <span class="move-vis move-vis-private">prv</span>](#a_m_test)
+    -  [`test1` <span class="move-vis move-vis-private">prv</span>](#a_m_test1)
 
 
 <pre><code></code></pre>
@@ -75,14 +75,14 @@ This is the middle doc comment
 
 
 
-<a name="@Private_Functions_1"></a>
+<a name="@Module_Functions_1"></a>
 
-## Private Functions
+## Module Functions
 
 
 <a name="a_m_test"></a>
 
-### `test`
+### `test` <span class="move-vis move-vis-private">prv</span>
 
 This is a doc comment above a function with an annotation. Above the annotation.
 
@@ -105,7 +105,7 @@ This is a doc comment above a function with an annotation. Above the annotation.
 
 <a name="a_m_test1"></a>
 
-### `test1`
+### `test1` <span class="move-vis move-vis-private">prv</span>
 
 This is a doc comment above a function with an annotation. Below the annotation.
 

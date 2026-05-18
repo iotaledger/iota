@@ -7,10 +7,15 @@
 
 -  [Structs](#@Structs_0)
     -  [`BitVector`](#std_bit_vector_BitVector)
-        -  [Public Functions](#@Public_Functions_1)
--  [Constants](#@Constants_2)
--  [Public Functions](#@Public_Functions_3)
-    -  [`new`](#std_bit_vector_new)
+        -  [`is_index_set` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_is_index_set)
+        -  [`length` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_length)
+        -  [`longest_set_sequence_starting_at` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_longest_set_sequence_starting_at)
+        -  [`set` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_set)
+        -  [`shift_left` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_shift_left)
+        -  [`unset` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_unset)
+-  [Constants](#@Constants_1)
+-  [Module Functions](#@Module_Functions_2)
+    -  [`new` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_new)
 
 
 <pre><code></code></pre>
@@ -53,14 +58,9 @@
 
 </details>
 
-<a name="@Public_Functions_1"></a>
-
-#### Public Functions
-
-
 <a name="std_bit_vector_is_index_set"></a>
 
-##### `is_index_set`
+#### `is_index_set` <span class="move-vis move-vis-public">pub</span>
 
 Return the value of the bit at <code>bit_index</code> in the <code>bitvector</code>. <code><b>true</b></code>
 represents "1" and <code><b>false</b></code> represents a 0
@@ -87,7 +87,7 @@ represents "1" and <code><b>false</b></code> represents a 0
 
 <a name="std_bit_vector_length"></a>
 
-##### `length`
+#### `length` <span class="move-vis move-vis-public">pub</span>
 
 Return the length (number of usable bits) of this bitvector
 
@@ -112,7 +112,7 @@ Return the length (number of usable bits) of this bitvector
 
 <a name="std_bit_vector_longest_set_sequence_starting_at"></a>
 
-##### `longest_set_sequence_starting_at`
+#### `longest_set_sequence_starting_at` <span class="move-vis move-vis-public">pub</span>
 
 Returns the length of the longest sequence of set bits starting at (and
 including) <code>start_index</code> in the <code>bitvector</code>. If there is no such
@@ -146,7 +146,7 @@ sequence, then <code>0</code> is returned.
 
 <a name="std_bit_vector_set"></a>
 
-##### `set`
+#### `set` <span class="move-vis move-vis-public">pub</span>
 
 Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -173,7 +173,7 @@ Set the bit at <code>bit_index</code> in the <code>bitvector</code> regardless o
 
 <a name="std_bit_vector_shift_left"></a>
 
-##### `shift_left`
+#### `shift_left` <span class="move-vis move-vis-public">pub</span>
 
 Shift the <code>bitvector</code> left by <code>amount</code>. If <code>amount</code> is greater than the
 bitvector's length the bitvector will be zeroed out.
@@ -219,7 +219,7 @@ bitvector's length the bitvector will be zeroed out.
 
 <a name="std_bit_vector_unset"></a>
 
-##### `unset`
+#### `unset` <span class="move-vis move-vis-public">pub</span>
 
 Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless of its previous state.
 
@@ -244,7 +244,7 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
 
 </details>
 
-<a name="@Constants_2"></a>
+<a name="@Constants_1"></a>
 
 ## Constants
 
@@ -288,14 +288,14 @@ The maximum allowed bitvector size
 
 
 
-<a name="@Public_Functions_3"></a>
+<a name="@Module_Functions_2"></a>
 
-## Public Functions
+## Module Functions
 
 
 <a name="std_bit_vector_new"></a>
 
-### `new`
+### `new` <span class="move-vis move-vis-public">pub</span>
 
 
 

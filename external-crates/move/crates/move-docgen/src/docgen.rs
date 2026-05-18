@@ -948,8 +948,9 @@ impl<'env> Docgen<'env> {
 
     /// Generates documentation for a struct. `methods` are functions whose
     /// first parameter is this struct (i.e. dot-syntax callable methods);
-    /// they are emitted as nested visibility-bucket sections under the
-    /// struct, mirroring how free functions are grouped at the module level.
+    /// they are emitted as a flat list under the struct, sorted by visibility
+    /// then by name. Each method's heading carries the inline visibility
+    /// marker emitted by [`Self::visibility_marker`].
     fn gen_struct(
         &mut self,
         struct_env: source_model::Struct<'_>,
@@ -975,17 +976,19 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        if !methods.is_empty() {
-            self.gen_functions_by_visibility(methods);
+        let mut methods = methods;
+        methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        for f in methods {
+            self.gen_function(f);
         }
 
         self.decrement_section_nest();
     }
 
     /// Generates documentation for an enum. `methods` are functions whose first
-    /// parameter is this enum; they are emitted as nested visibility-bucket
-    /// sections under the enum, mirroring how free functions are grouped at
-    /// the module level.
+    /// parameter is this enum; they are emitted as a flat list under the enum,
+    /// sorted by visibility then by name. Each method's heading carries the
+    /// inline visibility marker emitted by [`Self::visibility_marker`].
     fn gen_enum(
         &mut self,
         enum_env: source_model::Enum<'_>,
@@ -1011,8 +1014,10 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        if !methods.is_empty() {
-            self.gen_functions_by_visibility(methods);
+        let mut methods = methods;
+        methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        for f in methods {
+            self.gen_function(f);
         }
 
         self.decrement_section_nest();
@@ -1183,68 +1188,60 @@ impl<'env> Docgen<'env> {
         self.end_definitions();
     }
 
-    /// Groups module functions into Public / Entry / Public(package) /
-    /// Public(friend) / Private buckets and emits each non-empty bucket under
-    /// its own section header. Within each bucket, functions are sorted
-    /// alphabetically by name so a reader can scan for a specific function.
-    /// The (legacy) Public(friend) group is wrapped in a collapsed `<details>`
-    /// so its rarely-used surface doesn't push the rest of the module below
-    /// the fold.
-    fn gen_functions_by_visibility(&mut self, funs: Vec<source_model::Function<'_>>) {
-        let mut entry = vec![];
-        let mut public = vec![];
-        let mut package = vec![];
-        let mut friend = vec![];
-        let mut private = vec![];
+    /// Emits the module's free functions as a flat list under a single
+    /// `Module Functions` heading, sorted by visibility (Public, Entry,
+    /// Public(package), Public(friend), Private) then by name. The visibility
+    /// of each function is conveyed by the inline tag appended to its
+    /// heading (rendered by [`Self::visibility_marker`]); the renderer's
+    /// stylesheet colors the tag so the TOC remains scannable without a
+    /// separate sub-section per visibility.
+    fn gen_functions_by_visibility(&mut self, mut funs: Vec<source_model::Function<'_>>) {
+        if funs.is_empty() {
+            return;
+        }
+        funs.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        let label = self.label_for_section("Module Functions");
+        self.section_header("Module Functions", &label);
+        self.increment_section_nest();
         for f in funs {
-            let info = f.info();
-            if info.entry.is_some() {
-                entry.push(f);
-                continue;
-            }
-            match info.visibility {
-                Visibility::Public(_) => public.push(f),
-                Visibility::Package(_) => package.push(f),
-                Visibility::Friend(_) => friend.push(f),
-                Visibility::Internal => private.push(f),
-            }
+            self.gen_function(f);
         }
+        self.decrement_section_nest();
+    }
 
-        for bucket in [
-            &mut public,
-            &mut entry,
-            &mut package,
-            &mut friend,
-            &mut private,
-        ] {
-            bucket.sort_by_key(|f| f.name());
+    /// Sort key that mirrors the previous visibility buckets — Public first,
+    /// then Entry, Public(package), Public(friend), Private. `entry` takes
+    /// precedence over the underlying visibility, matching the old grouping.
+    fn visibility_rank(func: &source_model::Function<'_>) -> u8 {
+        let info = func.info();
+        if info.entry.is_some() {
+            return 1;
         }
+        match info.visibility {
+            Visibility::Public(_) => 0,
+            Visibility::Package(_) => 2,
+            Visibility::Friend(_) => 3,
+            Visibility::Internal => 4,
+        }
+    }
 
-        let groups = [
-            ("Public Functions", public, false),
-            ("Entry Functions", entry, false),
-            ("Public Package Functions", package, false),
-            ("Public Friend Functions", friend, true),
-            ("Private Functions", private, false),
-        ];
-
-        for (title, fns, collapse) in groups {
-            if fns.is_empty() {
-                continue;
+    /// Inline visibility tag emitted after each function heading. The renderer's
+    /// stylesheet colors the tag by visibility — `.move-vis-public`,
+    /// `.move-vis-entry`, `.move-vis-package`, `.move-vis-friend`,
+    /// `.move-vis-private` — so the TOC entry is self-describing without an
+    /// enclosing visibility section header.
+    fn visibility_marker(func: &source_model::Function<'_>) -> &'static str {
+        let info = func.info();
+        if info.entry.is_some() {
+            return "<span class=\"move-vis move-vis-entry\">entry</span>";
+        }
+        match info.visibility {
+            Visibility::Public(_) => "<span class=\"move-vis move-vis-public\">pub</span>",
+            Visibility::Package(_) => {
+                "<span class=\"move-vis move-vis-package\">pub-pkg</span>"
             }
-            let label = self.label_for_section(title);
-            self.section_header(title, &label);
-            self.increment_section_nest();
-            if collapse {
-                self.begin_collapsed(&format!("Show {}", title.to_lowercase()));
-            }
-            for f in fns {
-                self.gen_function(f);
-            }
-            if collapse {
-                self.end_collapsed();
-            }
-            self.decrement_section_nest();
+            Visibility::Friend(_) => "<span class=\"move-vis move-vis-friend\">pub-friend</span>",
+            Visibility::Internal => "<span class=\"move-vis move-vis-private\">prv</span>",
         }
     }
 
@@ -1255,10 +1252,11 @@ impl<'env> Docgen<'env> {
         let name = func_env.name();
         let full_name = format!("{}::{}", module_env.ident(), name);
         let func_info = func_env.info();
+        let marker = Self::visibility_marker(&func_env);
         let title = if func_info.macro_.is_some() {
-            format!("`{name}` (macro)")
+            format!("`{name}` (macro) {marker}")
         } else {
-            format!("`{name}`")
+            format!("`{name}` {marker}")
         };
         self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();

@@ -8,11 +8,15 @@ Functionality for converting Move types into values. Use with care!
 
 -  [Structs](#@Structs_0)
     -  [`TypeName`](#std_type_name_TypeName)
-        -  [Public Functions](#@Public_Functions_1)
--  [Constants](#@Constants_2)
--  [Public Functions](#@Public_Functions_3)
-    -  [`get`](#std_type_name_get)
-    -  [`get_with_original_ids`](#std_type_name_get_with_original_ids)
+        -  [`borrow_string` <span class="move-vis move-vis-public">pub</span>](#std_type_name_borrow_string)
+        -  [`get_address` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_address)
+        -  [`get_module` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_module)
+        -  [`into_string` <span class="move-vis move-vis-public">pub</span>](#std_type_name_into_string)
+        -  [`is_primitive` <span class="move-vis move-vis-public">pub</span>](#std_type_name_is_primitive)
+-  [Constants](#@Constants_1)
+-  [Module Functions](#@Module_Functions_2)
+    -  [`get` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get)
+    -  [`get_with_original_ids` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_with_original_ids)
 
 
 <pre><code><b>use</b> <a href="../std/address.md#std_address">std::address</a>;
@@ -61,14 +65,9 @@ Functionality for converting Move types into values. Use with care!
 
 </details>
 
-<a name="@Public_Functions_1"></a>
-
-#### Public Functions
-
-
 <a name="std_type_name_borrow_string"></a>
 
-##### `borrow_string`
+#### `borrow_string` <span class="move-vis move-vis-public">pub</span>
 
 Get the String representation of <code>self</code>
 
@@ -93,7 +92,7 @@ Get the String representation of <code>self</code>
 
 <a name="std_type_name_get_address"></a>
 
-##### `get_address`
+#### `get_address` <span class="move-vis move-vis-public">pub</span>
 
 Get Address string (Base16 encoded), first part of the TypeName.
 Aborts if given a primitive type.
@@ -130,7 +129,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_get_module"></a>
 
-##### `get_module`
+#### `get_module` <span class="move-vis move-vis-public">pub</span>
 
 Get name of the module.
 Aborts if given a primitive type.
@@ -171,7 +170,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_into_string"></a>
 
-##### `into_string`
+#### `into_string` <span class="move-vis move-vis-public">pub</span>
 
 Convert <code>self</code> into its inner String
 
@@ -196,7 +195,7 @@ Convert <code>self</code> into its inner String
 
 <a name="std_type_name_is_primitive"></a>
 
-##### `is_primitive`
+#### `is_primitive` <span class="move-vis move-vis-public">pub</span>
 
 Returns true iff the TypeName represents a primitive type, i.e. one of
 u8, u16, u32, u64, u128, u256, bool, address, vector.
@@ -237,7 +236,7 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 </details>
 
-<a name="@Constants_2"></a>
+<a name="@Constants_1"></a>
 
 ## Constants
 
@@ -322,14 +321,14 @@ The type is not from a package/module. It is a primitive type.
 
 
 
-<a name="@Public_Functions_3"></a>
+<a name="@Module_Functions_2"></a>
 
-## Public Functions
+## Module Functions
 
 
 <a name="std_type_name_get"></a>
 
-### `get`
+### `get` <span class="move-vis move-vis-public">pub</span>
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
@@ -355,7 +354,7 @@ storage that first introduced the type).
 
 <a name="std_type_name_get_with_original_ids"></a>
 
-### `get_with_original_ids`
+### `get_with_original_ids` <span class="move-vis move-vis-public">pub</span>
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from

@@ -16,8 +16,8 @@ info:
 
 
 
--  [Entry Functions](#@Entry_Functions_0)
-    -  [`main`](#a_m_main)
+-  [Module Functions](#@Module_Functions_0)
+    -  [`main` <span class="move-vis move-vis-entry">entry</span>](#a_m_main)
         -  [Explanation of the algorithm](#@Explanation_of_the_algorithm_1)
 
 
@@ -25,14 +25,14 @@ info:
 
 
 
-<a name="@Entry_Functions_0"></a>
+<a name="@Module_Functions_0"></a>
 
-## Entry Functions
+## Module Functions
 
 
 <a name="a_m_main"></a>
 
-### `main`
+### `main` <span class="move-vis move-vis-entry">entry</span>
 
 
 <a name="@Explanation_of_the_algorithm_1"></a>

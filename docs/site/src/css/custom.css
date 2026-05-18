@@ -656,4 +656,56 @@ article pre > code a:hover {
   color: var(--ifm-color-primary);
 }
 
+/*
+ * Inline visibility tags emitted by `move-docgen` next to each function
+ * heading. The tag also appears in the right-hand TOC entry because
+ * Docusaurus extracts the full heading content. Colors are picked so each
+ * visibility is distinguishable at a glance — public is the primary blue,
+ * entry/package/friend get accent hues, private is warning orange.
+ */
+.move-vis {
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0 0.4em;
+  border-radius: 0.4em;
+  font-size: 0.75em;
+  font-weight: 600;
+  font-family: var(--ifm-font-family-monospace);
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+.move-vis-public {
+  background: rgba(54, 122, 246, 0.18);
+  color: #5fa1ff;
+}
+
+.move-vis-entry {
+  background: rgba(36, 173, 102, 0.18);
+  color: #5dd39e;
+}
+
+.move-vis-package {
+  background: rgba(138, 86, 240, 0.18);
+  color: #b89bff;
+}
+
+.move-vis-friend {
+  background: rgba(120, 130, 145, 0.18);
+  color: #a0a8b4;
+}
+
+.move-vis-private {
+  background: rgba(229, 124, 32, 0.18);
+  color: #ffb878;
+}
+
+/* Match the tag font in the TOC link as well. */
+.table-of-contents__link .move-vis,
+[class*="tableOfContents"] .move-vis {
+  margin-left: 0.35em;
+  font-size: 0.7em;
+}
+
 }

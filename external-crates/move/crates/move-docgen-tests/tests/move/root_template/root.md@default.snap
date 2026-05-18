@@ -21,9 +21,9 @@ The function <code>yet_another</code> is documented in its own file.
 
 -  [Some other scripts from a module](#@Some_other_scripts_from_a_module_1)
     -  [Module `a::a`](#a_a)
-        -  [Entry Functions](#@Entry_Functions_2)
+        -  [Module Functions](#@Module_Functions_2)
     -  [Module `a::b`](#a_b)
-        -  [Entry Functions](#@Entry_Functions_3)
+        -  [Module Functions](#@Module_Functions_3)
 -  [Index](#@Index_4)
 
 
@@ -44,14 +44,14 @@ The function <code>yet_another</code> is documented in its own file.
 
 
 
-<a name="@Entry_Functions_2"></a>
+<a name="@Module_Functions_2"></a>
 
-#### Entry Functions
+#### Module Functions
 
 
 <a name="a_a_script1"></a>
 
-##### `script1`
+##### `script1` <span class="move-vis move-vis-entry">entry</span>
 
 This is a script
 
@@ -74,7 +74,7 @@ This is a script
 
 <a name="a_a_script2"></a>
 
-##### `script2`
+##### `script2` <span class="move-vis move-vis-entry">entry</span>
 
 This is another script
 
@@ -109,14 +109,14 @@ This is another module full of funs too:
 
 
 
-<a name="@Entry_Functions_3"></a>
+<a name="@Module_Functions_3"></a>
 
-#### Entry Functions
+#### Module Functions
 
 
 <a name="a_b_script3"></a>
 
-##### `script3`
+##### `script3` <span class="move-vis move-vis-entry">entry</span>
 
 This is a script
 
@@ -139,7 +139,7 @@ This is a script
 
 <a name="a_b_script4"></a>
 
-##### `script4`
+##### `script4` <span class="move-vis move-vis-entry">entry</span>
 
 This is another script
 
