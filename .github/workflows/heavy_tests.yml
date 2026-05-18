@@ -85,7 +85,6 @@ jobs:
   # Only needed in change-filtered mode — push events and the "full
   # workspace" workflow_dispatch variant skip this and exercise everything.
   crates-changes:
-    needs: diff
     if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
     runs-on: [self-hosted-x64]
     outputs:
@@ -102,7 +101,6 @@ jobs:
           filters: .github/crates-filters.yml
 
   external-changes:
-    needs: diff
     if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
     runs-on: [self-hosted-x64]
     outputs:
