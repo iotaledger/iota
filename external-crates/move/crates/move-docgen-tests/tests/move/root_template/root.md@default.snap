@@ -51,7 +51,7 @@ The function <code>yet_another</code> is documented in its own file.
 
 <a name="a_a_script1"></a>
 
-##### <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span> `script1`
+##### <span class="move-vis move-vis-entry">entry</span> `script1`
 
 This is a script
 
@@ -74,7 +74,7 @@ This is a script
 
 <a name="a_a_script2"></a>
 
-##### <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span> `script2`
+##### <span class="move-vis move-vis-entry">entry</span> `script2`
 
 This is another script
 
@@ -116,7 +116,7 @@ This is another module full of funs too:
 
 <a name="a_b_script3"></a>
 
-##### <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span> `script3`
+##### <span class="move-vis move-vis-entry">entry</span> `script3`
 
 This is a script
 
@@ -139,7 +139,7 @@ This is a script
 
 <a name="a_b_script4"></a>
 
-##### <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span> `script4`
+##### <span class="move-vis move-vis-entry">entry</span> `script4`
 
 This is another script
 

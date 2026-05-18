@@ -1012,7 +1012,7 @@ impl<'env> Docgen<'env> {
         let mut methods = methods;
         methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
         for f in methods {
-            self.gen_function(f, "");
+            self.gen_function(f);
         }
 
         self.decrement_section_nest();
@@ -1050,7 +1050,7 @@ impl<'env> Docgen<'env> {
         let mut methods = methods;
         methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
         for f in methods {
-            self.gen_function(f, "");
+            self.gen_function(f);
         }
 
         self.decrement_section_nest();
@@ -1236,9 +1236,8 @@ impl<'env> Docgen<'env> {
         let label = self.label_for_section("Module Functions");
         self.section_header("Module Functions", &label);
         self.increment_section_nest();
-        let module_marker = " <span class=\"move-vis move-vis-module\">module</span>";
         for f in funs {
-            self.gen_function(f, module_marker);
+            self.gen_function(f);
         }
         self.decrement_section_nest();
     }
@@ -1272,18 +1271,15 @@ impl<'env> Docgen<'env> {
         match info.visibility {
             Visibility::Public(_) => "<span class=\"move-vis move-vis-public\">pub</span>",
             Visibility::Package(_) => {
-                "<span class=\"move-vis move-vis-package\">pub-pkg</span>"
+                "<span class=\"move-vis move-vis-package\">pub(pkg)</span>"
             }
-            Visibility::Friend(_) => "<span class=\"move-vis move-vis-friend\">pub-friend</span>",
+            Visibility::Friend(_) => "<span class=\"move-vis move-vis-friend\">pub(friend)</span>",
             Visibility::Internal => "<span class=\"move-vis move-vis-private\">prv</span>",
         }
     }
 
-    /// Generates documentation for a function. `extra_marker` is appended to
-    /// the heading after the visibility tag — used for the `(module)` tag on
-    /// free module functions so they can be distinguished from struct/enum
-    /// methods at a glance in the right-hand TOC.
-    fn gen_function(&mut self, func_env: source_model::Function<'_>, extra_marker: &str) {
+    /// Generates documentation for a function.
+    fn gen_function(&mut self, func_env: source_model::Function<'_>) {
         let env = func_env.model();
         let module_env = func_env.module();
         let name = func_env.name();
@@ -1291,9 +1287,9 @@ impl<'env> Docgen<'env> {
         let func_info = func_env.info();
         let marker = Self::visibility_marker(&func_env);
         let title = if func_info.macro_.is_some() {
-            format!("{marker}{extra_marker} `{name}` (macro)")
+            format!("{marker} `{name}` (macro)")
         } else {
-            format!("{marker}{extra_marker} `{name}`")
+            format!("{marker} `{name}`")
         };
         self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();

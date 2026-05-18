@@ -8,44 +8,44 @@ vectors are growable. This module has many native functions.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `all` (macro)](#std_vector_all)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `any` (macro)](#std_vector_any)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `append`](#std_vector_append)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `borrow`](#std_vector_borrow)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `borrow_mut`](#std_vector_borrow_mut)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `contains`](#std_vector_contains)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `count` (macro)](#std_vector_count)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `destroy` (macro)](#std_vector_destroy)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `destroy_empty`](#std_vector_destroy_empty)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do` (macro)](#std_vector_do)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_mut` (macro)](#std_vector_do_mut)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_ref` (macro)](#std_vector_do_ref)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `empty`](#std_vector_empty)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `filter` (macro)](#std_vector_filter)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `find_index` (macro)](#std_vector_find_index)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `flatten`](#std_vector_flatten)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `fold` (macro)](#std_vector_fold)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `index_of`](#std_vector_index_of)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `insert`](#std_vector_insert)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_empty`](#std_vector_is_empty)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `length`](#std_vector_length)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `map` (macro)](#std_vector_map)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `map_ref` (macro)](#std_vector_map_ref)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `partition` (macro)](#std_vector_partition)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `pop_back`](#std_vector_pop_back)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `push_back`](#std_vector_push_back)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `remove`](#std_vector_remove)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `reverse`](#std_vector_reverse)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `singleton`](#std_vector_singleton)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `swap`](#std_vector_swap)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `swap_remove`](#std_vector_swap_remove)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `tabulate` (macro)](#std_vector_tabulate)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do` (macro)](#std_vector_zip_do)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_mut` (macro)](#std_vector_zip_do_mut)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_ref` (macro)](#std_vector_zip_do_ref)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_reverse` (macro)](#std_vector_zip_do_reverse)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_map` (macro)](#std_vector_zip_map)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_map_ref` (macro)](#std_vector_zip_map_ref)
+    -  [<span class="move-vis move-vis-public">pub</span> `all` (macro)](#std_vector_all)
+    -  [<span class="move-vis move-vis-public">pub</span> `any` (macro)](#std_vector_any)
+    -  [<span class="move-vis move-vis-public">pub</span> `append`](#std_vector_append)
+    -  [<span class="move-vis move-vis-public">pub</span> `borrow`](#std_vector_borrow)
+    -  [<span class="move-vis move-vis-public">pub</span> `borrow_mut`](#std_vector_borrow_mut)
+    -  [<span class="move-vis move-vis-public">pub</span> `contains`](#std_vector_contains)
+    -  [<span class="move-vis move-vis-public">pub</span> `count` (macro)](#std_vector_count)
+    -  [<span class="move-vis move-vis-public">pub</span> `destroy` (macro)](#std_vector_destroy)
+    -  [<span class="move-vis move-vis-public">pub</span> `destroy_empty`](#std_vector_destroy_empty)
+    -  [<span class="move-vis move-vis-public">pub</span> `do` (macro)](#std_vector_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `do_mut` (macro)](#std_vector_do_mut)
+    -  [<span class="move-vis move-vis-public">pub</span> `do_ref` (macro)](#std_vector_do_ref)
+    -  [<span class="move-vis move-vis-public">pub</span> `empty`](#std_vector_empty)
+    -  [<span class="move-vis move-vis-public">pub</span> `filter` (macro)](#std_vector_filter)
+    -  [<span class="move-vis move-vis-public">pub</span> `find_index` (macro)](#std_vector_find_index)
+    -  [<span class="move-vis move-vis-public">pub</span> `flatten`](#std_vector_flatten)
+    -  [<span class="move-vis move-vis-public">pub</span> `fold` (macro)](#std_vector_fold)
+    -  [<span class="move-vis move-vis-public">pub</span> `index_of`](#std_vector_index_of)
+    -  [<span class="move-vis move-vis-public">pub</span> `insert`](#std_vector_insert)
+    -  [<span class="move-vis move-vis-public">pub</span> `is_empty`](#std_vector_is_empty)
+    -  [<span class="move-vis move-vis-public">pub</span> `length`](#std_vector_length)
+    -  [<span class="move-vis move-vis-public">pub</span> `map` (macro)](#std_vector_map)
+    -  [<span class="move-vis move-vis-public">pub</span> `map_ref` (macro)](#std_vector_map_ref)
+    -  [<span class="move-vis move-vis-public">pub</span> `partition` (macro)](#std_vector_partition)
+    -  [<span class="move-vis move-vis-public">pub</span> `pop_back`](#std_vector_pop_back)
+    -  [<span class="move-vis move-vis-public">pub</span> `push_back`](#std_vector_push_back)
+    -  [<span class="move-vis move-vis-public">pub</span> `remove`](#std_vector_remove)
+    -  [<span class="move-vis move-vis-public">pub</span> `reverse`](#std_vector_reverse)
+    -  [<span class="move-vis move-vis-public">pub</span> `singleton`](#std_vector_singleton)
+    -  [<span class="move-vis move-vis-public">pub</span> `swap`](#std_vector_swap)
+    -  [<span class="move-vis move-vis-public">pub</span> `swap_remove`](#std_vector_swap_remove)
+    -  [<span class="move-vis move-vis-public">pub</span> `tabulate` (macro)](#std_vector_tabulate)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_do` (macro)](#std_vector_zip_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_do_mut` (macro)](#std_vector_zip_do_mut)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_do_ref` (macro)](#std_vector_zip_do_ref)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_do_reverse` (macro)](#std_vector_zip_do_reverse)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_map` (macro)](#std_vector_zip_map)
+    -  [<span class="move-vis move-vis-public">pub</span> `zip_map_ref` (macro)](#std_vector_zip_map_ref)
 -  [Constants](#@Constants_1)
     -  [<span class="move-vis move-vis-error">err</span> `EINDEX_OUT_OF_BOUNDS`](#std_vector_EINDEX_OUT_OF_BOUNDS)
 
@@ -61,7 +61,7 @@ vectors are growable. This module has many native functions.
 
 <a name="std_vector_all"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `all` (macro)
+### <span class="move-vis move-vis-public">pub</span> `all` (macro)
 
 Whether all elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
 If the vector is empty, returns <code><b>true</b></code>.
@@ -91,7 +91,7 @@ If the vector is empty, returns <code><b>true</b></code>.
 
 <a name="std_vector_any"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `any` (macro)
+### <span class="move-vis move-vis-public">pub</span> `any` (macro)
 
 Whether any element in the vector <code>v</code> satisfies the predicate <code>f</code>.
 If the vector is empty, returns <code><b>false</b></code>.
@@ -121,7 +121,7 @@ If the vector is empty, returns <code><b>false</b></code>.
 
 <a name="std_vector_append"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `append`
+### <span class="move-vis move-vis-public">pub</span> `append`
 
 Pushes all of the elements of the <code>other</code> vector into the <code>lhs</code> vector.
 
@@ -146,7 +146,7 @@ Pushes all of the elements of the <code>other</code> vector into the <code>lhs</
 
 <a name="std_vector_borrow"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `borrow`
+### <span class="move-vis move-vis-public">pub</span> `borrow`
 
 Acquire an immutable reference to the <code>i</code>th element of the vector <code>v</code>.
 Aborts if <code>i</code> is out of bounds.
@@ -170,7 +170,7 @@ Aborts if <code>i</code> is out of bounds.
 
 <a name="std_vector_borrow_mut"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `borrow_mut`
+### <span class="move-vis move-vis-public">pub</span> `borrow_mut`
 
 Return a mutable reference to the <code>i</code>th element in the vector <code>v</code>.
 Aborts if <code>i</code> is out of bounds.
@@ -194,7 +194,7 @@ Aborts if <code>i</code> is out of bounds.
 
 <a name="std_vector_contains"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `contains`
+### <span class="move-vis move-vis-public">pub</span> `contains`
 
 Return true if <code>e</code> is in the vector <code>v</code>.
 Otherwise, returns false.
@@ -226,7 +226,7 @@ Otherwise, returns false.
 
 <a name="std_vector_count"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `count` (macro)
+### <span class="move-vis move-vis-public">pub</span> `count` (macro)
 
 Count how many elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
 
@@ -254,7 +254,7 @@ Count how many elements in the vector <code>v</code> satisfy the predicate <code
 
 <a name="std_vector_destroy"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `destroy` (macro)
+### <span class="move-vis move-vis-public">pub</span> `destroy` (macro)
 
 Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
 Does not preserve the order of elements in the vector (starts from the end of the vector).
@@ -282,7 +282,7 @@ Does not preserve the order of elements in the vector (starts from the end of th
 
 <a name="std_vector_destroy_empty"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `destroy_empty`
+### <span class="move-vis move-vis-public">pub</span> `destroy_empty`
 
 Destroy the vector <code>v</code>.
 Aborts if <code>v</code> is not empty.
@@ -306,7 +306,7 @@ Aborts if <code>v</code> is not empty.
 
 <a name="std_vector_do"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do` (macro)
+### <span class="move-vis move-vis-public">pub</span> `do` (macro)
 
 Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
 Preserves the order of elements in the vector.
@@ -335,7 +335,7 @@ Preserves the order of elements in the vector.
 
 <a name="std_vector_do_mut"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_mut` (macro)
+### <span class="move-vis move-vis-public">pub</span> `do_mut` (macro)
 
 Perform an action <code>f</code> on each element of the vector <code>v</code>.
 The function <code>f</code> takes a mutable reference to the element.
@@ -362,7 +362,7 @@ The function <code>f</code> takes a mutable reference to the element.
 
 <a name="std_vector_do_ref"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_ref` (macro)
+### <span class="move-vis move-vis-public">pub</span> `do_ref` (macro)
 
 Perform an action <code>f</code> on each element of the vector <code>v</code>. The vector is not modified.
 
@@ -388,7 +388,7 @@ Perform an action <code>f</code> on each element of the vector <code>v</code>. T
 
 <a name="std_vector_empty"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `empty`
+### <span class="move-vis move-vis-public">pub</span> `empty`
 
 Create an empty vector.
 
@@ -411,7 +411,7 @@ Create an empty vector.
 
 <a name="std_vector_filter"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `filter` (macro)
+### <span class="move-vis move-vis-public">pub</span> `filter` (macro)
 
 Filter the vector <code>v</code> by applying the function <code>f</code> to each element.
 Return a new vector containing only the elements for which <code>f</code> returns <code><b>true</b></code>.
@@ -440,7 +440,7 @@ Return a new vector containing only the elements for which <code>f</code> return
 
 <a name="std_vector_find_index"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `find_index` (macro)
+### <span class="move-vis move-vis-public">pub</span> `find_index` (macro)
 
 Finds the index of first element in the vector <code>v</code> that satisfies the predicate <code>f</code>.
 Returns <code>some(index)</code> if such an element is found, otherwise <code>none()</code>.
@@ -470,7 +470,7 @@ Returns <code>some(index)</code> if such an element is found, otherwise <code>no
 
 <a name="std_vector_flatten"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `flatten`
+### <span class="move-vis move-vis-public">pub</span> `flatten`
 
 Concatenate the vectors of <code>v</code> into a single vector, keeping the order of the elements.
 
@@ -497,7 +497,7 @@ Concatenate the vectors of <code>v</code> into a single vector, keeping the orde
 
 <a name="std_vector_fold"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `fold` (macro)
+### <span class="move-vis move-vis-public">pub</span> `fold` (macro)
 
 Reduce the vector <code>v</code> to a single value by applying the function <code>f</code> to each element.
 Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and JavaScript.
@@ -526,7 +526,7 @@ Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and 
 
 <a name="std_vector_index_of"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `index_of`
+### <span class="move-vis move-vis-public">pub</span> `index_of`
 
 Return <code>(<b>true</b>, i)</code> if <code>e</code> is in the vector <code>v</code> at index <code>i</code>.
 Otherwise, returns <code>(<b>false</b>, 0)</code>.
@@ -558,7 +558,7 @@ Otherwise, returns <code>(<b>false</b>, 0)</code>.
 
 <a name="std_vector_insert"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `insert`
+### <span class="move-vis move-vis-public">pub</span> `insert`
 
 Insert <code>e</code> at position <code>i</code> in the vector <code>v</code>.
 If <code>i</code> is in bounds, this shifts the old <code>v[i]</code> and all subsequent elements to the right.
@@ -594,7 +594,7 @@ Aborts if <code>i &gt; v.<a href="../std/vector.md#std_vector_length">length</a>
 
 <a name="std_vector_is_empty"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `is_empty`
+### <span class="move-vis move-vis-public">pub</span> `is_empty`
 
 Return <code><b>true</b></code> if the vector <code>v</code> has no elements and <code><b>false</b></code> otherwise.
 
@@ -619,7 +619,7 @@ Return <code><b>true</b></code> if the vector <code>v</code> has no elements and
 
 <a name="std_vector_length"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `length`
+### <span class="move-vis move-vis-public">pub</span> `length`
 
 Return the length of the vector.
 
@@ -642,7 +642,7 @@ Return the length of the vector.
 
 <a name="std_vector_map"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `map` (macro)
+### <span class="move-vis move-vis-public">pub</span> `map` (macro)
 
 Map the vector <code>v</code> to a new vector by applying the function <code>f</code> to each element.
 Preserves the order of elements in the vector, first is called first.
@@ -671,7 +671,7 @@ Preserves the order of elements in the vector, first is called first.
 
 <a name="std_vector_map_ref"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `map_ref` (macro)
+### <span class="move-vis move-vis-public">pub</span> `map_ref` (macro)
 
 Map the vector <code>v</code> to a new vector by applying the function <code>f</code> to each element.
 Preserves the order of elements in the vector, first is called first.
@@ -700,7 +700,7 @@ Preserves the order of elements in the vector, first is called first.
 
 <a name="std_vector_partition"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `partition` (macro)
+### <span class="move-vis move-vis-public">pub</span> `partition` (macro)
 
 Split the vector <code>v</code> into two vectors by applying the function <code>f</code> to each element.
 Return a tuple containing two vectors: the first containing the elements for which <code>f</code> returns <code><b>true</b></code>,
@@ -731,7 +731,7 @@ and the second containing the elements for which <code>f</code> returns <code><b
 
 <a name="std_vector_pop_back"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `pop_back`
+### <span class="move-vis move-vis-public">pub</span> `pop_back`
 
 Pop an element from the end of vector <code>v</code>.
 Aborts if <code>v</code> is empty.
@@ -755,7 +755,7 @@ Aborts if <code>v</code> is empty.
 
 <a name="std_vector_push_back"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `push_back`
+### <span class="move-vis move-vis-public">pub</span> `push_back`
 
 Add element <code>e</code> to the end of the vector <code>v</code>.
 
@@ -778,7 +778,7 @@ Add element <code>e</code> to the end of the vector <code>v</code>.
 
 <a name="std_vector_remove"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `remove`
+### <span class="move-vis move-vis-public">pub</span> `remove`
 
 Remove the <code>i</code>th element of the vector <code>v</code>, shifting all subsequent elements.
 This is O(n) and preserves ordering of elements in the vector.
@@ -812,7 +812,7 @@ Aborts if <code>i</code> is out of bounds.
 
 <a name="std_vector_reverse"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `reverse`
+### <span class="move-vis move-vis-public">pub</span> `reverse`
 
 Reverses the order of the elements in the vector <code>v</code> in place.
 
@@ -845,7 +845,7 @@ Reverses the order of the elements in the vector <code>v</code> in place.
 
 <a name="std_vector_singleton"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `singleton`
+### <span class="move-vis move-vis-public">pub</span> `singleton`
 
 Return a vector of size one containing element <code>e</code>.
 
@@ -872,7 +872,7 @@ Return a vector of size one containing element <code>e</code>.
 
 <a name="std_vector_swap"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `swap`
+### <span class="move-vis move-vis-public">pub</span> `swap`
 
 Swaps the elements at the <code>i</code>th and <code>j</code>th indices in the vector <code>v</code>.
 Aborts if <code>i</code> or <code>j</code> is out of bounds.
@@ -896,7 +896,7 @@ Aborts if <code>i</code> or <code>j</code> is out of bounds.
 
 <a name="std_vector_swap_remove"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `swap_remove`
+### <span class="move-vis move-vis-public">pub</span> `swap_remove`
 
 Swap the <code>i</code>th element of the vector <code>v</code> with the last element and then pop the vector.
 This is O(1), but does not preserve ordering of elements in the vector.
@@ -926,7 +926,7 @@ Aborts if <code>i</code> is out of bounds.
 
 <a name="std_vector_tabulate"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `tabulate` (macro)
+### <span class="move-vis move-vis-public">pub</span> `tabulate` (macro)
 
 Create a vector of length <code>n</code> by calling the function <code>f</code> on each index.
 
@@ -954,7 +954,7 @@ Create a vector of length <code>n</code> by calling the function <code>f</code> 
 
 <a name="std_vector_zip_do"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_do` (macro)
 
 Destroys two vectors <code>v1</code> and <code>v2</code> by calling <code>f</code> to each pair of elements.
 Aborts if the vectors are not of the same length.
@@ -991,7 +991,7 @@ The order of elements in the vectors is preserved.
 
 <a name="std_vector_zip_do_mut"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_mut` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_do_mut` (macro)
 
 Iterate through <code>v1</code> and <code>v2</code> and apply the function <code>f</code> to mutable references of each pair
 of elements. The vectors may be modified.
@@ -1027,7 +1027,7 @@ The order of elements in the vectors is preserved.
 
 <a name="std_vector_zip_do_ref"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_ref` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_do_ref` (macro)
 
 Iterate through <code>v1</code> and <code>v2</code> and apply the function <code>f</code> to references of each pair of
 elements. The vectors are not modified.
@@ -1063,7 +1063,7 @@ The order of elements in the vectors is preserved.
 
 <a name="std_vector_zip_do_reverse"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_do_reverse` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_do_reverse` (macro)
 
 Destroys two vectors <code>v1</code> and <code>v2</code> by calling <code>f</code> to each pair of elements.
 Aborts if the vectors are not of the same length.
@@ -1098,7 +1098,7 @@ Starts from the end of the vectors.
 
 <a name="std_vector_zip_map"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_map` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_map` (macro)
 
 Destroys two vectors <code>v1</code> and <code>v2</code> by applying the function <code>f</code> to each pair of elements.
 The returned values are collected into a new vector.
@@ -1132,7 +1132,7 @@ The order of elements in the vectors is preserved.
 
 <a name="std_vector_zip_map_ref"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `zip_map_ref` (macro)
+### <span class="move-vis move-vis-public">pub</span> `zip_map_ref` (macro)
 
 Iterate through <code>v1</code> and <code>v2</code> and apply the function <code>f</code> to references of each pair of
 elements. The returned values are collected into a new vector.

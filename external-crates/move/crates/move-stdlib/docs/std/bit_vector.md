@@ -6,7 +6,7 @@
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `new`](#std_bit_vector_new)
+    -  [<span class="move-vis move-vis-public">pub</span> `new`](#std_bit_vector_new)
 -  [Structs](#@Structs_1)
     -  [<span class="move-vis move-vis-struct">struct</span> `BitVector`](#std_bit_vector_BitVector)
         -  [<span class="move-vis move-vis-public">pub</span> `is_index_set`](#std_bit_vector_is_index_set)
@@ -33,7 +33,7 @@
 
 <a name="std_bit_vector_new"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `new`
+### <span class="move-vis move-vis-public">pub</span> `new`
 
 
 

@@ -7,29 +7,29 @@ This module holds shared implementation of macros used in <code>std</code>
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do` (macro)](#std_macros_do)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_eq` (macro)](#std_macros_do_eq)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_diff` (macro)](#std_macros_num_diff)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_divide_and_round_up` (macro)](#std_macros_num_divide_and_round_up)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_max` (macro)](#std_macros_num_max)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_min` (macro)](#std_macros_num_min)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_pow` (macro)](#std_macros_num_pow)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_sqrt` (macro)](#std_macros_num_sqrt)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_to_string` (macro)](#std_macros_num_to_string)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `range_do` (macro)](#std_macros_range_do)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `range_do_eq` (macro)](#std_macros_range_do_eq)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u128` (macro)](#std_macros_try_as_u128)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u16` (macro)](#std_macros_try_as_u16)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u32` (macro)](#std_macros_try_as_u32)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u64` (macro)](#std_macros_try_as_u64)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u8` (macro)](#std_macros_try_as_u8)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_add` (macro)](#std_macros_uq_add)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_from_int` (macro)](#std_macros_uq_from_int)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_from_quotient` (macro)](#std_macros_uq_from_quotient)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_int_div` (macro)](#std_macros_uq_int_div)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_int_mul` (macro)](#std_macros_uq_int_mul)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_sub` (macro)](#std_macros_uq_sub)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_to_int` (macro)](#std_macros_uq_to_int)
+    -  [<span class="move-vis move-vis-public">pub</span> `do` (macro)](#std_macros_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `do_eq` (macro)](#std_macros_do_eq)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_diff` (macro)](#std_macros_num_diff)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_divide_and_round_up` (macro)](#std_macros_num_divide_and_round_up)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_max` (macro)](#std_macros_num_max)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_min` (macro)](#std_macros_num_min)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_pow` (macro)](#std_macros_num_pow)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_sqrt` (macro)](#std_macros_num_sqrt)
+    -  [<span class="move-vis move-vis-public">pub</span> `num_to_string` (macro)](#std_macros_num_to_string)
+    -  [<span class="move-vis move-vis-public">pub</span> `range_do` (macro)](#std_macros_range_do)
+    -  [<span class="move-vis move-vis-public">pub</span> `range_do_eq` (macro)](#std_macros_range_do_eq)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u128` (macro)](#std_macros_try_as_u128)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u16` (macro)](#std_macros_try_as_u16)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u32` (macro)](#std_macros_try_as_u32)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u64` (macro)](#std_macros_try_as_u64)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_as_u8` (macro)](#std_macros_try_as_u8)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_add` (macro)](#std_macros_uq_add)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_from_int` (macro)](#std_macros_uq_from_int)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_from_quotient` (macro)](#std_macros_uq_from_quotient)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_int_div` (macro)](#std_macros_uq_int_div)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_int_mul` (macro)](#std_macros_uq_int_mul)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_sub` (macro)](#std_macros_uq_sub)
+    -  [<span class="move-vis move-vis-public">pub</span> `uq_to_int` (macro)](#std_macros_uq_to_int)
 
 
 <pre><code></code></pre>
@@ -43,7 +43,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_do"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do` (macro)
+### <span class="move-vis move-vis-public">pub</span> `do` (macro)
 
 
 
@@ -67,7 +67,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_do_eq"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `do_eq` (macro)
+### <span class="move-vis move-vis-public">pub</span> `do_eq` (macro)
 
 
 
@@ -91,7 +91,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_diff"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_diff` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_diff` (macro)
 
 
 
@@ -118,7 +118,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_divide_and_round_up"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_divide_and_round_up` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_divide_and_round_up` (macro)
 
 
 
@@ -145,7 +145,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_max"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_max` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_max` (macro)
 
 
 
@@ -172,7 +172,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_min"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_min` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_min` (macro)
 
 
 
@@ -199,7 +199,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_pow"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_pow` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_pow` (macro)
 
 
 
@@ -235,7 +235,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_sqrt"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_sqrt` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_sqrt` (macro)
 
 
 
@@ -272,7 +272,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_num_to_string"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `num_to_string` (macro)
+### <span class="move-vis move-vis-public">pub</span> `num_to_string` (macro)
 
 
 
@@ -306,7 +306,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_range_do"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `range_do` (macro)
+### <span class="move-vis move-vis-public">pub</span> `range_do` (macro)
 
 
 
@@ -335,7 +335,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_range_do_eq"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `range_do_eq` (macro)
+### <span class="move-vis move-vis-public">pub</span> `range_do_eq` (macro)
 
 
 
@@ -370,7 +370,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u128"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u128` (macro)
+### <span class="move-vis move-vis-public">pub</span> `try_as_u128` (macro)
 
 
 
@@ -396,7 +396,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u16"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u16` (macro)
+### <span class="move-vis move-vis-public">pub</span> `try_as_u16` (macro)
 
 
 
@@ -422,7 +422,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u32"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u32` (macro)
+### <span class="move-vis move-vis-public">pub</span> `try_as_u32` (macro)
 
 
 
@@ -448,7 +448,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u64"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u64` (macro)
+### <span class="move-vis move-vis-public">pub</span> `try_as_u64` (macro)
 
 
 
@@ -474,7 +474,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_try_as_u8"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_as_u8` (macro)
+### <span class="move-vis move-vis-public">pub</span> `try_as_u8` (macro)
 
 
 
@@ -500,7 +500,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_uq_add"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_add` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_add` (macro)
 
 
 
@@ -526,7 +526,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_uq_from_int"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_from_int` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_from_int` (macro)
 
 
 
@@ -550,7 +550,7 @@ This module holds shared implementation of macros used in <code>std</code>
 
 <a name="std_macros_uq_from_quotient"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_from_quotient` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_from_quotient` (macro)
 
 Creates a fixed-point value from a quotient specified by its numerator and denominator.
 <code>$T</code> is the underlying integer type for the fixed-point value, where <code>$T</code> has <code>$t_bits</code> bits.
@@ -604,7 +604,7 @@ plus fractional).
 
 <a name="std_macros_uq_int_div"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_int_div` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_int_div` (macro)
 
 
 
@@ -645,7 +645,7 @@ plus fractional).
 
 <a name="std_macros_uq_int_mul"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_int_mul` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_int_mul` (macro)
 
 
 
@@ -684,7 +684,7 @@ plus fractional).
 
 <a name="std_macros_uq_sub"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_sub` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_sub` (macro)
 
 
 
@@ -711,7 +711,7 @@ plus fractional).
 
 <a name="std_macros_uq_to_int"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `uq_to_int` (macro)
+### <span class="move-vis move-vis-public">pub</span> `uq_to_int` (macro)
 
 
 

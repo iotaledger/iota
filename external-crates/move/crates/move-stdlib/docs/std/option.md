@@ -7,8 +7,8 @@ This module defines the Option type and its methods to represent and handle an o
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `none`](#std_option_none)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `some`](#std_option_some)
+    -  [<span class="move-vis move-vis-public">pub</span> `none`](#std_option_none)
+    -  [<span class="move-vis move-vis-public">pub</span> `some`](#std_option_some)
 -  [Structs](#@Structs_1)
     -  [<span class="move-vis move-vis-struct">struct</span> `Option`](#std_option_Option)
         -  [<span class="move-vis move-vis-public">pub</span> `and` (macro)](#std_option_and)
@@ -55,7 +55,7 @@ This module defines the Option type and its methods to represent and handle an o
 
 <a name="std_option_none"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `none`
+### <span class="move-vis move-vis-public">pub</span> `none`
 
 Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></code>
 
@@ -80,7 +80,7 @@ Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></c
 
 <a name="std_option_some"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `some`
+### <span class="move-vis move-vis-public">pub</span> `some`
 
 Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> containing <code>e</code>
 

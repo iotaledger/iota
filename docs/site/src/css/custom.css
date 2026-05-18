@@ -701,11 +701,6 @@ article pre > code a:hover {
   color: #ffb878;
 }
 
-.move-vis-module {
-  background: rgba(228, 184, 32, 0.18);
-  color: #f1d066;
-}
-
 .move-vis-error {
   background: rgba(224, 64, 64, 0.18);
   color: #ff7c7c;

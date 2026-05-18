@@ -8,13 +8,13 @@ strings.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `from_ascii`](#std_string_from_ascii)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_utf8`](#std_string_try_utf8)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `utf8`](#std_string_utf8)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_check_utf8`](#std_string_internal_check_utf8)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_index_of`](#std_string_internal_index_of)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_is_char_boundary`](#std_string_internal_is_char_boundary)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_sub_string`](#std_string_internal_sub_string)
+    -  [<span class="move-vis move-vis-public">pub</span> `from_ascii`](#std_string_from_ascii)
+    -  [<span class="move-vis move-vis-public">pub</span> `try_utf8`](#std_string_try_utf8)
+    -  [<span class="move-vis move-vis-public">pub</span> `utf8`](#std_string_utf8)
+    -  [<span class="move-vis move-vis-private">prv</span> `internal_check_utf8`](#std_string_internal_check_utf8)
+    -  [<span class="move-vis move-vis-private">prv</span> `internal_index_of`](#std_string_internal_index_of)
+    -  [<span class="move-vis move-vis-private">prv</span> `internal_is_char_boundary`](#std_string_internal_is_char_boundary)
+    -  [<span class="move-vis move-vis-private">prv</span> `internal_sub_string`](#std_string_internal_sub_string)
 -  [Structs](#@Structs_1)
     -  [<span class="move-vis move-vis-struct">struct</span> `String`](#std_string_String)
         -  [<span class="move-vis move-vis-public">pub</span> `append`](#std_string_append)
@@ -48,7 +48,7 @@ strings.
 
 <a name="std_string_from_ascii"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `from_ascii`
+### <span class="move-vis move-vis-public">pub</span> `from_ascii`
 
 Convert an ASCII string to a UTF8 string
 
@@ -73,7 +73,7 @@ Convert an ASCII string to a UTF8 string
 
 <a name="std_string_try_utf8"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `try_utf8`
+### <span class="move-vis move-vis-public">pub</span> `try_utf8`
 
 Tries to create a new string from a sequence of bytes.
 
@@ -99,7 +99,7 @@ Tries to create a new string from a sequence of bytes.
 
 <a name="std_string_utf8"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `utf8`
+### <span class="move-vis move-vis-public">pub</span> `utf8`
 
 Creates a new string from a sequence of bytes. Aborts if the bytes do
 not represent valid utf8.
@@ -126,7 +126,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_check_utf8"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_check_utf8`
+### <span class="move-vis move-vis-private">prv</span> `internal_check_utf8`
 
 
 
@@ -148,7 +148,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_index_of"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_index_of`
+### <span class="move-vis move-vis-private">prv</span> `internal_index_of`
 
 
 
@@ -170,7 +170,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_is_char_boundary"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_is_char_boundary`
+### <span class="move-vis move-vis-private">prv</span> `internal_is_char_boundary`
 
 
 
@@ -192,7 +192,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_sub_string"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `internal_sub_string`
+### <span class="move-vis move-vis-private">prv</span> `internal_sub_string`
 
 
 

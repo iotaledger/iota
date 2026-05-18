@@ -8,10 +8,10 @@ a 32-bit fractional part.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `create_from_rational`](#std_fixed_point32_create_from_rational)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `divide_u64`](#std_fixed_point32_divide_u64)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `multiply_u64`](#std_fixed_point32_multiply_u64)
+    -  [<span class="move-vis move-vis-public">pub</span> `create_from_rational`](#std_fixed_point32_create_from_rational)
+    -  [<span class="move-vis move-vis-public">pub</span> `create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
+    -  [<span class="move-vis move-vis-public">pub</span> `divide_u64`](#std_fixed_point32_divide_u64)
+    -  [<span class="move-vis move-vis-public">pub</span> `multiply_u64`](#std_fixed_point32_multiply_u64)
 -  [Structs](#@Structs_1)
     -  [<span class="move-vis move-vis-struct">struct</span> `FixedPoint32`](#std_fixed_point32_FixedPoint32)
         -  [<span class="move-vis move-vis-public">pub</span> `get_raw_value`](#std_fixed_point32_get_raw_value)
@@ -36,7 +36,7 @@ a 32-bit fractional part.
 
 <a name="std_fixed_point32_create_from_rational"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `create_from_rational`
+### <span class="move-vis move-vis-public">pub</span> `create_from_rational`
 
 Create a fixed-point value from a rational number specified by its
 numerator and denominator. Calling this function should be preferred
@@ -82,7 +82,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 
 <a name="std_fixed_point32_create_from_raw_value"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `create_from_raw_value`
+### <span class="move-vis move-vis-public">pub</span> `create_from_raw_value`
 
 Create a fixedpoint value from a raw value.
 
@@ -107,7 +107,7 @@ Create a fixedpoint value from a raw value.
 
 <a name="std_fixed_point32_divide_u64"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `divide_u64`
+### <span class="move-vis move-vis-public">pub</span> `divide_u64`
 
 Divide a u64 integer by a fixed-point number, truncating any
 fractional part of the quotient. This will abort if the divisor
@@ -144,7 +144,7 @@ is zero or if the quotient overflows.
 
 <a name="std_fixed_point32_multiply_u64"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `multiply_u64`
+### <span class="move-vis move-vis-public">pub</span> `multiply_u64`
 
 Multiply a u64 integer by a fixed-point number, truncating any
 fractional part of the product. This will abort if the product

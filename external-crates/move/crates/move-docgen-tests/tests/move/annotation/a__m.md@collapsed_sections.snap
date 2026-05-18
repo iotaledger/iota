@@ -18,8 +18,8 @@ This is a doc comment above an annotation.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `test`](#a_m_test)
-    -  [<span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `test1`](#a_m_test1)
+    -  [<span class="move-vis move-vis-private">prv</span> `test`](#a_m_test)
+    -  [<span class="move-vis move-vis-private">prv</span> `test1`](#a_m_test1)
 -  [Constants](#@Constants_1)
     -  [<span class="move-vis move-vis-const">const</span> `Error`](#a_m_Error)
     -  [<span class="move-vis move-vis-const">const</span> `OtherError`](#a_m_OtherError)
@@ -38,7 +38,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_test"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `test`
+### <span class="move-vis move-vis-private">prv</span> `test`
 
 This is a doc comment above a function with an annotation. Above the annotation.
 
@@ -58,7 +58,7 @@ This is a doc comment above a function with an annotation. Above the annotation.
 
 <a name="a_m_test1"></a>
 
-### <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span> `test1`
+### <span class="move-vis move-vis-private">prv</span> `test1`
 
 This is a doc comment above a function with an annotation. Below the annotation.
 

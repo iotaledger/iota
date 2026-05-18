@@ -7,8 +7,8 @@ Functionality for converting Move types into values. Use with care!
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `get`](#std_type_name_get)
-    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `get_with_original_ids`](#std_type_name_get_with_original_ids)
+    -  [<span class="move-vis move-vis-public">pub</span> `get`](#std_type_name_get)
+    -  [<span class="move-vis move-vis-public">pub</span> `get_with_original_ids`](#std_type_name_get_with_original_ids)
 -  [Structs](#@Structs_1)
     -  [<span class="move-vis move-vis-struct">struct</span> `TypeName`](#std_type_name_TypeName)
         -  [<span class="move-vis move-vis-public">pub</span> `borrow_string`](#std_type_name_borrow_string)
@@ -42,7 +42,7 @@ Functionality for converting Move types into values. Use with care!
 
 <a name="std_type_name_get"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `get`
+### <span class="move-vis move-vis-public">pub</span> `get`
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
@@ -68,7 +68,7 @@ storage that first introduced the type).
 
 <a name="std_type_name_get_with_original_ids"></a>
 
-### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span> `get_with_original_ids`
+### <span class="move-vis move-vis-public">pub</span> `get_with_original_ids`
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
