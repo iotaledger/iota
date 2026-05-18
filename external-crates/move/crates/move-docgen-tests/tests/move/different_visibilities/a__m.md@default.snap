@@ -18,7 +18,7 @@ info:
 
 -  [Module Functions](#@Module_Functions_0)
     -  [<span class="move-vis move-vis-public">pub</span> `this_is_a_public_fun`](#a_TestViz_this_is_a_public_fun)
-    -  [<span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`](#a_TestViz_this_is_a_public_script_fun)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`](#a_TestViz_this_is_a_public_script_fun)
     -  [<span class="move-vis move-vis-private">prv</span> `this_is_a_private_fun`](#a_TestViz_this_is_a_private_fun)
 
 
@@ -56,7 +56,7 @@ This is a public function
 
 <a name="a_TestViz_this_is_a_public_script_fun"></a>
 
-### <span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`
 
 This is a public entry function
 

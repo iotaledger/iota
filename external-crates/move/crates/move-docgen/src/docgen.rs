@@ -1258,24 +1258,39 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Inline visibility tag emitted after each function heading. The renderer's
-    /// stylesheet colors the tag by visibility — `.move-vis-public`,
+    /// Inline visibility tag(s) emitted before each function heading. A
+    /// `public entry` function gets both `pub` and `entry` tags because in
+    /// Move the two are orthogonal: `public` controls cross-module callability
+    /// and `entry` controls top-level PTB callability. The renderer's
+    /// stylesheet colors each tag by role — `.move-vis-public`,
     /// `.move-vis-entry`, `.move-vis-package`, `.move-vis-friend`,
     /// `.move-vis-private` — so the TOC entry is self-describing without an
     /// enclosing visibility section header.
-    fn visibility_marker(func: &source_model::Function<'_>) -> &'static str {
+    fn visibility_marker(func: &source_model::Function<'_>) -> String {
         let info = func.info();
-        if info.entry.is_some() {
-            return "<span class=\"move-vis move-vis-entry\">entry</span>";
-        }
+        let mut parts: Vec<&'static str> = Vec::new();
         match info.visibility {
-            Visibility::Public(_) => "<span class=\"move-vis move-vis-public\">pub</span>",
-            Visibility::Package(_) => {
-                "<span class=\"move-vis move-vis-package\">pub(pkg)</span>"
+            Visibility::Public(_) => {
+                parts.push("<span class=\"move-vis move-vis-public\">pub</span>")
             }
-            Visibility::Friend(_) => "<span class=\"move-vis move-vis-friend\">pub(friend)</span>",
-            Visibility::Internal => "<span class=\"move-vis move-vis-private\">prv</span>",
+            Visibility::Package(_) => {
+                parts.push("<span class=\"move-vis move-vis-package\">pub(pkg)</span>")
+            }
+            Visibility::Friend(_) => {
+                parts.push("<span class=\"move-vis move-vis-friend\">pub(friend)</span>")
+            }
+            // For a private+entry function the `entry` tag below already conveys
+            // that the function is PTB-callable; emitting an extra `prv` tag
+            // alongside would be noise. So only label bare-private functions.
+            Visibility::Internal if info.entry.is_none() => {
+                parts.push("<span class=\"move-vis move-vis-private\">prv</span>")
+            }
+            Visibility::Internal => {}
         }
+        if info.entry.is_some() {
+            parts.push("<span class=\"move-vis move-vis-entry\">entry</span>");
+        }
+        parts.join(" ")
     }
 
     /// Generates documentation for a function.
