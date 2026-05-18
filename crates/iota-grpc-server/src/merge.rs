@@ -577,10 +577,10 @@ impl Merge<iota_sdk_types::TransactionEffects> for TransactionEffects {
 
     fn merge(
         &mut self,
-        sdk_effects: iota_types::effects::TransactionEffects,
+        effects: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        Merge::merge(self, &sdk_effects, mask)
+        Merge::merge(self, &effects, mask)
     }
 }
 
