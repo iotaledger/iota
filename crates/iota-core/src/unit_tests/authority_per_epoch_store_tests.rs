@@ -155,3 +155,72 @@ async fn test_compute_quorum_load_shedding_percentage_uses_overlay() {
     // Without the overlay, only the persisted value is visible.
     assert_eq!(store.get_quorum_load_shedding_percentage().unwrap(), 10);
 }
+/// `load_overload_notifications` must return the same notification map
+/// whether a given authority's latest reported percentage lives in the
+/// persisted `authority_overload_notifications` DBMap or in a still-queued
+/// `ConsensusCommitOutput` inside `ConsensusOutputQuarantine`. The "logical
+/// state" of overload notifications is the union of (a) everything flushed to
+/// disk so far and (b) everything processed but not yet flushed; the read
+/// path must surface that union, not just (a).
+///
+/// This invariance under the disk/queue split is what makes the
+/// post-consensus drop decision deterministic: the same set of notifications
+/// fed into `compute_quorum_load_shedding_percentage` regardless of where the
+/// flush boundary happens to fall when the read is taken.
+///
+/// The test puts the same authority's value first in (a), then in (b), then
+/// back in (a) (mirroring what a fresh start sees after a queued commit has
+/// been flushed). All three reads must agree, and the derived
+/// `get_quorum_load_shedding_percentage` must match.
+#[tokio::test]
+async fn test_load_overload_notifications_invariant_under_disk_queue_split() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let authority_name = store.name;
+
+    // Disk holds an earlier value for the authority.
+    flush_overload_notification(&store, authority_name, 30);
+    assert_eq!(
+        store.load_overload_notifications().unwrap().get(&authority_name).copied(),
+        Some(30),
+    );
+
+    // A later commit has been processed and its output is sitting in the
+    // quarantine queue, *not* yet flushed. This is the common steady-state
+    // condition while consensus runs ahead of the checkpoint executor —
+    // potentially many commits queue up before any of them flush.
+    let mut later = ConsensusCommitOutput::default();
+    later.record_overload_notification(authority_name, 80);
+    later.set_default_commit_stats_for_testing();
+    store.push_consensus_output_for_tests(later);
+
+    // The read that drives the post-consensus drop decision must see the
+    // queued value, not the stale on-disk one.
+    let from_queue = store
+        .load_overload_notifications()
+        .unwrap()
+        .get(&authority_name)
+        .copied();
+    assert_eq!(
+        from_queue,
+        Some(80),
+        "queued notifications must be visible via load_overload_notifications",
+    );
+
+    // Now the same logical state sits fully on disk (as it would after the
+    // queued commit drains to RocksDB). The read must produce the same
+    // notification map as before.
+    flush_overload_notification(&store, authority_name, 80);
+    let from_disk = store
+        .load_overload_notifications()
+        .unwrap()
+        .get(&authority_name)
+        .copied();
+    assert_eq!(
+        from_queue, from_disk,
+        "load_overload_notifications must be invariant under the disk/queue split",
+    );
+
+    // The derived quorum percentage must agree with the union view.
+    assert_eq!(store.get_quorum_load_shedding_percentage().unwrap(), 80);
+}
