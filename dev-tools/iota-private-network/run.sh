@@ -4,21 +4,13 @@
 
 # Default validator count
 NUM_VALIDATORS=4
-DAG_VIZ=false
-while getopts "n:d" opt; do
+while getopts "n:" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
-    d) DAG_VIZ=true ;;
-    *) echo "Usage: $0 [-n num_validators] [-d]"; exit 1 ;;
+    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
   esac
 done
 shift $((OPTIND -1))
-
-COMPOSE_FILES="-f docker-compose.yaml"
-if $DAG_VIZ; then
-  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.dag-viz.yaml"
-  echo "DAG visualizer enabled (-d flag)"
-fi
 
 function start_services() {
   services="$1"
@@ -26,10 +18,7 @@ function start_services() {
   for ((i=1; i<=NUM_VALIDATORS; i++)); do
     validators="$validators validator-$i"
   done
-  if $DAG_VIZ; then
-    services="$services dag-visualizer-server dag-visualizer-frontend dag-viz-traefik"
-  fi
-  docker compose $COMPOSE_FILES up -d $validators $services
+  docker compose up -d $validators $services
 }
 
 modes=(

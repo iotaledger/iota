@@ -100,7 +100,6 @@
 # Docker
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
-/dev-tools/dag-visualizer/ @muXxer
 /dev-tools/grafana-local/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin @iotaledger/consensus
 /dev-tools/iota-private-network/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin @iotaledger/consensus
 /dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure

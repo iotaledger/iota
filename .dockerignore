@@ -9,7 +9,6 @@ build/
 storage/
 docker/
 dev-tools/
-!dev-tools/dag-visualizer/server/
 setups/
 
 # Node.js
