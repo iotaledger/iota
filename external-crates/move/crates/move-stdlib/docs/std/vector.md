@@ -9,42 +9,42 @@ vectors are growable. This module has many native functions.
 
 -  [Constants](#@Constants_0)
 -  [Public Functions](#@Public_Functions_1)
-    -  [`empty`](#std_vector_empty)
-    -  [`length`](#std_vector_length)
-    -  [`borrow`](#std_vector_borrow)
-    -  [`push_back`](#std_vector_push_back)
-    -  [`borrow_mut`](#std_vector_borrow_mut)
-    -  [`pop_back`](#std_vector_pop_back)
-    -  [`destroy_empty`](#std_vector_destroy_empty)
-    -  [`swap`](#std_vector_swap)
-    -  [`singleton`](#std_vector_singleton)
-    -  [`reverse`](#std_vector_reverse)
+    -  [`all` (macro)](#std_vector_all)
+    -  [`any` (macro)](#std_vector_any)
     -  [`append`](#std_vector_append)
-    -  [`is_empty`](#std_vector_is_empty)
+    -  [`borrow`](#std_vector_borrow)
+    -  [`borrow_mut`](#std_vector_borrow_mut)
     -  [`contains`](#std_vector_contains)
-    -  [`index_of`](#std_vector_index_of)
-    -  [`remove`](#std_vector_remove)
-    -  [`insert`](#std_vector_insert)
-    -  [`swap_remove`](#std_vector_swap_remove)
-    -  [`tabulate` (macro)](#std_vector_tabulate)
+    -  [`count` (macro)](#std_vector_count)
     -  [`destroy` (macro)](#std_vector_destroy)
+    -  [`destroy_empty`](#std_vector_destroy_empty)
     -  [`do` (macro)](#std_vector_do)
-    -  [`do_ref` (macro)](#std_vector_do_ref)
     -  [`do_mut` (macro)](#std_vector_do_mut)
+    -  [`do_ref` (macro)](#std_vector_do_ref)
+    -  [`empty`](#std_vector_empty)
+    -  [`filter` (macro)](#std_vector_filter)
+    -  [`find_index` (macro)](#std_vector_find_index)
+    -  [`flatten`](#std_vector_flatten)
+    -  [`fold` (macro)](#std_vector_fold)
+    -  [`index_of`](#std_vector_index_of)
+    -  [`insert`](#std_vector_insert)
+    -  [`is_empty`](#std_vector_is_empty)
+    -  [`length`](#std_vector_length)
     -  [`map` (macro)](#std_vector_map)
     -  [`map_ref` (macro)](#std_vector_map_ref)
-    -  [`filter` (macro)](#std_vector_filter)
     -  [`partition` (macro)](#std_vector_partition)
-    -  [`find_index` (macro)](#std_vector_find_index)
-    -  [`count` (macro)](#std_vector_count)
-    -  [`fold` (macro)](#std_vector_fold)
-    -  [`flatten`](#std_vector_flatten)
-    -  [`any` (macro)](#std_vector_any)
-    -  [`all` (macro)](#std_vector_all)
+    -  [`pop_back`](#std_vector_pop_back)
+    -  [`push_back`](#std_vector_push_back)
+    -  [`remove`](#std_vector_remove)
+    -  [`reverse`](#std_vector_reverse)
+    -  [`singleton`](#std_vector_singleton)
+    -  [`swap`](#std_vector_swap)
+    -  [`swap_remove`](#std_vector_swap_remove)
+    -  [`tabulate` (macro)](#std_vector_tabulate)
     -  [`zip_do` (macro)](#std_vector_zip_do)
-    -  [`zip_do_reverse` (macro)](#std_vector_zip_do_reverse)
-    -  [`zip_do_ref` (macro)](#std_vector_zip_do_ref)
     -  [`zip_do_mut` (macro)](#std_vector_zip_do_mut)
+    -  [`zip_do_ref` (macro)](#std_vector_zip_do_ref)
+    -  [`zip_do_reverse` (macro)](#std_vector_zip_do_reverse)
     -  [`zip_map` (macro)](#std_vector_zip_map)
     -  [`zip_map_ref` (macro)](#std_vector_zip_map_ref)
 
@@ -73,14 +73,15 @@ The index into the vector is out of bounds
 ## Public Functions
 
 
-<a name="std_vector_empty"></a>
+<a name="std_vector_all"></a>
 
-### `empty`
+### `all` (macro)
 
-Create an empty vector.
+Whether all elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
+If the vector is empty, returns <code><b>true</b></code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_empty">empty</a>&lt;Element&gt;(): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_all">all</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool
 </code></pre>
 
 
@@ -89,199 +90,12 @@ Create an empty vector.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_empty">empty</a>&lt;Element&gt;(): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_length"></a>
-
-### `length`
-
-Return the length of the vector.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_length">length</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): <a href="../std/u64.md#std_u64">u64</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_length">length</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): <a href="../std/u64.md#std_u64">u64</a>;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_borrow"></a>
-
-### `borrow`
-
-Acquire an immutable reference to the <code>i</code>th element of the vector <code>v</code>.
-Aborts if <code>i</code> is out of bounds.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow">borrow</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &Element
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow">borrow</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &Element;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_push_back"></a>
-
-### `push_back`
-
-Add element <code>e</code> to the end of the vector <code>v</code>.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_push_back">push_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, e: Element)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_push_back">push_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, e: Element);
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_borrow_mut"></a>
-
-### `borrow_mut`
-
-Return a mutable reference to the <code>i</code>th element in the vector <code>v</code>.
-Aborts if <code>i</code> is out of bounds.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow_mut">borrow_mut</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &<b>mut</b> Element
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow_mut">borrow_mut</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &<b>mut</b> Element;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_pop_back"></a>
-
-### `pop_back`
-
-Pop an element from the end of vector <code>v</code>.
-Aborts if <code>v</code> is empty.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_pop_back">pop_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): Element
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_pop_back">pop_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): Element;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_destroy_empty"></a>
-
-### `destroy_empty`
-
-Destroy the vector <code>v</code>.
-Aborts if <code>v</code> is not empty.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>&lt;Element&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>&lt;Element&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;);
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_swap"></a>
-
-### `swap`
-
-Swaps the elements at the <code>i</code>th and <code>j</code>th indices in the vector <code>v</code>.
-Aborts if <code>i</code> or <code>j</code> is out of bounds.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap">swap</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap">swap</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>);
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_singleton"></a>
-
-### `singleton`
-
-Return a vector of size one containing element <code>e</code>.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_singleton">singleton</a>&lt;Element&gt;(e: Element): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_singleton">singleton</a>&lt;Element&gt;(e: Element): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt; {
-    <b>let</b> <b>mut</b> v = <a href="../std/vector.md#std_vector_empty">empty</a>();
-    v.<a href="../std/vector.md#std_vector_push_back">push_back</a>(e);
-    v
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_all">all</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool {
+    <b>let</b> v = $v;
+    '<a href="../std/vector.md#std_vector_all">all</a>: {
+        v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> (!$f(e)) <b>return</b> '<a href="../std/vector.md#std_vector_all">all</a> <b>false</b>);
+        <b>true</b>
+    }
 }
 </code></pre>
 
@@ -289,14 +103,15 @@ Return a vector of size one containing element <code>e</code>.
 
 </details>
 
-<a name="std_vector_reverse"></a>
+<a name="std_vector_any"></a>
 
-### `reverse`
+### `any` (macro)
 
-Reverses the order of the elements in the vector <code>v</code> in place.
+Whether any element in the vector <code>v</code> satisfies the predicate <code>f</code>.
+If the vector is empty, returns <code><b>false</b></code>.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_reverse">reverse</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;)
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_any">any</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool
 </code></pre>
 
 
@@ -305,15 +120,11 @@ Reverses the order of the elements in the vector <code>v</code> in place.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_reverse">reverse</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;) {
-    <b>let</b> len = v.<a href="../std/vector.md#std_vector_length">length</a>();
-    <b>if</b> (len == 0) <b>return</b> ();
-    <b>let</b> <b>mut</b> front_index = 0;
-    <b>let</b> <b>mut</b> back_index = len - 1;
-    <b>while</b> (front_index &lt; back_index) {
-        v.<a href="../std/vector.md#std_vector_swap">swap</a>(front_index, back_index);
-        front_index = front_index + 1;
-        back_index = back_index - 1;
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_any">any</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool {
+    <b>let</b> v = $v;
+    '<a href="../std/vector.md#std_vector_any">any</a>: {
+        v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> ($f(e)) <b>return</b> '<a href="../std/vector.md#std_vector_any">any</a> <b>true</b>);
+        <b>false</b>
     }
 }
 </code></pre>
@@ -347,14 +158,15 @@ Pushes all of the elements of the <code>other</code> vector into the <code>lhs</
 
 </details>
 
-<a name="std_vector_is_empty"></a>
+<a name="std_vector_borrow"></a>
 
-### `is_empty`
+### `borrow`
 
-Return <code><b>true</b></code> if the vector <code>v</code> has no elements and <code><b>false</b></code> otherwise.
+Acquire an immutable reference to the <code>i</code>th element of the vector <code>v</code>.
+Aborts if <code>i</code> is out of bounds.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_is_empty">is_empty</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): bool
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow">borrow</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &Element
 </code></pre>
 
 
@@ -363,9 +175,31 @@ Return <code><b>true</b></code> if the vector <code>v</code> has no elements and
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_is_empty">is_empty</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): bool {
-    v.<a href="../std/vector.md#std_vector_length">length</a>() == 0
-}
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow">borrow</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &Element;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_borrow_mut"></a>
+
+### `borrow_mut`
+
+Return a mutable reference to the <code>i</code>th element in the vector <code>v</code>.
+Aborts if <code>i</code> is out of bounds.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow_mut">borrow_mut</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &<b>mut</b> Element
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_borrow_mut">borrow_mut</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): &<b>mut</b> Element;
 </code></pre>
 
 
@@ -404,6 +238,306 @@ Otherwise, returns false.
 
 </details>
 
+<a name="std_vector_count"></a>
+
+### `count` (macro)
+
+Count how many elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_count">count</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/u64.md#std_u64">u64</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_count">count</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/u64.md#std_u64">u64</a> {
+    <b>let</b> v = $v;
+    <b>let</b> <b>mut</b> <a href="../std/vector.md#std_vector_count">count</a> = 0;
+    v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> ($f(e)) <a href="../std/vector.md#std_vector_count">count</a> = <a href="../std/vector.md#std_vector_count">count</a> + 1);
+    <a href="../std/vector.md#std_vector_count">count</a>
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_destroy"></a>
+
+### `destroy` (macro)
+
+Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
+Does not preserve the order of elements in the vector (starts from the end of the vector).
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy">destroy</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy">destroy</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R) {
+    <b>let</b> <b>mut</b> v = $v;
+    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|_| $f(v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
+    v.<a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>();
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_destroy_empty"></a>
+
+### `destroy_empty`
+
+Destroy the vector <code>v</code>.
+Aborts if <code>v</code> is not empty.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>&lt;Element&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>&lt;Element&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;);
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_do"></a>
+
+### `do` (macro)
+
+Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
+Preserves the order of elements in the vector.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do">do</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do">do</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R) {
+    <b>let</b> <b>mut</b> v = $v;
+    v.<a href="../std/vector.md#std_vector_reverse">reverse</a>();
+    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|_| $f(v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
+    v.<a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>();
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_do_mut"></a>
+
+### `do_mut` (macro)
+
+Perform an action <code>f</code> on each element of the vector <code>v</code>.
+The function <code>f</code> takes a mutable reference to the element.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_mut">do_mut</a>&lt;$T, $R: drop&gt;($v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&<b>mut</b> $T| -&gt; $R)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_mut">do_mut</a>&lt;$T, $R: drop&gt;($v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&<b>mut</b> $T| -&gt; $R) {
+    <b>let</b> v = $v;
+    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&<b>mut</b> v[i]))
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_do_ref"></a>
+
+### `do_ref` (macro)
+
+Perform an action <code>f</code> on each element of the vector <code>v</code>. The vector is not modified.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_ref">do_ref</a>&lt;$T, $R: drop&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; $R)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_ref">do_ref</a>&lt;$T, $R: drop&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; $R) {
+    <b>let</b> v = $v;
+    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&v[i]))
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_empty"></a>
+
+### `empty`
+
+Create an empty vector.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_empty">empty</a>&lt;Element&gt;(): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_empty">empty</a>&lt;Element&gt;(): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_filter"></a>
+
+### `filter` (macro)
+
+Filter the vector <code>v</code> by applying the function <code>f</code> to each element.
+Return a new vector containing only the elements for which <code>f</code> returns <code><b>true</b></code>.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_filter">filter</a>&lt;$T: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_filter">filter</a>&lt;$T: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt; {
+    <b>let</b> v = $v;
+    <b>let</b> <b>mut</b> r = <a href="../std/vector.md#std_vector">vector</a>[];
+    v.<a href="../std/vector.md#std_vector_do">do</a>!(|e| <b>if</b> ($f(&e)) r.<a href="../std/vector.md#std_vector_push_back">push_back</a>(e));
+    r
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_find_index"></a>
+
+### `find_index` (macro)
+
+Finds the index of first element in the vector <code>v</code> that satisfies the predicate <code>f</code>.
+Returns <code>some(index)</code> if such an element is found, otherwise <code>none()</code>.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_find_index">find_index</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u64.md#std_u64">u64</a>&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_find_index">find_index</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): Option&lt;<a href="../std/u64.md#std_u64">u64</a>&gt; {
+    <b>let</b> v = $v;
+    '<a href="../std/vector.md#std_vector_find_index">find_index</a>: {
+        v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| <b>if</b> ($f(&v[i])) <b>return</b> '<a href="../std/vector.md#std_vector_find_index">find_index</a> <a href="../std/option.md#std_option_some">option::some</a>(i));
+        <a href="../std/option.md#std_option_none">option::none</a>()
+    }
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_flatten"></a>
+
+### `flatten`
+
+Concatenate the vectors of <code>v</code> into a single vector, keeping the order of the elements.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_flatten">flatten</a>&lt;T&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;&gt;): <a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_flatten">flatten</a>&lt;T&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;&gt;): <a href="../std/vector.md#std_vector">vector</a>&lt;T&gt; {
+    <b>let</b> <b>mut</b> r = <a href="../std/vector.md#std_vector">vector</a>[];
+    v.<a href="../std/vector.md#std_vector_do">do</a>!(|u| r.<a href="../std/vector.md#std_vector_append">append</a>(u));
+    r
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_fold"></a>
+
+### `fold` (macro)
+
+Reduce the vector <code>v</code> to a single value by applying the function <code>f</code> to each element.
+Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and JavaScript.
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_fold">fold</a>&lt;$T, $Acc&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $init: $Acc, $f: |$Acc, $T| -&gt; $Acc): $Acc
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_fold">fold</a>&lt;$T, $Acc&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $init: $Acc, $f: |$Acc, $T| -&gt; $Acc): $Acc {
+    <b>let</b> v = $v;
+    <b>let</b> <b>mut</b> acc = $init;
+    v.<a href="../std/vector.md#std_vector_do">do</a>!(|e| acc = $f(acc, e));
+    acc
+}
+</code></pre>
+
+
+
+</details>
+
 <a name="std_vector_index_of"></a>
 
 ### `index_of`
@@ -429,40 +563,6 @@ Otherwise, returns <code>(<b>false</b>, 0)</code>.
         i = i + 1;
     };
     (<b>false</b>, 0)
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_remove"></a>
-
-### `remove`
-
-Remove the <code>i</code>th element of the vector <code>v</code>, shifting all subsequent elements.
-This is O(n) and preserves ordering of elements in the vector.
-Aborts if <code>i</code> is out of bounds.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_remove">remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_remove">remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, <b>mut</b> i: <a href="../std/u64.md#std_u64">u64</a>): Element {
-    <b>let</b> <b>mut</b> len = v.<a href="../std/vector.md#std_vector_length">length</a>();
-    // i out of bounds; <b>abort</b>
-    <b>if</b> (i &gt;= len) <b>abort</b> <a href="../std/vector.md#std_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</a>;
-    len = len - 1;
-    <b>while</b> (i &lt; len) {
-        v.<a href="../std/vector.md#std_vector_swap">swap</a>(i, { i = i + 1; i });
-    };
-    v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()
 }
 </code></pre>
 
@@ -506,16 +606,14 @@ Aborts if <code>i &gt; v.<a href="../std/vector.md#std_vector_length">length</a>
 
 </details>
 
-<a name="std_vector_swap_remove"></a>
+<a name="std_vector_is_empty"></a>
 
-### `swap_remove`
+### `is_empty`
 
-Swap the <code>i</code>th element of the vector <code>v</code> with the last element and then pop the vector.
-This is O(1), but does not preserve ordering of elements in the vector.
-Aborts if <code>i</code> is out of bounds.
+Return <code><b>true</b></code> if the vector <code>v</code> has no elements and <code><b>false</b></code> otherwise.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap_remove">swap_remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_is_empty">is_empty</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): bool
 </code></pre>
 
 
@@ -524,11 +622,8 @@ Aborts if <code>i</code> is out of bounds.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap_remove">swap_remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element {
-    <b>assert</b>!(v.<a href="../std/vector.md#std_vector_length">length</a>() != 0, <a href="../std/vector.md#std_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</a>);
-    <b>let</b> last_idx = v.<a href="../std/vector.md#std_vector_length">length</a>() - 1;
-    v.<a href="../std/vector.md#std_vector_swap">swap</a>(i, last_idx);
-    v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_is_empty">is_empty</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): bool {
+    v.<a href="../std/vector.md#std_vector_length">length</a>() == 0
 }
 </code></pre>
 
@@ -536,14 +631,14 @@ Aborts if <code>i</code> is out of bounds.
 
 </details>
 
-<a name="std_vector_tabulate"></a>
+<a name="std_vector_length"></a>
 
-### `tabulate` (macro)
+### `length`
 
-Create a vector of length <code>n</code> by calling the function <code>f</code> on each index.
+Return the length of the vector.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_tabulate">tabulate</a>&lt;$T&gt;($n: <a href="../std/u64.md#std_u64">u64</a>, $f: |<a href="../std/u64.md#std_u64">u64</a>| -&gt; $T): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_length">length</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): <a href="../std/u64.md#std_u64">u64</a>
 </code></pre>
 
 
@@ -552,122 +647,7 @@ Create a vector of length <code>n</code> by calling the function <code>f</code> 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_tabulate">tabulate</a>&lt;$T&gt;($n: <a href="../std/u64.md#std_u64">u64</a>, $f: |<a href="../std/u64.md#std_u64">u64</a>| -&gt; $T): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt; {
-    <b>let</b> <b>mut</b> v = <a href="../std/vector.md#std_vector">vector</a>[];
-    <b>let</b> n = $n;
-    n.<a href="../std/vector.md#std_vector_do">do</a>!(|i| v.<a href="../std/vector.md#std_vector_push_back">push_back</a>($f(i)));
-    v
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_destroy"></a>
-
-### `destroy` (macro)
-
-Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
-Does not preserve the order of elements in the vector (starts from the end of the vector).
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy">destroy</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_destroy">destroy</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R) {
-    <b>let</b> <b>mut</b> v = $v;
-    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|_| $f(v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
-    v.<a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>();
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_do"></a>
-
-### `do` (macro)
-
-Destroy the vector <code>v</code> by calling <code>f</code> on each element and then destroying the vector.
-Preserves the order of elements in the vector.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do">do</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do">do</a>&lt;$T, $R: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |$T| -&gt; $R) {
-    <b>let</b> <b>mut</b> v = $v;
-    v.<a href="../std/vector.md#std_vector_reverse">reverse</a>();
-    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|_| $f(v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
-    v.<a href="../std/vector.md#std_vector_destroy_empty">destroy_empty</a>();
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_do_ref"></a>
-
-### `do_ref` (macro)
-
-Perform an action <code>f</code> on each element of the vector <code>v</code>. The vector is not modified.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_ref">do_ref</a>&lt;$T, $R: drop&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; $R)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_ref">do_ref</a>&lt;$T, $R: drop&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; $R) {
-    <b>let</b> v = $v;
-    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&v[i]))
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_do_mut"></a>
-
-### `do_mut` (macro)
-
-Perform an action <code>f</code> on each element of the vector <code>v</code>.
-The function <code>f</code> takes a mutable reference to the element.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_mut">do_mut</a>&lt;$T, $R: drop&gt;($v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&<b>mut</b> $T| -&gt; $R)
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_do_mut">do_mut</a>&lt;$T, $R: drop&gt;($v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&<b>mut</b> $T| -&gt; $R) {
-    <b>let</b> v = $v;
-    v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&<b>mut</b> v[i]))
-}
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_length">length</a>&lt;Element&gt;(v: &<a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): <a href="../std/u64.md#std_u64">u64</a>;
 </code></pre>
 
 
@@ -732,35 +712,6 @@ Preserves the order of elements in the vector, first is called first.
 
 </details>
 
-<a name="std_vector_filter"></a>
-
-### `filter` (macro)
-
-Filter the vector <code>v</code> by applying the function <code>f</code> to each element.
-Return a new vector containing only the elements for which <code>f</code> returns <code><b>true</b></code>.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_filter">filter</a>&lt;$T: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_filter">filter</a>&lt;$T: drop&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt; {
-    <b>let</b> v = $v;
-    <b>let</b> <b>mut</b> r = <a href="../std/vector.md#std_vector">vector</a>[];
-    v.<a href="../std/vector.md#std_vector_do">do</a>!(|e| <b>if</b> ($f(&e)) r.<a href="../std/vector.md#std_vector_push_back">push_back</a>(e));
-    r
-}
-</code></pre>
-
-
-
-</details>
-
 <a name="std_vector_partition"></a>
 
 ### `partition` (macro)
@@ -792,15 +743,15 @@ and the second containing the elements for which <code>f</code> returns <code><b
 
 </details>
 
-<a name="std_vector_find_index"></a>
+<a name="std_vector_pop_back"></a>
 
-### `find_index` (macro)
+### `pop_back`
 
-Finds the index of first element in the vector <code>v</code> that satisfies the predicate <code>f</code>.
-Returns <code>some(index)</code> if such an element is found, otherwise <code>none()</code>.
+Pop an element from the end of vector <code>v</code>.
+Aborts if <code>v</code> is empty.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_find_index">find_index</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/option.md#std_option_Option">std::option::Option</a>&lt;<a href="../std/u64.md#std_u64">u64</a>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_pop_back">pop_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): Element
 </code></pre>
 
 
@@ -809,11 +760,95 @@ Returns <code>some(index)</code> if such an element is found, otherwise <code>no
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_find_index">find_index</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): Option&lt;<a href="../std/u64.md#std_u64">u64</a>&gt; {
-    <b>let</b> v = $v;
-    '<a href="../std/vector.md#std_vector_find_index">find_index</a>: {
-        v.<a href="../std/vector.md#std_vector_length">length</a>().<a href="../std/vector.md#std_vector_do">do</a>!(|i| <b>if</b> ($f(&v[i])) <b>return</b> '<a href="../std/vector.md#std_vector_find_index">find_index</a> <a href="../std/option.md#std_option_some">option::some</a>(i));
-        <a href="../std/option.md#std_option_none">option::none</a>()
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_pop_back">pop_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;): Element;
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_push_back"></a>
+
+### `push_back`
+
+Add element <code>e</code> to the end of the vector <code>v</code>.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_push_back">push_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, e: Element)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_push_back">push_back</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, e: Element);
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_remove"></a>
+
+### `remove`
+
+Remove the <code>i</code>th element of the vector <code>v</code>, shifting all subsequent elements.
+This is O(n) and preserves ordering of elements in the vector.
+Aborts if <code>i</code> is out of bounds.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_remove">remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_remove">remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, <b>mut</b> i: <a href="../std/u64.md#std_u64">u64</a>): Element {
+    <b>let</b> <b>mut</b> len = v.<a href="../std/vector.md#std_vector_length">length</a>();
+    // i out of bounds; <b>abort</b>
+    <b>if</b> (i &gt;= len) <b>abort</b> <a href="../std/vector.md#std_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</a>;
+    len = len - 1;
+    <b>while</b> (i &lt; len) {
+        v.<a href="../std/vector.md#std_vector_swap">swap</a>(i, { i = i + 1; i });
+    };
+    v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_reverse"></a>
+
+### `reverse`
+
+Reverses the order of the elements in the vector <code>v</code> in place.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_reverse">reverse</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_reverse">reverse</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;) {
+    <b>let</b> len = v.<a href="../std/vector.md#std_vector_length">length</a>();
+    <b>if</b> (len == 0) <b>return</b> ();
+    <b>let</b> <b>mut</b> front_index = 0;
+    <b>let</b> <b>mut</b> back_index = len - 1;
+    <b>while</b> (front_index &lt; back_index) {
+        v.<a href="../std/vector.md#std_vector_swap">swap</a>(front_index, back_index);
+        front_index = front_index + 1;
+        back_index = back_index - 1;
     }
 }
 </code></pre>
@@ -822,14 +857,14 @@ Returns <code>some(index)</code> if such an element is found, otherwise <code>no
 
 </details>
 
-<a name="std_vector_count"></a>
+<a name="std_vector_singleton"></a>
 
-### `count` (macro)
+### `singleton`
 
-Count how many elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
+Return a vector of size one containing element <code>e</code>.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_count">count</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/u64.md#std_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_singleton">singleton</a>&lt;Element&gt;(e: Element): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;
 </code></pre>
 
 
@@ -838,11 +873,10 @@ Count how many elements in the vector <code>v</code> satisfy the predicate <code
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_count">count</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): <a href="../std/u64.md#std_u64">u64</a> {
-    <b>let</b> v = $v;
-    <b>let</b> <b>mut</b> <a href="../std/vector.md#std_vector_count">count</a> = 0;
-    v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> ($f(e)) <a href="../std/vector.md#std_vector_count">count</a> = <a href="../std/vector.md#std_vector_count">count</a> + 1);
-    <a href="../std/vector.md#std_vector_count">count</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_singleton">singleton</a>&lt;Element&gt;(e: Element): <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt; {
+    <b>let</b> <b>mut</b> v = <a href="../std/vector.md#std_vector_empty">empty</a>();
+    v.<a href="../std/vector.md#std_vector_push_back">push_back</a>(e);
+    v
 }
 </code></pre>
 
@@ -850,15 +884,15 @@ Count how many elements in the vector <code>v</code> satisfy the predicate <code
 
 </details>
 
-<a name="std_vector_fold"></a>
+<a name="std_vector_swap"></a>
 
-### `fold` (macro)
+### `swap`
 
-Reduce the vector <code>v</code> to a single value by applying the function <code>f</code> to each element.
-Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and JavaScript.
+Swaps the elements at the <code>i</code>th and <code>j</code>th indices in the vector <code>v</code>.
+Aborts if <code>i</code> or <code>j</code> is out of bounds.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_fold">fold</a>&lt;$T, $Acc&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $init: $Acc, $f: |$Acc, $T| -&gt; $Acc): $Acc
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap">swap</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>)
 </code></pre>
 
 
@@ -867,11 +901,36 @@ Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_fold">fold</a>&lt;$T, $Acc&gt;($v: <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $init: $Acc, $f: |$Acc, $T| -&gt; $Acc): $Acc {
-    <b>let</b> v = $v;
-    <b>let</b> <b>mut</b> acc = $init;
-    v.<a href="../std/vector.md#std_vector_do">do</a>!(|e| acc = $f(acc, e));
-    acc
+<pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap">swap</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>, j: <a href="../std/u64.md#std_u64">u64</a>);
+</code></pre>
+
+
+
+</details>
+
+<a name="std_vector_swap_remove"></a>
+
+### `swap_remove`
+
+Swap the <code>i</code>th element of the vector <code>v</code> with the last element and then pop the vector.
+This is O(1), but does not preserve ordering of elements in the vector.
+Aborts if <code>i</code> is out of bounds.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap_remove">swap_remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_swap_remove">swap_remove</a>&lt;Element&gt;(v: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;Element&gt;, i: <a href="../std/u64.md#std_u64">u64</a>): Element {
+    <b>assert</b>!(v.<a href="../std/vector.md#std_vector_length">length</a>() != 0, <a href="../std/vector.md#std_vector_EINDEX_OUT_OF_BOUNDS">EINDEX_OUT_OF_BOUNDS</a>);
+    <b>let</b> last_idx = v.<a href="../std/vector.md#std_vector_length">length</a>() - 1;
+    v.<a href="../std/vector.md#std_vector_swap">swap</a>(i, last_idx);
+    v.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()
 }
 </code></pre>
 
@@ -879,14 +938,14 @@ Similar to <code>fold_left</code> in Rust and <code>reduce</code> in Python and 
 
 </details>
 
-<a name="std_vector_flatten"></a>
+<a name="std_vector_tabulate"></a>
 
-### `flatten`
+### `tabulate` (macro)
 
-Concatenate the vectors of <code>v</code> into a single vector, keeping the order of the elements.
+Create a vector of length <code>n</code> by calling the function <code>f</code> on each index.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_flatten">flatten</a>&lt;T&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;&gt;): <a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_tabulate">tabulate</a>&lt;$T&gt;($n: <a href="../std/u64.md#std_u64">u64</a>, $f: |<a href="../std/u64.md#std_u64">u64</a>| -&gt; $T): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;
 </code></pre>
 
 
@@ -895,70 +954,11 @@ Concatenate the vectors of <code>v</code> into a single vector, keeping the orde
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/vector.md#std_vector_flatten">flatten</a>&lt;T&gt;(v: <a href="../std/vector.md#std_vector">vector</a>&lt;<a href="../std/vector.md#std_vector">vector</a>&lt;T&gt;&gt;): <a href="../std/vector.md#std_vector">vector</a>&lt;T&gt; {
-    <b>let</b> <b>mut</b> r = <a href="../std/vector.md#std_vector">vector</a>[];
-    v.<a href="../std/vector.md#std_vector_do">do</a>!(|u| r.<a href="../std/vector.md#std_vector_append">append</a>(u));
-    r
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_any"></a>
-
-### `any` (macro)
-
-Whether any element in the vector <code>v</code> satisfies the predicate <code>f</code>.
-If the vector is empty, returns <code><b>false</b></code>.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_any">any</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_any">any</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool {
-    <b>let</b> v = $v;
-    '<a href="../std/vector.md#std_vector_any">any</a>: {
-        v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> ($f(e)) <b>return</b> '<a href="../std/vector.md#std_vector_any">any</a> <b>true</b>);
-        <b>false</b>
-    }
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_vector_all"></a>
-
-### `all` (macro)
-
-Whether all elements in the vector <code>v</code> satisfy the predicate <code>f</code>.
-If the vector is empty, returns <code><b>true</b></code>.
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_all">all</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_all">all</a>&lt;$T&gt;($v: &<a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt;, $f: |&$T| -&gt; bool): bool {
-    <b>let</b> v = $v;
-    '<a href="../std/vector.md#std_vector_all">all</a>: {
-        v.<a href="../std/vector.md#std_vector_do_ref">do_ref</a>!(|e| <b>if</b> (!$f(e)) <b>return</b> '<a href="../std/vector.md#std_vector_all">all</a> <b>false</b>);
-        <b>true</b>
-    }
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_tabulate">tabulate</a>&lt;$T&gt;($n: <a href="../std/u64.md#std_u64">u64</a>, $f: |<a href="../std/u64.md#std_u64">u64</a>| -&gt; $T): <a href="../std/vector.md#std_vector">vector</a>&lt;$T&gt; {
+    <b>let</b> <b>mut</b> v = <a href="../std/vector.md#std_vector">vector</a>[];
+    <b>let</b> n = $n;
+    n.<a href="../std/vector.md#std_vector_do">do</a>!(|i| v.<a href="../std/vector.md#std_vector_push_back">push_back</a>($f(i)));
+    v
 }
 </code></pre>
 
@@ -1003,16 +1003,17 @@ The order of elements in the vectors is preserved.
 
 </details>
 
-<a name="std_vector_zip_do_reverse"></a>
+<a name="std_vector_zip_do_mut"></a>
 
-### `zip_do_reverse` (macro)
+### `zip_do_mut` (macro)
 
-Destroys two vectors <code>v1</code> and <code>v2</code> by calling <code>f</code> to each pair of elements.
+Iterate through <code>v1</code> and <code>v2</code> and apply the function <code>f</code> to mutable references of each pair
+of elements. The vectors may be modified.
 Aborts if the vectors are not of the same length.
-Starts from the end of the vectors.
+The order of elements in the vectors is preserved.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_reverse">zip_do_reverse</a>&lt;$T1, $T2, $R: drop&gt;($v1: <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;, $v2: <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;, $f: |$T1, $T2| -&gt; $R)
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_mut">zip_do_mut</a>&lt;$T1, $T2, $R: drop&gt;($v1: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;, $v2: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;, $f: |&<b>mut</b> $T1, &<b>mut</b> $T2| -&gt; $R)
 </code></pre>
 
 
@@ -1021,16 +1022,16 @@ Starts from the end of the vectors.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_reverse">zip_do_reverse</a>&lt;$T1, $T2, $R: drop&gt;(
-    $v1: <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;,
-    $v2: <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;,
-    $f: |$T1, $T2| -&gt; $R,
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_mut">zip_do_mut</a>&lt;$T1, $T2, $R: drop&gt;(
+    $v1: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;,
+    $v2: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;,
+    $f: |&<b>mut</b> $T1, &<b>mut</b> $T2| -&gt; $R,
 ) {
     <b>let</b> v1 = $v1;
-    <b>let</b> <b>mut</b> v2 = $v2;
+    <b>let</b> v2 = $v2;
     <b>let</b> len = v1.<a href="../std/vector.md#std_vector_length">length</a>();
     <b>assert</b>!(len == v2.<a href="../std/vector.md#std_vector_length">length</a>());
-    v1.<a href="../std/vector.md#std_vector_destroy">destroy</a>!(|el1| $f(el1, v2.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
+    len.<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&<b>mut</b> v1[i], &<b>mut</b> v2[i]));
 }
 </code></pre>
 
@@ -1074,17 +1075,16 @@ The order of elements in the vectors is preserved.
 
 </details>
 
-<a name="std_vector_zip_do_mut"></a>
+<a name="std_vector_zip_do_reverse"></a>
 
-### `zip_do_mut` (macro)
+### `zip_do_reverse` (macro)
 
-Iterate through <code>v1</code> and <code>v2</code> and apply the function <code>f</code> to mutable references of each pair
-of elements. The vectors may be modified.
+Destroys two vectors <code>v1</code> and <code>v2</code> by calling <code>f</code> to each pair of elements.
 Aborts if the vectors are not of the same length.
-The order of elements in the vectors is preserved.
+Starts from the end of the vectors.
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_mut">zip_do_mut</a>&lt;$T1, $T2, $R: drop&gt;($v1: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;, $v2: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;, $f: |&<b>mut</b> $T1, &<b>mut</b> $T2| -&gt; $R)
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_reverse">zip_do_reverse</a>&lt;$T1, $T2, $R: drop&gt;($v1: <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;, $v2: <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;, $f: |$T1, $T2| -&gt; $R)
 </code></pre>
 
 
@@ -1093,16 +1093,16 @@ The order of elements in the vectors is preserved.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_mut">zip_do_mut</a>&lt;$T1, $T2, $R: drop&gt;(
-    $v1: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;,
-    $v2: &<b>mut</b> <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;,
-    $f: |&<b>mut</b> $T1, &<b>mut</b> $T2| -&gt; $R,
+<pre><code><b>public</b> <b>macro</b> <b>fun</b> <a href="../std/vector.md#std_vector_zip_do_reverse">zip_do_reverse</a>&lt;$T1, $T2, $R: drop&gt;(
+    $v1: <a href="../std/vector.md#std_vector">vector</a>&lt;$T1&gt;,
+    $v2: <a href="../std/vector.md#std_vector">vector</a>&lt;$T2&gt;,
+    $f: |$T1, $T2| -&gt; $R,
 ) {
     <b>let</b> v1 = $v1;
-    <b>let</b> v2 = $v2;
+    <b>let</b> <b>mut</b> v2 = $v2;
     <b>let</b> len = v1.<a href="../std/vector.md#std_vector_length">length</a>();
     <b>assert</b>!(len == v2.<a href="../std/vector.md#std_vector_length">length</a>());
-    len.<a href="../std/vector.md#std_vector_do">do</a>!(|i| $f(&<b>mut</b> v1[i], &<b>mut</b> v2[i]));
+    v1.<a href="../std/vector.md#std_vector_destroy">destroy</a>!(|el1| $f(el1, v2.<a href="../std/vector.md#std_vector_pop_back">pop_back</a>()));
 }
 </code></pre>
 

@@ -25,7 +25,7 @@ use move_compiler::{
     shared::{files::ByteSpan, known_attributes},
 };
 use move_core_types::{account_address::AccountAddress, runtime_value::MoveValue};
-use move_ir_types::location::*;
+use move_ir_types::{location::*, sp};
 use move_model_2::{
     ModuleId, QualifiedMemberId, display as model_display,
     source_model::{self, Model},
@@ -595,21 +595,6 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        for s in module_env.structs().sorted_by_key(|s| s.compiled().def_idx) {
-            self.gen_struct(s);
-        }
-
-        if module_env.enums().next().is_some() {
-            for e in module_env.enums().sorted_by_key(|e| e.compiled().def_idx) {
-                self.gen_enum(e);
-            }
-        }
-
-        if module_env.named_constants().next().is_some() {
-            // Introduce a Constant section
-            self.gen_named_constants(env);
-        }
-
         // TODO include macros
         let funs = module_env
             .functions()
@@ -621,8 +606,66 @@ impl<'env> Docgen<'env> {
             })
             .sorted_by_key(|f| f.info().index)
             .collect_vec();
-        if !funs.is_empty() {
-            self.gen_functions_by_visibility(funs);
+
+        // Partition functions into methods (first parameter is a datatype defined in
+        // this module) and free functions. Methods are emitted under their
+        // datatype's section so a reader can see the API surface of `Coin` next
+        // to the struct itself; free functions fall through into the visibility
+        // buckets at the bottom of the module.
+        let mut methods_by_datatype: BTreeMap<Symbol, Vec<source_model::Function<'_>>> =
+            BTreeMap::new();
+        let mut free_funs = Vec::with_capacity(funs.len());
+        for f in funs {
+            match self.method_receiver(f) {
+                Some(dt) => methods_by_datatype.entry(dt).or_default().push(f),
+                None => free_funs.push(f),
+            }
+        }
+
+        let structs = module_env
+            .structs()
+            .sorted_by_key(|s| s.compiled().def_idx)
+            .collect_vec();
+        if !structs.is_empty() {
+            let label = self.label_for_section("Structs");
+            self.section_header("Structs", &label);
+            self.increment_section_nest();
+            for s in structs {
+                let methods = methods_by_datatype.remove(&s.name()).unwrap_or_default();
+                self.gen_struct(s, methods);
+            }
+            self.decrement_section_nest();
+        }
+
+        let enums = module_env
+            .enums()
+            .sorted_by_key(|e| e.compiled().def_idx)
+            .collect_vec();
+        if !enums.is_empty() {
+            let label = self.label_for_section("Enums");
+            self.section_header("Enums", &label);
+            self.increment_section_nest();
+            for e in enums {
+                let methods = methods_by_datatype.remove(&e.name()).unwrap_or_default();
+                self.gen_enum(e, methods);
+            }
+            self.decrement_section_nest();
+        }
+
+        // Any leftover methods reference a datatype we didn't iterate (e.g. filtered
+        // out); fall back to treating them as free functions so they still
+        // appear somewhere.
+        for (_, mut leftover) in std::mem::take(&mut methods_by_datatype) {
+            free_funs.append(&mut leftover);
+        }
+
+        if module_env.named_constants().next().is_some() {
+            // Introduce a Constant section
+            self.gen_named_constants(env);
+        }
+
+        if !free_funs.is_empty() {
+            self.gen_functions_by_visibility(free_funs);
         }
 
         self.decrement_section_nest();
@@ -903,14 +946,21 @@ impl<'env> Docgen<'env> {
         self.decrement_section_nest();
     }
 
-    /// Generates documentation for a struct.
-    fn gen_struct(&mut self, struct_env: source_model::Struct<'_>) {
+    /// Generates documentation for a struct. `methods` are functions whose
+    /// first parameter is this struct (i.e. dot-syntax callable methods);
+    /// they are emitted as section headers directly under the struct,
+    /// alphabetized.
+    fn gen_struct(
+        &mut self,
+        struct_env: source_model::Struct<'_>,
+        mut methods: Vec<source_model::Function<'_>>,
+    ) {
         let env = struct_env.model();
         let module_env = struct_env.module();
         let name = struct_env.name();
         let struct_info = struct_env.info();
         self.section_header(
-            &format!("Struct `{name}`"),
+            &format!("`{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -925,17 +975,28 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
+        methods.sort_by_key(|f| f.name());
+        for f in methods {
+            self.gen_function(f);
+        }
+
         self.decrement_section_nest();
     }
 
-    /// Generates documentation for an enum.
-    fn gen_enum(&mut self, enum_env: source_model::Enum<'_>) {
+    /// Generates documentation for an enum. `methods` are functions whose first
+    /// parameter is this enum; they are emitted directly under the enum,
+    /// alphabetized.
+    fn gen_enum(
+        &mut self,
+        enum_env: source_model::Enum<'_>,
+        mut methods: Vec<source_model::Function<'_>>,
+    ) {
         let env = enum_env.model();
         let module_env = enum_env.module();
         let name = enum_env.name();
         let enum_info = enum_env.info();
         self.section_header(
-            &format!("Enum `{name}`"),
+            &format!("`{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -950,7 +1011,30 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
+        methods.sort_by_key(|f| f.name());
+        for f in methods {
+            self.gen_function(f);
+        }
+
         self.decrement_section_nest();
+    }
+
+    /// If `func` is callable via dot-syntax on a datatype defined in the same
+    /// module (its first parameter, after stripping any reference, is
+    /// `Apply` of a `ModuleType` whose module matches the function's),
+    /// returns that datatype's name. Otherwise returns `None` (free
+    /// function or method of an external type).
+    fn method_receiver(&self, func: source_model::Function<'_>) -> Option<Symbol> {
+        let module_ident = func.module().ident();
+        let (_, _, ty) = func.info().signature.parameters.first()?;
+        let inner = match &ty.value {
+            N::Type_::Ref(_, inner) => &inner.value,
+            other => other,
+        };
+        let N::Type_::Apply(_, sp!(_, N::TypeName_::ModuleType(m, dname)), _) = inner else {
+            return None;
+        };
+        (m == module_ident).then(|| dname.0.value)
     }
 
     /// Generates declaration for named constant
@@ -1102,10 +1186,11 @@ impl<'env> Docgen<'env> {
 
     /// Groups module functions into Public / Entry / Public(package) /
     /// Public(friend) / Private buckets and emits each non-empty bucket under
-    /// its own section header. Within each bucket, the original definition
-    /// order is preserved. Internal-only groups (package / private) are wrapped
-    /// in a collapsed `<details>` so the public surface is what's open by
-    /// default.
+    /// its own section header. Within each bucket, functions are sorted
+    /// alphabetically by name so a reader can scan for a specific function.
+    /// The (legacy) Public(friend) group is wrapped in a collapsed `<details>`
+    /// so its rarely-used surface doesn't push the rest of the module below
+    /// the fold.
     fn gen_functions_by_visibility(&mut self, funs: Vec<source_model::Function<'_>>) {
         let mut entry = vec![];
         let mut public = vec![];
@@ -1126,12 +1211,22 @@ impl<'env> Docgen<'env> {
             }
         }
 
+        for bucket in [
+            &mut public,
+            &mut entry,
+            &mut package,
+            &mut friend,
+            &mut private,
+        ] {
+            bucket.sort_by_key(|f| f.name());
+        }
+
         let groups = [
             ("Public Functions", public, false),
             ("Entry Functions", entry, false),
-            ("Public Package Functions", package, true),
+            ("Public Package Functions", package, false),
             ("Public Friend Functions", friend, true),
-            ("Private Functions", private, true),
+            ("Private Functions", private, false),
         ];
 
         for (title, fns, collapse) in groups {

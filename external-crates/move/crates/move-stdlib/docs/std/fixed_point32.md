@@ -7,24 +7,30 @@ Defines a fixed-point numeric type with a 32-bit integer part and
 a 32-bit fractional part.
 
 
--  [Struct `FixedPoint32`](#std_fixed_point32_FixedPoint32)
--  [Constants](#@Constants_0)
--  [Public Functions](#@Public_Functions_1)
-    -  [`multiply_u64`](#std_fixed_point32_multiply_u64)
-    -  [`divide_u64`](#std_fixed_point32_divide_u64)
+-  [Structs](#@Structs_0)
+    -  [`FixedPoint32`](#std_fixed_point32_FixedPoint32)
+        -  [`get_raw_value`](#std_fixed_point32_get_raw_value)
+        -  [`is_zero`](#std_fixed_point32_is_zero)
+-  [Constants](#@Constants_1)
+-  [Public Functions](#@Public_Functions_2)
     -  [`create_from_rational`](#std_fixed_point32_create_from_rational)
     -  [`create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
-    -  [`get_raw_value`](#std_fixed_point32_get_raw_value)
-    -  [`is_zero`](#std_fixed_point32_is_zero)
+    -  [`divide_u64`](#std_fixed_point32_divide_u64)
+    -  [`multiply_u64`](#std_fixed_point32_multiply_u64)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Structs_0"></a>
+
+## Structs
+
+
 <a name="std_fixed_point32_FixedPoint32"></a>
 
-## Struct `FixedPoint32`
+### `FixedPoint32`
 
 Define a fixed-point numeric type with 32 fractional bits.
 This is just a u64 integer but it is wrapped in a struct to
@@ -57,7 +63,59 @@ decimal.
 
 </details>
 
-<a name="@Constants_0"></a>
+<a name="std_fixed_point32_get_raw_value"></a>
+
+#### `get_raw_value`
+
+Accessor for the raw u64 value. Other less common operations, such as
+adding or subtracting FixedPoint32 values, can be done using the raw
+values directly.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
+    num.value
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_fixed_point32_is_zero"></a>
+
+#### `is_zero`
+
+Returns true if the ratio is zero.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_is_zero">is_zero</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_is_zero">is_zero</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): bool {
+    num.value == 0
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Constants_1"></a>
 
 ## Constants
 
@@ -122,83 +180,10 @@ The computed ratio when converting to a <code><a href="../std/fixed_point32.md#s
 
 
 
-<a name="@Public_Functions_1"></a>
+<a name="@Public_Functions_2"></a>
 
 ## Public Functions
 
-
-<a name="std_fixed_point32_multiply_u64"></a>
-
-### `multiply_u64`
-
-Multiply a u64 integer by a fixed-point number, truncating any
-fractional part of the product. This will abort if the product
-overflows.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, multiplier: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, multiplier: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
-    // The product of two 64 bit values <b>has</b> 128 bits, so perform the
-    // multiplication with <a href="../std/u128.md#std_u128">u128</a> types and keep the full 128 bit product
-    // to avoid losing accuracy.
-    <b>let</b> unscaled_product = val <b>as</b> <a href="../std/u128.md#std_u128">u128</a> * (multiplier.value <b>as</b> <a href="../std/u128.md#std_u128">u128</a>);
-    // The unscaled product <b>has</b> 32 fractional bits (from the multiplier)
-    // so rescale it by shifting away the low bits.
-    <b>let</b> product = unscaled_product &gt;&gt; 32;
-    // Check whether the value is too large.
-    <b>assert</b>!(product &lt;= <a href="../std/fixed_point32.md#std_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../std/fixed_point32.md#std_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</a>);
-    product <b>as</b> <a href="../std/u64.md#std_u64">u64</a>
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_fixed_point32_divide_u64"></a>
-
-### `divide_u64`
-
-Divide a u64 integer by a fixed-point number, truncating any
-fractional part of the quotient. This will abort if the divisor
-is zero or if the quotient overflows.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, divisor: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, divisor: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
-    // Check <b>for</b> division by zero.
-    <b>assert</b>!(divisor.value != 0, <a href="../std/fixed_point32.md#std_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</a>);
-    // First convert to 128 bits and then shift left to
-    // add 32 fractional zero bits to the dividend.
-    <b>let</b> scaled_value = val <b>as</b> <a href="../std/u128.md#std_u128">u128</a> &lt;&lt; 32;
-    <b>let</b> quotient = scaled_value / (divisor.value <b>as</b> <a href="../std/u128.md#std_u128">u128</a>);
-    // Check whether the value is too large.
-    <b>assert</b>!(quotient &lt;= <a href="../std/fixed_point32.md#std_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../std/fixed_point32.md#std_fixed_point32_EDIVISION">EDIVISION</a>);
-    // the value may be too large, which will cause the cast to fail
-    // with an arithmetic error.
-    quotient <b>as</b> <a href="../std/u64.md#std_u64">u64</a>
-}
-</code></pre>
-
-
-
-</details>
 
 <a name="std_fixed_point32_create_from_rational"></a>
 
@@ -271,16 +256,16 @@ Create a fixedpoint value from a raw value.
 
 </details>
 
-<a name="std_fixed_point32_get_raw_value"></a>
+<a name="std_fixed_point32_divide_u64"></a>
 
-### `get_raw_value`
+### `divide_u64`
 
-Accessor for the raw u64 value. Other less common operations, such as
-adding or subtracting FixedPoint32 values, can be done using the raw
-values directly.
+Divide a u64 integer by a fixed-point number, truncating any
+fractional part of the quotient. This will abort if the divisor
+is zero or if the quotient overflows.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, divisor: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
 </code></pre>
 
 
@@ -289,8 +274,18 @@ values directly.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_get_raw_value">get_raw_value</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
-    num.value
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_divide_u64">divide_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, divisor: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
+    // Check <b>for</b> division by zero.
+    <b>assert</b>!(divisor.value != 0, <a href="../std/fixed_point32.md#std_fixed_point32_EDIVISION_BY_ZERO">EDIVISION_BY_ZERO</a>);
+    // First convert to 128 bits and then shift left to
+    // add 32 fractional zero bits to the dividend.
+    <b>let</b> scaled_value = val <b>as</b> <a href="../std/u128.md#std_u128">u128</a> &lt;&lt; 32;
+    <b>let</b> quotient = scaled_value / (divisor.value <b>as</b> <a href="../std/u128.md#std_u128">u128</a>);
+    // Check whether the value is too large.
+    <b>assert</b>!(quotient &lt;= <a href="../std/fixed_point32.md#std_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../std/fixed_point32.md#std_fixed_point32_EDIVISION">EDIVISION</a>);
+    // the value may be too large, which will cause the cast to fail
+    // with an arithmetic error.
+    quotient <b>as</b> <a href="../std/u64.md#std_u64">u64</a>
 }
 </code></pre>
 
@@ -298,14 +293,16 @@ values directly.
 
 </details>
 
-<a name="std_fixed_point32_is_zero"></a>
+<a name="std_fixed_point32_multiply_u64"></a>
 
-### `is_zero`
+### `multiply_u64`
 
-Returns true if the ratio is zero.
+Multiply a u64 integer by a fixed-point number, truncating any
+fractional part of the product. This will abort if the product
+overflows.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_is_zero">is_zero</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): bool
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, multiplier: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">std::fixed_point32::FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a>
 </code></pre>
 
 
@@ -314,8 +311,17 @@ Returns true if the ratio is zero.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_is_zero">is_zero</a>(num: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): bool {
-    num.value == 0
+<pre><code><b>public</b> <b>fun</b> <a href="../std/fixed_point32.md#std_fixed_point32_multiply_u64">multiply_u64</a>(val: <a href="../std/u64.md#std_u64">u64</a>, multiplier: <a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a>): <a href="../std/u64.md#std_u64">u64</a> {
+    // The product of two 64 bit values <b>has</b> 128 bits, so perform the
+    // multiplication with <a href="../std/u128.md#std_u128">u128</a> types and keep the full 128 bit product
+    // to avoid losing accuracy.
+    <b>let</b> unscaled_product = val <b>as</b> <a href="../std/u128.md#std_u128">u128</a> * (multiplier.value <b>as</b> <a href="../std/u128.md#std_u128">u128</a>);
+    // The unscaled product <b>has</b> 32 fractional bits (from the multiplier)
+    // so rescale it by shifting away the low bits.
+    <b>let</b> product = unscaled_product &gt;&gt; 32;
+    // Check whether the value is too large.
+    <b>assert</b>!(product &lt;= <a href="../std/fixed_point32.md#std_fixed_point32_MAX_U64">MAX_U64</a>, <a href="../std/fixed_point32.md#std_fixed_point32_EMULTIPLICATION">EMULTIPLICATION</a>);
+    product <b>as</b> <a href="../std/u64.md#std_u64">u64</a>
 }
 </code></pre>
 

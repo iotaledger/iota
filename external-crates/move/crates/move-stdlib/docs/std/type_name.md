@@ -6,16 +6,17 @@
 Functionality for converting Move types into values. Use with care!
 
 
--  [Struct `TypeName`](#std_type_name_TypeName)
--  [Constants](#@Constants_0)
--  [Public Functions](#@Public_Functions_1)
+-  [Structs](#@Structs_0)
+    -  [`TypeName`](#std_type_name_TypeName)
+        -  [`borrow_string`](#std_type_name_borrow_string)
+        -  [`get_address`](#std_type_name_get_address)
+        -  [`get_module`](#std_type_name_get_module)
+        -  [`into_string`](#std_type_name_into_string)
+        -  [`is_primitive`](#std_type_name_is_primitive)
+-  [Constants](#@Constants_1)
+-  [Public Functions](#@Public_Functions_2)
     -  [`get`](#std_type_name_get)
     -  [`get_with_original_ids`](#std_type_name_get_with_original_ids)
-    -  [`is_primitive`](#std_type_name_is_primitive)
-    -  [`borrow_string`](#std_type_name_borrow_string)
-    -  [`get_address`](#std_type_name_get_address)
-    -  [`get_module`](#std_type_name_get_module)
-    -  [`into_string`](#std_type_name_into_string)
 
 
 <pre><code><b>use</b> <a href="../std/address.md#std_address">std::address</a>;
@@ -26,9 +27,14 @@ Functionality for converting Move types into values. Use with care!
 
 
 
+<a name="@Structs_0"></a>
+
+## Structs
+
+
 <a name="std_type_name_TypeName"></a>
 
-## Struct `TypeName`
+### `TypeName`
 
 
 
@@ -59,7 +65,178 @@ Functionality for converting Move types into values. Use with care!
 
 </details>
 
-<a name="@Constants_0"></a>
+<a name="std_type_name_borrow_string"></a>
+
+#### `borrow_string`
+
+Get the String representation of <code>self</code>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_borrow_string">borrow_string</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): &<a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_borrow_string">borrow_string</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): &String {
+    &self.name
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_type_name_get_address"></a>
+
+#### `get_address`
+
+Get Address string (Base16 encoded), first part of the TypeName.
+Aborts if given a primitive type.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_address">get_address</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_address">get_address</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
+    <b>assert</b>!(!self.<a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(), <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>);
+    // Base16 (<a href="../std/string.md#std_string">string</a>) representation of an <b>address</b> <b>has</b> 2 symbols per byte.
+    <b>let</b> len = <a href="../std/address.md#std_address_length">address::length</a>() * 2;
+    <b>let</b> str_bytes = self.name.as_bytes();
+    <b>let</b> <b>mut</b> addr_bytes = <a href="../std/vector.md#std_vector">vector</a>[];
+    <b>let</b> <b>mut</b> i = 0;
+    // Read `len` bytes from the type name and push them to addr_bytes.
+    <b>while</b> (i &lt; len) {
+        addr_bytes.push_back(str_bytes[i]);
+        i = i + 1;
+    };
+    <a href="../std/ascii.md#std_ascii_string">ascii::string</a>(addr_bytes)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_type_name_get_module"></a>
+
+#### `get_module`
+
+Get name of the module.
+Aborts if given a primitive type.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_module">get_module</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_module">get_module</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
+    <b>assert</b>!(!self.<a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(), <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>);
+    // Starts after <b>address</b> and a double colon: `&lt;addr <b>as</b> HEX&gt;::`
+    <b>let</b> <b>mut</b> i = <a href="../std/address.md#std_address_length">address::length</a>() * 2 + 2;
+    <b>let</b> str_bytes = self.name.as_bytes();
+    <b>let</b> <b>mut</b> module_name = <a href="../std/vector.md#std_vector">vector</a>[];
+    <b>let</b> colon = <a href="../std/type_name.md#std_type_name_ASCII_COLON">ASCII_COLON</a>;
+    <b>loop</b> {
+        <b>let</b> char = &str_bytes[i];
+        <b>if</b> (char != &colon) {
+            module_name.push_back(*char);
+            i = i + 1;
+        } <b>else</b> {
+            <b>break</b>
+        }
+    };
+    <a href="../std/ascii.md#std_ascii_string">ascii::string</a>(module_name)
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_type_name_into_string"></a>
+
+#### `into_string`
+
+Convert <code>self</code> into its inner String
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_into_string">into_string</a>(self: <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_into_string">into_string</a>(self: <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
+    self.name
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="std_type_name_is_primitive"></a>
+
+#### `is_primitive`
+
+Returns true iff the TypeName represents a primitive type, i.e. one of
+u8, u16, u32, u64, u128, u256, bool, address, vector.
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): bool
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): bool {
+    <b>let</b> bytes = self.name.as_bytes();
+    bytes == &b"bool" ||
+        bytes == &b"<a href="../std/u8.md#std_u8">u8</a>" ||
+        bytes == &b"<a href="../std/u16.md#std_u16">u16</a>" ||
+        bytes == &b"<a href="../std/u32.md#std_u32">u32</a>" ||
+        bytes == &b"<a href="../std/u64.md#std_u64">u64</a>" ||
+        bytes == &b"<a href="../std/u128.md#std_u128">u128</a>" ||
+        bytes == &b"<a href="../std/u256.md#std_u256">u256</a>" ||
+        bytes == &b"<b>address</b>" ||
+        (
+            bytes.length() &gt;= 6 &&
+            bytes[0] == <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a> &&
+            bytes[1] == <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a> &&
+            bytes[2] == <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a> &&
+            bytes[3] == <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a> &&
+            bytes[4] == <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a> &&
+            bytes[5] == <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>,
+        )
+}
+</code></pre>
+
+
+
+</details>
+
+<a name="@Constants_1"></a>
 
 ## Constants
 
@@ -144,7 +321,7 @@ The type is not from a package/module. It is a primitive type.
 
 
 
-<a name="@Public_Functions_1"></a>
+<a name="@Public_Functions_2"></a>
 
 ## Public Functions
 
@@ -196,177 +373,6 @@ later upgrade).
 
 
 <pre><code><b>public</b> <b>native</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_with_original_ids">get_with_original_ids</a>&lt;T&gt;(): <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>;
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_is_primitive"></a>
-
-### `is_primitive`
-
-Returns true iff the TypeName represents a primitive type, i.e. one of
-u8, u16, u32, u64, u128, u256, bool, address, vector.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): bool
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): bool {
-    <b>let</b> bytes = self.name.as_bytes();
-    bytes == &b"bool" ||
-        bytes == &b"<a href="../std/u8.md#std_u8">u8</a>" ||
-        bytes == &b"<a href="../std/u16.md#std_u16">u16</a>" ||
-        bytes == &b"<a href="../std/u32.md#std_u32">u32</a>" ||
-        bytes == &b"<a href="../std/u64.md#std_u64">u64</a>" ||
-        bytes == &b"<a href="../std/u128.md#std_u128">u128</a>" ||
-        bytes == &b"<a href="../std/u256.md#std_u256">u256</a>" ||
-        bytes == &b"<b>address</b>" ||
-        (
-            bytes.length() &gt;= 6 &&
-            bytes[0] == <a href="../std/type_name.md#std_type_name_ASCII_V">ASCII_V</a> &&
-            bytes[1] == <a href="../std/type_name.md#std_type_name_ASCII_E">ASCII_E</a> &&
-            bytes[2] == <a href="../std/type_name.md#std_type_name_ASCII_C">ASCII_C</a> &&
-            bytes[3] == <a href="../std/type_name.md#std_type_name_ASCII_T">ASCII_T</a> &&
-            bytes[4] == <a href="../std/type_name.md#std_type_name_ASCII_O">ASCII_O</a> &&
-            bytes[5] == <a href="../std/type_name.md#std_type_name_ASCII_R">ASCII_R</a>,
-        )
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_borrow_string"></a>
-
-### `borrow_string`
-
-Get the String representation of <code>self</code>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_borrow_string">borrow_string</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): &<a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_borrow_string">borrow_string</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): &String {
-    &self.name
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_get_address"></a>
-
-### `get_address`
-
-Get Address string (Base16 encoded), first part of the TypeName.
-Aborts if given a primitive type.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_address">get_address</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_address">get_address</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
-    <b>assert</b>!(!self.<a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(), <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>);
-    // Base16 (<a href="../std/string.md#std_string">string</a>) representation of an <b>address</b> <b>has</b> 2 symbols per byte.
-    <b>let</b> len = <a href="../std/address.md#std_address_length">address::length</a>() * 2;
-    <b>let</b> str_bytes = self.name.as_bytes();
-    <b>let</b> <b>mut</b> addr_bytes = <a href="../std/vector.md#std_vector">vector</a>[];
-    <b>let</b> <b>mut</b> i = 0;
-    // Read `len` bytes from the type name and push them to addr_bytes.
-    <b>while</b> (i &lt; len) {
-        addr_bytes.push_back(str_bytes[i]);
-        i = i + 1;
-    };
-    <a href="../std/ascii.md#std_ascii_string">ascii::string</a>(addr_bytes)
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_get_module"></a>
-
-### `get_module`
-
-Get name of the module.
-Aborts if given a primitive type.
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_module">get_module</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_get_module">get_module</a>(self: &<a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
-    <b>assert</b>!(!self.<a href="../std/type_name.md#std_type_name_is_primitive">is_primitive</a>(), <a href="../std/type_name.md#std_type_name_ENonModuleType">ENonModuleType</a>);
-    // Starts after <b>address</b> and a double colon: `&lt;addr <b>as</b> HEX&gt;::`
-    <b>let</b> <b>mut</b> i = <a href="../std/address.md#std_address_length">address::length</a>() * 2 + 2;
-    <b>let</b> str_bytes = self.name.as_bytes();
-    <b>let</b> <b>mut</b> module_name = <a href="../std/vector.md#std_vector">vector</a>[];
-    <b>let</b> colon = <a href="../std/type_name.md#std_type_name_ASCII_COLON">ASCII_COLON</a>;
-    <b>loop</b> {
-        <b>let</b> char = &str_bytes[i];
-        <b>if</b> (char != &colon) {
-            module_name.push_back(*char);
-            i = i + 1;
-        } <b>else</b> {
-            <b>break</b>
-        }
-    };
-    <a href="../std/ascii.md#std_ascii_string">ascii::string</a>(module_name)
-}
-</code></pre>
-
-
-
-</details>
-
-<a name="std_type_name_into_string"></a>
-
-### `into_string`
-
-Convert <code>self</code> into its inner String
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_into_string">into_string</a>(self: <a href="../std/type_name.md#std_type_name_TypeName">std::type_name::TypeName</a>): <a href="../std/ascii.md#std_ascii_String">std::ascii::String</a>
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>public</b> <b>fun</b> <a href="../std/type_name.md#std_type_name_into_string">into_string</a>(self: <a href="../std/type_name.md#std_type_name_TypeName">TypeName</a>): String {
-    self.name
-}
 </code></pre>
 
 

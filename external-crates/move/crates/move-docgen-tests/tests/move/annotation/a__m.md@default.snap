@@ -80,10 +80,6 @@ This is the middle doc comment
 ## Private Functions
 
 
-<details>
-<summary>Show private functions</summary>
-
-
 <a name="a_m_test"></a>
 
 ### `test`
@@ -127,7 +123,5 @@ This is a doc comment above a function with an annotation. Below the annotation.
 </code></pre>
 
 
-
-</details>
 
 </details>

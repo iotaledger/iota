@@ -17,27 +17,33 @@ info:
 This is a doc comment above an annotation.
 
 
--  [Struct `X`](#a_m_X)
--  [Struct `Y`](#a_m_Y)
--  [Struct `XG`](#a_m_XG)
--  [Struct `YG`](#a_m_YG)
--  [Struct `XGG`](#a_m_XGG)
--  [Struct `YGG`](#a_m_YGG)
--  [Struct `VecMap`](#a_m_VecMap)
--  [Struct `Entry`](#a_m_Entry)
--  [Enum `Enum`](#a_m_Enum)
--  [Enum `GenericEnum`](#a_m_GenericEnum)
--  [Private Functions](#@Private_Functions_0)
-    -  [`f`](#a_m_f)
+-  [Structs](#@Structs_0)
+    -  [`X`](#a_m_X)
+    -  [`Y`](#a_m_Y)
+    -  [`XG`](#a_m_XG)
+    -  [`YG`](#a_m_YG)
+    -  [`XGG`](#a_m_XGG)
+    -  [`YGG`](#a_m_YGG)
+    -  [`VecMap`](#a_m_VecMap)
+        -  [`f`](#a_m_f)
+    -  [`Entry`](#a_m_Entry)
+-  [Enums](#@Enums_1)
+    -  [`Enum`](#a_m_Enum)
+    -  [`GenericEnum`](#a_m_GenericEnum)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Structs_0"></a>
+
+## Structs
+
+
 <a name="a_m_X"></a>
 
-## Struct `X`
+### `X`
 
 
 
@@ -63,7 +69,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_Y"></a>
 
-## Struct `Y`
+### `Y`
 
 
 
@@ -89,7 +95,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XG"></a>
 
-## Struct `XG`
+### `XG`
 
 
 
@@ -115,7 +121,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YG"></a>
 
-## Struct `YG`
+### `YG`
 
 
 
@@ -141,7 +147,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XGG"></a>
 
-## Struct `XGG`
+### `XGG`
 
 
 
@@ -167,7 +173,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YGG"></a>
 
-## Struct `YGG`
+### `YGG`
 
 
 
@@ -193,7 +199,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_VecMap"></a>
 
-## Struct `VecMap`
+### `VecMap`
 
 
 
@@ -217,9 +223,34 @@ This is a doc comment above an annotation.
 
 </details>
 
+<a name="a_m_f"></a>
+
+#### `f`
+
+Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
+
+
+<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">a::m::VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">a::m::X</a>&gt;): u64
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;): u64 {
+    0
+}
+</code></pre>
+
+
+
+</details>
+
 <a name="a_m_Entry"></a>
 
-## Struct `Entry`
+### `Entry`
 
 An entry in the map
 
@@ -249,9 +280,14 @@ An entry in the map
 
 </details>
 
+<a name="@Enums_1"></a>
+
+## Enums
+
+
 <a name="a_m_Enum"></a>
 
-## Enum `Enum`
+### `Enum`
 
 This is a doc comment above an enum
 
@@ -337,7 +373,7 @@ Variant <code>E</code>
 
 <a name="a_m_GenericEnum"></a>
 
-## Enum `GenericEnum`
+### `GenericEnum`
 
 
 
@@ -372,41 +408,5 @@ Variant <code>B</code>
 </dd>
 </dl>
 
-
-</details>
-
-<a name="@Private_Functions_0"></a>
-
-## Private Functions
-
-
-<details>
-<summary>Show private functions</summary>
-
-
-<a name="a_m_f"></a>
-
-### `f`
-
-Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
-
-
-<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">a::m::VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">a::m::X</a>&gt;): u64
-</code></pre>
-
-
-
-<details>
-<summary>Implementation</summary>
-
-
-<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;): u64 {
-    0
-}
-</code></pre>
-
-
-
-</details>
 
 </details>
