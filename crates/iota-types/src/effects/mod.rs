@@ -95,23 +95,30 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self;
+
     /// Return the status of the transaction.
     fn status(&self) -> &ExecutionStatus;
+
     /// Consume `self` and return the owned status of the transaction.
     fn into_status(self) -> ExecutionStatus;
+
     /// Return the epoch in which this transaction was executed.
     fn epoch(&self) -> EpochId;
+
     /// Return the `(ObjectID, Version)` pair, at their pre-execution version,
     /// of every object that existed in the store before this transaction
     /// and was modified by it (mutated, wrapped, or deleted).
     fn modified_at_versions(&self) -> Vec<(ObjectID, Version)>;
+
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
+
     /// Metadata of objects prior to modification. This includes any object that
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted.
     fn old_object_metadata(&self) -> Vec<(ObjectRef, Owner)>;
+
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID
     /// for shared objects. Their version and digest can only be figured out
@@ -120,52 +127,65 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// config objects since they do not require sequencing. TODO: Rename
     /// this function to indicate sequencing requirement.
     fn input_shared_objects(&self) -> Vec<InputSharedObject>;
+
     /// Objects (Move objects and packages) newly created by this transaction,
     /// paired with their owner. Excludes objects that were created and then
     /// wrapped within the same transaction.
     fn created(&self) -> Vec<(ObjectRef, Owner)>;
+
     /// Objects that existed before this transaction and whose contents were
     /// updated by it (in-place mutations and system package upgrades),
     /// reported at their post-execution `(ObjectRef, Owner)`.
     fn mutated(&self) -> Vec<(ObjectRef, Owner)>;
+
     /// Objects that were wrapped inside another object before this transaction
     /// and have been promoted back to top-level objects in the store by it.
     fn unwrapped(&self) -> Vec<(ObjectRef, Owner)>;
+
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
     /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
     fn deleted(&self) -> Vec<ObjectRef>;
+
     /// Objects that were unwrapped and then deleted within this same
     /// transaction (i.e. did not exist as top-level objects either before
     /// or after). References use the post-execution version and the
     /// [`TransactionEffectsDigest::OBJECT_DELETED`] tombstone digest.
     fn unwrapped_then_deleted(&self) -> Vec<ObjectRef>;
+
     /// Objects that existed as top-level objects before this transaction and
     /// have been wrapped inside another object by it (i.e. no longer visible
     /// in the object store as top-level). References use the post-execution
     /// version and the [`TransactionEffectsDigest::OBJECT_WRAPPED`] tombstone
     /// digest.
     fn wrapped(&self) -> Vec<ObjectRef>;
+
     /// Returns a flattened view of every object change recorded in these
     /// effects: for each touched object, the input and output version/digest
     /// (when present) together with the [`IDOperation`] describing whether
     /// the ID was created, deleted, or unchanged.
     fn object_changes(&self) -> Vec<ObjectChange>;
+
     /// Returns the post-execution reference and owner of the gas object.
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
     // return dummy object ref and owner. This is not ideal.
     fn gas_object(&self) -> (ObjectRef, Owner);
+
     /// Digest of the events emitted by this transaction, or `None` if it
     /// emitted no events.
     fn events_digest(&self) -> Option<&TransactionEventsDigest>;
+
     /// Digests of the transactions this one depends on, i.e. transactions
     /// that must be executed before this one for its inputs to be available.
     fn dependencies(&self) -> &[TransactionDigest];
+
     /// Digest of the transaction that produced these effects.
     fn transaction_digest(&self) -> &TransactionDigest;
+
     /// Return the gas cost summary of the transaction.
     fn gas_cost_summary(&self) -> &GasCostSummary;
+
     /// IDs of shared objects that were declared as mutable inputs by the
     /// transaction but had already been deleted at the time of execution.
     fn deleted_mutably_accessed_shared_objects(&self) -> Vec<ObjectID> {
@@ -180,6 +200,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
             })
             .collect()
     }
+
     /// Returns all root shared objects (i.e. not child object) that are
     /// read-only in the transaction.
     fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
@@ -221,19 +242,25 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // can tell.
     /// Returns a mutable reference to the execution status, for tests.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
+
     /// Returns a mutable reference to the gas cost summary, for tests.
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
+
     /// Returns a mutable reference to the transaction digest, for tests.
     fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest;
+
     /// Returns a mutable reference to the dependency list, for tests.
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest>;
+
     /// Records `kind` as an input shared object without validating that it is
     /// consistent with the rest of the effects. For tests only.
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject);
+
     /// Records an entry that represents the pre-execution version of a still
     /// live object, without validating consistency with the rest of the
     /// effects. For tests only.
     fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectRef);
+
     /// Records a tombstone entry for a deleted object, without validating
     /// consistency with the rest of the effects. For tests only.
     fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectRef);
@@ -255,27 +282,34 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// Returns the `(transaction_digest, effects_digest)` pair identifying
     /// this execution.
     fn execution_digests(&self) -> ExecutionDigests;
+
     /// Return an iterator that iterates through all changed objects, including
     /// mutated, created and unwrapped objects. In other words, all objects
     /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
     fn all_changed_objects(&self) -> Vec<(ObjectRef, Owner, WriteKind)>;
+
     /// Return all objects that existed in the state prior to the transaction
     /// but no longer exist in the state after the transaction.
     /// It includes deleted and wrapped objects, but does not include
     /// unwrapped_then_deleted objects.
     fn all_removed_objects(&self) -> Vec<(ObjectRef, ObjectRemoveKind)>;
+
     /// Returns all objects that will become a tombstone after this transaction.
     /// This includes deleted, unwrapped_then_deleted and wrapped objects.
     fn all_tombstones(&self) -> Vec<(ObjectID, SequenceNumber)>;
+
     /// Returns all objects that were created + wrapped in the same transaction.
     fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)>;
+
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)>;
+
     /// Returns all affected objects in this transaction effects.
     /// Affected objects include created, mutated, unwrapped, deleted,
     /// unwrapped_then_deleted, wrapped and input shared objects.
     fn all_affected_objects(&self) -> Vec<ObjectRef>;
+
     /// Returns a condensed [`TransactionEffectsDebugSummary`] suitable for
     /// logging and inspection.
     fn summary_for_debug(&self) -> TransactionEffectsDebugSummary;
