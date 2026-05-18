@@ -1,22 +1,21 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(test)]
-#[path = "../unit_tests/validator_v2_tests.rs"]
-mod validator_v2_tests;
-
 use std::sync::Arc;
 
 use futures::{StreamExt, future::Either, stream};
+use iota_metrics::spawn_monitored_task;
 use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
 use iota_types::{
+    attestation::{Attestation, AttestedTransaction},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     fp_ensure,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     message_envelope::Message,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -28,6 +27,15 @@ use iota_types::{
     transaction::Transaction,
 };
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority_server::{
+        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
+        soft_lock::PreConsensusSoftLocks,
+    },
+    consensus_adapter::ConsensusAdapter,
+};
 
 /// Maximum number of transactions allowed in a single `submit_tx` request.
 /// Sized so that per-item traffic tallies from a single max-batch request
@@ -52,17 +60,6 @@ const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 /// A single streamed item in a V2 RPC response. The `Weight` is the per-item
 /// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
-
-use iota_metrics::spawn_monitored_task;
-
-use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
-    authority_server::{
-        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
-        soft_lock::PreConsensusSoftLocks,
-    },
-    consensus_adapter::ConsensusAdapter,
-};
 
 impl ValidatorService {
     async fn submit_tx_impl(
@@ -293,11 +290,6 @@ impl ValidatorService {
 
         // Build the consensus transaction.
         let consensus_tx = if let Some(attestation_data) = attestation_data {
-            use iota_types::{
-                attestation::{Attestation, AttestedTransaction},
-                iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-            };
-
             let committee = epoch_store.committee();
             let attestor_index = committee
                 .names()
@@ -714,3 +706,7 @@ impl ValidatorV2 for ValidatorService {
         self.post_handle_unary(ip, self.health_check_impl(req))
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/validator_v2_tests.rs"]
+mod validator_v2_tests;
