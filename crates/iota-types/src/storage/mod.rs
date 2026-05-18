@@ -36,7 +36,7 @@ use crate::{
         Identifier, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber,
     },
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     move_package::MovePackage,
@@ -610,7 +610,6 @@ pub fn get_transaction_output_objects(
     object_store: &dyn ObjectStore,
     effects: &TransactionEffects,
 ) -> Result<Vec<Object>, StorageError> {
-    use crate::effects::TransactionEffectsExt;
     let output_object_keys = effects
         .all_changed_objects()
         .into_iter()

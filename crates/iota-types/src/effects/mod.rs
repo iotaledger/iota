@@ -750,3 +750,21 @@ fn check_invariant(v1: &TransactionEffectsV1) {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `<TransactionEffects as Message>::digest` and the SDK's inherent
+    /// `TransactionEffects::digest` are defined independently in two crates.
+    /// They must agree: `Envelope<TransactionEffects, _>` resolves digests via
+    /// the trait, while direct call sites resolve to the inherent. Silent
+    /// divergence would split-brain storage and consensus digests.
+    #[test]
+    fn message_and_inherent_digest_agree() {
+        let effects = TransactionEffects::default();
+        let trait_digest = <TransactionEffects as Message>::digest(&effects);
+        let inherent_digest = effects.digest();
+        assert_eq!(trait_digest, inherent_digest);
+    }
+}
