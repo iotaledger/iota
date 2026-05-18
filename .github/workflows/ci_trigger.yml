@@ -45,11 +45,20 @@ on:
   pull_request:
     types: [opened, edited]
 
-# Serialize trigger runs per PR — if a user clicks twice quickly, queue the
-# second run rather than cancelling the first (which could drop a dispatch).
+# If a user clicks twice quickly (or edits the description twice with the
+# box already ticked), let the newer run cancel the older one. Otherwise
+# both ci_trigger runs dispatch `heavy_tests.yml`: heavy_tests has its own
+# `cancel-in-progress: true` so only the second heavy run actually completes,
+# but the first still burns ~30-60s of self-hosted-x64 runner setup before
+# being cancelled. Cancelling the earlier ci_trigger run avoids that waste.
+# Theoretical downside: if the older run is killed in the millisecond window
+# between `pulls.update` and `createWorkflowDispatch`, the click is
+# "swallowed" — the box is unchecked but no dispatch happened. That race is
+# orders of magnitude narrower than the wasted-setup window, and the user
+# recovery (just tick again) is trivial.
 concurrency:
   group: ci-trigger-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   dispatch:
