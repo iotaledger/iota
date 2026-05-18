@@ -9,10 +9,9 @@ a 32-bit fractional part.
 
 -  [Structs](#@Structs_0)
     -  [`FixedPoint32`](#std_fixed_point32_FixedPoint32)
-        -  [`get_raw_value`](#std_fixed_point32_get_raw_value)
-        -  [`is_zero`](#std_fixed_point32_is_zero)
--  [Constants](#@Constants_1)
--  [Public Functions](#@Public_Functions_2)
+        -  [Public Functions](#@Public_Functions_1)
+-  [Constants](#@Constants_2)
+-  [Public Functions](#@Public_Functions_3)
     -  [`create_from_rational`](#std_fixed_point32_create_from_rational)
     -  [`create_from_raw_value`](#std_fixed_point32_create_from_raw_value)
     -  [`divide_u64`](#std_fixed_point32_divide_u64)
@@ -63,9 +62,14 @@ decimal.
 
 </details>
 
+<a name="@Public_Functions_1"></a>
+
+#### Public Functions
+
+
 <a name="std_fixed_point32_get_raw_value"></a>
 
-#### `get_raw_value`
+##### `get_raw_value`
 
 Accessor for the raw u64 value. Other less common operations, such as
 adding or subtracting FixedPoint32 values, can be done using the raw
@@ -92,7 +96,7 @@ values directly.
 
 <a name="std_fixed_point32_is_zero"></a>
 
-#### `is_zero`
+##### `is_zero`
 
 Returns true if the ratio is zero.
 
@@ -115,7 +119,7 @@ Returns true if the ratio is zero.
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
@@ -180,7 +184,7 @@ The computed ratio when converting to a <code><a href="../std/fixed_point32.md#s
 
 
 
-<a name="@Public_Functions_2"></a>
+<a name="@Public_Functions_3"></a>
 
 ## Public Functions
 

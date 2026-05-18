@@ -9,29 +9,17 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 -  [Structs](#@Structs_0)
     -  [`String`](#std_ascii_String)
-        -  [`all_characters_printable`](#std_ascii_all_characters_printable)
-        -  [`append`](#std_ascii_append)
-        -  [`as_bytes`](#std_ascii_as_bytes)
-        -  [`index_of`](#std_ascii_index_of)
-        -  [`insert`](#std_ascii_insert)
-        -  [`into_bytes`](#std_ascii_into_bytes)
-        -  [`is_empty`](#std_ascii_is_empty)
-        -  [`length`](#std_ascii_length)
-        -  [`pop_char`](#std_ascii_pop_char)
-        -  [`push_char`](#std_ascii_push_char)
-        -  [`substring`](#std_ascii_substring)
-        -  [`to_lowercase`](#std_ascii_to_lowercase)
-        -  [`to_uppercase`](#std_ascii_to_uppercase)
+        -  [Public Functions](#@Public_Functions_1)
     -  [`Char`](#std_ascii_Char)
-        -  [`byte`](#std_ascii_byte)
--  [Constants](#@Constants_1)
--  [Public Functions](#@Public_Functions_2)
+        -  [Public Functions](#@Public_Functions_2)
+-  [Constants](#@Constants_3)
+-  [Public Functions](#@Public_Functions_4)
     -  [`char`](#std_ascii_char)
     -  [`is_printable_char`](#std_ascii_is_printable_char)
     -  [`is_valid_char`](#std_ascii_is_valid_char)
     -  [`string`](#std_ascii_string)
     -  [`try_string`](#std_ascii_try_string)
--  [Private Functions](#@Private_Functions_3)
+-  [Private Functions](#@Private_Functions_5)
     -  [`char_to_lowercase`](#std_ascii_char_to_lowercase)
     -  [`char_to_uppercase`](#std_ascii_char_to_uppercase)
 
@@ -78,9 +66,14 @@ defined in this module.
 
 </details>
 
+<a name="@Public_Functions_1"></a>
+
+#### Public Functions
+
+
 <a name="std_ascii_all_characters_printable"></a>
 
-#### `all_characters_printable`
+##### `all_characters_printable`
 
 Returns <code><b>true</b></code> if all characters in <code><a href="../std/string.md#std_string">string</a></code> are printable characters
 Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii.md#std_ascii_String">String</a></code>s are printable strings.
@@ -106,7 +99,7 @@ Returns <code><b>false</b></code> otherwise. Not all <code><a href="../std/ascii
 
 <a name="std_ascii_append"></a>
 
-#### `append`
+##### `append`
 
 Append the <code>other</code> string to the end of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -131,7 +124,7 @@ Append the <code>other</code> string to the end of <code><a href="../std/string.
 
 <a name="std_ascii_as_bytes"></a>
 
-#### `as_bytes`
+##### `as_bytes`
 
 Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a></code> as a reference
 
@@ -156,7 +149,7 @@ Get the inner bytes of the <code><a href="../std/string.md#std_string">string</a
 
 <a name="std_ascii_index_of"></a>
 
-#### `index_of`
+##### `index_of`
 
 Computes the index of the first occurrence of the <code>substr</code> in the <code><a href="../std/string.md#std_string">string</a></code>.
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> if the <code>substr</code> is not found.
@@ -192,7 +185,7 @@ Returns 0 if the <code>substr</code> is empty.
 
 <a name="std_ascii_insert"></a>
 
-#### `insert`
+##### `insert`
 
 Insert the <code>other</code> string at the <code>at</code> index of <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -218,7 +211,7 @@ Insert the <code>other</code> string at the <code>at</code> index of <code><a hr
 
 <a name="std_ascii_into_bytes"></a>
 
-#### `into_bytes`
+##### `into_bytes`
 
 Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get its backing bytes
 
@@ -244,7 +237,7 @@ Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get 
 
 <a name="std_ascii_is_empty"></a>
 
-#### `is_empty`
+##### `is_empty`
 
 Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">string</a></code> is empty.
 
@@ -269,7 +262,7 @@ Returns <code><b>true</b></code> if <code><a href="../std/string.md#std_string">
 
 <a name="std_ascii_length"></a>
 
-#### `length`
+##### `length`
 
 Returns the length of the <code><a href="../std/string.md#std_string">string</a></code> in bytes.
 
@@ -294,7 +287,7 @@ Returns the length of the <code><a href="../std/string.md#std_string">string</a>
 
 <a name="std_ascii_pop_char"></a>
 
-#### `pop_char`
+##### `pop_char`
 
 Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -319,7 +312,7 @@ Pop a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> from the en
 
 <a name="std_ascii_push_char"></a>
 
-#### `push_char`
+##### `push_char`
 
 Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end of the <code><a href="../std/string.md#std_string">string</a></code>.
 
@@ -344,7 +337,7 @@ Push a <code><a href="../std/ascii.md#std_ascii_Char">Char</a></code> to the end
 
 <a name="std_ascii_substring"></a>
 
-#### `substring`
+##### `substring`
 
 Copy the slice of the <code><a href="../std/string.md#std_string">string</a></code> from <code>i</code> to <code>j</code> into a new <code><a href="../std/ascii.md#std_ascii_String">String</a></code>.
 
@@ -372,7 +365,7 @@ Copy the slice of the <code><a href="../std/string.md#std_string">string</a></co
 
 <a name="std_ascii_to_lowercase"></a>
 
-#### `to_lowercase`
+##### `to_lowercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its lowercase equivalent.
 
@@ -398,7 +391,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its l
 
 <a name="std_ascii_to_uppercase"></a>
 
-#### `to_uppercase`
+##### `to_uppercase`
 
 Convert a <code><a href="../std/string.md#std_string">string</a></code> to its uppercase equivalent.
 
@@ -449,9 +442,14 @@ An ASCII character.
 
 </details>
 
+<a name="@Public_Functions_2"></a>
+
+#### Public Functions
+
+
 <a name="std_ascii_byte"></a>
 
-#### `byte`
+##### `byte`
 
 Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into its underlying bytes.
 
@@ -475,7 +473,7 @@ Unpack the <code><a href="../std/ascii.md#std_ascii_char">char</a></code> into i
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_3"></a>
 
 ## Constants
 
@@ -500,7 +498,7 @@ An invalid index was encountered when creating a substring.
 
 
 
-<a name="@Public_Functions_2"></a>
+<a name="@Public_Functions_4"></a>
 
 ## Public Functions
 
@@ -641,7 +639,7 @@ characters. Otherwise returns <code>None</code>.
 
 </details>
 
-<a name="@Private_Functions_3"></a>
+<a name="@Private_Functions_5"></a>
 
 ## Private Functions
 

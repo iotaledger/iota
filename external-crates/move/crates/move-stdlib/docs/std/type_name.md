@@ -8,13 +8,9 @@ Functionality for converting Move types into values. Use with care!
 
 -  [Structs](#@Structs_0)
     -  [`TypeName`](#std_type_name_TypeName)
-        -  [`borrow_string`](#std_type_name_borrow_string)
-        -  [`get_address`](#std_type_name_get_address)
-        -  [`get_module`](#std_type_name_get_module)
-        -  [`into_string`](#std_type_name_into_string)
-        -  [`is_primitive`](#std_type_name_is_primitive)
--  [Constants](#@Constants_1)
--  [Public Functions](#@Public_Functions_2)
+        -  [Public Functions](#@Public_Functions_1)
+-  [Constants](#@Constants_2)
+-  [Public Functions](#@Public_Functions_3)
     -  [`get`](#std_type_name_get)
     -  [`get_with_original_ids`](#std_type_name_get_with_original_ids)
 
@@ -65,9 +61,14 @@ Functionality for converting Move types into values. Use with care!
 
 </details>
 
+<a name="@Public_Functions_1"></a>
+
+#### Public Functions
+
+
 <a name="std_type_name_borrow_string"></a>
 
-#### `borrow_string`
+##### `borrow_string`
 
 Get the String representation of <code>self</code>
 
@@ -92,7 +93,7 @@ Get the String representation of <code>self</code>
 
 <a name="std_type_name_get_address"></a>
 
-#### `get_address`
+##### `get_address`
 
 Get Address string (Base16 encoded), first part of the TypeName.
 Aborts if given a primitive type.
@@ -129,7 +130,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_get_module"></a>
 
-#### `get_module`
+##### `get_module`
 
 Get name of the module.
 Aborts if given a primitive type.
@@ -170,7 +171,7 @@ Aborts if given a primitive type.
 
 <a name="std_type_name_into_string"></a>
 
-#### `into_string`
+##### `into_string`
 
 Convert <code>self</code> into its inner String
 
@@ -195,7 +196,7 @@ Convert <code>self</code> into its inner String
 
 <a name="std_type_name_is_primitive"></a>
 
-#### `is_primitive`
+##### `is_primitive`
 
 Returns true iff the TypeName represents a primitive type, i.e. one of
 u8, u16, u32, u64, u128, u256, bool, address, vector.
@@ -236,7 +237,7 @@ u8, u16, u32, u64, u128, u256, bool, address, vector.
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
@@ -321,7 +322,7 @@ The type is not from a package/module. It is a primitive type.
 
 
 
-<a name="@Public_Functions_2"></a>
+<a name="@Public_Functions_3"></a>
 
 ## Public Functions
 

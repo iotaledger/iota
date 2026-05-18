@@ -948,12 +948,12 @@ impl<'env> Docgen<'env> {
 
     /// Generates documentation for a struct. `methods` are functions whose
     /// first parameter is this struct (i.e. dot-syntax callable methods);
-    /// they are emitted as section headers directly under the struct,
-    /// alphabetized.
+    /// they are emitted as nested visibility-bucket sections under the
+    /// struct, mirroring how free functions are grouped at the module level.
     fn gen_struct(
         &mut self,
         struct_env: source_model::Struct<'_>,
-        mut methods: Vec<source_model::Function<'_>>,
+        methods: Vec<source_model::Function<'_>>,
     ) {
         let env = struct_env.model();
         let module_env = struct_env.module();
@@ -975,21 +975,21 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        methods.sort_by_key(|f| (Self::method_visibility_rank(f), f.name()));
-        for f in methods {
-            self.gen_function(f);
+        if !methods.is_empty() {
+            self.gen_functions_by_visibility(methods);
         }
 
         self.decrement_section_nest();
     }
 
     /// Generates documentation for an enum. `methods` are functions whose first
-    /// parameter is this enum; they are emitted directly under the enum,
-    /// alphabetized.
+    /// parameter is this enum; they are emitted as nested visibility-bucket
+    /// sections under the enum, mirroring how free functions are grouped at
+    /// the module level.
     fn gen_enum(
         &mut self,
         enum_env: source_model::Enum<'_>,
-        mut methods: Vec<source_model::Function<'_>>,
+        methods: Vec<source_model::Function<'_>>,
     ) {
         let env = enum_env.model();
         let module_env = enum_env.module();
@@ -1011,9 +1011,8 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        methods.sort_by_key(|f| (Self::method_visibility_rank(f), f.name()));
-        for f in methods {
-            self.gen_function(f);
+        if !methods.is_empty() {
+            self.gen_functions_by_visibility(methods);
         }
 
         self.decrement_section_nest();
@@ -1035,24 +1034,6 @@ impl<'env> Docgen<'env> {
             return None;
         };
         (m == module_ident).then(|| dname.0.value)
-    }
-
-    /// Ordering hint for sorting struct/enum methods so they appear in the
-    /// same visibility order as the module's free-function buckets (Public,
-    /// Entry, Public(package), Public(friend), Private). `entry` takes
-    /// precedence over the underlying visibility, matching how the buckets
-    /// classify free functions.
-    fn method_visibility_rank(func: &source_model::Function<'_>) -> u8 {
-        let info = func.info();
-        if info.entry.is_some() {
-            return 1;
-        }
-        match info.visibility {
-            Visibility::Public(_) => 0,
-            Visibility::Package(_) => 2,
-            Visibility::Friend(_) => 3,
-            Visibility::Internal => 4,
-        }
     }
 
     /// Generates declaration for named constant

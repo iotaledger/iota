@@ -25,9 +25,9 @@ This is a doc comment above an annotation.
     -  [`XGG`](#a_m_XGG)
     -  [`YGG`](#a_m_YGG)
     -  [`VecMap`](#a_m_VecMap)
-        -  [`f`](#a_m_f)
+        -  [Private Functions](#@Private_Functions_1)
     -  [`Entry`](#a_m_Entry)
--  [Enums](#@Enums_1)
+-  [Enums](#@Enums_2)
     -  [`Enum`](#a_m_Enum)
     -  [`GenericEnum`](#a_m_GenericEnum)
 
@@ -223,9 +223,14 @@ This is a doc comment above an annotation.
 
 </details>
 
+<a name="@Private_Functions_1"></a>
+
+#### Private Functions
+
+
 <a name="a_m_f"></a>
 
-#### `f`
+##### `f`
 
 Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
 
@@ -280,7 +285,7 @@ An entry in the map
 
 </details>
 
-<a name="@Enums_1"></a>
+<a name="@Enums_2"></a>
 
 ## Enums
 

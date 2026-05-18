@@ -9,24 +9,13 @@ strings.
 
 -  [Structs](#@Structs_0)
     -  [`String`](#std_string_String)
-        -  [`append`](#std_string_append)
-        -  [`append_utf8`](#std_string_append_utf8)
-        -  [`as_bytes`](#std_string_as_bytes)
-        -  [`bytes`](#std_string_bytes)
-        -  [`index_of`](#std_string_index_of)
-        -  [`insert`](#std_string_insert)
-        -  [`into_bytes`](#std_string_into_bytes)
-        -  [`is_empty`](#std_string_is_empty)
-        -  [`length`](#std_string_length)
-        -  [`sub_string`](#std_string_sub_string)
-        -  [`substring`](#std_string_substring)
-        -  [`to_ascii`](#std_string_to_ascii)
--  [Constants](#@Constants_1)
--  [Public Functions](#@Public_Functions_2)
+        -  [Public Functions](#@Public_Functions_1)
+-  [Constants](#@Constants_2)
+-  [Public Functions](#@Public_Functions_3)
     -  [`from_ascii`](#std_string_from_ascii)
     -  [`try_utf8`](#std_string_try_utf8)
     -  [`utf8`](#std_string_utf8)
--  [Private Functions](#@Private_Functions_3)
+-  [Private Functions](#@Private_Functions_4)
     -  [`internal_check_utf8`](#std_string_internal_check_utf8)
     -  [`internal_index_of`](#std_string_internal_index_of)
     -  [`internal_is_char_boundary`](#std_string_internal_is_char_boundary)
@@ -73,9 +62,14 @@ format.
 
 </details>
 
+<a name="@Public_Functions_1"></a>
+
+#### Public Functions
+
+
 <a name="std_string_append"></a>
 
-#### `append`
+##### `append`
 
 Appends a string.
 
@@ -100,7 +94,7 @@ Appends a string.
 
 <a name="std_string_append_utf8"></a>
 
-#### `append_utf8`
+##### `append_utf8`
 
 Appends bytes which must be in valid utf8 format.
 
@@ -125,7 +119,7 @@ Appends bytes which must be in valid utf8 format.
 
 <a name="std_string_as_bytes"></a>
 
-#### `as_bytes`
+##### `as_bytes`
 
 Returns a reference to the underlying byte vector.
 
@@ -150,7 +144,7 @@ Returns a reference to the underlying byte vector.
 
 <a name="std_string_bytes"></a>
 
-#### `bytes`
+##### `bytes`
 
 
 
@@ -172,7 +166,7 @@ Returns a reference to the underlying byte vector.
 
 <a name="std_string_index_of"></a>
 
-#### `index_of`
+##### `index_of`
 
 Computes the index of the first occurrence of a string. Returns <code>s.<a href="../std/string.md#std_string_length">length</a>()</code>
 if no occurrence found.
@@ -198,7 +192,7 @@ if no occurrence found.
 
 <a name="std_string_insert"></a>
 
-#### `insert`
+##### `insert`
 
 Insert the other string at the byte index in given string. The index
 must be at a valid utf8 char boundary.
@@ -231,7 +225,7 @@ must be at a valid utf8 char boundary.
 
 <a name="std_string_into_bytes"></a>
 
-#### `into_bytes`
+##### `into_bytes`
 
 Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get its underlying bytes.
 
@@ -257,7 +251,7 @@ Unpack the <code><a href="../std/string.md#std_string">string</a></code> to get 
 
 <a name="std_string_is_empty"></a>
 
-#### `is_empty`
+##### `is_empty`
 
 Checks whether this string is empty.
 
@@ -282,7 +276,7 @@ Checks whether this string is empty.
 
 <a name="std_string_length"></a>
 
-#### `length`
+##### `length`
 
 Returns the length of this string, in bytes.
 
@@ -307,7 +301,7 @@ Returns the length of this string, in bytes.
 
 <a name="std_string_sub_string"></a>
 
-#### `sub_string`
+##### `sub_string`
 
 
 
@@ -331,7 +325,7 @@ Returns the length of this string, in bytes.
 
 <a name="std_string_substring"></a>
 
-#### `substring`
+##### `substring`
 
 Returns a sub-string using the given byte indices, where <code>i</code> is the first
 byte position and <code>j</code> is the start of the first byte not included (or the
@@ -368,7 +362,7 @@ guaranteeing that the result is valid utf8.
 
 <a name="std_string_to_ascii"></a>
 
-#### `to_ascii`
+##### `to_ascii`
 
 Convert an UTF8 string to an ASCII string.
 Aborts if <code>s</code> is not valid ASCII
@@ -393,7 +387,7 @@ Aborts if <code>s</code> is not valid ASCII
 
 </details>
 
-<a name="@Constants_1"></a>
+<a name="@Constants_2"></a>
 
 ## Constants
 
@@ -418,7 +412,7 @@ Index out of range.
 
 
 
-<a name="@Public_Functions_2"></a>
+<a name="@Public_Functions_3"></a>
 
 ## Public Functions
 
@@ -501,7 +495,7 @@ not represent valid utf8.
 
 </details>
 
-<a name="@Private_Functions_3"></a>
+<a name="@Private_Functions_4"></a>
 
 ## Private Functions
 
