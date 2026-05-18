@@ -369,8 +369,13 @@ impl CommitteeMisbehaviorCounts {
     }
 
     fn reset(&self) {
-        for m in &self.authorities {
-            *m.lock().unwrap() = MisbehaviorCountsV1::default();
+        for (m, g) in self.authorities.iter().zip(self.gauges.iter()) {
+            let mut c = m.lock().unwrap();
+            *c = MisbehaviorCountsV1::default();
+            g.block_fault_provable.set(0);
+            g.block_fault_unprovable.set(0);
+            g.missing_proposals.set(0);
+            g.equivocations.set(0);
         }
     }
 
