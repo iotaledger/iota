@@ -1,9 +1,11 @@
 ---
 title: Local Network Setup
 sidebar_label: Local Network Setup
-description: Setup a local IOTA node and deploy the IOTA Audit Trail package.
+description: Setup a local IOTA node and deploy the IOTA Identity package.
+teams:
+  - iotaledger/identity
 tags:
-  - audit-trail
+  - identity
   - setup
   - install
   - getting-started
@@ -15,7 +17,7 @@ tags:
 
 The examples in the repository and in this getting started section require a test network running locally, so if you do not already have one, [install the IOTA CLI tool](https://docs.iota.org/developer/getting-started/install-iota).
 
-Next, [start the local network](../../getting-started/local-network.mdx) with the following command.
+Next, [start the local network](../../../getting-started/local-network.mdx) with the following command.
 
 ```bash
 RUST_LOG="off,iota_node=info" iota-localnet start --force-regenesis --with-faucet
@@ -69,31 +71,22 @@ Request funds for the active account, as the next step will need them. This can 
 iota client faucet
 ```
 
-### Publish the IOTA Audit Trail Package
+### Publish the IOTA Notarization Package
 
-Now that you have your env pointing to a local node, and have an account, you're almost ready to put a checkmark on the last requirement for using the IOTA Audit Trail locally: the deployment of the smart contracts used by the library.
+Now that you have your env pointing to a local node, and have an account, you're almost ready to put a checkmark on the last requirement for using the IOTA Notarization locally: The deployment of the smart contracts used by the library.
 
-Clone the IOTA Notarization [repository](https://github.com/iotaledger/notarization), and switch to the tag matching the version you're working with.
+Clone the IOTA Notarization [repository](https://github.com/iotaledger/notarization), and switch to the tag matching the version, you're working with.
 
-Next, publish the Audit Trail package to your local test network:
+Next, publish the Notarization package to your local test network:
 
 ```bash
-./audit-trail-move/scripts/publish_package.sh
+./notarization-move/scripts/publish_package.sh
 ```
 
-The script outputs the package IDs for both the Audit Trail package and the TF Components package. You can use `eval` to set the environment variables automatically:
+The last line of the output will be the id of the package that was just published. You'll need this ID when creating an instance of `NotarizationClient` and `NotarizationClientReadOnly` for a custom network, like the local network.
+
+The  [create a locked notarization example](../how-tos/dynamic-notarizations/create.mdx), as well as the following examples, fetch this value from the environment variable `IOTA_NOTARIZATION_PKG_ID`, so in order to run them, set this variable, e.g. for package id `0x20f640b0dc01c50c04a84443d4320d7a77a15ed94f9bc19ebb6d0a5805045ddc` with:
 
 ```bash
-eval $(./audit-trail-move/scripts/publish_package.sh)
-```
-
-This sets two environment variables:
-- `IOTA_AUDIT_TRAIL_PKG_ID` — the ID of the Audit Trail package
-- `IOTA_TF_COMPONENTS_PKG_ID` — the ID of the TF Components package (on localnet, this is the same as the Audit Trail package ID)
-
-The examples and tests require both of these variables. You can also set them manually, e.g.:
-
-```bash
-export IOTA_AUDIT_TRAIL_PKG_ID=0x20f640b0dc01c50c04a84443d4320d7a77a15ed94f9bc19ebb6d0a5805045ddc
-export IOTA_TF_COMPONENTS_PKG_ID=0x20f640b0dc01c50c04a84443d4320d7a77a15ed94f9bc19ebb6d0a5805045ddc
+export IOTA_NOTARIZATION_PKG_ID=0x20f640b0dc01c50c04a84443d4320d7a77a15ed94f9bc19ebb6d0a5805045ddc
 ```

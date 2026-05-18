@@ -1,6 +1,6 @@
 # Real-World How-To Pages — Style Guide
 
-This file guides agents writing or editing real-world how-to pages in this directory. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements) and `docs/content/developer/iota-audit-trail/CLAUDE.md` (Audit Trail–specific conventions). Everything in those files applies here; this file adds patterns specific to real-world scenario pages.
+This file guides agents writing or editing real-world how-to pages in this directory. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements) and `docs/content/developer/iota-notarization/audit-trail/CLAUDE.md` (Audit Trail–specific conventions). Everything in those files applies here; this file adds patterns specific to real-world scenario pages.
 
 ## Purpose
 
@@ -219,7 +219,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 - File names use kebab-case: `customs-clearance.mdx`, `clinical-trial.mdx`.
 - File names should be descriptive of the scenario, not the example number.
-- Every new page must be registered in `docs/content/sidebars/audit-trail.js` under the `Real-World` category.
+- Every new page must be registered in `docs/content/sidebars/notarization.js` under the `Real-World` category.
 
 ## Checklist for new real-world pages
 
@@ -236,4 +236,4 @@ Before considering a page complete:
 - [ ] All code references use the `reference` keyword with GitHub URLs — no inline code.
 - [ ] Real-World Applications lists 3 related use cases.
 - [ ] Running Examples Locally section links to the local network setup guide.
-- [ ] Page is registered in `docs/content/sidebars/audit-trail.js`.
+- [ ] Page is registered in `docs/content/sidebars/notarization.js`.

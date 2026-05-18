@@ -1,6 +1,6 @@
 # IOTA Audit Trail Documentation Style Guide
 
-This file guides agents writing or editing pages under `docs/content/developer/iota-audit-trail/`. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements). Everything in the parent file applies here; this file adds product-specific conventions derived from the sibling `iota-notarization` documentation.
+This file guides agents writing or editing pages under `docs/content/developer/iota-notarization/audit-trail/`. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements). Everything in the parent file applies here; this file adds product-specific conventions derived from the sibling `iota-notarization` documentation.
 
 ## Product context
 
@@ -13,10 +13,9 @@ The external source repository is **`https://github.com/iotaledger/notarization`
 Follow this structure exactly. Create missing folders as needed.
 
 ```
-iota-audit-trail/
+iota-notarization/audit-trail/
 ├── CLAUDE.md              # This file
 ├── index.mdx              # Product landing / introduction page
-├── contribute.mdx         # How to contribute (repo links, Discord channel)
 ├── getting-started/       # Setup and installation guides
 │   ├── rust.mdx
 │   ├── wasm.mdx
@@ -29,9 +28,11 @@ iota-audit-trail/
     └── wasm/
 ```
 
+The `contribute.mdx` page is shared with Single Notarization at the parent `iota-notarization/` level — do not create a duplicate inside `audit-trail/`.
+
 ## Sidebar
 
-The sidebar is defined in `docs/content/sidebars/audit-trail.js`. Every new page must be added there. Follow the existing category hierarchy (Getting Started, Explanations, How To, References, Contribute). Keep the sidebar order aligned with the recommended reading path: introduction first, then getting-started, explanations, how-tos, references, contribute last.
+The sidebar is defined in `docs/content/sidebars/notarization.js` (the unified Notarization sidebar that covers both Single Notarization and Audit Trail). Every new page must be added there under the `Audit Trail` category. Keep the sidebar order aligned with the recommended reading path: introduction first, then getting-started, explanations, how-tos, references.
 
 ## Tags
 
@@ -66,7 +67,7 @@ The `teams` field (e.g., `teams: [iotaledger/identity]`) is optional. Include it
 The introduction page is the product's front door. Pattern:
 
 1. Frontmatter with `sidebar_label: Introduction` and tags `[reference, audit-trail]`.
-2. Banner image: `![IOTA Audit Trail](/img/banner/banner_audit_trails.png)` (or a dedicated banner if available).
+2. Banner image: `![IOTA Audit Trail](/img/banner/banner_audit_trails.png)`.
 3. One-paragraph product summary.
 4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to related products (e.g., Audit Trail vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
 5. No code on this page. Link out to getting-started and explanation pages instead.
@@ -152,13 +153,6 @@ Place in `how-tos/real-world/`. These are longer how-to guides that demonstrate 
 
 API reference for Wasm is auto-generated and placed in `references/wasm/`. The Rust API reference is an external link to `https://iotaledger.github.io/notarization/audit_trail/index.html`. Do not manually author reference pages — they are generated from the source repository.
 
-### contribute.mdx
-
-Follow the notarization contribute page as a template. Update:
-
-- Repository URL: `https://github.com/iotaledger/notarization`
-- Discord channel: `#notarization-dev` (or the correct channel name)
-
 ## Writing style
 
 - **Audience**: developers integrating Audit Trail into their applications. Assume familiarity with IOTA basics and blockchain concepts.
@@ -171,7 +165,7 @@ Follow the notarization contribute page as a template. Update:
 
 ## Cross-referencing between products
 
-When comparing Audit Trail to Notarization, link to the notarization docs with relative paths: `../../iota-notarization/explanations/dynamic-notarization.mdx`. Do not duplicate notarization content — summarize the distinction and link out.
+When comparing Audit Trail to Single Notarization, link to the sibling docs with relative paths: `../../single-notarization/explanations/dynamic-notarization.mdx`. Do not duplicate notarization content — summarize the distinction and link out.
 
 ## Keeping example-code line references up to date
 
@@ -193,7 +187,7 @@ Run the script after any commit in `iotaledger/notarization` that modifies files
 ### Usage
 
 ```sh
-python3 docs/content/developer/iota-audit-trail/scripts/update_doc_refs.py \
+python3 docs/content/developer/iota-notarization/audit-trail/scripts/update_doc_refs.py \
     --notarization-repo /path/to/notarization \
     --old-ref <commit-or-ref-the-docs-currently-target> \
     --new-ref <commit-or-branch-to-update-to>
@@ -216,7 +210,7 @@ All flags can also be set via environment variables, which is convenient for CI 
 3. Run the script in dry-run mode first to review the changes:
 
    ```sh
-   python3 docs/content/developer/iota-audit-trail/scripts/update_doc_refs.py \
+   python3 docs/content/developer/iota-notarization/audit-trail/scripts/update_doc_refs.py \
        --notarization-repo ~/code/notarization \
        --old-ref 34190c6 \
        --new-ref origin/feat/audit-trails-dev \
@@ -234,7 +228,7 @@ The script uses Python's `difflib.SequenceMatcher` to diff each example file bet
 Before considering a page complete:
 
 - [ ] Frontmatter includes `description`, at least one Diataxis type tag, and `audit-trail`.
-- [ ] Page is added to `docs/content/sidebars/audit-trail.js`.
+- [ ] Page is added to `docs/content/sidebars/notarization.js` (under the `Audit Trail` category).
 - [ ] Any new tags are registered in `docs/content/tags.yml`.
 - [ ] Code blocks use the `reference` keyword with GitHub URLs (no inline code copies).
 - [ ] Both Rust and TypeScript tabs are present in how-to guides.
