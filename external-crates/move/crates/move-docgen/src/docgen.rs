@@ -975,7 +975,7 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        methods.sort_by_key(|f| f.name());
+        methods.sort_by_key(|f| (Self::method_visibility_rank(f), f.name()));
         for f in methods {
             self.gen_function(f);
         }
@@ -1011,7 +1011,7 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        methods.sort_by_key(|f| f.name());
+        methods.sort_by_key(|f| (Self::method_visibility_rank(f), f.name()));
         for f in methods {
             self.gen_function(f);
         }
@@ -1035,6 +1035,24 @@ impl<'env> Docgen<'env> {
             return None;
         };
         (m == module_ident).then(|| dname.0.value)
+    }
+
+    /// Ordering hint for sorting struct/enum methods so they appear in the
+    /// same visibility order as the module's free-function buckets (Public,
+    /// Entry, Public(package), Public(friend), Private). `entry` takes
+    /// precedence over the underlying visibility, matching how the buckets
+    /// classify free functions.
+    fn method_visibility_rank(func: &source_model::Function<'_>) -> u8 {
+        let info = func.info();
+        if info.entry.is_some() {
+            return 1;
+        }
+        match info.visibility {
+            Visibility::Public(_) => 0,
+            Visibility::Package(_) => 2,
+            Visibility::Friend(_) => 3,
+            Visibility::Internal => 4,
+        }
     }
 
     /// Generates declaration for named constant
