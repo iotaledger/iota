@@ -267,6 +267,30 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
+/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
+/// parallel PTB `--publish` / `--upgrade` tests don't race on the
+/// shared on-disk `build/` and `Move.lock`. The caller must keep the
+/// returned `TempDir` alive (drop deletes it).
+fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
+    fs::create_dir_all(&dst_pkg).unwrap();
+    fs::copy(src_pkg.join("Move.toml"), dst_pkg.join("Move.toml")).unwrap();
+    copy_dir_all(src_pkg.join("sources"), dst_pkg.join("sources")).unwrap();
+
+    // Anchor relative `local = "../..."` deps at the original package
+    // dir so they still resolve from the tempdir location.
+    let move_toml = dst_pkg.join("Move.toml");
+    let anchor = fs::canonicalize(src_pkg).unwrap();
+    let rewritten = fs::read_to_string(&move_toml).unwrap().replace(
+        r#"local = ".."#,
+        &format!(r#"local = "{}/.."#, anchor.display()),
+    );
+    fs::write(&move_toml, rewritten).unwrap();
+
+    (temp_dir, dst_pkg)
+}
+
 /// Fetch move packages based on the provided package IDs.
 pub async fn fetch_move_packages(
     client: &IotaClient,
@@ -550,13 +574,9 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
-
-    // Drop any stale `Move.lock` left behind by a prior publish — its
-    // `published-id` would rewrite module addresses away from 0x0 and fail
-    // this publish. `Move.lock` is gitignored, so this is always safe.
-    let _ = fs::remove_file(package_path.join("Move.lock"));
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
 
     let publish_ptb_string = format!(
         r#"
@@ -586,14 +606,12 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
-    let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
-    package_path_2.push("clever_errors");
-
-    // Drop stale `Move.lock`s from prior publishes; see `test_ptb_publish`.
-    let _ = fs::remove_file(package_path.join("Move.lock"));
-    let _ = fs::remove_file(package_path_2.join("Move.lock"));
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let mut src_pkg_2 = PathBuf::from(TEST_DATA_DIR);
+    src_pkg_2.push("clever_errors");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
+    let (_temp_dir_2, package_path_2) = isolate_test_package(&src_pkg_2);
 
     let publish_ptb_string = format!(
         r#"
@@ -828,8 +846,9 @@ async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
 
     let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
 
@@ -873,8 +892,9 @@ async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("clever_errors");
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("clever_errors");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
 
     let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
 
@@ -911,8 +931,9 @@ async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> 
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
 
     let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
     let package_display = package_path.display();
