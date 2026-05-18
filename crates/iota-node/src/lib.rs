@@ -311,13 +311,13 @@ impl IotaNode {
         Some(spawn_monitored_task!(async move {
             let mut last_notified_percentage: u32 = state
                 .overload_info
-                .load_shedding_percentage
+                .local_load_shedding_percentage
                 .load(std::sync::atomic::Ordering::Relaxed);
             loop {
                 tokio::time::sleep(poll_interval).await;
                 let current = state
                     .overload_info
-                    .load_shedding_percentage
+                    .local_load_shedding_percentage
                     .load(std::sync::atomic::Ordering::Relaxed);
                 if current != last_notified_percentage {
                     last_notified_percentage = current;

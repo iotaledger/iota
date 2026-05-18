@@ -1245,7 +1245,7 @@ impl AuthorityState {
 
         let load_shedding_percentage = self
             .overload_info
-            .load_shedding_percentage
+            .local_load_shedding_percentage
             .load(Ordering::Relaxed);
         overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
     }

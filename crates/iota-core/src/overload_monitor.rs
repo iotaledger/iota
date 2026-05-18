@@ -30,20 +30,26 @@ pub struct AuthorityOverloadInfo {
     /// Whether the authority is overloaded.
     pub is_overload: AtomicBool,
 
-    /// The calculated percentage of transactions to drop.
-    pub load_shedding_percentage: AtomicU32,
+    /// The locally computed percentage of transactions this authority would
+    /// drop. This is the *output* of this authority's overload monitor; it is
+    /// distinct from the quorum-determined percentage actually enforced in the
+    /// post-consensus load-shedding path. It is also read back on the next
+    /// iteration of `check_execution_overload` as the feedback term for the
+    /// latency-based controller.
+    pub local_load_shedding_percentage: AtomicU32,
 }
 
 impl AuthorityOverloadInfo {
-    pub fn set_overload(&self, load_shedding_percentage: u32) {
+    pub fn set_overload(&self, local_load_shedding_percentage: u32) {
         self.is_overload.store(true, Ordering::Relaxed);
-        self.load_shedding_percentage
-            .store(min(load_shedding_percentage, 100), Ordering::Relaxed);
+        self.local_load_shedding_percentage
+            .store(min(local_load_shedding_percentage, 100), Ordering::Relaxed);
     }
 
     pub fn clear_overload(&self) {
         self.is_overload.store(false, Ordering::Relaxed);
-        self.load_shedding_percentage.store(0, Ordering::Relaxed);
+        self.local_load_shedding_percentage
+            .store(0, Ordering::Relaxed);
     }
 }
 
@@ -144,16 +150,20 @@ fn check_execution_overload(
         queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len, cache_pending_count
     );
 
-    // Use the quorum load shedding percentage (from consensus) as the reference
-    // point for the current percentage actually used.
-    let current_load_shedding_percentage = authority
-        .load_epoch_store_one_call_per_task()
-        .get_quorum_load_shedding_percentage()
-        .unwrap_or(0) as u32;
+    // Feedback term: the locally computed percentage this monitor produced on
+    // its previous iteration. We use the *local* value (not the quorum value
+    // enforced post-consensus) because `txn_ready_rate` reflects the load this
+    // authority itself admitted, so the controller must close the loop on its
+    // own last decision to compound shedding over multiple iterations and to
+    // ratchet down gradually as latency recovers.
+    let current_local_load_shedding_percentage = authority
+        .overload_info
+        .local_load_shedding_percentage
+        .load(Ordering::Relaxed);
 
     let (_, latency_based_percentage) = compute_latency_load_shedding_percentage(
         config,
-        current_load_shedding_percentage,
+        current_local_load_shedding_percentage,
         queueing_latency,
         txn_ready_rate,
         execution_rate,
@@ -436,7 +446,7 @@ mod tests {
         assert!(!overload_info.is_overload.load(Ordering::Relaxed));
         assert_eq!(
             overload_info
-                .load_shedding_percentage
+                .local_load_shedding_percentage
                 .load(Ordering::Relaxed),
             0
         );
@@ -446,7 +456,7 @@ mod tests {
             assert!(overload_info.is_overload.load(Ordering::Relaxed));
             assert_eq!(
                 overload_info
-                    .load_shedding_percentage
+                    .local_load_shedding_percentage
                     .load(Ordering::Relaxed),
                 20
             );
@@ -458,7 +468,7 @@ mod tests {
             assert!(overload_info.is_overload.load(Ordering::Relaxed));
             assert_eq!(
                 overload_info
-                    .load_shedding_percentage
+                    .local_load_shedding_percentage
                     .load(Ordering::Relaxed),
                 100
             );
@@ -469,7 +479,7 @@ mod tests {
             assert!(!overload_info.is_overload.load(Ordering::Relaxed));
             assert_eq!(
                 overload_info
-                    .load_shedding_percentage
+                    .local_load_shedding_percentage
                     .load(Ordering::Relaxed),
                 0
             );
@@ -739,7 +749,7 @@ mod tests {
         assert_eq!(
             state
                 .overload_info
-                .load_shedding_percentage
+                .local_load_shedding_percentage
                 .load(Ordering::Relaxed),
             config.min_load_shedding_percentage_above_hard_limit
         );
@@ -821,7 +831,7 @@ mod tests {
 
     /// Verifies that the cache-pressure signal flows end-to-end from
     /// `WritebackCacheConfig` → `check_execution_overload` →
-    /// `overload_info.load_shedding_percentage` and the new metric.
+    /// `overload_info.local_load_shedding_percentage` and the new metric.
     ///
     /// We can't easily inject a non-zero
     /// `approximate_pending_transaction_count` into the test cache without
@@ -866,7 +876,7 @@ mod tests {
         assert_eq!(
             state
                 .overload_info
-                .load_shedding_percentage
+                .local_load_shedding_percentage
                 .load(Ordering::Relaxed),
             100,
         );
@@ -912,7 +922,7 @@ mod tests {
                     if enable_load_shedding {
                         let shedding_percentage = authority
                             .overload_info
-                            .load_shedding_percentage
+                            .local_load_shedding_percentage
                             .load(Ordering::Relaxed);
                         !(shedding_percentage > 0 && rng.gen_range(0..100) < shedding_percentage)
                     } else {
@@ -993,7 +1003,7 @@ mod tests {
                 state.overload_info.is_overload.load(Ordering::Relaxed),
                 state
                     .overload_info
-                    .load_shedding_percentage
+                    .local_load_shedding_percentage
                     .load(Ordering::Relaxed),
                 state.metrics.execution_queueing_latency.latency(),
                 state.metrics.txn_ready_rate_tracker.lock().rate(),
