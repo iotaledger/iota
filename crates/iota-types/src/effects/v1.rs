@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use iota_sdk_types::Digest;
 
 use super::{
@@ -13,10 +15,88 @@ use crate::{
     IotaAddress,
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
+    execution::SharedInput,
     object::OBJECT_START_VERSION,
 };
 
 impl TransactionEffectsAPI for TransactionEffectsV1 {
+    fn new_from_execution_v1(
+        status: ExecutionStatus,
+        epoch: EpochId,
+        gas_used: GasCostSummary,
+        shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        transaction_digest: TransactionDigest,
+        lamport_version: Version,
+        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
+        gas_object: Option<ObjectID>,
+        events_digest: Option<TransactionEventsDigest>,
+        dependencies: Vec<TransactionDigest>,
+    ) -> Self {
+        let unchanged_shared_objects = shared_objects
+            .into_iter()
+            .filter_map(|shared_input| match shared_input {
+                SharedInput::Existing(ObjectRef {
+                    object_id: id,
+                    version,
+                    digest,
+                }) => {
+                    if changed_objects.contains_key(&id) {
+                        None
+                    } else {
+                        Some((id, UnchangedSharedKind::ReadOnlyRoot { version, digest }))
+                    }
+                }
+                SharedInput::Deleted((id, version, mutable, _)) => {
+                    debug_assert!(!changed_objects.contains_key(&id));
+                    if mutable {
+                        Some((id, UnchangedSharedKind::MutateDeleted { version }))
+                    } else {
+                        Some((id, UnchangedSharedKind::ReadDeleted { version }))
+                    }
+                }
+                SharedInput::Cancelled((id, version)) => {
+                    debug_assert!(!changed_objects.contains_key(&id));
+                    Some((id, UnchangedSharedKind::Cancelled { version }))
+                }
+            })
+            .chain(
+                loaded_per_epoch_config_objects
+                    .into_iter()
+                    .map(|id| (id, UnchangedSharedKind::PerEpochConfig)),
+            )
+            .map(|(object_id, kind)| UnchangedSharedObject { object_id, kind })
+            .collect();
+
+        let changed_objects: Vec<_> = changed_objects.into_values().collect();
+
+        let gas_object_index = gas_object.map(|gas_id| {
+            changed_objects
+                .iter()
+                .position(|changed| changed.object_id == gas_id)
+                .unwrap() as u32
+        });
+
+        let v1 = TransactionEffectsV1 {
+            status,
+            epoch,
+            gas_used,
+            transaction_digest,
+            lamport_version,
+            changed_objects,
+            unchanged_shared_objects,
+            gas_object_index,
+            events_digest,
+            dependencies,
+            auxiliary_data_digest: None,
+        };
+
+        #[cfg(debug_assertions)]
+        super::check_invariant(&v1);
+
+        v1
+    }
+
     fn status(&self) -> &ExecutionStatus {
         &self.status
     }

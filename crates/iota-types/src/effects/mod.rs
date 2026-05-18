@@ -72,7 +72,7 @@ mod transaction_effects_api {
     impl Sealed for super::TransactionEffectsV1 {}
 }
 
-/// Read-only API for inspecting [`TransactionEffects`] uniformly across
+/// API for constructing and inspecting [`TransactionEffects`] uniformly across
 /// versions.
 ///
 /// This trait is sealed: it is only implemented for [`TransactionEffects`] and
@@ -80,6 +80,21 @@ mod transaction_effects_api {
 /// implementation on [`TransactionEffects`] dispatches to the active version
 /// variant, so callers can write version-agnostic code.
 pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
+    /// Build effects from the results of executing a transaction under the
+    /// V1 protocol shape.
+    fn new_from_execution_v1(
+        status: ExecutionStatus,
+        epoch: EpochId,
+        gas_used: GasCostSummary,
+        shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        transaction_digest: TransactionDigest,
+        lamport_version: SequenceNumber,
+        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
+        gas_object: Option<ObjectID>,
+        events_digest: Option<TransactionEventsDigest>,
+        dependencies: Vec<TransactionDigest>,
+    ) -> Self;
     /// Return the status of the transaction.
     fn status(&self) -> &ExecutionStatus;
     /// Consume `self` and return the owned status of the transaction.
@@ -173,7 +188,8 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 /// Test-only mutable accessors and unchecked builders for
 /// [`TransactionEffects`].
 ///
-/// These methods bypass the invariants enforced by [`new_from_execution_v1`]
+/// These methods bypass the invariants enforced by
+/// [`TransactionEffectsAPI::new_from_execution_v1`]
 /// and exist solely to let tests construct or tweak effects directly. They
 /// must not be used from production code.
 pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
@@ -242,85 +258,6 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     fn summary_for_debug(&self) -> TransactionEffectsDebugSummary;
 }
 
-/// Creates a TransactionEffects message from the results of execution,
-/// choosing the correct format for the current protocol version.
-pub fn new_from_execution_v1(
-    status: ExecutionStatus,
-    epoch: EpochId,
-    gas_used: GasCostSummary,
-    shared_objects: Vec<SharedInput>,
-    loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
-    transaction_digest: TransactionDigest,
-    lamport_version: SequenceNumber,
-    changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-    gas_object: Option<ObjectID>,
-    events_digest: Option<TransactionEventsDigest>,
-    dependencies: Vec<TransactionDigest>,
-) -> TransactionEffects {
-    let unchanged_shared_objects = shared_objects
-        .into_iter()
-        .filter_map(|shared_input| match shared_input {
-            SharedInput::Existing(ObjectRef {
-                object_id: id,
-                version,
-                digest,
-            }) => {
-                if changed_objects.contains_key(&id) {
-                    None
-                } else {
-                    Some((id, UnchangedSharedKind::ReadOnlyRoot { version, digest }))
-                }
-            }
-            SharedInput::Deleted((id, version, mutable, _)) => {
-                debug_assert!(!changed_objects.contains_key(&id));
-                if mutable {
-                    Some((id, UnchangedSharedKind::MutateDeleted { version }))
-                } else {
-                    Some((id, UnchangedSharedKind::ReadDeleted { version }))
-                }
-            }
-            SharedInput::Cancelled((id, version)) => {
-                debug_assert!(!changed_objects.contains_key(&id));
-                Some((id, UnchangedSharedKind::Cancelled { version }))
-            }
-        })
-        .chain(
-            loaded_per_epoch_config_objects
-                .into_iter()
-                .map(|id| (id, UnchangedSharedKind::PerEpochConfig)),
-        )
-        .map(|(object_id, kind)| UnchangedSharedObject { object_id, kind })
-        .collect();
-
-    let changed_objects: Vec<_> = changed_objects.into_values().collect();
-
-    let gas_object_index = gas_object.map(|gas_id| {
-        changed_objects
-            .iter()
-            .position(|changed| changed.object_id == gas_id)
-            .unwrap() as u32
-    });
-
-    let v1 = TransactionEffectsV1 {
-        status,
-        epoch,
-        gas_used,
-        transaction_digest,
-        lamport_version,
-        changed_objects,
-        unchanged_shared_objects,
-        gas_object_index,
-        events_digest,
-        dependencies,
-        auxiliary_data_digest: None,
-    };
-
-    #[cfg(debug_assertions)]
-    check_invariant(&v1);
-
-    TransactionEffects::V1(Box::new(v1))
-}
-
 pub fn estimate_effects_size_upperbound_v1(
     num_writes: usize,
     num_modifies: usize,
@@ -354,6 +291,34 @@ macro_rules! delegate_effects_api {
 }
 
 impl TransactionEffectsAPI for TransactionEffects {
+    fn new_from_execution_v1(
+        status: ExecutionStatus,
+        epoch: EpochId,
+        gas_used: GasCostSummary,
+        shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        transaction_digest: TransactionDigest,
+        lamport_version: SequenceNumber,
+        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
+        gas_object: Option<ObjectID>,
+        events_digest: Option<TransactionEventsDigest>,
+        dependencies: Vec<TransactionDigest>,
+    ) -> Self {
+        TransactionEffects::V1(Box::new(TransactionEffectsV1::new_from_execution_v1(
+            status,
+            epoch,
+            gas_used,
+            shared_objects,
+            loaded_per_epoch_config_objects,
+            transaction_digest,
+            lamport_version,
+            changed_objects,
+            gas_object,
+            events_digest,
+            dependencies,
+        )))
+    }
+
     fn status(&self) -> &ExecutionStatus {
         delegate_effects_api!(self, status)
     }

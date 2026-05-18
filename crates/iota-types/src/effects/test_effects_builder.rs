@@ -9,7 +9,7 @@ use crate::{
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        new_from_execution_v1,
+        TransactionEffectsAPI,
     },
     execution::SharedInput,
     execution_status::ExecutionStatus,
@@ -276,7 +276,7 @@ impl TestEffectsBuilder {
         let event_digest = self.events_digest;
         let dependencies = vec![];
 
-        new_from_execution_v1(
+        TransactionEffects::new_from_execution_v1(
             status,
             epoch,
             GasCostSummary::default(),

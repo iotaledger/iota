@@ -19,7 +19,7 @@ use iota_types::{
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEvents, estimate_effects_size_upperbound_v1, new_from_execution_v1,
+        TransactionEffectsAPI, TransactionEvents, estimate_effects_size_upperbound_v1,
     },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
@@ -303,7 +303,7 @@ impl<'backing> TemporaryStore<'backing> {
         let loaded_per_epoch_config_objects = self.loaded_per_epoch_config_objects.read().clone();
         let inner = self.into_inner();
 
-        let effects = new_from_execution_v1(
+        let effects = TransactionEffects::new_from_execution_v1(
             status,
             epoch,
             gas_cost_summary,
