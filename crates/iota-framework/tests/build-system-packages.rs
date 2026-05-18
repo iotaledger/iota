@@ -315,7 +315,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!("\n<code>\n{}</code>\n", escaped)
+            format!("\n<code>\n{escaped}</code>\n")
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as
