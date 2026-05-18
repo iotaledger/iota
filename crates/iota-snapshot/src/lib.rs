@@ -7,6 +7,7 @@
 #[cfg(test)]
 mod tests;
 
+pub mod database;
 pub mod reader;
 pub mod uploader;
 mod writer;
