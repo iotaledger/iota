@@ -23,7 +23,7 @@ use tokio::time::sleep;
 use tracing::{debug, info};
 use twox_hash::XxHash64;
 
-use crate::authority::AuthorityState;
+use crate::{authority::AuthorityState, consensus_adapter::ConsensusAdapter};
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -73,6 +73,43 @@ pub async fn overload_monitor(
     }
 
     info!("Shut down system overload monitor.");
+}
+
+/// Periodically refreshes the `consensus_queue_load_shedding_percentage`
+/// metric so it tracks the current consensus queue depth even when no
+/// gRPC traffic is arriving (which would otherwise be the only path that
+/// updates the metric, via `AuthorityState::check_consensus_queue_overload`).
+/// Used only in the certificate-less (pcool / white-flag) mode.
+pub async fn consensus_queue_overload_monitor(
+    authority_state: Weak<AuthorityState>,
+    consensus_adapter: Weak<ConsensusAdapter>,
+    interval: Duration,
+) {
+    info!("Starting consensus queue overload monitor.");
+
+    loop {
+        let (Some(state), Some(adapter)) = (authority_state.upgrade(), consensus_adapter.upgrade())
+        else {
+            // Either `authority_state` or `consensus_adapter` doesn't exist
+            // anymore. Quit monitor.
+            break;
+        };
+
+        let num_inflight_txs = adapter.num_inflight_transactions() as usize;
+        let shedding_pct = compute_graduated_load_shedding_percentage(
+            num_inflight_txs,
+            adapter.max_pending_transactions(),
+            adapter.graduated_load_shedding_soft_limit_pct(),
+        );
+        state
+            .metrics
+            .consensus_queue_load_shedding_percentage
+            .set(shedding_pct as i64);
+
+        sleep(interval).await;
+    }
+
+    info!("Shut down consensus queue overload monitor.");
 }
 
 // Checks authority overload signals, and updates authority's `overload_info`.
