@@ -24,16 +24,25 @@ name: PR CI checkbox trigger
 #      `pr_number` (string, optional) and `head_sha` (string, required)
 #      inputs, plus any extra inputs you want to drive from the marker.
 #      Its jobs should check out `${{ inputs.head_sha || github.sha }}`.
-#   2. Add a checkbox line to the relevant PR sub-template(s) with the
+#   2. Register it in the `ALLOWED_MARKER_DISPATCHES` allowlist in the
+#      script below — name the workflow file and list which of its inputs
+#      may be set from a marker. Inputs not listed cannot be set by PR
+#      authors (closed by default).
+#   3. Add a checkbox line to the relevant PR sub-template(s) with the
 #      `<!-- ci-trigger: <workflow-file>.yml [key=value]... -->` marker.
 #
 # Security note: this uses `pull_request_target` so the trigger has full
 # `GITHUB_TOKEN` permissions even on fork PRs. We never check out or execute
-# PR-author-controlled code here. The dispatched workflows themselves are
-# resolved from the repo's `develop` branch (`ref: 'develop'`), so a fork
-# cannot smuggle in a new workflow file via the PR — only workflows that
-# already exist on `develop` can be dispatched, and only with the inputs
-# this trigger passes.
+# PR-author-controlled code here. Two layers protect against a malicious PR
+# description abusing the marker:
+#   * `ALLOWED_MARKER_DISPATCHES` is a whitelist of (workflow → marker-
+#     overridable inputs). Workflows not in the map are rejected; inputs
+#     not listed for an allowed workflow are stripped. So an attacker can't
+#     dispatch arbitrary workflow_dispatch workflows on `develop` (e.g.
+#     `release.yml`) and can't smuggle in dispatcher-controlled fields
+#     like `head_sha`/`pr_number`.
+#   * Dispatched workflows are loaded from `develop` (`ref: 'develop'`), so
+#     a fork can't ship a modified version of the workflow file via the PR.
 
 # >>> TEMP — REVERT BEFORE MERGE <<<
 # `pull_request_target` is replaced with `pull_request` so this PR's own
@@ -120,10 +129,30 @@ jobs:
             });
             core.info(`Unchecked ${matches.length} ci-trigger checkbox(es).`);
 
+            // Whitelist of (workflow_id -> marker-overridable input keys).
+            //
+            // Acts as a closed-by-default authorization layer for everything
+            // PR-author-controlled in the marker:
+            //   * a workflow_id that isn't a key in this map cannot be
+            //     dispatched from a marker (rejects e.g. `release.yml` even
+            //     if it has a workflow_dispatch trigger on `develop`);
+            //   * for each allowed workflow, only the listed input names can
+            //     be set from the marker — anything else is stripped. In
+            //     particular `pr_number`/`head_sha` are never listed because
+            //     those are dispatcher-controlled (the dispatcher always
+            //     supplies them from the PR event itself).
+            //
+            // When adding a new dispatchable workflow, add an entry here.
+            const ALLOWED_MARKER_DISPATCHES = {
+              'heavy_tests.yml': new Set(['test_only_changed_crates']),
+            };
+
             // Parse the optional extra-inputs blob into a {key: value} object.
             // Format is whitespace-separated `key=value` pairs; values cannot
             // contain spaces (matching shell-style argument expectations).
-            function parseExtraInputs(blob) {
+            // `allowedKeys` is the per-workflow input allowlist; anything not
+            // in it is rejected with a warning.
+            function parseExtraInputs(blob, allowedKeys) {
               const out = {};
               if (!blob) return out;
               for (const pair of blob.trim().split(/\s+/)) {
@@ -133,7 +162,15 @@ jobs:
                   core.warning(`Ignoring malformed marker input "${pair}" (expected key=value).`);
                   continue;
                 }
-                out[pair.slice(0, eq)] = pair.slice(eq + 1);
+                const key = pair.slice(0, eq);
+                if (!allowedKeys.has(key)) {
+                  core.warning(
+                    `Ignoring marker input "${key}=...": not in the marker-input ` +
+                    `allowlist for this workflow.`,
+                  );
+                  continue;
+                }
+                out[key] = pair.slice(eq + 1);
               }
               return out;
             }
@@ -158,11 +195,25 @@ jobs:
             const prNumber = process.env.PR_NUMBER;
             let failed = 0;
             for (const [, label, workflow, extras] of matches) {
-              const extraInputs = parseExtraInputs(extras);
+              // Closed-by-default workflow check — see ALLOWED_MARKER_DISPATCHES
+              // for the allowlist and rationale.
+              const allowedKeys = ALLOWED_MARKER_DISPATCHES[workflow];
+              if (!allowedKeys) {
+                core.warning(
+                  `Marker references "${workflow}" which is not in ` +
+                  `ALLOWED_MARKER_DISPATCHES. Skipping dispatch.`,
+                );
+                continue;
+              }
+              const extraInputs = parseExtraInputs(extras, allowedKeys);
+              // Trusted values go AFTER `...extraInputs` as defense in depth:
+              // the allowlist already strips `pr_number`/`head_sha` from the
+              // marker, but if a future refactor weakens that check, the
+              // trusted values still win the spread merge.
               const inputs = {
+                ...extraInputs,
                 pr_number: String(prNumber),
                 head_sha: headSha,
-                ...extraInputs,
               };
               const extraDesc = Object.keys(extraInputs).length
                 ? ` with ${JSON.stringify(extraInputs)}`
