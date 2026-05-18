@@ -62,6 +62,30 @@ const operator = [
     },
     {
         type: 'category',
+        label: 'Indexer',
+        items: [
+            'operator/indexer/overview',
+            'operator/indexer/docker',
+            'operator/indexer/source',
+            {
+                type: 'category',
+                label: 'Indexer Configuration',
+                link: {
+                    type: 'doc',
+                    id: 'operator/indexer/configuration',
+                },
+                items: [
+                    'operator/indexer/configs/pruning',
+                ],
+            },
+            'operator/indexer/graphql',
+            'operator/indexer/schema',
+            'operator/indexer/monitoring',
+            'operator/indexer/troubleshooting',
+        ],
+    },
+    {
+        type: 'category',
         label: 'Extensions',
         items: [
             'operator/extensions/indexer-functions',
