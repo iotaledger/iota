@@ -64,9 +64,16 @@ use crate::{
     iota_serde::TypeName,
 };
 
+pub const PACKAGE_MODULE_NAME: Identifier = Identifier::from_static("package");
+pub const UPGRADECAP_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeCap");
+pub const UPGRADETICKET_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeTicket");
+pub const UPGRADERECEIPT_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeReceipt");
+
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
 pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataV1");
+pub const PACKAGE_METADATA_V2_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataV2");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
 
@@ -943,26 +950,43 @@ impl RuntimeModuleMetadataV1 {
     }
 }
 
-/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
-/// IOTA specific metadata derived from a package and readable on-chain. This
-/// enums helps with the versioning, which is actually used as the object
-/// content, i.e., PackageMetadataV1 is the type used on-chain.
+/// Enum for handling PackageMetadata framework types. PackageMetadata is IOTA
+/// specific metadata derived from a package and readable on-chain. This enum
+/// helps with framework object versioning; the inner variant is used as the
+/// object content.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PackageMetadata {
     V1(PackageMetadataV1),
+    V2(PackageMetadataV2),
 }
 
 impl PackageMetadata {
-    /// Create a `PackageMetadata` for the newly
-    /// published/upgraded package at `package_id`
+    /// Create V1 package metadata for the newly published/upgraded package.
     pub fn new_v1(
         uid: ObjectID,
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         PackageMetadata::V1(PackageMetadataV1::new(
+            uid,
+            storage_id,
+            runtime_id,
+            package_version,
+            modules_metadata_map,
+        ))
+    }
+
+    /// Create V2 package metadata for the newly published/upgraded package.
+    pub fn new_v2(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV2>,
+    ) -> Self {
+        PackageMetadata::V2(PackageMetadataV2::new(
             uid,
             storage_id,
             runtime_id,
@@ -974,12 +998,14 @@ impl PackageMetadata {
     pub fn type_(&self) -> StructTag {
         match self {
             PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+            PackageMetadata::V2(_) => PackageMetadataV2::type_(),
         }
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         match self {
             PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
+            PackageMetadata::V2(inner) => inner.to_bcs_bytes(),
         }
     }
 }
@@ -1041,22 +1067,11 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV1>,
     ) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
-        for (module_name, module_metadata_map) in modules_metadata_map {
-            let mut module_metadata = ModuleMetadataV1 {
-                authenticator_metadata: vec![],
-            };
-            for (function_name, account_type) in module_metadata_map {
-                module_metadata
-                    .authenticator_metadata
-                    .push(AuthenticatorMetadataV1 {
-                        function_name,
-                        account_type,
-                    });
-            }
+        for (module_name, module_metadata) in modules_metadata_map {
             modules_metadata.contents.push(Entry {
                 key: module_name,
                 value: module_metadata,
@@ -1106,4 +1121,82 @@ pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
     #[serde_as(as = "TypeName")]
     pub account_type: TypeTag,
+}
+
+/// V2 of IOTA specific package metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV2 {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata
+    pub package_version: u64,
+    // Handles to internal package modules
+    pub modules_metadata: VecMap<String, ModuleMetadataV2>,
+}
+
+impl PackageMetadataV2 {
+    fn new(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, ModuleMetadataV2>,
+    ) -> Self {
+        let mut modules_metadata = VecMap { contents: vec![] };
+
+        for (module_name, module_metadata) in modules_metadata_map {
+            modules_metadata.contents.push(Entry {
+                key: module_name,
+                value: module_metadata,
+            });
+        }
+
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
+            package_version,
+            modules_metadata,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_V2_STRUCT_NAME,
+            vec![],
+        )
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV2 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// V2 of IOTA specific module metadata. It adds view function metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModuleMetadataV2 {
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+    pub view_function_metadata: Vec<ViewFunctionMetadataV1>,
+}
+
+impl ModuleMetadataV2 {
+    pub fn is_empty(&self) -> bool {
+        self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
+    }
+}
+
+/// V2 of IOTA specific view function metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewFunctionMetadataV1 {
+    pub function_name: String,
 }

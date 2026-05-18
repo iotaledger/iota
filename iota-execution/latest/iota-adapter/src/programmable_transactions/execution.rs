@@ -30,9 +30,11 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
+            AuthenticatorMetadataV1, IotaAttribute, ModuleMetadataV1, ModuleMetadataV2,
+            MovePackage, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
+            ViewFunctionMetadataV1, normalize_deserialized_modules_with_metadata,
+            normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -958,6 +960,96 @@ mod checked {
         }
     }
 
+    #[derive(Copy, Clone)]
+    enum PackageMetadataVersion {
+        V1,
+        V2,
+    }
+
+    impl PackageMetadataVersion {
+        fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
+            if protocol_config.package_metadata_v2() {
+                Self::V2
+            } else {
+                Self::V1
+            }
+        }
+
+        fn supports_view_function_metadata(self) -> bool {
+            matches!(self, Self::V2)
+        }
+
+        fn should_publish_module(self, module_metadata: &PendingModuleMetadata) -> bool {
+            match self {
+                Self::V1 => !module_metadata.authenticator_metadata.is_empty(),
+                Self::V2 => !module_metadata.is_empty(),
+            }
+        }
+
+        fn build_package_metadata(
+            self,
+            uid: ObjectID,
+            storage_id: ObjectID,
+            runtime_id: ObjectID,
+            package_version: u64,
+            modules_metadata: BTreeMap<String, PendingModuleMetadata>,
+        ) -> PackageMetadata {
+            match self {
+                Self::V1 => PackageMetadata::new_v1(
+                    uid,
+                    storage_id,
+                    runtime_id,
+                    package_version,
+                    modules_metadata
+                        .into_iter()
+                        .filter_map(|(module_name, module_metadata)| {
+                            let module_metadata = module_metadata.into_v1();
+                            (!module_metadata.is_empty()).then_some((module_name, module_metadata))
+                        })
+                        .collect(),
+                ),
+                Self::V2 => PackageMetadata::new_v2(
+                    uid,
+                    storage_id,
+                    runtime_id,
+                    package_version,
+                    modules_metadata
+                        .into_iter()
+                        .filter_map(|(module_name, module_metadata)| {
+                            let module_metadata = module_metadata.into_v2();
+                            (!module_metadata.is_empty()).then_some((module_name, module_metadata))
+                        })
+                        .collect(),
+                ),
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct PendingModuleMetadata {
+        authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+        view_function_metadata: Vec<ViewFunctionMetadataV1>,
+    }
+
+    impl PendingModuleMetadata {
+        fn is_empty(&self) -> bool {
+            self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
+        }
+
+        fn into_v1(self) -> ModuleMetadataV1 {
+            ModuleMetadataV1 {
+                authenticator_metadata: self.authenticator_metadata,
+            }
+        }
+
+        fn into_v2(self) -> ModuleMetadataV2 {
+            ModuleMetadataV2 {
+                authenticator_metadata: self.authenticator_metadata,
+                view_function_metadata: self.view_function_metadata,
+            }
+        }
+    }
+
     /// Creates package metadata for a Move package by extracting module
     /// metadata and wrapping it in a `PackageMetadata`. The function iterates
     /// through the provided modules, collecting metadata associated with
@@ -972,6 +1064,8 @@ mod checked {
         runtime_id: ObjectID,
         package_version: u64,
     ) -> Result<(), ExecutionError> {
+        let metadata_version =
+            PackageMetadataVersion::from_protocol_config(context.protocol_config);
         let mut modules_metadata_map = BTreeMap::new();
         // Extract metadata for each module
         for module in modules {
@@ -997,36 +1091,43 @@ mod checked {
                             )
                         })?;
 
-                // PackageMetadataV1 specific:
-                // - Process functions for each module in order to create function metadata:
-                //    - Authenticator attributes, if present, are extracted to create
-                //      AuthenticatorMetadata to insert into the PackageMetadata
-                let mut module_metadata_map = BTreeMap::new();
+                // PackageMetadata specific:
+                // Process functions for each module in order to create function metadata.
+                let mut module_metadata = PendingModuleMetadata::default();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                let contains = module_metadata_map.insert(
-                                    fn_name.to_string(),
-                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
-                                );
-                                debug_assert!(
-                                    contains.is_none(),
-                                    "Duplicate function metadata for authenticator"
+                                module_metadata.authenticator_metadata.push(
+                                    AuthenticatorMetadataV1 {
+                                        function_name: fn_name.to_string(),
+                                        account_type: get_authenticator_first_param_type_tag(
+                                            module, &fn_name,
+                                        )?,
+                                    },
                                 );
                             }
-                            _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
+                            IotaAttribute::View
+                                if metadata_version.supports_view_function_metadata() =>
+                            {
+                                module_metadata.view_function_metadata.push(
+                                    ViewFunctionMetadataV1 {
+                                        function_name: fn_name.to_string(),
+                                    },
+                                );
+                            }
+                            _ => { /* Other attributes are ignored for PackageMetadata */ }
                         }
                     }
                 }
                 // Fill the package metadata with a module handle (and its related function
                 // metadata) only if there is at least one function with
                 // relevant metadata
-                if !module_metadata_map.is_empty() {
-                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
+                if metadata_version.should_publish_module(&module_metadata) {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata);
                 }
-                // End of PackageMetadataV1 specific
+                // End of PackageMetadata specific
             }
         }
 
@@ -1035,8 +1136,10 @@ mod checked {
         if !modules_metadata_map.is_empty() {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
-            // Create the package metadata object content
-            let metadata = PackageMetadata::new_v1(
+            // Create the package metadata object content using the version selected by
+            // protocol config. V1 keeps the legacy authenticator-only layout, while V2
+            // can include both authenticator and view function metadata.
+            let metadata = metadata_version.build_package_metadata(
                 metadata_uid,
                 storage_id,
                 runtime_id,

@@ -212,6 +212,7 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
+            package_metadata_v2,
             snapshot_config,
             flavor,
             epochs_to_keep,
@@ -242,6 +243,12 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
+        }
+        if let Some(enable) = package_metadata_v2 {
+            if enable {
+                protocol_config.set_publish_package_metadata_for_testing(true);
+            }
+            protocol_config.set_package_metadata_v2_for_testing(enable);
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");

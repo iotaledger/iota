@@ -1468,6 +1468,9 @@ AuthenticatorFunctionRefV1
 create_auth_function_ref_v1
 	public fun
 	0x2::authenticator_function
+create_auth_function_ref_from_package_metadata_v2
+	public fun
+	0x2::authenticator_function
 package
 	public fun
 	0x2::authenticator_function

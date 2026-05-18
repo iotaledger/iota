@@ -74,6 +74,8 @@ pub struct IotaInitArgs {
     pub default_gas_price: Option<u64>,
     #[clap(long = "move-auth")]
     pub move_auth: Option<bool>,
+    #[clap(long = "package-metadata-v2")]
+    pub package_metadata_v2: Option<bool>,
     #[command(flatten)]
     pub snapshot_config: SnapshotLagConfig,
     #[arg(long)]

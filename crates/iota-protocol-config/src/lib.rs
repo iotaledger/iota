@@ -436,6 +436,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     publish_package_metadata: bool,
 
+    // If true, package metadata is published as PackageMetadataV2. If false,
+    // package metadata is published as PackageMetadataV1.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_v2: bool,
+
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication: bool,
@@ -1635,6 +1640,15 @@ impl ProtocolConfig {
         self.feature_flags.publish_package_metadata
     }
 
+    pub fn package_metadata_v2(&self) -> bool {
+        let res = self.feature_flags.package_metadata_v2;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_v2 requires publish_package_metadata to be enabled"
+        );
+        res
+    }
+
     pub fn enable_move_authentication(&self) -> bool {
         self.feature_flags.enable_move_authentication
     }
@@ -2794,6 +2808,12 @@ impl ProtocolConfig {
                     cfg.check_zklogin_issuer_cost_base = None;
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
+                    if cfg.feature_flags.publish_package_metadata {
+                        // Package metadata is already enabled on devnet/testnet. Start publishing
+                        // new metadata objects with the V2 layout so V1 remains compatible with
+                        // existing on-chain metadata.
+                        cfg.feature_flags.package_metadata_v2 = true;
+                    }
                 }
                 26 => {
                     // Introduce a module to allow Move code to query protocol
@@ -3028,6 +3048,10 @@ impl ProtocolConfig {
 
     pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_package_metadata_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.package_metadata_v2 = val;
     }
 
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
