@@ -8,6 +8,7 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    attestation::Attestation,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
@@ -120,12 +121,7 @@ impl IotaTxValidator {
                     user_tx_v1_count += 1;
                 }
 
-                ConsensusTransactionKind::UserTransactionV2(_a) => {
-                    // User signature verification is skipped: the attesting
-                    // validator already verified it in `submit_single_tx` before
-                    // producing the attestation.
-                    //
-                    // Attestor verification is performed in `post_consensus_validation`.
+                ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
                     if !self
                         .epoch_store
                         .protocol_config()
@@ -135,6 +131,26 @@ impl IotaTxValidator {
                             error: "UserTransactionV2 not supported at current protocol version"
                                 .into(),
                         });
+                    }
+
+                    match &attested_tx.attestation {
+                        Attestation::Validator { .. } => {
+                            // No explicit signature to verify: the attestor's
+                            // identity is bound to the consensus block and
+                            // checked in post_consensus_validation.
+                        }
+                        Attestation::Explicit { .. } => {
+                            // TODO: verify explicit attestor signature against the trusted
+                            // attestor registry (Phase 2).
+                            return Err(IotaError::UnsupportedFeature {
+                                error: "Explicit attestation not yet supported".into(),
+                            });
+                        }
+                        _ => {
+                            return Err(IotaError::UnsupportedFeature {
+                                error: "Unknown attestation variant".into(),
+                            });
+                        }
                     }
                 }
 
