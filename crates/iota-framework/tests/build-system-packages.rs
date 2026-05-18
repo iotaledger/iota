@@ -333,9 +333,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
                     // The url of that file will be /framework/bridge. Which will break anchors that are for example in that mentioned file
                     // and look like this: bridge#anchor for example. So we enforced docusaurus to keep the duplicate in the url by using a custom slug.
                     // Another alternative for later could be to fix this weird anchors in the first place by using relative paths.
-                    // toc_max_heading_level: 4 surfaces the per-struct `Methods` entries
-                    // (which sit at H4) in Docusaurus's right-hand TOC.
-                    format!("---\ntitle: {title_type}{package}\nsidebar_label: {name}\nslug: {name}\ntoc_max_heading_level: 4\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{anchor}\"/>")
+                    format!("---\ntitle: {title_type}{package}\nsidebar_label: {name}\nslug: {name}\n---\nimport Link from '@docusaurus/Link';\n\n<Link id=\"{anchor}\"/>")
             }).to_string()
         });
     }
