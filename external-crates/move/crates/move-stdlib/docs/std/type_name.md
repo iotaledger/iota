@@ -7,7 +7,7 @@ Functionality for converting Move types into values. Use with care!
 
 
 -  [Structs](#@Structs_0)
-    -  [`TypeName`](#std_type_name_TypeName)
+    -  [`TypeName` <span class="move-vis move-vis-struct">struct</span>](#std_type_name_TypeName)
         -  [`borrow_string` <span class="move-vis move-vis-public">pub</span>](#std_type_name_borrow_string)
         -  [`get_address` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_address)
         -  [`get_module` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_module)
@@ -42,7 +42,7 @@ Functionality for converting Move types into values. Use with care!
 
 <a name="std_type_name_TypeName"></a>
 
-### `TypeName`
+### `TypeName` <span class="move-vis move-vis-struct">struct</span>
 
 
 

@@ -7,7 +7,7 @@ This module defines the Option type and its methods to represent and handle an o
 
 
 -  [Structs](#@Structs_0)
-    -  [`Option`](#std_option_Option)
+    -  [`Option` <span class="move-vis move-vis-struct">struct</span>](#std_option_Option)
         -  [`and` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_and)
         -  [`and_ref` (macro) <span class="move-vis move-vis-public">pub</span>](#std_option_and_ref)
         -  [`borrow` <span class="move-vis move-vis-public">pub</span>](#std_option_borrow)
@@ -55,7 +55,7 @@ This module defines the Option type and its methods to represent and handle an o
 
 <a name="std_option_Option"></a>
 
-### `Option`
+### `Option` <span class="move-vis move-vis-struct">struct</span>
 
 Abstraction of a value that may or may not be present. Implemented with a vector of size
 zero or one because Move bytecode does not have ADTs.

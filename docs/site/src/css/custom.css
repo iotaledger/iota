@@ -716,6 +716,16 @@ article pre > code a:hover {
   color: #6ed5dd;
 }
 
+.move-vis-struct {
+  background: rgba(82, 196, 99, 0.18);
+  color: #7fd28a;
+}
+
+.move-vis-enum {
+  background: rgba(213, 92, 184, 0.18);
+  color: #e290cc;
+}
+
 /* Match the tag font in the TOC link as well. */
 .table-of-contents__link .move-vis,
 [class*="tableOfContents"] .move-vis {

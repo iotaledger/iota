@@ -8,7 +8,7 @@ strings.
 
 
 -  [Structs](#@Structs_0)
-    -  [`String`](#std_string_String)
+    -  [`String` <span class="move-vis move-vis-struct">struct</span>](#std_string_String)
         -  [`append` <span class="move-vis move-vis-public">pub</span>](#std_string_append)
         -  [`append_utf8` <span class="move-vis move-vis-public">pub</span>](#std_string_append_utf8)
         -  [`as_bytes` <span class="move-vis move-vis-public">pub</span>](#std_string_as_bytes)
@@ -48,7 +48,7 @@ strings.
 
 <a name="std_string_String"></a>
 
-### `String`
+### `String` <span class="move-vis move-vis-struct">struct</span>
 
 A <code><a href="../std/string.md#std_string_String">String</a></code> holds a sequence of bytes which is guaranteed to be in utf8
 format.

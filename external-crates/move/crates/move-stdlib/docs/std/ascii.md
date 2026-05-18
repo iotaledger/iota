@@ -8,7 +8,7 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 
 -  [Structs](#@Structs_0)
-    -  [`String`](#std_ascii_String)
+    -  [`String` <span class="move-vis move-vis-struct">struct</span>](#std_ascii_String)
         -  [`all_characters_printable` <span class="move-vis move-vis-public">pub</span>](#std_ascii_all_characters_printable)
         -  [`append` <span class="move-vis move-vis-public">pub</span>](#std_ascii_append)
         -  [`as_bytes` <span class="move-vis move-vis-public">pub</span>](#std_ascii_as_bytes)
@@ -22,7 +22,7 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
         -  [`substring` <span class="move-vis move-vis-public">pub</span>](#std_ascii_substring)
         -  [`to_lowercase` <span class="move-vis move-vis-public">pub</span>](#std_ascii_to_lowercase)
         -  [`to_uppercase` <span class="move-vis move-vis-public">pub</span>](#std_ascii_to_uppercase)
-    -  [`Char`](#std_ascii_Char)
+    -  [`Char` <span class="move-vis move-vis-struct">struct</span>](#std_ascii_Char)
         -  [`byte` <span class="move-vis move-vis-public">pub</span>](#std_ascii_byte)
 -  [Constants](#@Constants_1)
     -  [`EInvalidASCIICharacter` <span class="move-vis move-vis-error">err</span>](#std_ascii_EInvalidASCIICharacter)
@@ -50,7 +50,7 @@ that characters are valid ASCII, and that strings consist of only valid ASCII ch
 
 <a name="std_ascii_String"></a>
 
-### `String`
+### `String` <span class="move-vis move-vis-struct">struct</span>
 
 The <code><a href="../std/ascii.md#std_ascii_String">String</a></code> struct holds a vector of bytes that all represent
 valid ASCII characters. Note that these ASCII characters may not all
@@ -425,7 +425,7 @@ Convert a <code><a href="../std/string.md#std_string">string</a></code> to its u
 
 <a name="std_ascii_Char"></a>
 
-### `Char`
+### `Char` <span class="move-vis move-vis-struct">struct</span>
 
 An ASCII character.
 

@@ -8,7 +8,7 @@ a 32-bit fractional part.
 
 
 -  [Structs](#@Structs_0)
-    -  [`FixedPoint32`](#std_fixed_point32_FixedPoint32)
+    -  [`FixedPoint32` <span class="move-vis move-vis-struct">struct</span>](#std_fixed_point32_FixedPoint32)
         -  [`get_raw_value` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_get_raw_value)
         -  [`is_zero` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_is_zero)
 -  [Constants](#@Constants_1)
@@ -36,7 +36,7 @@ a 32-bit fractional part.
 
 <a name="std_fixed_point32_FixedPoint32"></a>
 
-### `FixedPoint32`
+### `FixedPoint32` <span class="move-vis move-vis-struct">struct</span>
 
 Define a fixed-point numeric type with 32 fractional bits.
 This is just a u64 integer but it is wrapped in a struct to

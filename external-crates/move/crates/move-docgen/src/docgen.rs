@@ -984,7 +984,7 @@ impl<'env> Docgen<'env> {
         let name = struct_env.name();
         let struct_info = struct_env.info();
         self.section_header(
-            &format!("`{name}`"),
+            &format!("`{name}` <span class=\"move-vis move-vis-struct\">struct</span>"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -1022,7 +1022,7 @@ impl<'env> Docgen<'env> {
         let name = enum_env.name();
         let enum_info = enum_env.info();
         self.section_header(
-            &format!("`{name}`"),
+            &format!("`{name}` <span class=\"move-vis move-vis-enum\">enum</span>"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();

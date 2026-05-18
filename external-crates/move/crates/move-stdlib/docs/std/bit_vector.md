@@ -6,7 +6,7 @@
 
 
 -  [Structs](#@Structs_0)
-    -  [`BitVector`](#std_bit_vector_BitVector)
+    -  [`BitVector` <span class="move-vis move-vis-struct">struct</span>](#std_bit_vector_BitVector)
         -  [`is_index_set` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_is_index_set)
         -  [`length` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_length)
         -  [`longest_set_sequence_starting_at` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_longest_set_sequence_starting_at)
@@ -33,7 +33,7 @@
 
 <a name="std_bit_vector_BitVector"></a>
 
-### `BitVector`
+### `BitVector` <span class="move-vis move-vis-struct">struct</span>
 
 
 
