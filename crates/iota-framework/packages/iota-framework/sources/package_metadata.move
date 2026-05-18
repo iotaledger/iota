@@ -246,48 +246,53 @@ public fun view_function_name_v1(self: &ViewFunctionMetadataV1): ascii::String {
 /// Convert `PackageMetadataV1` into `PackageMetadataV2`, preserving the object
 /// id and all package fields. The resulting V2 module metadata has empty view
 /// function metadata.
-public fun package_metadata_v1_to_v2(self: PackageMetadataV1): PackageMetadataV2 {
-    let PackageMetadataV1 {
-        id,
-        storage_id,
-        runtime_id,
-        package_version,
-        modules_metadata,
-    } = self;
-    let id_addr = id.to_address();
-    id.delete();
-
+public fun package_metadata_v1_to_v2(self: &PackageMetadataV1): PackageMetadataV2 {
     PackageMetadataV2 {
-        id: object::new_uid_from_hash(id_addr),
-        storage_id,
-        runtime_id,
-        package_version,
-        modules_metadata: modules_metadata_v1_to_v2(modules_metadata),
+        id: object::new_uid_from_hash(self.id.to_address()),
+        storage_id: self.storage_id,
+        runtime_id: self.runtime_id,
+        package_version: self.package_version,
+        modules_metadata: modules_metadata_v1_to_v2(self.modules_metadata),
     }
 }
 
 /// Convert `PackageMetadataV2` into `PackageMetadataV1`, preserving the object
 /// id and all package fields. Aborts if any module contains view function
 /// metadata, because V1 cannot represent it.
-public fun package_metadata_v2_to_v1(self: PackageMetadataV2): PackageMetadataV1 {
+public fun package_metadata_v2_to_v1(self: &PackageMetadataV2): PackageMetadataV1 {
+    PackageMetadataV1 {
+        id: object::new_uid_from_hash(self.id.to_address()),
+        storage_id: self.storage_id,
+        runtime_id: self.runtime_id,
+        package_version: self.package_version,
+        modules_metadata: modules_metadata_v2_to_v1(self.modules_metadata),
+    }
+}
+
+/// Destroys `PackageMetadataV1` object. This is only intended to be used after calling
+/// `package_metadata_v2_to_v1`.
+public fun destroy_package_metadata_v1(metadata: PackageMetadataV1) {
+    let PackageMetadataV1 {
+        id,
+        storage_id: _,
+        runtime_id: _,
+        package_version: _,
+        modules_metadata: _,
+    } = metadata;
+    object::delete(id);
+}
+
+/// Destroys `PackageMetadataV2` object. This is only intended to be used after calling
+/// `package_metadata_v1_to_v2`.
+public fun destroy_package_metadata_v2(metadata: PackageMetadataV2) {
     let PackageMetadataV2 {
         id,
-        storage_id,
-        runtime_id,
-        package_version,
-        modules_metadata,
-    } = self;
-    let modules_metadata = modules_metadata_v2_to_v1(modules_metadata);
-    let id_addr = id.to_address();
-    id.delete();
-
-    PackageMetadataV1 {
-        id: object::new_uid_from_hash(id_addr),
-        storage_id,
-        runtime_id,
-        package_version,
-        modules_metadata,
-    }
+        storage_id: _,
+        runtime_id: _,
+        package_version: _,
+        modules_metadata: _,
+    } = metadata;
+    object::delete(id);
 }
 
 fun modules_metadata_v1_to_v2(
