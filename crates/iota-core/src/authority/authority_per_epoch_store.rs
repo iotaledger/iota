@@ -1094,6 +1094,9 @@ impl AuthorityPerEpochStore {
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
+        report_aggregator
+            .restore_from_tables(&tables)
+            .expect("AuthorityEpochTables should contain valid ReportAggregator state");
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scoreboard = Scoreboard::new(voting_power, &protocol_config);
 
