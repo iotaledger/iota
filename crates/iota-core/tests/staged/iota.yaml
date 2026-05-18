@@ -1036,7 +1036,7 @@ UnchangedSharedKind:
       PerEpochConfig: UNIT
 UnchangedSharedObject:
   STRUCT:
-    - objectId:
+    - object_id:
         TYPENAME: ObjectId
     - kind:
         TYPENAME: UnchangedSharedKind
