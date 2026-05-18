@@ -206,10 +206,6 @@ jobs:
                 continue;
               }
               const extraInputs = parseExtraInputs(extras, allowedKeys);
-              // Trusted values go AFTER `...extraInputs` as defense in depth:
-              // the allowlist already strips `pr_number`/`head_sha` from the
-              // marker, but if a future refactor weakens that check, the
-              // trusted values still win the spread merge.
               const inputs = {
                 ...extraInputs,
                 pr_number: String(prNumber),
