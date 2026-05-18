@@ -79,6 +79,7 @@
 //! in the [repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
 pub mod apis;
+pub mod client_methods;
 pub mod error;
 pub mod iota_client_config;
 pub mod json_rpc_error;

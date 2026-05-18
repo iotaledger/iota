@@ -34,6 +34,7 @@ iota-json.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "4feb5ee8387eda1f586e514502331bf39e81e357" }
 iota-sdk-types.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
