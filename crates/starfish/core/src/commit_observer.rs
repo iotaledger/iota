@@ -239,7 +239,6 @@ impl CommitObserver {
             }
         };
 
-        let misbehavior_counts = self.dag_state.read().misbehavior_store().snapshot_totals();
         Some(CommittedSubDag::new(
             commit.leader(),
             vec![], // Empty headers for recovery
@@ -248,7 +247,7 @@ impl CommitObserver {
             commit.timestamp_ms(),
             commit.reference(),
             reputation_scores,
-            misbehavior_counts,
+            self.dag_state.read().misbehavior_store().snapshot_totals(),
         ))
     }
 

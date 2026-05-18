@@ -164,10 +164,10 @@ impl MisbehaviorStore {
     }
 
     /// Returns an absolute per-authority snapshot of `persisted + in_memory`
-    /// counts for emission with `CommittedSubDag`. The sum is invariant
-    /// across the eviction-time move from `in_memory` to `persisted`, so the
-    /// snapshot is consistent regardless of when it is taken relative to
-    /// flush.
+    /// counts for emission with `CommittedSubDag`. Locks the two buckets
+    /// independently per authority; callers must hold `dag_state.read()` so
+    /// concurrent flush (which writes both buckets under `dag_state.write()`)
+    /// is excluded.
     pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCounts> {
         (0..self.in_memory.authorities.len())
             .map(|i| {
