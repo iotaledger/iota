@@ -34,7 +34,7 @@ pub enum Attestation {
     Explicit {
         payload: AttestationData,
         attestor_address: IotaAddress,
-        /// Signs over `hash(transaction.digest() || BCS(data) ||
+        /// Signs over `hash(transaction.digest() || BCS(payload) ||
         /// attestor_address)`, binding the attestation to both the
         /// specific transaction and the attestor's identity.
         signature: Box<GenericSignature>,
