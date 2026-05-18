@@ -8,6 +8,7 @@ info:
   no_collapsed_sections: false
   include_dep_diagrams: false
   include_call_diagrams: false
+  include_module_toc: true
 ---
 <a name="a_m"></a>
 

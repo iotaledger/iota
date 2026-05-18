@@ -614,4 +614,46 @@ h4 {
   color: var(--iota-white);
 }
 
+/*
+ * Move framework reference docs (`/developer/references/framework/*`) are
+ * emitted by `move-docgen` as raw HTML `<pre><code>` blocks with `<b>` for
+ * keywords and inline `<a>`/`<Link>` for cross-references. MDX renders the
+ * inner content as a paragraph and the surrounding theme doesn't apply any
+ * syntax styling, so the code reads as a flat monochrome wall. The selectors
+ * below match only blocks that contain raw `<b>` keywords — Prism-rendered
+ * fenced code blocks use `<span class="token ...">` instead and are
+ * untouched.
+ */
+article pre:has(> code > p > b),
+article pre:has(> code > b) {
+  background: var(--ifm-pre-background);
+  color: var(--ifm-pre-color);
+  padding: 1em 1.25em;
+  border-radius: var(--ifm-pre-border-radius, 8px);
+  font-size: 0.875em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+article pre > code > p {
+  margin: 0;
+}
+
+article pre > code b {
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+article pre > code a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dashed var(--ifm-color-emphasis-400);
+}
+
+article pre > code a:hover {
+  border-bottom-style: solid;
+  color: var(--ifm-color-primary);
+}
+
 }
