@@ -127,13 +127,17 @@ fn dynamic_fields_from_checkpointed_objects(
 /// `target_v` lands on a tombstone version, no Active state row exists at
 /// that key — the candidate naturally drops out of the result.
 ///
-/// The query is shaped so the correlated `MAX(object_version)` subquery
-/// is keyed off a **deduped** set of DF `object_id`s (one row per DF) —
-/// not the un-deduped owner scan of `objects_backward_history` (which for
-/// a parent with deep DF history can have hundreds of thousands of rows
-/// for the same DF). The dedupe inner query relies on the partial index
-/// `objects_backward_history_owner_df` on
-/// `(owner_id, object_id) WHERE owner_type = 2 AND df_kind IS NOT NULL`.
+/// The query is shaped so that DF `object_id`s from
+/// `objects_backward_history` that match the DF filter
+/// (`owner_id = parent AND owner_type = Object AND df_kind IS NOT NULL`)
+/// are first deduplicated. Without the dedupe, the `MAX(object_version)`
+/// subquery would be evaluated once per version instead of once per found
+/// object, which for objects with many historical versions can kill the
+/// performance.
+///
+/// The dedupe step relies on the partial index
+/// `objects_backward_history_owner_df` on `(owner_id, object_id) WHERE
+/// owner_type = 2 AND df_kind IS NOT NULL`.
 fn dynamic_fields_from_historical_objects(
     parent_version: i64,
     page: &Page<Cursor>,
