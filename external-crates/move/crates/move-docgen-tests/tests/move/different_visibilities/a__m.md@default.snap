@@ -17,9 +17,9 @@ info:
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [`this_is_a_public_fun` <span class="move-vis move-vis-public">pub</span>](#a_TestViz_this_is_a_public_fun)
-    -  [`this_is_a_public_script_fun` <span class="move-vis move-vis-entry">entry</span>](#a_TestViz_this_is_a_public_script_fun)
-    -  [`this_is_a_private_fun` <span class="move-vis move-vis-private">prv</span>](#a_TestViz_this_is_a_private_fun)
+    -  [`this_is_a_public_fun` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#a_TestViz_this_is_a_public_fun)
+    -  [`this_is_a_public_script_fun` <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span>](#a_TestViz_this_is_a_public_script_fun)
+    -  [`this_is_a_private_fun` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#a_TestViz_this_is_a_private_fun)
 
 
 <pre><code></code></pre>
@@ -33,7 +33,7 @@ info:
 
 <a name="a_TestViz_this_is_a_public_fun"></a>
 
-### `this_is_a_public_fun` <span class="move-vis move-vis-public">pub</span>
+### `this_is_a_public_fun` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 This is a public function
 
@@ -56,7 +56,7 @@ This is a public function
 
 <a name="a_TestViz_this_is_a_public_script_fun"></a>
 
-### `this_is_a_public_script_fun` <span class="move-vis move-vis-entry">entry</span>
+### `this_is_a_public_script_fun` <span class="move-vis move-vis-entry">entry</span> <span class="move-vis move-vis-module">module</span>
 
 This is a public entry function
 
@@ -79,7 +79,7 @@ This is a public entry function
 
 <a name="a_TestViz_this_is_a_private_fun"></a>
 
-### `this_is_a_private_fun` <span class="move-vis move-vis-private">prv</span>
+### `this_is_a_private_fun` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
 
 This is a private function
 

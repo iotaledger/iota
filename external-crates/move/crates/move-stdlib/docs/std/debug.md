@@ -7,8 +7,8 @@ Module providing debug functionality.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [`print` <span class="move-vis move-vis-public">pub</span>](#std_debug_print)
-    -  [`print_stack_trace` <span class="move-vis move-vis-public">pub</span>](#std_debug_print_stack_trace)
+    -  [`print` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_debug_print)
+    -  [`print_stack_trace` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_debug_print_stack_trace)
 
 
 <pre><code></code></pre>
@@ -22,7 +22,7 @@ Module providing debug functionality.
 
 <a name="std_debug_print"></a>
 
-### `print` <span class="move-vis move-vis-public">pub</span>
+### `print` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 
 
@@ -44,7 +44,7 @@ Module providing debug functionality.
 
 <a name="std_debug_print_stack_trace"></a>
 
-### `print_stack_trace` <span class="move-vis move-vis-public">pub</span>
+### `print_stack_trace` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 
 

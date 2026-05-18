@@ -22,14 +22,16 @@ strings.
         -  [`substring` <span class="move-vis move-vis-public">pub</span>](#std_string_substring)
         -  [`to_ascii` <span class="move-vis move-vis-public">pub</span>](#std_string_to_ascii)
 -  [Constants](#@Constants_1)
+    -  [`EInvalidUTF8` <span class="move-vis move-vis-error">err</span>](#std_string_EInvalidUTF8)
+    -  [`EInvalidIndex` <span class="move-vis move-vis-error">err</span>](#std_string_EInvalidIndex)
 -  [Module Functions](#@Module_Functions_2)
-    -  [`from_ascii` <span class="move-vis move-vis-public">pub</span>](#std_string_from_ascii)
-    -  [`try_utf8` <span class="move-vis move-vis-public">pub</span>](#std_string_try_utf8)
-    -  [`utf8` <span class="move-vis move-vis-public">pub</span>](#std_string_utf8)
-    -  [`internal_check_utf8` <span class="move-vis move-vis-private">prv</span>](#std_string_internal_check_utf8)
-    -  [`internal_index_of` <span class="move-vis move-vis-private">prv</span>](#std_string_internal_index_of)
-    -  [`internal_is_char_boundary` <span class="move-vis move-vis-private">prv</span>](#std_string_internal_is_char_boundary)
-    -  [`internal_sub_string` <span class="move-vis move-vis-private">prv</span>](#std_string_internal_sub_string)
+    -  [`from_ascii` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_string_from_ascii)
+    -  [`try_utf8` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_string_try_utf8)
+    -  [`utf8` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_string_utf8)
+    -  [`internal_check_utf8` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_string_internal_check_utf8)
+    -  [`internal_index_of` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_string_internal_index_of)
+    -  [`internal_is_char_boundary` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_string_internal_is_char_boundary)
+    -  [`internal_sub_string` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>](#std_string_internal_sub_string)
 
 
 <pre><code><b>use</b> <a href="../std/ascii.md#std_ascii">std::ascii</a>;
@@ -399,6 +401,8 @@ Aborts if <code>s</code> is not valid ASCII
 
 <a name="std_string_EInvalidUTF8"></a>
 
+### `EInvalidUTF8` <span class="move-vis move-vis-error">err</span>
+
 An invalid UTF8 encoding.
 
 
@@ -408,6 +412,8 @@ An invalid UTF8 encoding.
 
 
 <a name="std_string_EInvalidIndex"></a>
+
+### `EInvalidIndex` <span class="move-vis move-vis-error">err</span>
 
 Index out of range.
 
@@ -424,7 +430,7 @@ Index out of range.
 
 <a name="std_string_from_ascii"></a>
 
-### `from_ascii` <span class="move-vis move-vis-public">pub</span>
+### `from_ascii` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Convert an ASCII string to a UTF8 string
 
@@ -449,7 +455,7 @@ Convert an ASCII string to a UTF8 string
 
 <a name="std_string_try_utf8"></a>
 
-### `try_utf8` <span class="move-vis move-vis-public">pub</span>
+### `try_utf8` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Tries to create a new string from a sequence of bytes.
 
@@ -475,7 +481,7 @@ Tries to create a new string from a sequence of bytes.
 
 <a name="std_string_utf8"></a>
 
-### `utf8` <span class="move-vis move-vis-public">pub</span>
+### `utf8` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Creates a new string from a sequence of bytes. Aborts if the bytes do
 not represent valid utf8.
@@ -502,7 +508,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_check_utf8"></a>
 
-### `internal_check_utf8` <span class="move-vis move-vis-private">prv</span>
+### `internal_check_utf8` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
 
 
 
@@ -524,7 +530,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_index_of"></a>
 
-### `internal_index_of` <span class="move-vis move-vis-private">prv</span>
+### `internal_index_of` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
 
 
 
@@ -546,7 +552,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_is_char_boundary"></a>
 
-### `internal_is_char_boundary` <span class="move-vis move-vis-private">prv</span>
+### `internal_is_char_boundary` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
 
 
 
@@ -568,7 +574,7 @@ not represent valid utf8.
 
 <a name="std_string_internal_sub_string"></a>
 
-### `internal_sub_string` <span class="move-vis move-vis-private">prv</span>
+### `internal_sub_string` <span class="move-vis move-vis-private">prv</span> <span class="move-vis move-vis-module">module</span>
 
 
 

@@ -930,7 +930,12 @@ impl<'env> Docgen<'env> {
         self.end_items();
     }
 
-    /// Generates documentation for all named constants.
+    /// Generates documentation for all named constants. Error constants — by
+    /// convention `E` followed by another capital letter, e.g.
+    /// `EMaximumSupplyReached` — are emitted as section headers with an
+    /// `err` tag so they appear in the right-hand TOC under `Constants`.
+    /// Non-error constants stay as flat code blocks under the heading so the
+    /// TOC doesn't get cluttered with numeric / config-style constants.
     fn gen_named_constants(&mut self, env: &Model) {
         let label = self.label_for_section("Constants");
         self.section_header("Constants", &label);
@@ -938,12 +943,34 @@ impl<'env> Docgen<'env> {
         let current_module = self.current_module.unwrap();
         let current_module = env.module(current_module);
         for const_env in current_module.named_constants() {
-            self.label(&self.label_for_module_item(current_module, const_env.name()));
-            self.doc_text(env, const_env.info().doc.text());
-            self.code_block(env, &self.named_constant_display(const_env));
+            let name = const_env.name();
+            if Self::is_error_constant(name.as_str()) {
+                let title = format!(
+                    "`{name}` <span class=\"move-vis move-vis-error\">err</span>"
+                );
+                self.section_header(&title, &self.label_for_module_item(current_module, name));
+                self.increment_section_nest();
+                self.doc_text(env, const_env.info().doc.text());
+                self.code_block(env, &self.named_constant_display(const_env));
+                self.decrement_section_nest();
+            } else {
+                self.label(&self.label_for_module_item(current_module, name));
+                self.doc_text(env, const_env.info().doc.text());
+                self.code_block(env, &self.named_constant_display(const_env));
+            }
         }
 
         self.decrement_section_nest();
+    }
+
+    /// Heuristic for error constants: by convention, Move modules name error
+    /// abort codes `EFoo`, `ESomethingBad`, etc. — an uppercase `E` followed by
+    /// at least one more uppercase letter. Plain `E` or `ESCAPE` shape that
+    /// also starts with `E` is fine to flag as the convention is consistent.
+    fn is_error_constant(name: &str) -> bool {
+        let mut chars = name.chars();
+        chars.next() == Some('E')
+            && matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
     }
 
     /// Generates documentation for a struct. `methods` are functions whose
@@ -979,7 +1006,7 @@ impl<'env> Docgen<'env> {
         let mut methods = methods;
         methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
         for f in methods {
-            self.gen_function(f);
+            self.gen_function(f, "");
         }
 
         self.decrement_section_nest();
@@ -1017,7 +1044,7 @@ impl<'env> Docgen<'env> {
         let mut methods = methods;
         methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
         for f in methods {
-            self.gen_function(f);
+            self.gen_function(f, "");
         }
 
         self.decrement_section_nest();
@@ -1203,8 +1230,9 @@ impl<'env> Docgen<'env> {
         let label = self.label_for_section("Module Functions");
         self.section_header("Module Functions", &label);
         self.increment_section_nest();
+        let module_marker = " <span class=\"move-vis move-vis-module\">module</span>";
         for f in funs {
-            self.gen_function(f);
+            self.gen_function(f, module_marker);
         }
         self.decrement_section_nest();
     }
@@ -1245,8 +1273,11 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Generates documentation for a function.
-    fn gen_function(&mut self, func_env: source_model::Function<'_>) {
+    /// Generates documentation for a function. `extra_marker` is appended to
+    /// the heading after the visibility tag — used for the `(module)` tag on
+    /// free module functions so they can be distinguished from struct/enum
+    /// methods at a glance in the right-hand TOC.
+    fn gen_function(&mut self, func_env: source_model::Function<'_>, extra_marker: &str) {
         let env = func_env.model();
         let module_env = func_env.module();
         let name = func_env.name();
@@ -1254,9 +1285,9 @@ impl<'env> Docgen<'env> {
         let func_info = func_env.info();
         let marker = Self::visibility_marker(&func_env);
         let title = if func_info.macro_.is_some() {
-            format!("`{name}` (macro) {marker}")
+            format!("`{name}` (macro) {marker}{extra_marker}")
         } else {
-            format!("`{name}` {marker}")
+            format!("`{name}` {marker}{extra_marker}")
         };
         self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();

@@ -14,8 +14,10 @@
         -  [`shift_left` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_shift_left)
         -  [`unset` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_unset)
 -  [Constants](#@Constants_1)
+    -  [`EINDEX` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_EINDEX)
+    -  [`ELENGTH` <span class="move-vis move-vis-error">err</span>](#std_bit_vector_ELENGTH)
 -  [Module Functions](#@Module_Functions_2)
-    -  [`new` <span class="move-vis move-vis-public">pub</span>](#std_bit_vector_new)
+    -  [`new` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_bit_vector_new)
 
 
 <pre><code></code></pre>
@@ -251,6 +253,8 @@ Unset the bit at <code>bit_index</code> in the <code>bitvector</code> regardless
 
 <a name="std_bit_vector_EINDEX"></a>
 
+### `EINDEX` <span class="move-vis move-vis-error">err</span>
+
 The provided index is out of bounds
 
 
@@ -260,6 +264,8 @@ The provided index is out of bounds
 
 
 <a name="std_bit_vector_ELENGTH"></a>
+
+### `ELENGTH` <span class="move-vis move-vis-error">err</span>
 
 An invalid length of bitvector was given
 
@@ -295,7 +301,7 @@ The maximum allowed bitvector size
 
 <a name="std_bit_vector_new"></a>
 
-### `new` <span class="move-vis move-vis-public">pub</span>
+### `new` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 
 

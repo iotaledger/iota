@@ -10,8 +10,8 @@ as in the Move prover's prelude.
 
 
 -  [Module Functions](#@Module_Functions_0)
-    -  [`sha2_256` <span class="move-vis move-vis-public">pub</span>](#std_hash_sha2_256)
-    -  [`sha3_256` <span class="move-vis move-vis-public">pub</span>](#std_hash_sha3_256)
+    -  [`sha2_256` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_hash_sha2_256)
+    -  [`sha3_256` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_hash_sha3_256)
 
 
 <pre><code></code></pre>
@@ -25,7 +25,7 @@ as in the Move prover's prelude.
 
 <a name="std_hash_sha2_256"></a>
 
-### `sha2_256` <span class="move-vis move-vis-public">pub</span>
+### `sha2_256` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 
 
@@ -47,7 +47,7 @@ as in the Move prover's prelude.
 
 <a name="std_hash_sha3_256"></a>
 
-### `sha3_256` <span class="move-vis move-vis-public">pub</span>
+### `sha3_256` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 
 

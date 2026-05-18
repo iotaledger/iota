@@ -12,11 +12,16 @@ a 32-bit fractional part.
         -  [`get_raw_value` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_get_raw_value)
         -  [`is_zero` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_is_zero)
 -  [Constants](#@Constants_1)
+    -  [`EDENOMINATOR` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EDENOMINATOR)
+    -  [`EDIVISION` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EDIVISION)
+    -  [`EMULTIPLICATION` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EMULTIPLICATION)
+    -  [`EDIVISION_BY_ZERO` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_EDIVISION_BY_ZERO)
+    -  [`ERATIO_OUT_OF_RANGE` <span class="move-vis move-vis-error">err</span>](#std_fixed_point32_ERATIO_OUT_OF_RANGE)
 -  [Module Functions](#@Module_Functions_2)
-    -  [`create_from_rational` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_create_from_rational)
-    -  [`create_from_raw_value` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_create_from_raw_value)
-    -  [`divide_u64` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_divide_u64)
-    -  [`multiply_u64` <span class="move-vis move-vis-public">pub</span>](#std_fixed_point32_multiply_u64)
+    -  [`create_from_rational` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_fixed_point32_create_from_rational)
+    -  [`create_from_raw_value` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_fixed_point32_create_from_raw_value)
+    -  [`divide_u64` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_fixed_point32_divide_u64)
+    -  [`multiply_u64` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_fixed_point32_multiply_u64)
 
 
 <pre><code></code></pre>
@@ -132,6 +137,8 @@ Returns true if the ratio is zero.
 
 <a name="std_fixed_point32_EDENOMINATOR"></a>
 
+### `EDENOMINATOR` <span class="move-vis move-vis-error">err</span>
+
 The denominator provided was zero
 
 
@@ -141,6 +148,8 @@ The denominator provided was zero
 
 
 <a name="std_fixed_point32_EDIVISION"></a>
+
+### `EDIVISION` <span class="move-vis move-vis-error">err</span>
 
 The quotient value would be too large to be held in a <code><a href="../std/u64.md#std_u64">u64</a></code>
 
@@ -152,6 +161,8 @@ The quotient value would be too large to be held in a <code><a href="../std/u64.
 
 <a name="std_fixed_point32_EMULTIPLICATION"></a>
 
+### `EMULTIPLICATION` <span class="move-vis move-vis-error">err</span>
+
 The multiplied value would be too large to be held in a <code><a href="../std/u64.md#std_u64">u64</a></code>
 
 
@@ -162,6 +173,8 @@ The multiplied value would be too large to be held in a <code><a href="../std/u6
 
 <a name="std_fixed_point32_EDIVISION_BY_ZERO"></a>
 
+### `EDIVISION_BY_ZERO` <span class="move-vis move-vis-error">err</span>
+
 A division by zero was encountered
 
 
@@ -171,6 +184,8 @@ A division by zero was encountered
 
 
 <a name="std_fixed_point32_ERATIO_OUT_OF_RANGE"></a>
+
+### `ERATIO_OUT_OF_RANGE` <span class="move-vis move-vis-error">err</span>
 
 The computed ratio when converting to a <code><a href="../std/fixed_point32.md#std_fixed_point32_FixedPoint32">FixedPoint32</a></code> would be unrepresentable
 
@@ -187,7 +202,7 @@ The computed ratio when converting to a <code><a href="../std/fixed_point32.md#s
 
 <a name="std_fixed_point32_create_from_rational"></a>
 
-### `create_from_rational` <span class="move-vis move-vis-public">pub</span>
+### `create_from_rational` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Create a fixed-point value from a rational number specified by its
 numerator and denominator. Calling this function should be preferred
@@ -233,7 +248,7 @@ rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
 
 <a name="std_fixed_point32_create_from_raw_value"></a>
 
-### `create_from_raw_value` <span class="move-vis move-vis-public">pub</span>
+### `create_from_raw_value` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Create a fixedpoint value from a raw value.
 
@@ -258,7 +273,7 @@ Create a fixedpoint value from a raw value.
 
 <a name="std_fixed_point32_divide_u64"></a>
 
-### `divide_u64` <span class="move-vis move-vis-public">pub</span>
+### `divide_u64` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Divide a u64 integer by a fixed-point number, truncating any
 fractional part of the quotient. This will abort if the divisor
@@ -295,7 +310,7 @@ is zero or if the quotient overflows.
 
 <a name="std_fixed_point32_multiply_u64"></a>
 
-### `multiply_u64` <span class="move-vis move-vis-public">pub</span>
+### `multiply_u64` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Multiply a u64 integer by a fixed-point number, truncating any
 fractional part of the product. This will abort if the product

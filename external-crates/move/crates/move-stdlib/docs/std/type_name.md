@@ -14,9 +14,10 @@ Functionality for converting Move types into values. Use with care!
         -  [`into_string` <span class="move-vis move-vis-public">pub</span>](#std_type_name_into_string)
         -  [`is_primitive` <span class="move-vis move-vis-public">pub</span>](#std_type_name_is_primitive)
 -  [Constants](#@Constants_1)
+    -  [`ENonModuleType` <span class="move-vis move-vis-error">err</span>](#std_type_name_ENonModuleType)
 -  [Module Functions](#@Module_Functions_2)
-    -  [`get` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get)
-    -  [`get_with_original_ids` <span class="move-vis move-vis-public">pub</span>](#std_type_name_get_with_original_ids)
+    -  [`get` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_type_name_get)
+    -  [`get_with_original_ids` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_type_name_get_with_original_ids)
 
 
 <pre><code><b>use</b> <a href="../std/address.md#std_address">std::address</a>;
@@ -313,6 +314,8 @@ ASCII Character code for the <code>r</code> (lowercase r) symbol.
 
 <a name="std_type_name_ENonModuleType"></a>
 
+### `ENonModuleType` <span class="move-vis move-vis-error">err</span>
+
 The type is not from a package/module. It is a primitive type.
 
 
@@ -328,7 +331,7 @@ The type is not from a package/module. It is a primitive type.
 
 <a name="std_type_name_get"></a>
 
-### `get` <span class="move-vis move-vis-public">pub</span>
+### `get` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from
@@ -354,7 +357,7 @@ storage that first introduced the type).
 
 <a name="std_type_name_get_with_original_ids"></a>
 
-### `get_with_original_ids` <span class="move-vis move-vis-public">pub</span>
+### `get_with_original_ids` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Return a value representation of the type <code>T</code>.  Package IDs
 that appear in fully qualified type names in the output from

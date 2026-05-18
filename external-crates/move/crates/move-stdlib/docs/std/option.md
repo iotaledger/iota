@@ -36,9 +36,11 @@ This module defines the Option type and its methods to represent and handle an o
         -  [`swap_or_fill` <span class="move-vis move-vis-public">pub</span>](#std_option_swap_or_fill)
         -  [`to_vec` <span class="move-vis move-vis-public">pub</span>](#std_option_to_vec)
 -  [Constants](#@Constants_1)
+    -  [`EOPTION_IS_SET` <span class="move-vis move-vis-error">err</span>](#std_option_EOPTION_IS_SET)
+    -  [`EOPTION_NOT_SET` <span class="move-vis move-vis-error">err</span>](#std_option_EOPTION_NOT_SET)
 -  [Module Functions](#@Module_Functions_2)
-    -  [`none` <span class="move-vis move-vis-public">pub</span>](#std_option_none)
-    -  [`some` <span class="move-vis move-vis-public">pub</span>](#std_option_some)
+    -  [`none` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_option_none)
+    -  [`some` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>](#std_option_some)
 
 
 <pre><code><b>use</b> <a href="../std/vector.md#std_vector">std::vector</a>;
@@ -847,6 +849,8 @@ and an empty vector otherwise
 
 <a name="std_option_EOPTION_IS_SET"></a>
 
+### `EOPTION_IS_SET` <span class="move-vis move-vis-error">err</span>
+
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <code>Some</code> while it should be <code>None</code>.
 
@@ -857,6 +861,8 @@ The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <cod
 
 
 <a name="std_option_EOPTION_NOT_SET"></a>
+
+### `EOPTION_NOT_SET` <span class="move-vis move-vis-error">err</span>
 
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is in an invalid state for the operation attempted.
 The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <code>None</code> while it should be <code>Some</code>.
@@ -874,7 +880,7 @@ The <code><a href="../std/option.md#std_option_Option">Option</a></code> is <cod
 
 <a name="std_option_none"></a>
 
-### `none` <span class="move-vis move-vis-public">pub</span>
+### `none` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></code>
 
@@ -899,7 +905,7 @@ Return an empty <code><a href="../std/option.md#std_option_Option">Option</a></c
 
 <a name="std_option_some"></a>
 
-### `some` <span class="move-vis move-vis-public">pub</span>
+### `some` <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-module">module</span>
 
 Return an <code><a href="../std/option.md#std_option_Option">Option</a></code> containing <code>e</code>
 
