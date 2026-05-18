@@ -1,6 +1,6 @@
 ---
-title: The Notarization Object
-description: An explanation of the IOTA Notarization Move object and its core concepts.
+title: The Single Notarization Object
+description: An explanation of the IOTA Single Notarization Move object and its core concepts.
 tags:
  - explanation
  - notarization
@@ -9,15 +9,15 @@ tags:
 
 # Introduction to On Chain Notarization
 
-IOTA Notarization enables the creation of immutable, on-chain records for any arbitrary data. This is achieved by storing the data, or a hash of it, inside a dedicated Move object on the IOTA ledger. This process provides a verifiable, timestamped proof of the data's existence and integrity at a specific point in time.
+IOTA Single Notarization enables the creation of immutable, on-chain records for any arbitrary data. This is achieved by storing the data, or a hash of it, inside a dedicated Move object on the IOTA ledger. This process provides a verifiable, timestamped proof of the data's existence and integrity at a specific point in time.
 
-IOTA Notarization is composed of two primary components:
+IOTA Single Notarization is composed of two primary packages:
 -   **Notarization Move Package**: The on-chain smart contracts that define the behavior and structure of notarization objects.
--   **Notarization Library (Rust/Wasm)**: A client-side library that provides developers with convenient functions to create, manage, and verify `Notarization` objects on the network.
+-   **Notarization Library (Rust/Wasm)**: A client-side library that provides developers with convenient functions to create, manage, and verify `Single Notarization` objects on the network.
 
 ## The `Notarization` Object
 
-The core of the suite is the `Notarization` object, a unified Move `struct` that holds the notarized data and its associated metadata. The Notarization Object is owned by an address.
+The core of the suite is the `Notarization` object, a unified Move `struct` that holds the notarized data and its associated metadata. The Notarization Object is owned by an address allowing easier acces control compared to [IOTA Audit Trail](../../audit-trail/index.mdx) being a shared object which needs more complex access control features.
 
 The `Notarization` object is designed to be flexible and supports two distinct methods, `Locked` and `Dynamic`, which are determined by the `method` field upon creation.
 

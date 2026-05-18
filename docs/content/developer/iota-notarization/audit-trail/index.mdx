@@ -1,16 +1,16 @@
 ---
-title: IOTA Audit Trails
+title: IOTA Audit Trail
 description: Discover how the IOTA Audit Trail framework provides tamper-proof, chronological records of activities on the IOTA ledger.
 sidebar_label: Introduction
 tags:
  - reference
  - audit-trail
 ---
-# IOTA Audit Trails
+# IOTA Audit Trail
 
-![IOTA Audit Trail](/img/banner/banner_audit_trails.png)
+![IOTA Audit Trail](/img/banner/banner_audit_trail.png)
 
-IOTA Audit Trail is one of the two components of the [IOTA Notarization](../index.mdx) Trust Framework product, alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful suite of tools for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trail is designed for organizations that need verifiable accountability and compliance-ready event logs.
+IOTA Audit Trail is one of the two components of the [IOTA Notarization](../index.mdx) Trust Framework product, alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trail is designed for organizations that need verifiable accountability and compliance-ready event logs.
 
 ## Introduction to Audit Trail
 
@@ -42,6 +42,8 @@ IOTA Audit Trail provides the event history layer for Digital Product Passports,
 A Digital Product Passport (DPP) requires a complete and verifiable history of a product's lifecycle — manufacturing conditions, quality inspections, ownership transfers, maintenance events, and disposal. Regulations such as the EU Digital Product Passport mandate that this information be accessible and trustworthy.
 
 IOTA Audit Trail serves as the event history layer for a DPP. While a [Dynamic Notarization](../single-notarization/explanations/dynamic-notarization.mdx) can capture the *current state* of a product (e.g., its current owner or status), the Audit Trail records *every event* that led to that state. For example, a DPP for an electric vehicle battery could use an Audit Trail to log manufacturing parameters, charge cycles, temperature readings, ownership transfers, and recycling events. Record tags can categorize events by type (`"manufacturing"`, `"maintenance"`, `"transfer"`), and role-based permissions ensure that only the manufacturer can log manufacturing events, only the service provider can log maintenance events, and so on.
+
+The [Digital Product Passport real world example](./how-tos/real-world/digital-product-passport.mdx) demonstrates how to implement a Digital Product Passport following the example set by the [IOTA DPP demo](https://dpp.demo.iota.org/).
 
 ### Audit Trail versus Dynamic Notarization
 
