@@ -42,9 +42,9 @@ Options:
      --split-coins <COIN> <[AMOUNT]>                                      Split the coin into N coins as per the given array of amounts.
      --transfer-objects <[OBJECTS]> <TO>                                  Transfer objects to the specified address.
      --publish <MOVE_PACKAGE_PATH>                                        Publish the Move package. It takes as input the folder where the package exists.
-     --upgrade <MOVE_PACKAGE_PATH>                                        Upgrade the Move package. It takes as input the folder where the package exists.
-     --compile-upgrade <MOVE_PACKAGE_PATH>                                Compile a Move package for upgrade without executing any transaction commands.
-     --execute-upgrade <TICKET>                                           Execute the system upgrade using previously compiled package data.
+     --upgrade <MOVE_PACKAGE_PATH> <UPGRADE_CAP>                          Upgrade the Move package. It takes as input the folder where the package exists.
+     --compile-upgrade <MOVE_PACKAGE_PATH> <UPGRADE_CAP>                  Compile a Move package for upgrade without executing any transaction commands.
+     --execute-upgrade <UPGRADE_TICKET>                                   Execute the system upgrade using previously compiled package data.
      --preview                                                            Preview the list of PTB transactions instead of executing them.
      --tx-digest                                                          Instead of executing the transaction, print its digest.
      --sender <SENDER>                                                    Set the sender to this address instead of the active address.
