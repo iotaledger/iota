@@ -1092,8 +1092,8 @@ async fn test_dropped_tx_does_not_acquire_locks() {
 }
 
 /// A `UserTransactionV2` whose `attestor_index` matches the block's
-/// `certificate_author_index` (both `0`) passes Check #3 and is treated the
-/// same as a valid V1 transaction.
+/// `certificate_author_index` (both `0`) passes attestor verification (Check
+/// #3) and is treated the same as a valid V1 transaction.
 #[sim_test]
 async fn test_v2_passes() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
