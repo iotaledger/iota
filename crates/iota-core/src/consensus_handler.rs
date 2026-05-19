@@ -17,7 +17,10 @@ use iota_types::{
     attestation::Attestation,
     base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
-    executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
+    executable_transaction::{
+        TrustedExecutableTransaction, VerifiedExecutableAttestedTransaction,
+        VerifiedExecutableTransaction,
+    },
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{
         CancelledTransaction, ConsensusTransaction, ConsensusTransactionKey,
@@ -423,7 +426,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableTransaction>>,
+    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableAttestedTransaction>>,
 }
 
 impl AsyncTransactionScheduler {
@@ -436,19 +439,19 @@ impl AsyncTransactionScheduler {
         Self { sender }
     }
 
-    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableAttestedTransaction>) {
         tracing::trace_span!("transaction_scheduler_enqueue");
         self.sender.send(transactions).await.ok();
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
+        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableAttestedTransaction>>,
         transaction_manager: Arc<TransactionManager>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            transaction_manager.enqueue(transactions, &epoch_store);
+            transaction_manager.enqueue_attested(transactions, &epoch_store);
         }
     }
 }

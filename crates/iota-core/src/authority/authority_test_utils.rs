@@ -8,6 +8,7 @@ use core::default::Default;
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
+    executable_transaction::VerifiedExecutableAttestedTransaction,
     messages_consensus::ConsensusTransaction,
     utils::to_sender_signed_transaction,
 };
@@ -405,7 +406,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
 
     authority
         .transaction_manager()
-        .enqueue(certs, &authority.epoch_store_for_testing());
+        .enqueue_attested(certs, &authority.epoch_store_for_testing());
 }
 
 pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &VerifiedCertificate) {
@@ -435,7 +436,7 @@ pub async fn send_batch_consensus_no_execution(
     authority: &AuthorityState,
     certificates: &[VerifiedCertificate],
     skip_consensus_commit_prologue_in_test: bool,
-) -> Vec<VerifiedExecutableTransaction> {
+) -> Vec<VerifiedExecutableAttestedTransaction> {
     let transactions = certificates
         .iter()
         .map(|cert| {

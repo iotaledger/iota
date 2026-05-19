@@ -7,7 +7,7 @@ use std::sync::{Arc, Weak};
 use iota_common::{fatal, random::get_rng};
 use iota_macros::fail_point_async;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_types::error::IotaError;
+use iota_types::{effects::TransactionEffectsAPI, error::IotaError};
 use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
@@ -40,12 +40,14 @@ pub async fn execution_process(
         let certificate;
         let expected_effects_digest;
         let txn_ready_time;
+        let attestation;
         tokio::select! {
             result = rx_ready_certificates.recv() => {
                 if let Some(pending_cert) = result {
                     certificate = pending_cert.certificate;
                     expected_effects_digest = pending_cert.expected_effects_digest;
                     txn_ready_time = pending_cert.stats.ready_time.unwrap();
+                    attestation = pending_cert.attestation;
                 } else {
                     // Should only happen after the AuthorityState has shut down and tx_ready_certificate
                     // has been dropped by TransactionManager.
@@ -117,11 +119,12 @@ pub async fn execution_process(
 
             fail_point_async!("transaction_execution_delay");
 
-            match authority.try_execute_immediately(
+            let effects = match authority.try_execute_immediately(
                 &certificate,
                 expected_effects_digest,
                 &epoch_store_clone,
             ) {
+                Ok((effects, _)) => effects,
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {
                     warn!("Could not execute transaction {digest:?} because validator is halted at epoch end. certificate={certificate:?}");
                     return;
@@ -129,8 +132,27 @@ pub async fn execution_process(
                 Err(e) => {
                     fatal!("Failed to execute certified transaction {digest:?}! error={e} certificate={certificate:?}");
                 }
-                _ => (),
+            };
+
+            // Emit attestation accuracy metrics when this transaction arrived
+            // as `UserTransactionV2`. `actual_computation_cost` comes from the
+            // effects produced above; `attested_computation_cost` is the
+            // attestor's pre-consensus estimate.
+            if let Some(attestation) = &attestation {
+                let attested = attestation.estimated_computation_cost();
+                let actual = effects.gas_cost_summary().computation_cost;
+                let metrics = &authority.metrics;
+                metrics.attested_computation_cost.observe(attested as f64);
+                metrics
+                    .attested_actual_computation_cost
+                    .observe(actual as f64);
+                if attested > 0 {
+                    metrics
+                        .attested_vs_actual_computation_cost_ratio
+                        .observe(actual as f64 / attested as f64);
+                }
             }
+
             authority
                 .metrics
                 .execution_driver_executed_transactions
