@@ -1804,9 +1804,7 @@ impl TransactionDataAPI for TransactionData {
     fn message_version(&self) -> u64 {
         match self {
             TransactionData::V1(_) => 1,
-            _ => unimplemented!(
-                "a new Transaction enum variant was added and needs to be handled"
-            ),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
