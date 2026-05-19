@@ -61,6 +61,7 @@ use crate::{
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -164,6 +165,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
+    pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
     /// Present only when `FastCommitSyncer` is constructed (both the
     /// protocol flag `consensus_fast_commit_sync` and the local flag
@@ -248,9 +250,21 @@ impl<C: NetworkClient> Inner<C> {
         let mut verified_voting_headers = Vec::new();
         for serialized_block_header in serialized_vote_blocks_headers {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    self.misbehavior_store
+                        .record_faulty_block_header(peer, peer, e);
+                })?;
             // The block signature needs to be verified.
-            self.block_verifier.verify(&signed_block_header)?;
+            if let Err(e) = self.block_verifier.verify(&signed_block_header) {
+                self.misbehavior_store.record_faulty_block_header(
+                    peer,
+                    signed_block_header.author(),
+                    &e,
+                );
+                return Err(e);
+            }
             for vote in signed_block_header.commit_votes() {
                 if *vote == end_commit_ref {
                     stake_aggregator.add(signed_block_header.author(), &self.context.committee);

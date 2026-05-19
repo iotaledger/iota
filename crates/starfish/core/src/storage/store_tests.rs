@@ -761,22 +761,24 @@ async fn test_read_highest_commit_index_with_votes(
 
 #[rstest]
 #[tokio::test]
-async fn scan_scoring_metrics(
+async fn scan_misbehavior_counts(
     #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
 ) {
     use std::collections::BTreeMap;
 
-    use crate::scoring_metrics_store::StorageScoringMetrics;
+    use crate::misbehavior_store::MisbehaviorCounts;
 
     let store = test_store.store();
 
     // A fresh store should return an empty scan.
-    let scanned = store.scan_scoring_metrics().expect("scan should not fail");
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
     assert!(scanned.is_empty());
 
     let metrics_updates = [
-        StorageScoringMetrics::new_v1_for_test(1, 2, 4, 3),
-        StorageScoringMetrics::new_v1_for_test(0, 0, 0, 0),
+        MisbehaviorCounts::new_v1_for_test(1, 2, 4, 3),
+        MisbehaviorCounts::new_v1_for_test(0, 0, 0, 0),
     ];
     let authorities = [
         AuthorityIndex::new_for_test(0),
@@ -792,12 +794,14 @@ async fn scan_scoring_metrics(
     .collect();
     store
         .write(
-            WriteBatch::default().scoring_metrics(metrics_to_write.clone()),
+            WriteBatch::default().misbehavior_counts(metrics_to_write.clone()),
             test_store.context(),
         )
         .unwrap();
 
-    let scanned = store.scan_scoring_metrics().expect("scan should not fail");
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
     assert_eq!(scanned, metrics_to_write);
 
     // Overwrite authority 0 with zeroed metrics; authority 1 stays unchanged.
@@ -806,12 +810,14 @@ async fn scan_scoring_metrics(
         .collect();
     store
         .write(
-            WriteBatch::default().scoring_metrics(overwrite),
+            WriteBatch::default().misbehavior_counts(overwrite),
             test_store.context(),
         )
         .unwrap();
 
-    let scanned = store.scan_scoring_metrics().expect("scan should not fail");
+    let scanned = store
+        .scan_misbehavior_counts()
+        .expect("scan should not fail");
     let expected: BTreeMap<_, _> = [
         (authorities[0], metrics_updates[1].clone()),
         (authorities[1], metrics_updates[1].clone()),
