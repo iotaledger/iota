@@ -1435,7 +1435,7 @@ impl IotaTestAdapter {
                     "abstract: account must be an object representing the abstract account"
                 ));
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         };
 
         Ok((
@@ -1903,7 +1903,7 @@ impl IotaTestAdapter {
                     "Transaction Effects Status: {error}\n{execution_msg}",
                 )))
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new ExecutionStatus enum variant was added and needs to be handled"),
         }
     }
 

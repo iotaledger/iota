@@ -72,7 +72,7 @@ impl From<NativeSystemStateSummary> for IotaSystemStateSummary {
                 IotaSystemStateSummary::V2(summary_v2.into())
             }
             _ => unimplemented!(
-                "a new IotaSystemStateSummary variant was added and needs to be handled"
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
             ),
         }
     }

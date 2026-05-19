@@ -117,7 +117,7 @@ impl ProgrammableTransactionBuilder {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 self.obj(call_arg)
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 

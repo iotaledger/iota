@@ -292,7 +292,7 @@ impl CallArgExt for CallArg {
                 mutable: *mutable,
             }),
             CallArg::Pure(_) | CallArg::Receiving(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
@@ -310,7 +310,7 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
         Ok(())
     }
@@ -675,7 +675,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
             CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 
@@ -1260,28 +1260,28 @@ impl TransactionDataAPI for TransactionData {
     fn sender(&self) -> IotaAddress {
         match self {
             Self::V1(v1) => v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
     fn kind(&self) -> &TransactionKind {
         match self {
             Self::V1(v1) => &v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
     fn kind_mut(&mut self) -> &mut TransactionKind {
         match self {
             Self::V1(v1) => &mut v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
     fn into_kind(self) -> TransactionKind {
         match self {
             Self::V1(v1) => v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
@@ -1296,7 +1296,7 @@ impl TransactionDataAPI for TransactionData {
     fn gas_data(&self) -> &GasData {
         match self {
             Self::V1(v1) => &v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
@@ -1319,7 +1319,7 @@ impl TransactionDataAPI for TransactionData {
     fn expiration(&self) -> &TransactionExpiration {
         match self {
             Self::V1(v1) => &v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
@@ -1395,21 +1395,21 @@ impl TransactionDataAPI for TransactionData {
     fn sender_mut_for_testing(&mut self) -> &mut IotaAddress {
         match self {
             Self::V1(v1) => &mut v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
     fn gas_data_mut(&mut self) -> &mut GasData {
         match self {
             Self::V1(v1) => &mut v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration {
         match self {
             Self::V1(v1) => &mut v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new TransactionData enum variant was added and needs to be handled"),
         }
     }
 
@@ -2039,7 +2039,7 @@ impl SenderSignedData {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
             _ => unimplemented!(
-                "a new TransactionExpiration variant was added and needs to be handled"
+                "a new TransactionExpiration enum variant was added and needs to be handled"
             ),
         } {
             return Err(IotaError::TransactionExpired);

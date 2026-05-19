@@ -110,7 +110,7 @@ impl TransactionBlockEffects {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
             NativeExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!("a new ExecutionStatus enum variant was added and needs to be handled"),
         })
     }
 
