@@ -231,9 +231,9 @@ fn test_max_sig() {
 
     // multisig_pk with unreachable threshold fails.
     assert!(
-        !MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16)
+        MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16)
             .validate()
-            .is_ok()
+            .is_err()
     );
 
     // multisig_pk with max weights for each pk and max reachable threshold is ok.
@@ -248,12 +248,12 @@ fn test_max_sig() {
 
     // multisig_pk with unreachable threshold fails.
     assert!(
-        !MultiSigPublicKey::insecure_new(
+        MultiSigPublicKey::insecure_new(
             members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
         )
         .validate()
-        .is_ok()
+        .is_err()
     );
 
     // multisig_pk with max weights for each pk with threshold is 1x max weight

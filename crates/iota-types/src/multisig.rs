@@ -59,7 +59,7 @@ impl AuthenticatorTrait for MultiSig {
         self.committee()
             .validate()
             .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Invalid multisig pubkey: {}", e),
+                error: format!("Invalid multisig pubkey: {e}"),
             })?;
 
         if self.committee().derive_address() != multisig_address {
