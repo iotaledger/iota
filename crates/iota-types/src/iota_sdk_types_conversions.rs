@@ -254,7 +254,9 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
 
                 Ok(effects)
             }
-            _ => unimplemented!("a new TransactionEffects enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -497,7 +499,9 @@ impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommit
                     digest: crate::digests::Digest::new(digest.into_inner()),
                 })
             }
-            _ => unimplemented!("a new CheckpointCommitment enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new CheckpointCommitment enum variant was added and needs to be handled"
+            ),
         }
     }
 }
