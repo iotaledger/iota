@@ -88,6 +88,8 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup db
         run: |
@@ -159,6 +161,8 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup db
         run: |
@@ -216,6 +220,8 @@ jobs:
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Run Cargo Udeps
         run: cargo +nightly-2026-01-07 ci-udeps ${{ matrix.flags }}
@@ -248,6 +254,8 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: doctests
         run: |

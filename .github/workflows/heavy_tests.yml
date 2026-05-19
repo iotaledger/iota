@@ -47,6 +47,21 @@ concurrency:
   group: heavy-tests-${{ inputs.pr_number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/develop' }}
 
+# Hard-limit GITHUB_TOKEN to the minimum this workflow needs:
+#   * `contents: read`  — for `actions/checkout` (and dorny/paths-filter API
+#     calls that compare branches).
+#   * `actions: write`  — for the `rust-tests-cancel` / `rust-simtests-cancel`
+#     jobs in `_rust_tests.yml` which call `gh run cancel`.
+# All other permissions default to `none`. This matters because we run
+# PR-author-controlled code (`cargo test` against `inputs.head_sha`) under
+# a `workflow_dispatch` event, which is NOT fork-restricted the way
+# `pull_request` is — so the token here would otherwise be the repo's
+# default permissions. Narrowing it caps blast radius if a malicious test
+# tries to exfiltrate the token.
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   diff:
     runs-on: [ubuntu-latest]
@@ -61,6 +76,11 @@ jobs:
         with:
           ref: ${{ inputs.head_sha || github.sha }}
           fetch-depth: 0
+          # Don't leave the auth token in `.git/config` — `_rust_tests.yml`
+          # runs `cargo test` on this checkout, and a malicious test could
+          # scrape the token from there. We don't push anything from the
+          # heavy-tests path, so anonymous git access is fine.
+          persist-credentials: false
       - name: Detect Changes (diff)
         uses: "./.github/actions/diffs"
         id: diff
