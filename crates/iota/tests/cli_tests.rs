@@ -39,6 +39,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::StructTag;
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
@@ -6743,24 +6744,145 @@ async fn setup_move_authenticator_account(
 
 #[sim_test]
 async fn test_move_authenticator() -> Result<(), anyhow::Error> {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_package_metadata_v2_for_testing(false);
+        config
+    });
+
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(1)
         .build()
         .await;
+    let rgp = test_cluster.get_reference_gas_price().await;
     let sender_address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
-    let account_address = setup_move_authenticator_account(
-        context,
-        sender_address,
-        "examples/move/account",
-        "account",
-        "authenticate",
-        2_000_000_000,
-    )
+    let client = context.get_client().await?;
+    let gas_obj_id = client
+        .read_api()
+        .get_owned_objects(sender_address, None, None, None)
+        .await?
+        .data
+        .first()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+
+    // Publish the account package
+    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("examples/move/account");
+    let mut build_config = BuildConfig::new_for_testing().config;
+    build_config.lock_file = Some(package_path.join("Move.lock"));
+    let resp = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        verify_deps: true,
+        payment: PaymentArgs {
+            gas: vec![gas_obj_id],
+        },
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
     .await?;
 
-    // Switch to the AA so subsequent commands treat it as the active address.
+    // Extract IDs from publish response
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
+        panic!("Expected TransactionBlock");
+    };
+    let object_changes = response.object_changes.as_ref().unwrap();
+    let account_address = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Created {
+                object_type,
+                object_id,
+                ..
+            } if object_type.to_string().ends_with("::account::Account") => Some(*object_id),
+            _ => None,
+        })
+        .unwrap();
+    let package_id = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Published { package_id, .. } => Some(*package_id),
+            _ => None,
+        })
+        .unwrap();
+    let metadata_id = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Created {
+                object_type,
+                object_id,
+                ..
+            } if object_type.to_string() == "0x2::package_metadata::PackageMetadataV1" => {
+                Some(*object_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    // Link auth
+    IotaClientCommands::Call {
+        package: package_id,
+        module: "account".to_string(),
+        function: "link_auth".to_string(),
+        type_args: vec![],
+        args: vec![
+            IotaJsonValue::from_str(&account_address.to_string()).unwrap(),
+            IotaJsonValue::from_str(&metadata_id.to_string()).unwrap(),
+            IotaJsonValue::from_str("\"account\"").unwrap(),
+            IotaJsonValue::from_str("\"authenticate\"").unwrap(),
+        ],
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+
+    // Send funds to account
+    let transfer_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[2000000000]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        transfer_resp,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
+
+    // Add and switch to account
+    IotaClientCommands::AddAccount {
+        alias: None,
+        address: account_address.into(),
+    }
+    .execute(context)
+    .await?;
     IotaClientCommands::Switch {
         address: Some(IotaAddress::from(account_address).into()),
         env: None,
@@ -6854,6 +6976,11 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 /// - `nested: vector<vector<u8>>` (must be [[0xAA], [0xBB, 0xCC]])
 #[sim_test]
 async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_package_metadata_v2_for_testing(false);
+        config
+    });
+
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(1)
         .build()
