@@ -444,10 +444,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
 
-    // If true, only sponsor Move authentication is performed pre-consensus.
-    #[serde(skip_serializing_if = "is_false")]
-    pre_consensus_sponsor_only_move_authentication: bool,
-
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
     pass_validator_scores_to_advance_epoch: bool,
@@ -484,6 +480,10 @@ struct FeatureFlags {
     // If true, perform additional borrow checks
     #[serde(skip_serializing_if = "is_false")]
     additional_borrow_checks: bool,
+
+    // If true, only sponsor Move authentication is performed pre-consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    pre_consensus_sponsor_only_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1653,23 +1653,6 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
-    pub fn pre_consensus_sponsor_only_move_authentication(&self) -> bool {
-        let pre_consensus_sponsor_only_move_authentication = self
-            .feature_flags
-            .pre_consensus_sponsor_only_move_authentication;
-        if pre_consensus_sponsor_only_move_authentication {
-            assert!(
-                self.enable_move_authentication(),
-                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication to be set"
-            );
-            assert!(
-                self.enable_move_authentication_for_sponsor(),
-                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication_for_sponsor to be set"
-            );
-        }
-        pre_consensus_sponsor_only_move_authentication
-    }
-
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -1719,6 +1702,23 @@ impl ProtocolConfig {
 
     pub fn move_native_tx_context(&self) -> bool {
         self.feature_flags.move_native_tx_context
+    }
+
+    pub fn pre_consensus_sponsor_only_move_authentication(&self) -> bool {
+        let pre_consensus_sponsor_only_move_authentication = self
+            .feature_flags
+            .pre_consensus_sponsor_only_move_authentication;
+        if pre_consensus_sponsor_only_move_authentication {
+            assert!(
+                self.enable_move_authentication(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.enable_move_authentication_for_sponsor(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication_for_sponsor to be set"
+            );
+        }
+        pre_consensus_sponsor_only_move_authentication
     }
 }
 
@@ -3038,17 +3038,17 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
     }
 
-    pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
-        self.feature_flags
-            .pre_consensus_sponsor_only_move_authentication = val;
-    }
-
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
     }
 
     pub fn set_consensus_block_restrictions_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_block_restrictions = val;
+    }
+
+    pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pre_consensus_sponsor_only_move_authentication = val;
     }
 }
 
