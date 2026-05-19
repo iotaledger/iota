@@ -24,7 +24,7 @@ mod checked {
             TxContext, TxContextKind,
         },
         coin::Coin,
-        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
@@ -32,7 +32,7 @@ mod checked {
         move_package::{
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -769,10 +769,24 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) =
-            existing_package.normalize(pool, &binary_config, /* include code */ true)
-        else {
-            invariant_violation!("Tried to normalize modules in existing package but failed")
+        let current_normalized = match normalize_modules_with_metadata(
+            pool,
+            existing_package.serialized_module_map().values(),
+            &binary_config,
+            true, // include code
+        ) {
+            Ok(modules) => modules,
+            Err(IotaError::ModuleDeserializationFailure { .. }) => {
+                invariant_violation!("Tried to normalize modules in existing package but failed")
+            }
+            Err(e) => {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::PackageUpgradeError {
+                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                    },
+                    e,
+                ));
+            }
         };
 
         let existing_modules_len = current_normalized.len();
@@ -793,37 +807,21 @@ mod checked {
             ));
         }
 
-        let mut new_modules_by_name = upgrading_modules
-            .iter()
-            .map(|module| (module.name().to_string(), module))
-            .collect::<BTreeMap<_, _>>();
-        for (module_name, serialized_module) in existing_package.serialized_module_map() {
-            let Some(new_module) = new_modules_by_name.remove(module_name) else {
-                continue;
-            };
-            let old_module =
-                CompiledModule::deserialize_with_config(serialized_module, &binary_config)
-                    .map_err(|e| {
-                        ExecutionError::new_with_source(
-                            ExecutionErrorKind::PackageUpgradeError {
-                                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                            },
-                            format!(
-                                "Unable to deserialize existing module {module_name} while \
-                                 checking package upgrade compatibility: {e}"
-                            ),
-                        )
-                    })?;
-            check_view_function_compatibility(module_name, &old_module, new_module)?;
-        }
-
-        let mut new_normalized = normalize_deserialized_modules(
+        let mut new_normalized = normalize_deserialized_modules_with_metadata(
             pool,
             upgrading_modules.iter(),
             true, // include code
-        );
-        for (name, cur_module) in current_normalized {
-            let Some(new_module) = new_normalized.remove(&name) else {
+        )
+        .map_err(|e| {
+            ExecutionError::new_with_source(
+                ExecutionErrorKind::PackageUpgradeError {
+                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                },
+                e,
+            )
+        })?;
+        for (name, (cur_module, cur_metadata)) in current_normalized {
+            let Some((new_module, new_metadata)) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::PackageUpgradeError {
                         upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
@@ -832,6 +830,7 @@ mod checked {
                 ));
             };
 
+            check_view_function_compatibility(&name, &cur_metadata, &new_metadata)?;
             check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
 
@@ -877,15 +876,15 @@ mod checked {
     /// on view-function metadata for read-only execution.
     fn check_view_function_compatibility(
         module_name: &str,
-        cur_module: &CompiledModule,
-        new_module: &CompiledModule,
+        cur_metadata: &RuntimeModuleMetadata,
+        new_metadata: &RuntimeModuleMetadata,
     ) -> Result<(), ExecutionError> {
-        let cur_view_functions = view_functions(cur_module)?;
+        let cur_view_functions = view_functions(cur_metadata);
         if cur_view_functions.is_empty() {
             return Ok(());
         }
 
-        let new_view_functions = view_functions(new_module)?;
+        let new_view_functions = view_functions(new_metadata);
         for function_name in cur_view_functions {
             if !new_view_functions.contains(&function_name) {
                 return Err(ExecutionError::new_with_source(
@@ -904,34 +903,8 @@ mod checked {
         Ok(())
     }
 
-    fn view_functions(module: &CompiledModule) -> Result<BTreeSet<String>, ExecutionError> {
-        let Some(metadata) = module
-            .metadata
-            .iter()
-            .find(|metadata| metadata.key == IOTA_METADATA_KEY)
-        else {
-            return Ok(BTreeSet::new());
-        };
-
-        let metadata_wrapper: RuntimeModuleMetadataWrapper = bcs::from_bytes(&metadata.value)
-            .map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::PackageUpgradeError {
-                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                    },
-                    format!("Unable to deserialize IOTA module metadata: {e}"),
-                )
-            })?;
-        let runtime_metadata = RuntimeModuleMetadata::try_from(metadata_wrapper).map_err(|e| {
-            ExecutionError::new_with_source(
-                ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
-                },
-                e,
-            )
-        })?;
-
-        Ok(runtime_metadata
+    fn view_functions(metadata: &RuntimeModuleMetadata) -> BTreeSet<String> {
+        metadata
             .fun_attributes_iter()
             .filter(|&(_function_name, attributes)| {
                 attributes
@@ -939,7 +912,7 @@ mod checked {
                     .any(|attribute| matches!(attribute, IotaAttribute::View))
             })
             .map(|(function_name, _attributes)| function_name.clone())
-            .collect())
+            .collect()
     }
 
     /// Retrieves a `PackageObject` from the storage based on the provided
