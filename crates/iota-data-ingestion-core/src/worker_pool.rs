@@ -432,7 +432,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     /// leaves `checkpoint_contents` (the list of all transaction digests in
     /// the original checkpoint) completely untouched.
     fn should_skip_filtered_checkpoint(checkpoint: &CheckpointData) -> bool {
-        checkpoint.checkpoint_contents.iter().next().is_some() && checkpoint.transactions.is_empty()
+        !checkpoint.checkpoint_contents.inner().is_empty() && checkpoint.transactions.is_empty()
     }
 
     /// Attempts to process a checkpoint with exponential backoff retries on
