@@ -1099,6 +1099,16 @@ impl AuthorityPerEpochStore {
             .expect("AuthorityEpochTables should contain valid ReportAggregator state");
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scoreboard = Scoreboard::new(voting_power, &protocol_config);
+        // Prime the published score vector from any restored aggregator state.
+        // Without this, a freshly constructed Scoreboard starts at [MAX_SCORE;
+        // committee_size], so the next no-report commit (which both restored
+        // and never-restarted validators skip) would publish different vectors
+        // across the network. `update_scores` is a no-op when the aggregator
+        // is empty (no `received_metrics` rows restored), so this is also
+        // correct for the fresh-epoch path.
+        if protocol_config.calculate_validator_scores() {
+            scoreboard.update_scores(&report_aggregator);
+        }
 
         let s = Arc::new(Self {
             name,
@@ -3195,7 +3205,14 @@ impl AuthorityPerEpochStore {
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the published score
         // snapshot (`ArcSwap<Vec<u64>>`).
-        if self.protocol_config().calculate_validator_scores() {
+        //
+        // Skip the recompute entirely when no `process_report` ran this commit:
+        // the aggregator state didn't change, so the score vector can't either.
+        // All validators see the same `report_state_snapshots` emptiness, so
+        // they all skip / run in lock-step — `current_scores` stays consistent
+        // across the network.
+        if self.protocol_config().calculate_validator_scores() && output.has_report_state_changes()
+        {
             self.scoreboard.update_scores(&self.report_aggregator);
         }
         self.process_user_signatures(

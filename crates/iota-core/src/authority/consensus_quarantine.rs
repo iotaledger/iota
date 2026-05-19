@@ -152,6 +152,13 @@ impl ConsensusCommitOutput {
             .insert(authority_index as u8, snapshot);
     }
 
+    /// Returns `true` if at least one `process_report` ran during this commit.
+    /// Used by the consensus handler to skip `Scoreboard::update_scores` on
+    /// commits that can't change the score vector.
+    pub(crate) fn has_report_state_changes(&self) -> bool {
+        !self.report_state_snapshots.is_empty()
+    }
+
     pub fn set_next_shared_object_versions(
         &mut self,
         next_versions: HashMap<ObjectID, SequenceNumber>,
