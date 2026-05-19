@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    attestation::Attestation,
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     message_envelope::{Envelope, TrustedEnvelope, VerifiedEnvelope},
@@ -78,5 +81,50 @@ impl VerifiedExecutableTransaction {
 
     pub fn gas_budget(&self) -> u64 {
         self.data().transaction_data().gas_budget()
+    }
+}
+
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Local, runtime-only, never serialized or
+/// checkpointed. Carrying the full attestation (rather than just a derived
+/// hint like `estimated_computation_cost`) lets downstream code consult both
+/// scheduling metadata now and attestor identity / observed object versions
+/// later (e.g. for checkpoint-driven rewards/penalties).
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    pub tx: VerifiedExecutableTransaction,
+    /// `None` for unattested transactions (e.g. `UserTransactionV1`, system
+    /// transactions, replay).
+    pub attestation: Option<Attestation>,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        Self { tx, attestation }
+    }
+
+    /// Returns the attestor's estimated computation cost, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_cost(&self) -> Option<u64> {
+        self.attestation
+            .as_ref()
+            .map(|a| a.estimated_computation_cost())
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self {
+            tx,
+            attestation: None,
+        }
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
     }
 }

@@ -6265,6 +6265,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         PerObjectCongestionControlMode::None => unreachable!(),
         PerObjectCongestionControlMode::TotalGasBudget => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
+        PerObjectCongestionControlMode::TotalComputationCost => unimplemented!(),
     };
     let gas_objects_commit_1 = create_gas_objects(5 + non_congested_tx_count, sender);
     let gas_objects_commit_2 = create_gas_objects(non_congested_tx_count, sender);
@@ -6276,7 +6277,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => {
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationCost => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,

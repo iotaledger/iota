@@ -41,7 +41,8 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{
-        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+        CertificateProof, ExecutableTransaction, VerifiedExecutableAttestedTransaction,
+        VerifiedExecutableTransaction,
     },
     global_state_hash::GlobalStateHash,
     iota_system_state::epoch_start_iota_system_state::{
@@ -270,12 +271,15 @@ impl CongestionControlParameters {
     /// from a given consensus commit.
     pub(super) fn get_estimated_execution_duration(
         &self,
-        cert: &VerifiedExecutableTransaction,
+        cert: &VerifiedExecutableAttestedTransaction,
     ) -> ExecutionTime {
         match self.per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
             PerObjectCongestionControlMode::TotalTxCount => 1,
+            PerObjectCongestionControlMode::TotalComputationCost => cert
+                .attested_computation_cost()
+                .unwrap_or_else(|| cert.gas_budget()),
         }
     }
 
@@ -2141,7 +2145,7 @@ impl AuthorityPerEpochStore {
     ))]
     fn try_schedule(
         &self,
-        cert: &VerifiedExecutableTransaction,
+        cert: &VerifiedExecutableAttestedTransaction,
         commit_round: CommitRound,
         dkg_failed: bool,
         generating_randomness: bool,
@@ -4124,6 +4128,7 @@ impl AuthorityPerEpochStore {
             certificate_author,
             consensus_index: _,
             transaction,
+            attestation,
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
 
@@ -4182,8 +4187,11 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
+                let attested_transaction: VerifiedExecutableAttestedTransaction =
+                    certificate.into();
+
                 let scheduling_result = self.try_schedule(
-                    &certificate,
+                    &attested_transaction,
                     commit_round,
                     dkg_failed,
                     generating_randomness,
@@ -4193,7 +4201,7 @@ impl AuthorityPerEpochStore {
 
                 self.handle_scheduling_result(
                     scheduling_result,
-                    certificate,
+                    attested_transaction,
                     previously_deferred_tx_digests,
                     dkg_failed,
                     shared_object_congestion_tracker,
@@ -4456,9 +4464,13 @@ impl AuthorityPerEpochStore {
                         CertificateProof::ConsensusOrdered(self.epoch()),
                     ),
                 );
+                let attested_executable_tx = VerifiedExecutableAttestedTransaction::new(
+                    executable_tx,
+                    attestation.clone(),
+                );
 
                 let scheduling_result = self.try_schedule(
-                    &executable_tx,
+                    &attested_executable_tx,
                     commit_round,
                     dkg_failed,
                     generating_randomness,
@@ -4468,7 +4480,7 @@ impl AuthorityPerEpochStore {
 
                 self.handle_scheduling_result(
                     scheduling_result,
-                    executable_tx,
+                    attested_executable_tx,
                     previously_deferred_tx_digests,
                     dkg_failed,
                     shared_object_congestion_tracker,
@@ -4488,7 +4500,7 @@ impl AuthorityPerEpochStore {
     fn handle_scheduling_result(
         &self,
         scheduling_result: SchedulingResult,
-        verified_executable_tx: VerifiedExecutableTransaction,
+        verified_executable_tx: VerifiedExecutableAttestedTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         dkg_failed: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
@@ -4568,7 +4580,7 @@ impl AuthorityPerEpochStore {
                             );
 
                             ConsensusTransactionResult::Cancelled((
-                                verified_executable_tx,
+                                verified_executable_tx.tx,
                                 CancelConsensusTransactionReason::CongestionOnObjects {
                                     congested_objects,
                                     suggested_gas_price,
@@ -4589,7 +4601,7 @@ impl AuthorityPerEpochStore {
                     );
 
                     return Ok(ConsensusTransactionResult::Cancelled((
-                        verified_executable_tx,
+                        verified_executable_tx.tx,
                         CancelConsensusTransactionReason::DkgFailed,
                     )));
                 }
@@ -4614,7 +4626,7 @@ impl AuthorityPerEpochStore {
                 }
 
                 Ok(ConsensusTransactionResult::Scheduled {
-                    transaction: verified_executable_tx,
+                    transaction: verified_executable_tx.tx,
                     start_time,
                 })
             }

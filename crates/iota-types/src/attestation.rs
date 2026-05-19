@@ -70,6 +70,21 @@ pub struct AttestedTransaction {
     pub attestation: Attestation,
 }
 
+impl Attestation {
+    pub fn estimated_computation_cost(&self) -> u64 {
+        let payload = match self {
+            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
+                payload
+            }
+        };
+        let AttestationData::V1 {
+            estimated_computation_cost,
+            ..
+        } = payload;
+        *estimated_computation_cost
+    }
+}
+
 impl AttestedTransaction {
     pub fn new(transaction: Transaction, attestation: Attestation) -> Self {
         Self {
@@ -77,8 +92,13 @@ impl AttestedTransaction {
             attestation,
         }
     }
+
     pub fn digest(&self) -> &TransactionDigest {
         self.transaction.digest()
+    }
+
+    pub fn estimated_computation_cost(&self) -> u64 {
+        self.attestation.estimated_computation_cost()
     }
 }
 
