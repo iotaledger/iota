@@ -132,6 +132,10 @@ jobs:
           || needs.diff.outputs.isMoveExampleUsedByOthers == 'true')
     uses: ./.github/workflows/_rust_tests.yml
     with:
+      # Without `head_sha` the reusable's checkout falls back to `github.sha`
+      # which under workflow_dispatch is the dispatch ref (develop), not the
+      # PR. Pass the PR HEAD explicitly so the reusable tests the PR's code.
+      head_sha: ${{ inputs.head_sha || github.sha }}
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
       isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
@@ -154,8 +158,12 @@ jobs:
     needs: diff
     if: needs.diff.outputs.isRust == 'true'
     uses: ./.github/workflows/_split_cluster.yml
+    with:
+      head_sha: ${{ inputs.head_sha || github.sha }}
 
   split-cluster-sync-check:
     needs: diff
     if: needs.diff.outputs.isStarfishSynchronization == 'true'
     uses: ./.github/workflows/_split_cluster_sync_check.yml
+    with:
+      head_sha: ${{ inputs.head_sha || github.sha }}

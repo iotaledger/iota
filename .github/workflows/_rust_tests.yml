@@ -27,6 +27,10 @@ on:
       isNightly:
         type: boolean
         default: false
+      head_sha:
+        description: "Commit SHA to test. When unset, falls back to github.sha (which only makes sense for callers triggered by an event whose default ref already points to the right place, e.g. nightly on develop)."
+        type: string
+        required: false
 
 # No workflow-level `concurrency` here on purpose: a reusable workflow can't
 # compute a correct concurrency key (it depends on the caller's trigger
@@ -89,6 +93,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ inputs.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Setup db
@@ -162,6 +167,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ inputs.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Setup db
@@ -221,6 +227,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ inputs.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Run Cargo Udeps
@@ -255,6 +262,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ inputs.head_sha || github.sha }}
           persist-credentials: false
 
       - name: doctests
