@@ -721,7 +721,7 @@ impl Client {
         let member_sig = signature_to_user_signature(&sponsor_sig)
             .context("Converting sponsor signature for multisig")?;
 
-        let multi_sig: GenericSignature = MultiSig::combine(vec![member_sig], admin_key)
+        let multi_sig: GenericSignature = MultiSig::new(vec![member_sig], admin_key)
             .context("Signing as admin")?
             .into();
 
