@@ -1232,7 +1232,7 @@ impl IotaNode {
         // Starts a monitor that periodically refreshes the
         // `consensus_queue_load_shedding_percentage` metric. Without this, the
         // metric goes stale once gRPC traffic stops (the only other update
-        // path is `AuthorityState::check_consensus_queue_overload`, called on
+        // path is `AuthorityState::check_consensus_queue_graduated_limits`, called on
         // each inbound tx). Used in the certificate-less (pcool / white-flag)
         // mode.
         let consensus_queue_overload_monitor_handle =

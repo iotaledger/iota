@@ -668,12 +668,19 @@ impl ConsensusAdapter {
             .store(value, Ordering::Relaxed);
     }
 
-    /// Returns `true` if consensus has capacity to accept more transactions.
-    /// Checks that in-flight transactions are below `max_pending_transactions`
-    /// and that submission permits are available. Weakly consistent (relaxed
-    /// atomic reads).
-    fn check_consensus_limits(&self) -> bool {
-        // First check total transactions (waiting and in submission)
+    /// Returns `true` if both hard limits allow another transaction:
+    /// (i) in-flight count is at or below `max_pending_transactions`, and
+    /// (ii) `submit_semaphore` has at least one available permit.
+    ///
+    /// Uses relaxed atomic reads: the two limits are not observed atomically.
+    fn check_consensus_hard_limits(&self) -> bool {
+        // First check total in-flight transactions (waiting and in submission).
+        // TODO: this check is redundant in the white-flag flow - graduated
+        // shedding already rejects at 100% once `num_inflight_transactions`
+        // reaches `max_pending_transactions`. Remove when the certificate-based
+        // flow is removed from the codebase. The semaphore check below stays in
+        // either case, since it is a separate concurrency limit not covered
+        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
@@ -684,14 +691,11 @@ impl ConsensusAdapter {
         self.submit_semaphore.available_permits() > 0
     }
 
-    /// Returns an error if the consensus adapter cannot accept more
-    /// transactions. This is a hard cutoff check - if in-flight
-    /// transactions exceed `max_pending_transactions` or no submission
-    /// permits are available, returns `TooManyTransactionsPendingConsensus`.
-    /// Used as a safeguard in both certificate and certificate-less flows.
+    /// `IotaResult` wrapper for `check_consensus_hard_limits`. Returns
+    /// `TooManyTransactionsPendingConsensus` when the hard limits are exceeded.
     pub(crate) fn check_consensus_overload(&self) -> IotaResult {
         fp_ensure!(
-            self.check_consensus_limits(),
+            self.check_consensus_hard_limits(),
             IotaError::TooManyTransactionsPendingConsensus
         );
 

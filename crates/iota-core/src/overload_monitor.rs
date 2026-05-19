@@ -78,8 +78,9 @@ pub async fn overload_monitor(
 /// Periodically refreshes the `consensus_queue_load_shedding_percentage`
 /// metric so it tracks the current consensus queue depth even when no
 /// gRPC traffic is arriving (which would otherwise be the only path that
-/// updates the metric, via `AuthorityState::check_consensus_queue_overload`).
-/// Used only in the certificate-less (pcool / white-flag) mode.
+/// updates the metric, via `check_consensus_queue_graduated_limits` on
+/// `AuthorityState`). Used only in the certificate-less (pcool / white-flag)
+/// mode.
 pub async fn consensus_queue_overload_monitor(
     authority_state: Weak<AuthorityState>,
     consensus_adapter: Weak<ConsensusAdapter>,

@@ -1145,7 +1145,7 @@ impl AuthorityState {
         if white_flag_flow_enabled {
             // Graduated shedding: 0% to 100% as consensus queue fills from soft
             // to hard limit.
-            self.check_consensus_queue_overload(consensus_adapter, tx_data)
+            self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
                 .tap_err(|_| {
                     self.update_overload_metrics("consensus");
                 })?;
@@ -1154,7 +1154,7 @@ impl AuthorityState {
             // `max_pending_transactions`, so the queue-length part of the check below
             // is redundant but harmless. But `check_consensus_overload()` should be
             // kept here because it also verifies that `submit_semaphore` has permits
-            // (see `check_consensus_limits` in consensus_adapter.rs), which is a
+            // (see `check_consensus_hard_limits` in consensus_adapter.rs), which is a
             // separate concurrency limit not covered by the graduated shedding.
             consensus_adapter.check_consensus_overload().tap_err(|_| {
                 self.update_overload_metrics("consensus");
@@ -1193,12 +1193,14 @@ impl AuthorityState {
         Ok(())
     }
 
-    /// Graduated pre-consensus load shedding based on consensus queue length.
-    /// Computes a shedding percentage based on current consensus queue length
-    /// and deterministically rejects transactions using
-    /// `overload_monitor_accept_tx`. Updates the
-    /// `consensus_queue_load_shedding_percentage` metric on each call.
-    fn check_consensus_queue_overload(
+    /// Rejects `tx_data` via graduated shedding based on consensus queue
+    /// length. Scales from 0% at the soft limit to 100% at
+    /// `max_pending_transactions`. Returns `ValidatorOverloadedRetryAfter`
+    /// for probabilistic rejection (shedding percentage < 100%, via
+    /// `overload_monitor_accept_tx`) or `TooManyTransactionsPendingConsensus`
+    /// for unconditional rejection (shedding percentage >= 100%). Updates
+    /// `consensus_queue_load_shedding_percentage` metric.
+    fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx_data: &SenderSignedData,
@@ -1217,6 +1219,14 @@ impl AuthorityState {
 
         if shedding_pct == 0 {
             return Ok(());
+        }
+
+        // At/above the hard limit, rejection is unconditional (not
+        // probabilistic), so the seed-rotation retry hint of
+        // `ValidatorOverloadedRetryAfter` doesn't apply - return the
+        // capacity-bound error instead.
+        if shedding_pct >= 100 {
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
         }
 
         overload_monitor_accept_tx(shedding_pct, tx_data.digest())
