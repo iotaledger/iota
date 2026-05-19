@@ -39,6 +39,7 @@ use crate::{
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
@@ -109,6 +110,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
+    misbehavior_store: Arc<MisbehaviorStore>,
     /// A set contains BlockHeaderDigests for block headers, received from
     /// streaming. It is used to filter the headers if they are received
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
@@ -134,6 +136,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
         cordial_knowledge: Arc<CordialKnowledgeHandle>,
     ) -> Self {
@@ -153,6 +156,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             subscription_counter,
             dag_state,
             store,
+            misbehavior_store,
             received_block_headers: FilterForHeaders::new(),
             transaction_message_sender,
             cordial_knowledge,
@@ -170,18 +174,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             serialized_transactions,
         } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
 
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedHeader)
+            .inspect_err(|e| {
+                self.misbehavior_store
+                    .record_faulty_block_header(peer, peer, e);
+            })?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block_header.author() {
+            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             self.context
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname, "header", "UnexpectedAuthority"])
+                .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
+            self.misbehavior_store
+                .record_faulty_block_header(peer, peer, &e);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -192,6 +202,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
+            // peer == author is guaranteed by the UnexpectedAuthority check above.
+            // Pass both so record_faulty_block_header can attribute correctly:
+            // provable errors → author, unprovable (bad signature) → peer.
+            self.misbehavior_store.record_faulty_block_header(
+                peer,
+                signed_block_header.author(),
+                &e,
+            );
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
@@ -268,8 +286,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 continue;
             }
 
-            let signed_block_header: SignedBlockHeader =
-                bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    self.misbehavior_store
+                        .record_faulty_block_header(peer, peer, e);
+                })?;
 
             let header_round = signed_block_header.round();
             if header_round >= block_round {
@@ -298,6 +321,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", e.name()])
                     .inc();
+                // Additional headers may be authored by any validator. Pass peer
+                // (the sender) and author separately so provable errors (valid
+                // signature, protocol violation) are charged to the block author
+                // while unprovable errors (bad signature) are charged to the peer.
+                self.misbehavior_store.record_faulty_block_header(
+                    peer,
+                    signed_block_header.author(),
+                    &e,
+                );
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
             }
@@ -1687,6 +1719,7 @@ mod tests {
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
+        misbehavior_store::MisbehaviorStore,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
@@ -1800,6 +1833,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1812,6 +1846,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -1885,6 +1920,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1897,6 +1933,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -1981,6 +2018,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -1993,6 +2031,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2068,6 +2107,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2080,6 +2120,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2206,6 +2247,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2218,6 +2260,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2289,6 +2332,7 @@ mod tests {
             dag_state.clone(),
             true,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -2301,6 +2345,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2527,6 +2572,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2538,6 +2584,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2693,6 +2740,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -2704,6 +2752,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2875,6 +2924,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Create the authority service
@@ -2888,6 +2938,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge.clone(),
         ));
@@ -3205,6 +3256,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Create the authority service
@@ -3218,6 +3270,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3347,6 +3400,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Create the authority service
@@ -3360,6 +3414,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3515,6 +3570,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Create the authority service
@@ -3528,6 +3584,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3708,6 +3765,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Create the authority service
@@ -3721,6 +3779,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -3933,6 +3992,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         let authority_service = Arc::new(AuthorityService::new(
@@ -3945,6 +4005,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            Arc::new(MisbehaviorStore::new(&context)),
             tx_message_sender,
             cordial_knowledge,
         ));

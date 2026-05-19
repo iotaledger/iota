@@ -36,6 +36,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -146,6 +147,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -157,6 +159,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             block_verifier,
             dag_state,
             header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Fast,
             fast_sync_active: Some(fast_sync_active),
         });
@@ -790,6 +793,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
+                                // TODO: verify_fetched_headers currently only returns
+                                // fetch-shape errors (wrong count/ref) which classify
+                                // as Untracked. When per-header faults become observable
+                                // here, record them as peer misbehavior via
+                                // `inner.misbehavior_store.record_faulty_block_header`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),

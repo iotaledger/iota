@@ -251,13 +251,9 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
-    #[expect(dead_code)]
     pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
-    #[expect(dead_code)]
     pub(crate) equivocations_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,

@@ -20,7 +20,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
-    scoring_metrics_store::StorageScoringMetrics,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -139,13 +139,10 @@ pub(crate) trait Store: Send + Sync {
     }
 
     /// Reads and returns all metrics stored. Used for restoring the scoring
-    /// metrics in case of DagState initialization from storage. Currently only
-    /// exercised by storage tests; the production caller arrives with
-    /// `DagState` recovery in the follow-up branch.
-    #[cfg(test)]
-    fn scan_scoring_metrics(
+    /// metrics in case of DagState initialization from storage
+    fn scan_misbehavior_counts(
         &self,
-    ) -> ConsensusResult<BTreeMap<AuthorityIndex, StorageScoringMetrics>>;
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>>;
 
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
@@ -196,7 +193,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
-    pub(crate) scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
+    pub(crate) misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl WriteBatch {
@@ -236,11 +233,11 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn scoring_metrics(
+    pub(crate) fn misbehavior_counts(
         mut self,
-        scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
+        misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
     ) -> Self {
-        self.scoring_metrics = scoring_metrics;
+        self.misbehavior_counts = misbehavior_counts;
         self
     }
 }

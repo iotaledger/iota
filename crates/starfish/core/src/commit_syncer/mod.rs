@@ -61,6 +61,7 @@ use crate::{
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -164,6 +165,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
+    pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
     /// Present only when `FastCommitSyncer` is constructed (both the
     /// protocol flag `consensus_fast_commit_sync` and the local flag
@@ -201,6 +203,7 @@ impl<C: NetworkClient> Inner<C> {
         verify_commits(
             &self.context,
             self.block_verifier.as_ref(),
+            &self.misbehavior_store,
             peer,
             commit_range,
             serialized_commits,
@@ -244,6 +247,7 @@ pub(crate) fn check_commit_version_matches_flags(
 pub(crate) fn verify_commits(
     context: &Arc<Context>,
     block_verifier: &dyn BlockVerifier,
+    misbehavior_store: &MisbehaviorStore,
     peer: AuthorityIndex,
     commit_range: CommitRange,
     serialized_commits: Vec<Bytes>,
@@ -300,10 +304,17 @@ pub(crate) fn verify_commits(
     let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
     let mut verified_voting_headers = Vec::new();
     for serialized_block_header in serialized_vote_blocks_headers {
-        let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedHeader)
+            .inspect_err(|e| {
+                // Author is unknown when deserialization fails — blame the peer.
+                misbehavior_store.record_faulty_block_header(peer, peer, e);
+            })?;
         // The block signature needs to be verified.
-        block_verifier.verify(&signed_block_header)?;
+        if let Err(e) = block_verifier.verify(&signed_block_header) {
+            misbehavior_store.record_faulty_block_header(peer, signed_block_header.author(), &e);
+            return Err(e);
+        }
         for vote in signed_block_header.commit_votes() {
             if *vote == end_commit_ref {
                 stake_aggregator.add(signed_block_header.author(), &context.committee);
@@ -811,10 +822,12 @@ mod tests {
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(fast_commit_sync_on);
         let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
         let serialized = commit.serialize().unwrap();
         verify_commits(
             &context,
             &NoopBlockVerifier,
+            &misbehavior_store,
             AuthorityIndex::new_for_test(1),
             CommitRange::new(1..=1),
             vec![serialized],
