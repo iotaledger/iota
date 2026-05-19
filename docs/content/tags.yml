@@ -325,6 +325,10 @@ node-operation:
   label: Node Operation
   description: Node Operation
 
+indexer-operation:
+  label: Indexer Operation
+  description: Indexer Operation
+
 infrastructure:
   label: Infrastructure
   description: Infrastructure
