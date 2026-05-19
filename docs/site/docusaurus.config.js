@@ -339,6 +339,10 @@ const config = {
               from: '/developer/iota-notarization/references',
               to: '/developer/iota-notarization/single-notarization/references',
             },
+            {
+              from: '/developer/iota-notarization/how-tos/real-world',
+              to: '/developer/iota-notarization/single-notarization/real-world-examples',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {

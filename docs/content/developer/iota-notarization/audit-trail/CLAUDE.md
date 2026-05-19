@@ -22,8 +22,7 @@ iota-notarization/audit-trail/
 │   └── local-network-setup.mdx
 ├── explanations/          # Conceptual deep-dives
 ├── how-tos/               # Goal-oriented step-by-step guides
-│   ├── real-world/        # End-to-end scenario guides
-│   └── ...                # Feature-specific guides
+├── real-world-examples/   # End-to-end scenario guides
 └── references/            # API docs (auto-generated Wasm, external Rust link)
     └── wasm/
 ```
@@ -143,7 +142,7 @@ Key rules:
 
 #### Real-world examples
 
-Place in `how-tos/real-world/`. These are longer how-to guides that demonstrate a complete business scenario (e.g., product passport, supply chain tracking). They follow the same structure as regular how-tos but include additional sections:
+Place in `real-world-examples/`. These are longer how-to guides that demonstrate a complete business scenario (e.g., product passport, supply chain tracking). They follow the same structure as regular how-tos but include additional sections:
 
 - **Business Context**: why this scenario matters.
 - **Field Usage Strategy**: how the product's data model maps to the scenario.

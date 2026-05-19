@@ -102,7 +102,7 @@ Always cover all five fields in this exact order. Use inline code for field name
 - A funded IOTA account
 - Access to an IOTA network (testnet, devnet, or local)
 - Audit Trail client SDK installed
-- Familiarity with [Role-Based Access Control](../../explanations/role-based-access-control.mdx)<optional-extra-links>
+- Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx)<optional-extra-links>
 ```
 
 Always include the first four bullets. Add links to additional explanation or how-to pages when the scenario uses features beyond basic RBAC (e.g., locking, tagged records).
@@ -183,7 +183,7 @@ Key rules:
 ```mdx
 ## Running Examples Locally
 
-In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../../getting-started/local-network-setup.mdx) guide.
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
 ```
 
 Always include this section with the link to the local network setup guide.
@@ -219,7 +219,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 - File names use kebab-case: `customs-clearance.mdx`, `clinical-trial.mdx`.
 - File names should be descriptive of the scenario, not the example number.
-- Every new page must be registered in `docs/content/sidebars/notarization.js` under the `Real-World` category.
+- Every new page must be registered in `docs/content/sidebars/notarization.js` under the `Real-World Examples` category.
 
 ## Checklist for new real-world pages
 

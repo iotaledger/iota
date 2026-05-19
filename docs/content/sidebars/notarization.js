@@ -36,14 +36,6 @@ const notarization = [
                 items: [
                     {
                         type: 'category',
-                        label: 'Real-World',
-                        items: [
-                            'developer/iota-notarization/single-notarization/how-tos/real-world/iot-weather-station',
-                            'developer/iota-notarization/single-notarization/how-tos/real-world/legal-contracts',
-                        ],
-                    },
-                    {
-                        type: 'category',
                         label: 'Dynamic Notarizations',
                         items: [
                             'developer/iota-notarization/single-notarization/how-tos/dynamic-notarizations/create',
@@ -62,6 +54,14 @@ const notarization = [
                         ],
                     },
                     'developer/iota-notarization/single-notarization/how-tos/access-read-only-methods',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Real-World Examples',
+                items: [
+                    'developer/iota-notarization/single-notarization/real-world-examples/iot-weather-station',
+                    'developer/iota-notarization/single-notarization/real-world-examples/legal-contracts',
                 ],
             },
             {
@@ -135,16 +135,16 @@ const notarization = [
                     'developer/iota-notarization/audit-trail/how-tos/use-tagged-records',
                     'developer/iota-notarization/audit-trail/how-tos/enforce-capability-constraints',
                     'developer/iota-notarization/audit-trail/how-tos/manage-record-tags',
-                    {
-                        type: 'category',
-                        label: 'Real-World',
-                        items: [
-                            'developer/iota-notarization/audit-trail/how-tos/real-world/digital-product-passport',
-                            'developer/iota-notarization/audit-trail/how-tos/real-world/customs-clearance',
-                            'developer/iota-notarization/audit-trail/how-tos/real-world/clinical-trial',
-                        ],
-                    },
                     'developer/iota-notarization/audit-trail/how-tos/utility-functions',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Real-World Examples',
+                items: [
+                    'developer/iota-notarization/audit-trail/real-world-examples/digital-product-passport',
+                    'developer/iota-notarization/audit-trail/real-world-examples/customs-clearance',
+                    'developer/iota-notarization/audit-trail/real-world-examples/clinical-trial',
                 ],
             },
             {
