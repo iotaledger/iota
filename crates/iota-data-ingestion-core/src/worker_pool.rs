@@ -466,14 +466,19 @@ impl<W: Worker + 'static> WorkerPool<W> {
         token: &CancellationToken,
     ) -> WorkerStatus<W::Message> {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+
+        if Self::should_skip_filtered_checkpoint(&checkpoint) {
+            return if token.is_cancelled() {
+                WorkerStatus::Shutdown(worker_id)
+            } else {
+                WorkerStatus::Running((worker_id, sequence_number, None))
+            };
+        }
+
         loop {
             // check for cancellation before attempting processing.
             if token.is_cancelled() {
                 return WorkerStatus::Shutdown(worker_id);
-            }
-
-            if Self::should_skip_filtered_checkpoint(&checkpoint) {
-                return WorkerStatus::Running((worker_id, sequence_number, None));
             }
 
             // attempt to process checkpoint.
