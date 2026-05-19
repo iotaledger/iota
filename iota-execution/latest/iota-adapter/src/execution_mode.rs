@@ -351,9 +351,9 @@ fn value_to_bytes_and_tag(
             let Some(ty) = assigned_type else {
                 invariant_violation!("Receiving value used before type assignment");
             };
-            let inner_tag = resolver.get_type_tag(ty)?;
+            let value_type = resolver.get_type_tag(ty)?;
             (
-                Receiving::type_tag(inner_tag),
+                Receiving::type_tag(value_type),
                 Receiving::new(*id, *seqno).to_bcs_bytes(),
             )
         }
