@@ -492,7 +492,7 @@ impl IotaNames {
     ) -> Result<Option<NameExpiration>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let db: &Db = ctx.data_unchecked();
-        let max_lookback = db.backward_history_max_lookback;
+        let max_available_range = db.max_available_range;
         // Construct the list of `object_id`s to look up. The first element is the
         // name's `NameRecord`. If the name is a subname, there will be a
         // second element for the parent's `NameRecord`.
@@ -528,7 +528,7 @@ impl IotaNames {
                 if !AvailableRange::is_checkpoint_in_backward_history_range(
                     conn,
                     checkpoint_viewed_at,
-                    max_lookback,
+                    max_available_range,
                 )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };

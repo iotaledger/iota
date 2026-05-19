@@ -463,7 +463,7 @@ impl ServerBuilder {
             reader.clone(),
             config.service.limits.clone(),
             metrics.clone(),
-            config.connection.backward_history_max_lookback,
+            config.connection.max_available_range,
         );
         let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader.clone());
@@ -827,7 +827,7 @@ pub mod tests {
             reader.clone(),
             service_config.limits.clone(),
             metrics.clone(),
-            connection_config.backward_history_max_lookback,
+            connection_config.max_available_range,
         );
         let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader);

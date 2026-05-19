@@ -23,9 +23,10 @@ pub(crate) struct PgExecutor {
     pub inner: IndexerReader,
     pub limits: Limits,
     pub metrics: Metrics,
-    /// Cap on how far back a consistent view can be requested
-    /// (`BACKWARD_HISTORY_MAX_LOOKBACK`).
-    pub backward_history_max_lookback: u64,
+    /// Maximum size of the `availableRange` window (`MAX_AVAILABLE_RANGE`).
+    /// Caps how many checkpoints below `latest` a consistent view can be
+    /// requested for.
+    pub max_available_range: u64,
 }
 
 pub(crate) struct PgConnection<'c> {
@@ -40,13 +41,13 @@ impl PgExecutor {
         inner: IndexerReader,
         limits: Limits,
         metrics: Metrics,
-        backward_history_max_lookback: u64,
+        max_available_range: u64,
     ) -> Self {
         Self {
             inner,
             limits,
             metrics,
-            backward_history_max_lookback,
+            max_available_range,
         }
     }
 }

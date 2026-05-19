@@ -60,10 +60,10 @@ pub struct ConnectionConfig {
     /// have higher DB cost.
     #[arg(
         long,
-        default_value_t = ConnectionConfig::default().backward_history_max_lookback,
-        env = "BACKWARD_HISTORY_MAX_LOOKBACK",
+        default_value_t = ConnectionConfig::default().max_available_range,
+        env = "MAX_AVAILABLE_RANGE",
     )]
-    pub backward_history_max_lookback: u64,
+    pub max_available_range: u64,
 }
 
 /// Configuration on features supported by the GraphQL service, passed in a
@@ -369,7 +369,7 @@ impl ConnectionConfig {
         prom_host: Option<String>,
         prom_port: Option<u16>,
         skip_migration_consistency_check: Option<bool>,
-        backward_history_max_lookback: Option<u64>,
+        max_available_range: Option<u64>,
     ) -> Self {
         let default = Self::default();
         Self {
@@ -381,8 +381,7 @@ impl ConnectionConfig {
             prom_port: prom_port.unwrap_or(default.prom_port),
             skip_migration_consistency_check: skip_migration_consistency_check
                 .unwrap_or(default.skip_migration_consistency_check),
-            backward_history_max_lookback: backward_history_max_lookback
-                .unwrap_or(default.backward_history_max_lookback),
+            max_available_range: max_available_range.unwrap_or(default.max_available_range),
         }
     }
 
@@ -487,7 +486,7 @@ impl Default for ConnectionConfig {
             prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
             skip_migration_consistency_check: false,
-            backward_history_max_lookback: 9_000,
+            max_available_range: 9_000,
         }
     }
 }
