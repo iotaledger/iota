@@ -201,11 +201,14 @@ impl DynamicField {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_lookback = db.backward_history_max_lookback;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
                 if !AvailableRange::is_checkpoint_in_backward_history_range(
                     conn,
                     checkpoint_viewed_at,
+                    max_lookback,
                 )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };

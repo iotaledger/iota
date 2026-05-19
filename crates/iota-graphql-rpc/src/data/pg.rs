@@ -23,6 +23,9 @@ pub(crate) struct PgExecutor {
     pub inner: IndexerReader,
     pub limits: Limits,
     pub metrics: Metrics,
+    /// Cap on how far back a consistent view can be requested
+    /// (`BACKWARD_HISTORY_MAX_LOOKBACK`).
+    pub backward_history_max_lookback: u64,
 }
 
 pub(crate) struct PgConnection<'c> {
@@ -33,11 +36,17 @@ pub(crate) struct PgConnection<'c> {
 pub(crate) struct ByteaLiteral<'a>(pub &'a [u8]);
 
 impl PgExecutor {
-    pub(crate) fn new(inner: IndexerReader, limits: Limits, metrics: Metrics) -> Self {
+    pub(crate) fn new(
+        inner: IndexerReader,
+        limits: Limits,
+        metrics: Metrics,
+        backward_history_max_lookback: u64,
+    ) -> Self {
         Self {
             inner,
             limits,
             metrics,
+            backward_history_max_lookback,
         }
     }
 }

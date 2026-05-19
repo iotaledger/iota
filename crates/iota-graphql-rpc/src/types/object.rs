@@ -868,11 +868,14 @@ impl Object {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_lookback = db.backward_history_max_lookback;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
                 if !AvailableRange::is_checkpoint_in_backward_history_range(
                     conn,
                     checkpoint_viewed_at,
+                    max_lookback,
                 )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
@@ -1790,6 +1793,8 @@ impl Loader<LatestAtKey> for Db {
                 .insert(key.id);
         }
 
+        let max_lookback = self.backward_history_max_lookback;
+
         // Issue concurrent reads for each group of keys.
         let futures =
             keys_by_cursor_and_parent_version
@@ -1799,6 +1804,7 @@ impl Loader<LatestAtKey> for Db {
                         if !AvailableRange::is_checkpoint_in_backward_history_range(
                             conn,
                             checkpoint_viewed_at,
+                            max_lookback,
                         )? {
                             return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
                                 vec![],
