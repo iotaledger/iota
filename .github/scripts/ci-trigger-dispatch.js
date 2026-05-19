@@ -82,7 +82,7 @@ module.exports = async ({ github, context, core }) => {
     );
   }
   if (!WRITE_PERMISSIONS.has(senderPermission)) {
-    core.notice(
+    core.warning(
       `Skipping dispatch: @${senderLogin} (permission: ${senderPermission ?? 'unknown'}) ` +
         `does not have write access. A repository maintainer needs to tick the ` +
         `checkbox to dispatch this workflow.`,
@@ -117,13 +117,13 @@ module.exports = async ({ github, context, core }) => {
       });
       activeRun = data.workflow_runs.find((r) => r.status !== 'completed');
     } catch (err) {
-      core.warning(
+      core.info(
         `Couldn't list existing runs of ${workflow} for SHA ${headSha}: ${err.message}. ` +
           `Proceeding with dispatch.`,
       );
     }
     if (activeRun) {
-      core.notice(
+      core.warning(
         `${workflow} is already active for ${headSha} ` +
           `(run #${activeRun.id}, status: ${activeRun.status}) — skipping dispatch. ` +
           `Wait for that run to finish, then tick the box again to re-run.`,
