@@ -874,7 +874,7 @@ TransactionEffectsV1:
     - status:
         TYPENAME: ExecutionStatus
     - epoch: U64
-    - gas_used:
+    - gas_cost_summary:
         TYPENAME: GasCostSummary
     - transaction_digest:
         TYPENAME: Digest

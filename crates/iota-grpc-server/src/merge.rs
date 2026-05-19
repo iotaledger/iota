@@ -572,24 +572,24 @@ impl Merge<&Checkpoint> for Checkpoint {
 }
 
 // Transaction implementations
-impl Merge<iota_sdk_types::TransactionEffects> for TransactionEffects {
+impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        effects: iota_types::effects::TransactionEffects,
+        source: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        Merge::merge(self, &effects, mask)
+        Merge::merge(self, &source, mask)
     }
 }
 
-impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
+impl Merge<&iota_types::effects::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::TransactionEffects,
+        source: &iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Set digest if requested

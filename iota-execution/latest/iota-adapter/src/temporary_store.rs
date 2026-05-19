@@ -204,18 +204,15 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| (*id, self.new_effects_object_change(id, results)))
+            .map(|id| (*id, self.new_effects_object_change(id)))
             .collect()
     }
 
-    fn new_effects_object_change(
-        &self,
-        id: &ObjectID,
-        results: &ExecutionResultsV1,
-    ) -> EffectsObjectChange {
+    fn new_effects_object_change(&self, id: &ObjectID) -> EffectsObjectChange {
         let modified_at = self
             .get_object_modified_at(id)
             .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
+        let results = &self.execution_results;
         let written = results.written_objects.get(id);
         let id_created = results.created_object_ids.contains(id);
         let id_deleted = results.deleted_object_ids.contains(id);

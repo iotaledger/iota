@@ -23,7 +23,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     fn new_from_execution_v1(
         status: ExecutionStatus,
         epoch: EpochId,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
@@ -80,7 +80,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         let v1 = TransactionEffectsV1 {
             status,
             epoch,
-            gas_used,
+            gas_cost_summary,
             transaction_digest,
             lamport_version,
             changed_objects,
@@ -398,7 +398,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     }
 
     fn gas_cost_summary(&self) -> &GasCostSummary {
-        &self.gas_used
+        &self.gas_cost_summary
     }
 
     fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
@@ -415,7 +415,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
     }
 
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-        &mut self.gas_used
+        &mut self.gas_cost_summary
     }
 
     fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
