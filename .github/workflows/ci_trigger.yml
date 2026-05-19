@@ -1,94 +1,82 @@
 name: PR CI checkbox trigger
 
-# Generic checkbox-based dispatcher for CI workflows on PRs.
+# Dispatcher for CI workflows triggered by checking a checkbox in the PR
+# description. The dispatcher knows which workflow to fire from the visible
+# label text next to the checkbox — see `CHECKBOX_DISPATCHES` below.
 #
 # How it works:
-#   * The PR description contains one or more checkboxes annotated with a
-#     hidden HTML-comment marker that names the workflow file to dispatch.
-#     The marker may also include extra workflow inputs as `key=value` pairs:
+#   * The PR description contains one or more checkbox lines whose label
+#     matches an entry in `CHECKBOX_DISPATCHES`, e.g.:
 #
-#       - [ ] Run heavy tests <!-- ci-trigger: heavy_tests.yml -->
-#       - [ ] Run heavy tests (full) <!-- ci-trigger: heavy_tests.yml test_only_changed_crates=false -->
+#       - [ ] Run heavy tests
 #
-#   * When a user ticks a box (PR description gets edited), this workflow
-#     finds every checked box matching the marker pattern, unchecks them all
-#     in one edit, and then dispatches each named workflow against the PR's
-#     current HEAD SHA — passing `pr_number` + `head_sha` plus any extra
-#     `key=value` inputs from the marker.
+#   * When a user ticks a box (PR description gets edited) this workflow
+#     finds every checked box whose label is in the allowlist, unchecks
+#     them all in one edit, and then dispatches each mapped workflow with
+#     the PR's `pr_number` and `head_sha`.
 #   * The unchecking is done BEFORE dispatching so an infinite loop is
-#     impossible — after our edit, the body matches no `[x]` markers, and
+#     impossible — after our edit no `[x]` matches a known label, and
 #     the next `edited` event from our own write does nothing.
 #
 # Adding a new on-demand workflow:
-#   1. Give it a `workflow_dispatch` trigger that declares (at minimum) the
-#      `pr_number` (string, optional) and `head_sha` (string, required)
-#      inputs, plus any extra inputs you want to drive from the marker.
-#      Its jobs should check out `${{ inputs.head_sha || github.sha }}`.
-#   2. Register it in the `ALLOWED_MARKER_DISPATCHES` allowlist in the
-#      script below — name the workflow file and list which of its inputs
-#      may be set from a marker. Inputs not listed cannot be set by PR
-#      authors (closed by default).
-#   3. Add a checkbox line to the relevant PR sub-template(s) with the
-#      `<!-- ci-trigger: <workflow-file>.yml [key=value]... -->` marker.
+#   1. Give it a `workflow_dispatch` trigger with `pr_number` (string,
+#      optional) and `head_sha` (string, required) inputs. Its jobs should
+#      check out `${{ inputs.head_sha || github.sha }}`.
+#   2. Add the `label → workflow_id` mapping to `CHECKBOX_DISPATCHES`
+#      below, extend the job-level `if:` so the dispatcher spins up only
+#      for relevant edits, and add the matching `- [ ] <label>` line to
+#      the PR sub-template(s).
 #
-# Security note: this uses `pull_request_target` so the trigger has full
-# `GITHUB_TOKEN` permissions even on fork PRs. We never check out or execute
-# PR-author-controlled code here. Two layers protect against a malicious PR
-# description abusing the marker:
-#   * `ALLOWED_MARKER_DISPATCHES` is a whitelist of (workflow → marker-
-#     overridable inputs). Workflows not in the map are rejected; inputs
-#     not listed for an allowed workflow are stripped. So an attacker can't
-#     dispatch arbitrary workflow_dispatch workflows on `develop` (e.g.
-#     `release.yml`) and can't smuggle in dispatcher-controlled fields
-#     like `head_sha`/`pr_number`.
-#   * Dispatched workflows are loaded from `develop` (`ref: 'develop'`), so
-#     a fork can't ship a modified version of the workflow file via the PR.
+# Security note: uses `pull_request_target` so the trigger has the
+# permissions to edit the PR body and dispatch even on fork PRs. It never
+# checks out or executes PR-author-controlled code. The CHECKBOX_DISPATCHES
+# map is closed-by-default — a PR author cannot trigger any workflow not
+# listed there, and the dispatcher passes only the dispatcher-controlled
+# `pr_number`/`head_sha` inputs (no PR-author-supplied values reach the
+# dispatched workflow). Dispatched workflows are loaded from `develop`
+# (`ref: 'develop'`), so a fork can't ship a modified workflow file via
+# the PR — only the version on the default branch runs.
 
 # >>> TEMP — REVERT BEFORE MERGE <<<
 # `pull_request_target` is replaced with `pull_request` so this PR's own
 # branch version of the workflow actually runs (pull_request_target always
-# uses the base-branch file, which doesn't have ci_trigger.yml yet). This is
-# only to test the checkbox/parse/uncheck logic on this PR. Revert to
-# `pull_request_target` before merging.
+# uses the base-branch file, which doesn't have ci_trigger.yml yet). This
+# is only to test the checkbox detection / uncheck / dispatch logic on
+# this PR. Revert to `pull_request_target` before merging.
 on:
   pull_request:
     types: [opened, edited]
 
-# If a user clicks twice quickly (or edits the description twice with the
-# box already ticked), let the newer run cancel the older one. Otherwise
-# both ci_trigger runs dispatch `heavy_tests.yml`: heavy_tests has its own
-# `cancel-in-progress: true` so only the second heavy run actually completes,
-# but the first still burns ~30-60s of self-hosted-x64 runner setup before
-# being cancelled. Cancelling the earlier ci_trigger run avoids that waste.
-# Theoretical downside: if the older run is killed in the millisecond window
-# between `pulls.update` and `createWorkflowDispatch`, the click is
-# "swallowed" — the box is unchecked but no dispatch happened. That race is
-# orders of magnitude narrower than the wasted-setup window, and the user
-# recovery (just tick again) is trivial.
+# If a user clicks twice quickly, let the newer run cancel the older one.
+# Otherwise both ci_trigger runs would dispatch the heavy workflow:
+# `heavy_tests.yml` has its own `cancel-in-progress: true` so only the
+# second heavy run completes, but the first still burns ~30-60s of self-
+# hosted runner setup before being cancelled. Cancelling the earlier
+# ci_trigger run avoids that waste. The narrow race window (older run
+# cancelled between `pulls.update` and `createWorkflowDispatch`) just
+# swallows the click; the user re-ticks.
 concurrency:
   group: ci-trigger-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   dispatch:
-    # Skip the bot's own edits (our own `pulls.update` re-fires `edited`).
-    # The `'- [x] '` + `'ci-trigger:'` substring checks are a cheap pre-filter
-    # that prevents spinning a runner when there's no plausible ticked
-    # ci-trigger box in the body (in particular, on every `opened` event for
-    # a PR that just used the template with all boxes unchecked). It's a
-    # loose check (any `[x]` anywhere in the body passes, e.g. an unrelated
-    # checklist item), but the script below does the precise per-line regex
-    # match before doing anything — false positives just cost an empty run.
+    # Pre-filter:
+    #   * skip the bot's own edits (our `pulls.update` re-fires `edited`);
+    #   * skip when no known ci-trigger label is ticked, so we don't spin
+    #     a runner on every unrelated PR description edit (the substring
+    #     match is conservative — `'- [x] Run heavy tests'` only).
+    # When adding a new label in CHECKBOX_DISPATCHES, extend the `||` chain
+    # below to keep the runner from booting up unnecessarily.
     if: >-
       github.event.sender.type != 'Bot'
-      && contains(github.event.pull_request.body, '- [x] ')
-      && contains(github.event.pull_request.body, 'ci-trigger:')
+      && contains(github.event.pull_request.body, '- [x] Run heavy tests')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       actions: write
     steps:
-      - name: Uncheck matched boxes and dispatch their workflows
+      - name: Uncheck matched checkboxes and dispatch their workflows
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -98,127 +86,68 @@ jobs:
             const pr = context.payload.pull_request;
             const body = pr.body || '';
 
-            // Match: "- [x] <label> <!-- ci-trigger: <workflow>.yml [extra inputs] -->"
-            // Captures:
-            //   1 = label (cosmetic, used for logs)
-            //   2 = workflow filename
-            //   3 = optional extra-inputs blob (e.g. "test_only_changed_crates=false foo=bar"),
-            //       leading/trailing whitespace included; empty for the default case.
-            const re = /- \[x\] (.+?) <!-- ci-trigger: ([\w._-]+\.yml)([^>]*?) -->/g;
-            const matches = [...body.matchAll(re)];
+            // Closed-by-default map from a checkbox's visible label text
+            // to the workflow file dispatched when the box is ticked. Any
+            // other checkbox in the body (Basic tests, Release Notes, ...)
+            // is ignored. When adding an entry: also extend the top-level
+            // `if:` filter above and add the matching `- [ ] <label>` line
+            // to the PR sub-template(s).
+            const CHECKBOX_DISPATCHES = {
+              'Run heavy tests': 'heavy_tests.yml',
+            };
 
-            if (matches.length === 0) {
-              core.info('No checked ci-trigger checkboxes; nothing to do.');
+            // Escape a literal string for use inside a regex.
+            const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            // For each known label: find its checked-line occurrence
+            // (`^- [x] <label>[ \t]*$`), queue it, and uncheck it in the
+            // working body. We collect everything first and PUT once below.
+            const triggered = [];
+            let newBody = body;
+            for (const [label, workflow] of Object.entries(CHECKBOX_DISPATCHES)) {
+              const re = new RegExp(
+                `^- \\[x\\] ${reEscape(label)}[ \\t]*$`, 'gm',
+              );
+              if (!re.test(newBody)) continue;
+              triggered.push({ label, workflow });
+              newBody = newBody.replace(re, `- [ ] ${label}`);
+            }
+
+            if (triggered.length === 0) {
+              core.info('No known ci-trigger checkbox ticked; nothing to do.');
               return;
             }
 
-            // Step 1: uncheck every matched box in a single PUT, before
-            // dispatching anything. This guarantees no infinite loop even
-            // if a dispatch step below fails partway. Captures 2 and 3
-            // round-trip unchanged so the marker (and any extra inputs) is
-            // preserved.
-            const newBody = body.replace(
-              re,
-              '- [ ] $1 <!-- ci-trigger: $2$3 -->',
-            );
+            // Step 1: uncheck every triggered box in a single PUT, BEFORE
+            // dispatching anything. This guarantees no infinite loop —
+            // after our edit no `[x] <known-label>` line exists, so the
+            // next `edited` event from our own write does nothing.
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
               body: newBody,
             });
-            core.info(`Unchecked ${matches.length} ci-trigger checkbox(es).`);
-
-            // Whitelist of (workflow_id -> marker-overridable input keys).
-            //
-            // Acts as a closed-by-default authorization layer for everything
-            // PR-author-controlled in the marker:
-            //   * a workflow_id that isn't a key in this map cannot be
-            //     dispatched from a marker (rejects e.g. `release.yml` even
-            //     if it has a workflow_dispatch trigger on `develop`);
-            //   * for each allowed workflow, only the listed input names can
-            //     be set from the marker — anything else is stripped. In
-            //     particular `pr_number`/`head_sha` are never listed because
-            //     those are dispatcher-controlled (the dispatcher always
-            //     supplies them from the PR event itself).
-            //
-            // When adding a new dispatchable workflow, add an entry here.
-            const ALLOWED_MARKER_DISPATCHES = {
-              'heavy_tests.yml': new Set(['test_only_changed_crates']),
-            };
-
-            // Parse the optional extra-inputs blob into a {key: value} object.
-            // Format is whitespace-separated `key=value` pairs; values cannot
-            // contain spaces (matching shell-style argument expectations).
-            // `allowedKeys` is the per-workflow input allowlist; anything not
-            // in it is rejected with a warning.
-            function parseExtraInputs(blob, allowedKeys) {
-              const out = {};
-              if (!blob) return out;
-              for (const pair of blob.trim().split(/\s+/)) {
-                if (!pair) continue;
-                const eq = pair.indexOf('=');
-                if (eq < 1 || eq === pair.length - 1) {
-                  core.warning(`Ignoring malformed marker input "${pair}" (expected key=value).`);
-                  continue;
-                }
-                const key = pair.slice(0, eq);
-                if (!allowedKeys.has(key)) {
-                  core.warning(
-                    `Ignoring marker input "${key}=...": not in the marker-input ` +
-                    `allowlist for this workflow.`,
-                  );
-                  continue;
-                }
-                out[key] = pair.slice(eq + 1);
-              }
-              return out;
-            }
+            core.info(`Unchecked ${triggered.length} ci-trigger checkbox(es).`);
 
             // Step 2: dispatch each matched workflow. We continue past
-            // individual failures so a typo in one marker doesn't block
-            // other valid dispatches.
+            // individual failures so a transient error on one doesn't
+            // block others.
             //
             // Before dispatching we also check whether a run of the same
             // workflow already exists for the same SHA in a non-terminal
-            // state (queued/in_progress/waiting/...). If so we skip — the
-            // user just re-ticked while a previous request is still being
-            // handled, and we'd rather let in-flight progress finish than
-            // restart from scratch via heavy_tests.yml's `cancel-in-progress`.
-            //
-            // Note this is a coarse "any active run blocks any new dispatch
-            // of the same workflow" — it also blocks legitimate variant
-            // switches (e.g. user wants to switch from changed-crates to
-            // full-workspace mid-run). If that becomes a problem we can
-            // refine the check to compare dispatch inputs.
+            // state. If so we skip — the user just re-ticked while a
+            // previous request is still being handled, and we'd rather
+            // let in-flight progress finish than restart from scratch via
+            // heavy_tests.yml's `cancel-in-progress`.
             const headSha = process.env.HEAD_SHA;
             const prNumber = process.env.PR_NUMBER;
             let failed = 0;
-            for (const [, label, workflow, extras] of matches) {
-              // Closed-by-default workflow check — see ALLOWED_MARKER_DISPATCHES
-              // for the allowlist and rationale.
-              const allowedKeys = ALLOWED_MARKER_DISPATCHES[workflow];
-              if (!allowedKeys) {
-                core.warning(
-                  `Marker references "${workflow}" which is not in ` +
-                  `ALLOWED_MARKER_DISPATCHES. Skipping dispatch.`,
-                );
-                continue;
-              }
-              const extraInputs = parseExtraInputs(extras, allowedKeys);
-              const inputs = {
-                ...extraInputs,
-                pr_number: String(prNumber),
-                head_sha: headSha,
-              };
-              const extraDesc = Object.keys(extraInputs).length
-                ? ` with ${JSON.stringify(extraInputs)}`
-                : '';
-
-              // Best-effort active-run check. If the API call fails for any
-              // reason (workflow not on default branch yet, transient 5xx,
-              // rate limit) we fall through and dispatch anyway — better
-              // than silently dropping a user-requested run.
+            for (const { label, workflow } of triggered) {
+              // Best-effort active-run check. If the API call fails for
+              // any reason (workflow not on default branch yet, transient
+              // 5xx, rate limit) we fall through and dispatch anyway —
+              // better than silently dropping a user-requested run.
               let activeRun = null;
               try {
                 const { data } = await github.rest.actions.listWorkflowRuns({
@@ -244,18 +173,22 @@ jobs:
                 continue;
               }
 
+              const inputs = {
+                pr_number: String(prNumber),
+                head_sha: headSha,
+              };
               // >>> TEMP — REVERT BEFORE MERGE <<<
               // Dry-run: log what WOULD be dispatched instead of actually
               // calling createWorkflowDispatch. heavy_tests.yml isn't on
               // `develop` yet so a real dispatch would 404. This still
-              // exercises the regex, uncheck, bot-loop guard and input
-              // parsing end-to-end. Restore the createWorkflowDispatch
+              // exercises the regex / uncheck / bot-loop guard / active-
+              // run check end-to-end. Restore the createWorkflowDispatch
               // try/catch block (see git history) before merging.
               core.notice(
-                `DRY-RUN: would dispatch ${workflow} (label: "${label.trim()}")${extraDesc} ` +
+                `DRY-RUN: would dispatch ${workflow} (label: "${label}") ` +
                 `with inputs ${JSON.stringify(inputs)}`,
               );
             }
             if (failed > 0) {
-              core.setFailed(`${failed} of ${matches.length} dispatch(es) failed.`);
+              core.setFailed(`${failed} of ${triggered.length} dispatch(es) failed.`);
             }

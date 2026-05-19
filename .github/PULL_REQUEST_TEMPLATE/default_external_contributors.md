@@ -28,11 +28,10 @@ Tick the boxes that are relevant to your changes, and delete any items that are 
 
 ## CI
 
-Tick a box below to trigger the corresponding workflow on this PR's current HEAD.
-Each box auto-unchecks once the run is dispatched — tick again to re-run.
+Tick the box below to dispatch the corresponding workflow on this PR's current HEAD.
+The box auto-unchecks once the run is dispatched — tick again to re-run.
 
-- [ ] Run heavy tests (only changed crates) <!-- ci-trigger: heavy_tests.yml -->
-- [ ] Run heavy tests (full workspace) <!-- ci-trigger: heavy_tests.yml test_only_changed_crates=false -->
+- [ ] Run heavy tests
 
 ### Release Notes
 

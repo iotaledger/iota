@@ -4,15 +4,12 @@ name: Heavy tests
 # compatibility checks).
 #
 # On PRs this workflow is NOT triggered automatically — it is dispatched
-# only by `ci_trigger.yml` when a user ticks one of the "Run heavy tests"
-# checkboxes in the PR description (one-shot opt-in, auto-unchecked).
-# Two flavors are exposed via the `test_only_changed_crates` input:
-#   * `true`  (default): test only crates that changed in the PR plus their
-#                        reverse-dependents. Faster, recommended.
-#   * `false`           : test the whole workspace. Slower, comprehensive.
-# As a safety override, when workspace-level Rust config has changed (e.g.
-# root `Cargo.toml`/`Cargo.lock`), we ignore `true` and run the whole
-# workspace anyway — a workspace-level change can affect every crate.
+# only by `ci_trigger.yml` when a user ticks the "Run heavy tests" checkbox
+# in the PR description (one-shot opt-in, auto-unchecked). Tests are
+# filtered to the crates that changed in the PR plus their reverse-
+# dependents. As a safety override, when workspace-level Rust config has
+# changed (root `Cargo.toml`/`Cargo.lock`) we expand to the whole workspace
+# — a workspace-level change can affect every crate.
 #
 # On the long-lived branches (`develop`, `devnet`, `testnet`, `mainnet`,
 # release branches) heavy tests still run on every push and always cover
@@ -29,11 +26,6 @@ on:
         description: "Commit SHA to test (PR HEAD)"
         required: true
         type: string
-      test_only_changed_crates:
-        description: "If true, test only changed crates and their dependents. If false, test the whole workspace."
-        type: boolean
-        default: true
-        required: false
   push:
     branches:
       - "develop"
@@ -44,13 +36,10 @@ on:
 
 # Concurrency is keyed per-PR (workflow_dispatch) or per-branch (push) — NOT
 # per-SHA: heavy tests only ever make sense for a PR's latest commit, so a
-# newer dispatch for the same PR should supersede an in-flight one (this also
-# means the "changed crates" and "full workspace" variants never run in
-# parallel — the later-dispatched one wins).
+# newer dispatch for the same PR should supersede an in-flight one.
 #
 # `cancel-in-progress`:
-#   * workflow_dispatch (PR): true  — newer request wins (changed vs full,
-#                                     or just a re-run).
+#   * workflow_dispatch (PR): true  — newer request wins (e.g. re-run).
 #   * push to a long-lived branch: keep the original behavior — never cancel
 #     on `develop` (every merged commit must be fully tested, runs queue),
 #     but cancel on devnet/testnet/mainnet/release branches (latest only).
@@ -77,10 +66,10 @@ jobs:
         id: diff
 
   # Paths-filter pass that produces the list of crates touched by the PR.
-  # Only needed in change-filtered mode — push events and the "full
-  # workspace" workflow_dispatch variant skip this and exercise everything.
+  # Only needed in change-filtered mode (PR dispatch); push events to long-
+  # lived branches skip this and exercise the whole workspace.
   crates-changes:
-    if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
+    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -96,7 +85,7 @@ jobs:
           filters: .github/crates-filters.yml
 
   external-changes:
-    if: github.event_name == 'workflow_dispatch' && inputs.test_only_changed_crates
+    if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -127,16 +116,17 @@ jobs:
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
       isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
       runSimtest: true
-      # Filter to changed crates only when the user opted in AND no
-      # workspace-level config changed (the latter can affect every crate,
-      # so we expand to the whole workspace as a safety net).
+      # Filter to changed crates on PR dispatch UNLESS workspace-level Rust
+      # config has changed — the latter can affect every crate, so we expand
+      # to the whole workspace as a safety net. Pushes to long-lived
+      # branches always run the whole workspace.
       testOnlyChangedCrates: >-
         ${{ github.event_name == 'workflow_dispatch'
-            && inputs.test_only_changed_crates
             && needs.diff.outputs.isRustWorkspaceConfig != 'true' }}
-      # When `crates-changes`/`external-changes` were skipped these resolve
-      # to '' via the `|| '[]'` fallback; `_rust_tests.yml` ignores
-      # `--changed-crates` when `--test-only-changed-crates` isn't set.
+      # On push to long-lived branches `crates-changes`/`external-changes`
+      # are skipped, so these resolve to '' via the `|| '[]'` fallback;
+      # `_rust_tests.yml` ignores `--changed-crates` when
+      # `--test-only-changed-crates` isn't set.
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
       changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
 
