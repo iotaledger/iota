@@ -841,6 +841,7 @@ mod tests {
                 context.clock.timestamp_utc_ms(),
                 CommitRef::new(1, CommitDigest::MIN),
                 vec![],
+                vec![],
             )
             .base,
         ];
@@ -943,6 +944,7 @@ mod tests {
                 vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),
+                vec![],
                 vec![],
             )
             .base,
