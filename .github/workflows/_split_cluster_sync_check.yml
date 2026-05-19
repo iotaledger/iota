@@ -7,8 +7,9 @@ on:
 # No workflow-level `concurrency` here on purpose: a reusable workflow can't
 # compute a correct concurrency key (it depends on the caller's trigger
 # context). Concurrency is owned by the entry workflows that call this one
-# (`heavy_tests.yml`, `nightly.yml`); cancelling/superseding a parent run
-# cancels this reusable's jobs along with it.
+# (e.g. `heavy_tests.yml`); cancelling/superseding a parent run cancels
+# this reusable's jobs along with it. `nightly.yml` deliberately has none,
+# accepting parallel overlap on the rare cron+dispatch coincidence.
 
 env:
   CARGO_TERM_COLOR: always

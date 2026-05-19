@@ -36,15 +36,6 @@ on:
         required: false
         default: false
 
-# Owns concurrency for the heavy reusable workflows it calls
-# (`_rust_tests.yml`, `_split_cluster*.yml`) — those no longer define
-# their own. Here we don't cancel a running nightly when a new one is scheduled or
-# manually dispatched: nightly is full-coverage, let it finish and queue the
-# next one.
-concurrency:
-  group: nightly-${{ github.ref }}
-  cancel-in-progress: false
-
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: "error"
