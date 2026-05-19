@@ -58,6 +58,38 @@ module.exports = async ({ github, context, core }) => {
   });
   core.info(`Unchecked ${triggered.length} ci-trigger checkbox(es).`);
 
+  // Permission gate: only repository collaborators with write+ access may
+  // actually dispatch. The tick of the checkbox itself is treated as the
+  // approval action — a maintainer ticking the box (their own PR or someone
+  // else's) means "I approve this run". A fork-PR author ticking their own
+  // checkbox is unchecked above but does NOT dispatch — a maintainer has to
+  // come in and tick it themselves to authorize. We err on the side of
+  // skipping when the API call fails (no permission → no dispatch).
+  const senderLogin = context.payload.sender.login;
+  const WRITE_PERMISSIONS = new Set(['admin', 'maintain', 'write']);
+  let senderPermission = null;
+  try {
+    const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      username: senderLogin,
+    });
+    senderPermission = data.permission;
+  } catch (err) {
+    core.warning(
+      `Couldn't fetch collaborator permission for @${senderLogin}: ${err.message}. ` +
+        `Treating as no write access.`,
+    );
+  }
+  if (!WRITE_PERMISSIONS.has(senderPermission)) {
+    core.notice(
+      `Skipping dispatch: @${senderLogin} (permission: ${senderPermission ?? 'unknown'}) ` +
+        `does not have write access. A repository maintainer needs to tick the ` +
+        `checkbox to dispatch this workflow.`,
+    );
+    return;
+  }
+
   // Step 2: dispatch each matched workflow. We continue past individual
   // failures so a transient error on one doesn't block others.
   //

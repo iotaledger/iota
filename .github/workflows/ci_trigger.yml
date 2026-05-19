@@ -80,8 +80,9 @@ jobs:
       && contains(github.event.pull_request.body, '- [x] Run heavy tests')
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
-      actions: write
+      pull-requests: write   # to edit PR body (uncheck the box)
+      actions: write         # to dispatch heavy_tests.yml via the API
+      contents: read         # to look up the sender's collaborator permission
     steps:
       # Sparse-checkout just `.github/scripts/` so we can `require()` the
       # dispatcher module below. With `pull_request_target` the default ref
