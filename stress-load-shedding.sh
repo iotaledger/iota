@@ -155,6 +155,11 @@ fi
 if [ -n "$GAS_POOL_CACHE_PATH" ]; then
     stress_args+=(--gas-pool-cache-path "$GAS_POOL_CACHE_PATH")
 fi
+# Point per-process benchmark stats at our per-run dir so the default
+# /tmp/bench_result (one global path) doesn't collide across processes /
+# UIDs. A root-owned /tmp/bench_result from a prior sudo'd run would
+# otherwise make this run fail with "Permission denied (os error 13)".
+stress_args+=(--benchmark-stats-path "$out/benchmark_stats.json")
 stress_args+=(
     bench
     --target-qps "$QPS"

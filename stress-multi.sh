@@ -19,8 +19,13 @@ NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-2}"
 # its own cache file under this dir, keyed by primary_gas_owner index. To
 # disable the cache, set GAS_POOL_CACHE_DIR="disable" (or any non-path that
 # doesn't exist and can't be created).
-GAS_POOL_CACHE_DIR="${GAS_POOL_CACHE_DIR:-$HOME/.stress-gas-pool}"
+# Default lives under the monorepo's runs/ (which is gitignored) so all
+# sweep artifacts stay under one tree. Override with GAS_POOL_CACHE_DIR=...
+# if you want a shared cross-clone cache, e.g. $HOME/.stress-gas-pool.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GAS_POOL_CACHE_DIR="${GAS_POOL_CACHE_DIR:-$SCRIPT_DIR/runs/.stress-gas-pool}"
 FULLNODES="${FULLNODES:-http://127.0.0.1:9000}"
+PROM_URL="${PROM_URL:-http://localhost:9090}"
 
 IFS=',' read -ra FN_ARR <<< "$FULLNODES"
 # Number of stress subprocesses. Defaults to the number of fullnode URLs (one
@@ -240,6 +245,7 @@ echo "=> Releasing start barrier."
 # preserved as a fallback for non-barrier runs since stress.rs only parses the
 # content when --barrier-period-ms > 0.
 date +%s%N > "$START_FILE"
+SPAM_START_EPOCH=$(date +%s)
 echo "=> Spam phase running (DURATION=$DURATION, BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS)..."
 
 echo "=> Waiting for all $N processes to finish (pids: ${pids[*]})"
@@ -248,6 +254,7 @@ for pid in "${pids[@]}"; do
   wait "$pid"
   exit_codes+=($?)
 done
+SPAM_END_EPOCH=$(date +%s)
 
 # Helper to find the inner timestamped dir for a given process index.
 inner_dir() {
@@ -346,6 +353,45 @@ else
   echo "   (couldn't compute — no process captured both metrics)"
 fi
 
+# Pull rejection counts per source from Prometheus over the spam window.
+# The graduated check writes 4 distinct labels after the authority.rs split:
+#   consensus_graduated_preventive  — num_inflight < max_pending, probabilistic drop
+#   consensus_graduated_reactive    — num_inflight >= max_pending, 100% shed (graduated path)
+#   consensus_max_pending_exceeded  — num_inflight >= max_pending detected by the
+#                                     binary check after graduated passed (race window)
+#   consensus_semaphore_no_permits  — submit_semaphore exhausted (independent limit)
+declare -A REJECT
+REJECT[consensus_graduated_preventive]=0
+REJECT[consensus_graduated_reactive]=0
+REJECT[consensus_max_pending_exceeded]=0
+REJECT[consensus_semaphore_no_permits]=0
+
+# Window: spam start → end + a small grace to capture the last scrape.
+WINDOW=$(( SPAM_END_EPOCH - SPAM_START_EPOCH + 5 ))
+if [ "$WINDOW" -lt 10 ]; then WINDOW=10; fi
+
+if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+  prom_query="sum by (source) (increase(transaction_overload_sources{host=~\"validator.*\"}[${WINDOW}s]))"
+  prom_resp=$(curl -sfG --max-time 5 "$PROM_URL/api/v1/query" \
+    --data-urlencode "query=$prom_query" 2>/dev/null || echo "")
+  if [ -n "$prom_resp" ]; then
+    while IFS=$'\t' read -r src val; do
+      [ -z "$src" ] && continue
+      REJECT[$src]=${val%.*}
+    done < <(printf '%s' "$prom_resp" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    for r in d.get('data', {}).get('result', []):
+        s = r['metric'].get('source', '?')
+        v = float(r['value'][1])
+        print(f'{s}\t{v:.0f}')
+except Exception:
+    pass
+")
+  fi
+fi
+
 # Save a top-level summary so this run is self-contained
 {
   echo "ts:           $MASTER_TS"
@@ -353,11 +399,15 @@ fi
   echo "fullnodes:    $FULLNODES"
   echo "exit codes:   ${exit_codes[*]}"
   echo "tcp errors:   $tcp_total"
-  if [ -n "${peak_inflight:-}" ] && [ -n "${sem_cap:-}" ]; then
+  if [ "${peak_inflight:-0}" -gt 0 ] && [ "${sem_cap:-0}" -gt 0 ]; then
     echo "sem_cap:      $sem_cap"
     echo "peak inflight:$peak_inflight"
-    echo "ratio:        ${ratio}×"
+    echo "ratio:        ${ratio:-0}×"
   fi
+  echo "reject_grad_preventive: ${REJECT[consensus_graduated_preventive]}"
+  echo "reject_grad_reactive:   ${REJECT[consensus_graduated_reactive]}"
+  echo "reject_max_pending:     ${REJECT[consensus_max_pending_exceeded]}"
+  echo "reject_semaphore:       ${REJECT[consensus_semaphore_no_permits]}"
 } > "$PARENT_DIR/summary.txt"
 echo
 echo "=> Top-level summary: $PARENT_DIR/summary.txt"

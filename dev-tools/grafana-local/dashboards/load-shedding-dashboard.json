@@ -495,16 +495,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(transaction_overload_sources{source=\"consensus_graduated\",host=~\"validator.*\"}[5s])",
+          "expr": "rate(transaction_overload_sources{source=\"consensus_graduated_preventive\",host=~\"validator.*\"}[5s])",
           "legendFormat": "{{host}}",
           "refId": "A",
           "interval": "1s",
           "intervalFactor": 1
         }
       ],
-      "title": "rate(transaction_overload_sources{source=\"consensus_graduated\"}[5s])",
+      "title": "rate(transaction_overload_sources{source=\"consensus_graduated_preventive\"}[5s])",
       "type": "timeseries",
-      "description": "Rate of rejections labeled consensus_graduated \u2014 graduated shedding probabilistic rejections"
+      "description": "Rate of rejections labeled consensus_graduated_preventive \u2014 graduated shedding probabilistic rejection while num_inflight < max_pending_transactions"
     },
     {
       "datasource": {
@@ -593,7 +593,7 @@
       ],
       "title": "rate(transaction_overload_sources{source=\"consensus_max_pending_exceeded\"}[5s])",
       "type": "timeseries",
-      "description": "Rate of rejections labeled consensus_max_pending_exceeded \u2014 binary check: num_inflight > max \u2014 gate-race overshoot"
+      "description": "Rate of rejections labeled consensus_max_pending_exceeded \u2014 binary check (race window past graduated): num_inflight crossed max between the graduated and binary check evaluations"
     },
     {
       "datasource": {
@@ -675,6 +675,95 @@
       "title": "rate(transaction_overload_sources{source=\"consensus_semaphore_no_permits\"}[5s])",
       "type": "timeseries",
       "description": "Rate of rejections labeled consensus_semaphore_no_permits \u2014 binary check: submit_semaphore exhausted"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "suffix:rejs/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(transaction_overload_sources{source=\"consensus_graduated_reactive\",host=~\"validator.*\"}[5s])",
+          "legendFormat": "{{host}}",
+          "refId": "A",
+          "interval": "1s",
+          "intervalFactor": 1
+        }
+      ],
+      "title": "rate(transaction_overload_sources{source=\"consensus_graduated_reactive\"}[5s])",
+      "type": "timeseries",
+      "description": "Rate of rejections labeled consensus_graduated_reactive \u2014 graduated shedding at 100% (num_inflight >= max_pending_transactions, deterministic drop)"
     }
   ],
   "refresh": "5s",

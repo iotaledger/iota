@@ -35,14 +35,41 @@ export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 #   DURATION=15s, GAS_CHUNK_SIZE=500
 BURSTS=(1800)
 BARS=(500)
-ITERS=30
+ITERS="${ITERS:-30}"
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 
-# CSV header (only if new file)
-[ -f "$OUT_CSV" ] || echo "iso_time,burst,bar_ms,iter,peak_inflight,ratio,exit_codes_ok" > "$OUT_CSV"
+START_PCT="${START_PCT:-}"
+YAML_CFG="$PRIVNET/configs/validator-common.yaml"
+
+# CSV header (only if new file). `start_pct` is graduated-load-shedding-soft-limit-pct
+# from validator-common.yaml at run time — embedded per row so cross-pct CSV
+# concatenation stays self-describing.
+[ -f "$OUT_CSV" ] || echo "iso_time,burst,bar_ms,iter,start_pct,peak_inflight,ratio,exit_codes_ok,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore" > "$OUT_CSV"
 
 exec >> "$OUT_LOG" 2>&1
+
+# Optional: override graduated-load-shedding-soft-limit-pct in
+# validator-common.yaml for this sweep. If unset, whatever is already in the
+# yaml is used. The per-iter teardown + bootstrap.sh -b regenerates each
+# validator config from the (updated) overlay, so containers start with the
+# new value automatically.
+if [ -n "$START_PCT" ]; then
+  if ! [[ "$START_PCT" =~ ^[0-9]+$ ]] || [ "$START_PCT" -gt 100 ]; then
+    echo "Error: START_PCT must be an integer in [0, 100], got '$START_PCT'" >&2
+    exit 1
+  fi
+  sed -i -E "s/^([[:space:]]*graduated-load-shedding-soft-limit-pct:[[:space:]]*).*/\1${START_PCT}/" "$YAML_CFG"
+  # Verify the patch landed — if the field name was misspelled in the yaml
+  # the sed silently changes nothing and serde would fall back to the default.
+  ACTUAL_PCT=$(grep -E '^[[:space:]]*graduated-load-shedding-soft-limit-pct:' \
+    "$YAML_CFG" | awk -F: '{print $2}' | xargs)
+  if [ "$ACTUAL_PCT" != "$START_PCT" ]; then
+    echo "Error: yaml patch did not stick (asked for $START_PCT, found '$ACTUAL_PCT' in $YAML_CFG)" >&2
+    exit 1
+  fi
+  echo "=> Patched $YAML_CFG: graduated-load-shedding-soft-limit-pct = $START_PCT"
+fi
 
 echo "================ burst-sweep $(date -u) ================"
 
@@ -161,7 +188,7 @@ for burst in "${BURSTS[@]}"; do
     docker compose down -v 2>&1 | tail -1 || true
     sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
     ./run.sh -n 4 faucet 2>&1 | tail -1
-    rm -f ~/.stress-gas-pool/owner-*.json
+    rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
     # 20s gives Mysticeti time to form quorum, validators to bind gRPC,
     # and the first /etc/hosts lookups to resolve. 5s was too short and
     # caused initial pay_iota tx to time out → fail-fast.
@@ -176,7 +203,7 @@ for burst in "${BURSTS[@]}"; do
     NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
       WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
-      | tee /tmp/burst-sweep-iter.log
+      | tee "$REPO/runs/burst-sweep-iter.log"
 
     # Extract result from latest summary.txt
     latest=$(ls -td "$REPO"/runs/multi-*/ | head -1)
@@ -184,13 +211,29 @@ for burst in "${BURSTS[@]}"; do
       peak=$(grep '^peak inflight:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       ratio=$(grep '^ratio:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs | sed 's/×//')
       exits=$(grep '^exit codes:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      # Per-source rejection counts (added after the authority.rs 4-label split)
+      r_prev=$(grep '^reject_grad_preventive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      r_grad_react=$(grep '^reject_grad_reactive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      r_max=$(grep '^reject_max_pending:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      r_sem=$(grep '^reject_semaphore:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      # Soft-limit-pct as currently deployed via validator-common.yaml. Read
+      # at the same point we extract the result so each row records the
+      # config it ran against, not what the global may have moved to.
+      start_pct=$(grep -E 'graduated-load-shedding-soft-limit-pct:' \
+        "$PRIVNET/configs/validator-common.yaml" 2>/dev/null \
+        | awk -F: '{print $2}' | xargs)
       # Treat empty/zero as FAIL too
       [ -z "$peak" ] && peak=0
       [ -z "$ratio" ] && ratio=0
+      [ -z "$r_prev" ] && r_prev=0
+      [ -z "$r_grad_react" ] && r_grad_react=0
+      [ -z "$r_max" ] && r_max=0
+      [ -z "$r_sem" ] && r_sem=0
+      [ -z "$start_pct" ] && start_pct="?"
       ok=$(echo "$exits" | awk '{for(i=1;i<=NF;i++) if($i!="0"){print 0; exit} print 1}')
       iso=$(basename "$latest" | sed 's/multi-//')
-      echo "$iso,$burst,$bar,$i,$peak,$ratio,$ok" >> "$OUT_CSV"
-      echo ">>> RESULT: burst=$burst bar=$bar iter=$i peak=$peak ratio=${ratio}× ok=$ok"
+      echo "$iso,$burst,$bar,$i,$start_pct,$peak,$ratio,$ok,$r_prev,$r_grad_react,$r_max,$r_sem" >> "$OUT_CSV"
+      echo ">>> RESULT: burst=$burst bar=$bar iter=$i pct=$start_pct peak=$peak ratio=${ratio}× ok=$ok  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]"
       # Early-exit safety: if first 2 iters give peak=0, something's broken
       # network-side (e.g. white-flag misconfig). Don't burn 75 min on it.
       if [ "$i" -le 2 ] && [ "${peak:-0}" -eq 0 ] 2>/dev/null; then
@@ -204,13 +247,17 @@ for burst in "${BURSTS[@]}"; do
       fi
     else
       iso=$(basename "$latest" | sed 's/multi-//' 2>/dev/null || echo "?")
-      echo "$iso,$burst,$bar,$i,FAIL,FAIL,0" >> "$OUT_CSV"
-      echo ">>> RESULT: burst=$burst bar=$bar iter=$i FAILED"
+      start_pct=$(grep -E 'graduated-load-shedding-soft-limit-pct:' \
+        "$PRIVNET/configs/validator-common.yaml" 2>/dev/null \
+        | awk -F: '{print $2}' | xargs)
+      [ -z "$start_pct" ] && start_pct="?"
+      echo "$iso,$burst,$bar,$i,$start_pct,FAIL,FAIL,0,FAIL,FAIL,FAIL,FAIL" >> "$OUT_CSV"
+      echo ">>> RESULT: burst=$burst bar=$bar iter=$i pct=$start_pct FAILED"
     fi
 
     # Disk-leak prevention: runs/multi-* dirs accumulate 24 process logs each
     # (~80 MB per process → ~2 GB per iter). A full sweep at ITERS=30 is ~60 GB;
-    # back-to-back graduated-sweep runs were filling the EPYC's 1.8T root
+    # back-to-back sweep runs were filling the EPYC's 1.8T root
     # within hours. The CSV already holds the result we care about, so we
     # only need to keep the most recent N run dirs for forensic debugging.
     # Keep last 2 (current iter + previous, in case the current one is the

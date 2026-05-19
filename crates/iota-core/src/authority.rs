@@ -1172,11 +1172,13 @@ impl AuthorityState {
                 self.update_overload_metrics("execution_pending");
             })?;
 
-        if white_flag_flow_enabled {
-            self.check_consensus_queue_overload(consensus_adapter, tx_data)
-                .tap_err(|_| {
-                    self.update_overload_metrics("consensus_graduated");
-                })?;
+        if white_flag_flow_enabled
+            && self
+                .check_consensus_queue_overload(consensus_adapter, tx_data)
+                .is_err()
+        {
+            // no more .tap_err() here — the function labels its own rejection
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
         }
         if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
             self.update_overload_metrics(reason.metric_label());
@@ -1213,10 +1215,11 @@ impl AuthorityState {
         tx_data: &SenderSignedData,
     ) -> IotaResult {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
+        let max_pending_txs = consensus_adapter.max_pending_transactions();
 
         let shedding_pct = compute_graduated_load_shedding_percentage(
             num_inflight_txs,
-            consensus_adapter.max_pending_transactions(),
+            max_pending_txs,
             consensus_adapter.graduated_load_shedding_soft_limit_pct(),
         );
 
@@ -1228,7 +1231,19 @@ impl AuthorityState {
             return Ok(());
         }
 
-        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
+        let result = overload_monitor_accept_tx(shedding_pct, tx_data.digest());
+        if result.is_err() {
+            if num_inflight_txs >= max_pending_txs {
+                // 100% shedding at the cap — equivalent to old binary check.
+                // Counts as reactive.
+                self.update_overload_metrics("consensus_graduated_reactive");
+            } else {
+                // Probabilistic drop below the cap — preventive.
+                self.update_overload_metrics("consensus_graduated_preventive");
+            }
+        }
+
+        result
     }
 
     fn check_authority_overload(&self, tx_data: &SenderSignedData) -> IotaResult {
