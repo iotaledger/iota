@@ -247,6 +247,7 @@ impl CommitObserver {
             commit.timestamp_ms(),
             commit.reference(),
             reputation_scores,
+            self.dag_state.read().misbehavior_store().snapshot_totals(),
         ))
     }
 

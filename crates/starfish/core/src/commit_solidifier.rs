@@ -198,6 +198,9 @@ impl CommitSolidifier {
                 .map(|tx| tx.expect("Transaction must exist since we checked"))
                 .collect();
 
+            // Delayed subdags see current store state, not state at leader-round
+            // commit time. Safe: counts are absolute and consumers merge-max.
+            let misbehavior_counts = dag_state.misbehavior_store().snapshot_totals();
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.headers.clone(),
@@ -206,6 +209,7 @@ impl CommitSolidifier {
                 subdag.timestamp_ms,
                 subdag.commit_ref,
                 subdag.reputation_scores_desc.clone(),
+                misbehavior_counts,
             ))
         } else {
             Err(missing)

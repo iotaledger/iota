@@ -662,6 +662,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
+        // Replayed commits share one snapshot of current store state; downstream
+        // consumers merge-max against their last-seen, so repeating absolute
+        // totals across the batch is a no-op after the first.
+        let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
         for commit in &commits {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
@@ -684,6 +688,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commit.timestamp_ms(),
                 commit.reference(),
                 reputation_scores,
+                misbehavior_counts.clone(),
             ));
         }
 

@@ -2548,7 +2548,6 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    #[cfg(test)]
     pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
         &self.misbehavior_store
     }

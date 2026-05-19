@@ -163,6 +163,28 @@ impl MisbehaviorStore {
         true
     }
 
+    /// Returns an absolute per-authority snapshot of `persisted + in_memory`
+    /// counts for emission with `CommittedSubDag`. Locks the two buckets
+    /// independently per authority; callers must hold `dag_state.read()` so
+    /// concurrent flush (which writes both buckets under `dag_state.write()`)
+    /// is excluded.
+    pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCounts> {
+        (0..self.in_memory.authorities.len())
+            .map(|i| {
+                let persisted = self.persisted.snapshot(i);
+                let in_memory = self.in_memory.snapshot(i);
+                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                    faulty_blocks_provable: persisted.faulty_blocks_provable
+                        + in_memory.faulty_blocks_provable,
+                    faulty_blocks_unprovable: persisted.faulty_blocks_unprovable
+                        + in_memory.faulty_blocks_unprovable,
+                    missing_proposals: persisted.missing_proposals + in_memory.missing_proposals,
+                    equivocations: persisted.equivocations + in_memory.equivocations,
+                })
+            })
+            .collect()
+    }
+
     /// Records a faulty block header event detected during block header
     /// validation. Events are buffered in the in_memory bucket and moved
     /// to persisted on the next flush.
@@ -418,7 +440,7 @@ fn calculate_misbehavior_counts_for_range(
 /// Versioned envelope for persisted scoring metrics. New versions are added as
 /// enum variants so existing RocksDB data deserializes without migration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) enum MisbehaviorCounts {
+pub enum MisbehaviorCounts {
     V1(MisbehaviorCountsV1),
 }
 
@@ -429,11 +451,11 @@ impl Default for MisbehaviorCounts {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub(crate) struct MisbehaviorCountsV1 {
-    pub(crate) faulty_blocks_provable: u64,
-    pub(crate) faulty_blocks_unprovable: u64,
-    pub(crate) missing_proposals: u64,
-    pub(crate) equivocations: u64,
+pub struct MisbehaviorCountsV1 {
+    pub faulty_blocks_provable: u64,
+    pub faulty_blocks_unprovable: u64,
+    pub missing_proposals: u64,
+    pub equivocations: u64,
 }
 
 #[cfg(test)]
@@ -856,6 +878,44 @@ mod tests {
             assert_eq!(prov, 0, "expected no provable for {e:?}");
             assert_eq!(unprov, 0, "expected no unprovable (untracked) for {e:?}");
         }
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_totals_sums_persisted_and_in_memory() {
+        let committee_size = 4;
+        let context = Arc::new(Context::new_for_test(committee_size).0);
+        let store = MisbehaviorStore::new(&context);
+        let a0 = AuthorityIndex::new_for_test(0);
+        let a1 = AuthorityIndex::new_for_test(1);
+        let provable = ConsensusError::TooManyAncestors(10, 5);
+
+        // Seed in_memory provable counts for authority 0 (2) and 1 (1).
+        store.record_faulty_block_header(a0, a0, &provable);
+        store.record_faulty_block_header(a0, a0, &provable);
+        store.record_faulty_block_header(a1, a1, &provable);
+
+        // Flush faulty buffer for authority 0 into persisted; leave authority 1
+        // unflushed so the snapshot must sum across both buckets.
+        let _ =
+            store.update_misbehavior_counts_on_eviction(a0, &BTreeSet::new(), 0, 0, 1, &context);
+
+        // Record 3 more provable faults on authority 0 — these stay in_memory.
+        for _ in 0..3 {
+            store.record_faulty_block_header(a0, a0, &provable);
+        }
+
+        let snapshot = store.snapshot_totals();
+        assert_eq!(snapshot.len(), committee_size);
+        // Authority 0: 2 flushed into persisted + 3 still in_memory = 5 total.
+        // Authority 1: 1 still in_memory (never flushed) = 1 total.
+        // Untouched authorities are zero across both buckets.
+        let provable_totals: Vec<u64> = snapshot
+            .iter()
+            .map(|c| match c {
+                MisbehaviorCounts::V1(v1) => v1.faulty_blocks_provable,
+            })
+            .collect();
+        assert_eq!(provable_totals, vec![5, 1, 0, 0]);
     }
 
     #[tokio::test]
