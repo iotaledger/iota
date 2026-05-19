@@ -57,7 +57,7 @@ impl AuthenticatorTrait for MultiSig {
         T: Serialize,
     {
         self.committee()
-            .is_valid()
+            .validate()
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid multisig pubkey: {}", e),
             })?;
@@ -77,6 +77,7 @@ impl AuthenticatorTrait for MultiSig {
         }
 
         let mut weight_sum: u16 = 0;
+        // TODO signing digest?
         let message = bcs::to_bytes(&value).expect("Message serialization should not fail");
         let mut hasher = DefaultHash::default();
         hasher.update(message);

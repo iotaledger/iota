@@ -392,11 +392,11 @@ impl TestTransactionBuilder {
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let msg = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_message();
+        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
 
         let signatures = signers
             .iter()
-            .map(|kp| match SdkSigner::sign(*kp, &*msg) {
+            .map(|kp| match SdkSigner::sign(*kp, &*digest) {
                 SimpleSignature::Ed25519 { signature, .. } => {
                     MultisigMemberSignature::Ed25519(signature)
                 }

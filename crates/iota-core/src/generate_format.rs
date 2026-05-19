@@ -190,15 +190,15 @@ fn get_registry() -> Result<Registry> {
     )
     .unwrap();
 
-    let msg = IntentMessage::new(
+    let digest = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Message".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
 
-    let sig1: SimpleSignature = kp1.sign(&*msg);
-    let sig2: SimpleSignature = kp2.sign(&*msg);
-    let sig3: SimpleSignature = kp3.sign(&*msg);
+    let sig1: SimpleSignature = kp1.sign(&*digest);
+    let sig2: SimpleSignature = kp2.sign(&*digest);
+    let sig3: SimpleSignature = kp3.sign(&*digest);
 
     let multi_sig = MultiSig::new(
         vec![

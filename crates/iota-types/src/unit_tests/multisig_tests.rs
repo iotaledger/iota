@@ -42,7 +42,7 @@ fn test_combine_sigs() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
     let sig1: SimpleSignature = kp1.sign(&*msg);
     let sig2: SimpleSignature = kp2.sign(&*msg);
     let sig3: SimpleSignature = kp3.sign(&*msg);
@@ -69,7 +69,7 @@ fn test_serde_roundtrip() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
 
     let check_roundtrip = |multisig: MultiSig| {
         let user_sig = UserSignature::Multisig(multisig);
@@ -211,7 +211,7 @@ fn test_max_sig() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
     let mut keys = Vec::new();
     let mut pks = Vec::new();
 
@@ -232,7 +232,7 @@ fn test_max_sig() {
     // multisig_pk with unreachable threshold fails.
     assert!(
         !MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16)
-            .is_valid()
+            .validate()
             .is_ok()
     );
 
@@ -242,7 +242,7 @@ fn test_max_sig() {
             members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
         )
-        .is_valid()
+        .validate()
         .is_ok()
     );
 
@@ -252,7 +252,7 @@ fn test_max_sig() {
             members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
         )
-        .is_valid()
+        .validate()
         .is_ok()
     );
 
@@ -267,7 +267,7 @@ fn test_max_sig() {
     assert!(
         MultiSig::new(vec![sig.into()], low_threshold_pk)
             .unwrap()
-            .is_valid()
+            .validate()
             .is_ok()
     );
 }
@@ -287,7 +287,7 @@ fn multisig_get_pk() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
     let sig1: SimpleSignature = kp1.sign(msg.as_ref());
     let sig2: SimpleSignature = kp2.sign(msg.as_ref());
 
@@ -324,7 +324,7 @@ fn multisig_get_indices() {
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     )
-    .signing_message();
+    .signing_digest();
     let sig1: SimpleSignature = kp1.sign(msg.as_ref());
     let sig2: SimpleSignature = kp2.sign(msg.as_ref());
     let sig3: SimpleSignature = kp3.sign(msg.as_ref());

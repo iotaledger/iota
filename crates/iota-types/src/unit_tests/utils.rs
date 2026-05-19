@@ -177,7 +177,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
-        .signing_message();
+        .signing_digest();
     let sig1: SimpleSignature = kp1.sign(&*msg);
     let sig2: SimpleSignature = kp2.sign(&*msg);
 

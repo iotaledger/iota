@@ -1884,7 +1884,7 @@ impl IotaClientCommands {
                 )?;
                 let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
-                let digest = intent_msg.signing_message();
+                let digest = intent_msg.signing_digest();
 
                 let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
                     let client = context.get_client().await?;
