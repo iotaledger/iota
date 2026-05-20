@@ -50,7 +50,7 @@ use tracing::{error, info};
 use crate::{
     FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
-    database::Database,
+    restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -236,7 +236,7 @@ impl StateSnapshotReaderV1 {
     ///    given `database`.
     pub async fn read_to_db(
         &mut self,
-        database: &impl Database,
+        database: &impl Restore,
         abort_registration: AbortRegistration,
         sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
     ) -> Result<()> {
@@ -437,7 +437,7 @@ impl StateSnapshotReaderV1 {
     /// objects into the given database.
     async fn sync_live_objects(
         &self,
-        database: &impl Database,
+        database: &impl Restore,
         abort_registration: AbortRegistration,
         sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
     ) -> Result<(), anyhow::Error> {

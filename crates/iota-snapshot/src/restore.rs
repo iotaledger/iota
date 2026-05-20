@@ -14,7 +14,7 @@ use iota_storage::SHA3_BYTES;
 use crate::{FileMetadata, reader::LiveObjectIter};
 
 /// A trait for databases that can be restored from a formal snapshot.
-pub trait Database {
+pub trait Restore {
     /// Inserts a partition of live objects.
     ///
     /// The checksum of the partition can be computed as the SHA3 hash of all
@@ -28,7 +28,7 @@ pub trait Database {
     ) -> impl Future<Output = Result<()>> + Send;
 }
 
-impl Database for AuthorityPerpetualTables {
+impl Restore for AuthorityPerpetualTables {
     async fn insert_partition(
         &self,
         file_metadata: FileMetadata,
