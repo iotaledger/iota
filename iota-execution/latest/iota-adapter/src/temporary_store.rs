@@ -19,7 +19,7 @@ use iota_types::{
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEffectsAPI, TransactionEvents,
+        TransactionEffectsExt, TransactionEvents,
     },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{

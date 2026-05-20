@@ -2698,7 +2698,10 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEvents},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
+            TransactionEvents,
+        },
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
         object,
@@ -3057,7 +3060,7 @@ mod tests {
         dependencies: Vec<TransactionDigest>,
         gas_cost_summary: GasCostSummary,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::empty_for_testing(transaction_digest);
+        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
         *effects.gas_cost_summary_mut_for_testing() = gas_cost_summary;
         effects

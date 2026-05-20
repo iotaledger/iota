@@ -122,30 +122,11 @@ mod transaction_effects_api {
     impl Sealed for super::TransactionEffectsV1 {}
 }
 
-/// API for constructing and inspecting [`TransactionEffects`] uniformly across
-/// versions.
+/// Version-agnostic accessors for [`TransactionEffects`].
 ///
-/// This trait is sealed: it is only implemented for [`TransactionEffects`] and
-/// the concrete version structs (currently [`TransactionEffectsV1`]). The
-/// implementation on [`TransactionEffects`] dispatches to the active version
-/// variant, so callers can write version-agnostic code.
+/// Sealed; implemented for the enum and each version struct. The enum impl
+/// dispatches to the active variant.
 pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
-    /// Build effects from the results of executing a transaction under the
-    /// V1 protocol shape.
-    fn new_from_execution_v1(
-        status: ExecutionStatus,
-        epoch: EpochId,
-        gas_cost_summary: GasCostSummary,
-        shared_objects: Vec<SharedInput>,
-        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
-        transaction_digest: TransactionDigest,
-        lamport_version: SequenceNumber,
-        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-        gas_object: Option<ObjectID>,
-        events_digest: Option<TransactionEventsDigest>,
-        dependencies: Vec<TransactionDigest>,
-    ) -> Self;
-
     /// Return the status of the transaction.
     fn status(&self) -> &ExecutionStatus;
 
@@ -254,49 +235,14 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Returns all root shared objects (i.e. not child object) that are
     /// read-only in the transaction.
     fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
-
-    /// Upper-bound estimate of the serialized size in bytes of effects with
-    /// the given number of writes, modifies, and dependencies under the V1
-    /// protocol shape.
-    fn estimate_size_upperbound_v1(
-        num_writes: usize,
-        num_modifies: usize,
-        num_deps: usize,
-    ) -> usize {
-        let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
-            + APPROX_SIZE_OF_EPOCH_ID
-            + APPROX_SIZE_OF_GAS_COST_SUMMARY
-            + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
-
-        // We store object ref and owner for both old objects and new objects.
-        let approx_change_entry_size = 1_000
-            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
-            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_modifies;
-
-        let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
-
-        fixed_sizes + approx_change_entry_size + deps_size
-    }
 }
 
-/// Test-only mutable accessors and unchecked builders for
-/// [`TransactionEffects`].
-///
-/// These methods bypass the invariants enforced by
-/// [`TransactionEffectsAPI::new_from_execution_v1`]
-/// and exist solely to let tests construct or tweak effects directly. They
-/// must not be used from production code.
+/// Test-only mutators and unchecked builders for [`TransactionEffects`] that
+/// bypass the normal invariants. Not for production use.
 pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates, and dependencies don't get built with cfg(test) set as far as I
     // can tell.
-    /// Builds empty effects for `transaction_digest` with no object changes
-    /// and no gas object. Useful for system transactions whose effects content
-    /// is irrelevant to a test.
-    fn empty_for_testing(transaction_digest: TransactionDigest) -> Self
-    where
-        Self: Sized;
-
     /// Returns a mutable reference to the execution status, for tests.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
 
@@ -326,16 +272,32 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
 mod transaction_effects_ext {
     pub trait Sealed {}
     impl Sealed for super::TransactionEffects {}
-    impl Sealed for super::TransactionEffectsV1 {}
 }
 
-/// Sealed extension trait providing aggregating queries built on top of
-/// [`TransactionEffectsAPI`].
-///
-/// Implementations are provided for [`TransactionEffects`] and
-/// [`TransactionEffectsV1`]; the methods here are derivable from the base API
-/// and live in their own trait to keep the core API minimal.
+/// The version-selecting constructor and aggregating queries for the
+/// [`TransactionEffects`] enum. Sealed; implemented only for the enum.
 pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
+    /// Build effects from the results of executing a transaction under the
+    /// V1 protocol shape.
+    fn new_from_execution_v1(
+        status: ExecutionStatus,
+        epoch: EpochId,
+        gas_cost_summary: GasCostSummary,
+        shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        transaction_digest: TransactionDigest,
+        lamport_version: SequenceNumber,
+        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
+        gas_object: Option<ObjectID>,
+        events_digest: Option<TransactionEventsDigest>,
+        dependencies: Vec<TransactionDigest>,
+    ) -> Self;
+
+    /// Build empty V1 effects for `transaction_digest`: success status, no
+    /// object changes, and no gas object. For tests that need a placeholder
+    /// whose effects content is irrelevant, e.g. system transactions.
+    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self;
+
     /// Returns the `(transaction_digest, effects_digest)` pair identifying
     /// this execution.
     fn execution_digests(&self) -> ExecutionDigests;
@@ -370,6 +332,29 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// Returns a condensed [`TransactionEffectsDebugSummary`] suitable for
     /// logging and inspection.
     fn summary_for_debug(&self) -> TransactionEffectsDebugSummary;
+
+    /// Upper-bound estimate of the serialized size in bytes of effects with
+    /// the given number of writes, modifies, and dependencies under the V1
+    /// protocol shape.
+    fn estimate_size_upperbound_v1(
+        num_writes: usize,
+        num_modifies: usize,
+        num_deps: usize,
+    ) -> usize {
+        let fixed_sizes = APPROX_SIZE_OF_EXECUTION_STATUS
+            + APPROX_SIZE_OF_EPOCH_ID
+            + APPROX_SIZE_OF_GAS_COST_SUMMARY
+            + APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST;
+
+        // We store object ref and owner for both old objects and new objects.
+        let approx_change_entry_size = 1_000
+            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_writes
+            + (APPROX_SIZE_OF_OWNER + APPROX_SIZE_OF_OBJECT_REF) * num_modifies;
+
+        let deps_size = 1_000 + APPROX_SIZE_OF_TX_DIGEST * num_deps;
+
+        fixed_sizes + approx_change_entry_size + deps_size
+    }
 }
 
 // Helper macro to reduce boilerplate code
@@ -385,34 +370,6 @@ macro_rules! delegate_effects_api {
 }
 
 impl TransactionEffectsAPI for TransactionEffects {
-    fn new_from_execution_v1(
-        status: ExecutionStatus,
-        epoch: EpochId,
-        gas_cost_summary: GasCostSummary,
-        shared_objects: Vec<SharedInput>,
-        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
-        transaction_digest: TransactionDigest,
-        lamport_version: SequenceNumber,
-        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-        gas_object: Option<ObjectID>,
-        events_digest: Option<TransactionEventsDigest>,
-        dependencies: Vec<TransactionDigest>,
-    ) -> Self {
-        TransactionEffects::V1(Box::new(TransactionEffectsV1::new_from_execution_v1(
-            status,
-            epoch,
-            gas_cost_summary,
-            shared_objects,
-            loaded_per_epoch_config_objects,
-            transaction_digest,
-            lamport_version,
-            changed_objects,
-            gas_object,
-            events_digest,
-            dependencies,
-        )))
-    }
-
     fn status(&self) -> &ExecutionStatus {
         delegate_effects_api!(self, status)
     }
@@ -495,22 +452,6 @@ impl TransactionEffectsAPI for TransactionEffects {
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffects {
-    fn empty_for_testing(transaction_digest: TransactionDigest) -> Self {
-        Self::new_from_execution_v1(
-            ExecutionStatus::Success,
-            0,
-            GasCostSummary::default(),
-            vec![],
-            BTreeSet::new(),
-            transaction_digest,
-            SequenceNumber::default(),
-            BTreeMap::new(),
-            None,
-            None,
-            vec![],
-        )
-    }
-
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
         delegate_effects_api!(self, status_mut_for_testing)
     }
@@ -541,6 +482,50 @@ impl TransactionEffectsAPIForTesting for TransactionEffects {
 }
 
 impl TransactionEffectsExt for TransactionEffects {
+    fn new_from_execution_v1(
+        status: ExecutionStatus,
+        epoch: EpochId,
+        gas_cost_summary: GasCostSummary,
+        shared_objects: Vec<SharedInput>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        transaction_digest: TransactionDigest,
+        lamport_version: SequenceNumber,
+        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
+        gas_object: Option<ObjectID>,
+        events_digest: Option<TransactionEventsDigest>,
+        dependencies: Vec<TransactionDigest>,
+    ) -> Self {
+        TransactionEffects::V1(Box::new(v1::new_from_execution(
+            status,
+            epoch,
+            gas_cost_summary,
+            shared_objects,
+            loaded_per_epoch_config_objects,
+            transaction_digest,
+            lamport_version,
+            changed_objects,
+            gas_object,
+            events_digest,
+            dependencies,
+        )))
+    }
+
+    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self {
+        Self::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            transaction_digest,
+            SequenceNumber::default(),
+            BTreeMap::new(),
+            None,
+            None,
+            vec![],
+        )
+    }
+
     fn execution_digests(&self) -> ExecutionDigests {
         ExecutionDigests {
             transaction: *self.transaction_digest(),
@@ -699,131 +684,6 @@ impl CertifiedTransactionEffects {
         Ok(VerifiedCertifiedTransactionEffects::new_from_verified(self))
     }
 }
-/// This function demonstrates what's the invariant of the effects.
-/// It also documents the semantics of different combinations in object
-/// changes.
-#[cfg(debug_assertions)]
-fn check_invariant(v1: &TransactionEffectsV1) {
-    use std::collections::HashSet;
-
-    let mut unique_ids = HashSet::new();
-    for changed in &v1.changed_objects {
-        let id = &changed.object_id;
-        assert!(unique_ids.insert(*id));
-        match (
-            &changed.input_state,
-            &changed.output_state,
-            &changed.id_operation,
-        ) {
-            (ObjectIn::Missing, ObjectOut::Missing, IDOperation::Created) => {
-                // created and then wrapped Move object.
-            }
-            (ObjectIn::Missing, ObjectOut::Missing, IDOperation::Deleted) => {
-                // unwrapped and then deleted Move object.
-            }
-            (ObjectIn::Missing, ObjectOut::ObjectWrite { owner, .. }, IDOperation::None) => {
-                // unwrapped Move object.
-                // It's not allowed to make an object shared after unwrapping.
-                assert!(!owner.is_shared());
-            }
-            (ObjectIn::Missing, ObjectOut::ObjectWrite { .. }, IDOperation::Created) => {
-                // created Move object.
-            }
-            (ObjectIn::Missing, ObjectOut::PackageWrite { .. }, IDOperation::Created) => {
-                // created Move package or user Move package upgrade.
-            }
-            (
-                ObjectIn::Data {
-                    version: old_version,
-                    owner: old_owner,
-                    ..
-                },
-                ObjectOut::Missing,
-                IDOperation::None,
-            ) => {
-                // wrapped.
-                assert!(*old_version < v1.lamport_version);
-                assert!(
-                    !old_owner.is_shared() && !old_owner.is_immutable(),
-                    "Cannot wrap shared or immutable object"
-                );
-            }
-            (
-                ObjectIn::Data {
-                    version: old_version,
-                    owner: old_owner,
-                    ..
-                },
-                ObjectOut::Missing,
-                IDOperation::Deleted,
-            ) => {
-                // deleted.
-                assert!(*old_version < v1.lamport_version);
-                assert!(!old_owner.is_immutable(), "Cannot delete immutable object");
-            }
-            (
-                ObjectIn::Data {
-                    version: old_version,
-                    digest: old_digest,
-                    owner: old_owner,
-                },
-                ObjectOut::ObjectWrite {
-                    digest: new_digest,
-                    owner: new_owner,
-                    ..
-                },
-                IDOperation::None,
-            ) => {
-                // mutated.
-                assert!(*old_version < v1.lamport_version);
-                assert_ne!(old_digest, new_digest);
-                assert!(!old_owner.is_immutable(), "Cannot mutate immutable object");
-                if old_owner.is_shared() {
-                    assert!(new_owner.is_shared(), "Cannot un-share an object");
-                } else {
-                    assert!(!new_owner.is_shared(), "Cannot share an existing object");
-                }
-            }
-            (
-                ObjectIn::Data {
-                    version: old_version,
-                    digest: old_digest,
-                    owner: old_owner,
-                },
-                ObjectOut::PackageWrite {
-                    version: new_version,
-                    digest: new_digest,
-                    ..
-                },
-                IDOperation::None,
-            ) => {
-                // system package upgrade.
-                assert!(
-                    old_owner.is_immutable() && id.is_system_package(),
-                    "Must be a system package"
-                );
-                assert_eq!(*old_version + 1, *new_version);
-                assert_ne!(old_digest, new_digest);
-            }
-            _ => {
-                panic!("Impossible object change: {id:?}, {changed:?}");
-            }
-        }
-    }
-
-    // Make sure that gas object exists in changed_objects.
-    let (_, owner) = v1.gas_object();
-    assert!(matches!(owner, Owner::Address(_)));
-
-    for unchanged in &v1.unchanged_shared_objects {
-        let id = &unchanged.object_id;
-        assert!(
-            unique_ids.insert(*id),
-            "Duplicate object id: {id:?}\n{v1:#?}"
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -835,7 +695,7 @@ mod tests {
     /// divergence would split-brain storage and consensus digests.
     #[test]
     fn message_trait_and_effects_digest_match() {
-        let effects = TransactionEffects::empty_for_testing(TransactionDigest::default());
+        let effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
         let message_digest = <TransactionEffects as Message>::digest(&effects);
         let effects_digest = effects.digest();
         assert_eq!(message_digest, effects_digest);

@@ -9,7 +9,7 @@ use crate::{
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEffectsAPI,
+        TransactionEffectsExt,
     },
     execution::SharedInput,
     execution_status::ExecutionStatus,
