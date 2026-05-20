@@ -94,6 +94,7 @@ use crate::{
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         authority_store_tables::LiveObject,
+        authority_store_types::SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -2380,7 +2381,14 @@ impl GlobalStateHashStore for WritebackCache {
             let value = entry.value();
             match value.get_highest().unwrap() {
                 (_, ObjectEntry::Object(object)) => {
-                    dirty_objects.insert(id, LiveObject(object.clone()));
+                    dirty_objects.insert(
+                        id,
+                        LiveObject {
+                            object: object.clone(),
+                            previous_transaction_checkpoint:
+                                SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+                        },
+                    );
                 }
                 (_version, ObjectEntry::Wrapped) => {
                     dirty_objects.remove(&id);

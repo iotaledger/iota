@@ -74,8 +74,8 @@ use tokio::time::Instant;
 /// independent type-level version axes):
 /// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
 ///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
-///   `LiveObjectV2` instead of `LiveObject`, carrying the per-object
-///   `previous_transaction_checkpoint` inline.
+///   `LiveObject` carrying the per-object `previous_transaction_checkpoint`
+///   inline.
 /// - REFERENCE file format is unchanged from V1.
 /// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
 ///   carrying one [`EpochInfoEntry`] per epoch in `[0, snapshot_epoch]` from
@@ -154,10 +154,10 @@ use tokio::time::Instant;
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
 /// V2 object file magic (V1 was `0x00B7EC75`). Encoded records are
-/// BCS-serialized `LiveObjectV2` instead of `LiveObject`, carrying the
-/// per-object `previous_transaction_checkpoint` inline. The magic is bumped
-/// so a V1 reader fails fast on the magic check rather than silently
-/// decoding the extra trailing u64 as part of the next record.
+/// BCS-serialized `LiveObject` carrying the per-object
+/// `previous_transaction_checkpoint` inline. The magic is bumped so a V1
+/// reader fails fast on the magic check rather than silently decoding the
+/// extra trailing u64 as part of the next record.
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
@@ -229,8 +229,8 @@ impl FileMetadata {
 /// the on-disk wire format is the same and the BCS variant tag on `Manifest`
 /// distinguishes them. V2 differs only in semantic associations: the
 /// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
-/// `.obj` records are BCS-encoded `LiveObjectV2` (the live `Object` plus an
-/// inline `previous_transaction_checkpoint`) rather than `LiveObject`.
+/// `.obj` records are BCS-encoded `LiveObject` (carrying an inline
+/// `previous_transaction_checkpoint`).
 /// `address_length` is preserved as a sanity check across versions.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ManifestBody {

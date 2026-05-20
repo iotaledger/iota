@@ -37,7 +37,7 @@ use typed_store::{
 };
 
 use super::{
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject, LiveObjectV2},
+    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     *,
 };
 use crate::{
@@ -759,15 +759,15 @@ impl AuthorityStore {
 
     pub fn bulk_insert_live_objects(
         perpetual_db: &AuthorityPerpetualTables,
-        live_objects: impl Iterator<Item = LiveObjectV2>,
+        live_objects: impl Iterator<Item = LiveObject>,
         expected_sha3_digest: &[u8; 32],
     ) -> IotaResult<()> {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for live_object in live_objects {
-            hasher.update(live_object.live.object_reference().digest.inner());
-            let LiveObjectV2 {
-                live: LiveObject(object),
+            hasher.update(live_object.object_reference().digest.inner());
+            let LiveObject {
+                object,
                 previous_transaction_checkpoint,
             } = live_object;
             let store_object_wrapper =
@@ -1472,7 +1472,7 @@ impl AuthorityStore {
         let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                let LiveObject(object) = o;
+                let object = o.object;
                 size += object.object_size_for_gas_metering();
                 count += 1;
                 pending_objects.push(object);

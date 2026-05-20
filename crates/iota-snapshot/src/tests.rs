@@ -470,9 +470,9 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
 
 /// Asserts that per-object `previous_transaction_checkpoint` survives the
 /// snapshot round-trip end-to-end: stamped on `StoreObjectV2` at insert
-/// time, surfaced by `LiveSetIterV2`, BCS-encoded into `LiveObjectV2`
-/// records in the `.obj` files, decoded by `LiveObjectIter`, and re-stamped
-/// onto the restored DB by `bulk_insert_live_objects`. Without this, a
+/// time, surfaced by `LiveSetIter`, BCS-encoded into `LiveObject` records
+/// in the `.obj` files, decoded by `LiveObjectIter`, and re-stamped onto
+/// the restored DB by `bulk_insert_live_objects`. Without this, a
 /// regression that, e.g., reverted the restore path to stamping
 /// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` would still pass
 /// `snapshot_round_trip` (which only compares `object_reference`s) - this
@@ -545,15 +545,14 @@ async fn snapshot_restores_per_object_checkpoint(
         .read(&restored_perpetual_db, abort_registration, None)
         .await?;
 
-    // Read every restored row through `LiveSetIterV2` (the only iterator
-    // that surfaces the per-object checkpoint) and compare against the
-    // values written before the snapshot was taken.
+    // Read every restored row through `LiveSetIter` and compare against
+    // the values written before the snapshot was taken.
     let restored: HashMap<ObjectID, u64> = restored_perpetual_db
-        .iter_live_object_set_v2()
-        .map(|live_object_v2| {
+        .iter_live_object_set()
+        .map(|live_object| {
             (
-                live_object_v2.live.object_id(),
-                live_object_v2.previous_transaction_checkpoint,
+                live_object.object_id(),
+                live_object.previous_transaction_checkpoint,
             )
         })
         .collect();

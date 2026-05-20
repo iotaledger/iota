@@ -7,7 +7,7 @@ use std::time::Instant;
 use iota_types::{base_types::ObjectID, object::Object, storage::error::Error as StorageError};
 use tracing::info;
 
-use crate::authority::{AuthorityStore, authority_store_tables::LiveObject};
+use crate::authority::AuthorityStore;
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
@@ -89,7 +89,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     for object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .map(|LiveObject(o)| o)
+        .map(|o| o.object)
     {
         object_scanned += 1;
         if object_scanned.is_multiple_of(2_000_000) {

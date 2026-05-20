@@ -147,7 +147,7 @@ pub struct StoreObjectValueV2 {
     /// rows lifted to V2 by `migrate()` and on rows produced by the
     /// snapshot restore path.
     ///
-    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObjectV2`
+    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObject`
     /// records the snapshot V2 writer emits into bucketed `.obj` files.
     /// The indexer reads it to populate object-history tables (i.e. "which
     /// checkpoint last touched this object") without an archive replay.

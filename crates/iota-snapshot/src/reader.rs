@@ -26,10 +26,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_core::authority::{
-    AuthorityStore,
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject, LiveObjectV2},
-};
+use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -51,9 +48,8 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_DIGEST_BYTES,
-    OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, OBJECT_REF_BYTES_V2,
-    REFERENCE_FILE_MAGIC, REFERENCE_FILE_MAGIC_V2, SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
+    OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
     restore::Restore,
 };
 
@@ -707,7 +703,7 @@ impl LiveObjectIter {
         }
     }
 
-    fn next_object(&mut self) -> Result<LiveObjectV2> {
+    fn next_object(&mut self) -> Result<LiveObject> {
         let len = self.reader.read_varint::<u64>()? as usize;
         if len == 0 {
             bail!("Invalid object length of 0 in file");
@@ -724,7 +720,7 @@ impl LiveObjectIter {
 }
 
 impl Iterator for LiveObjectIter {
-    type Item = LiveObjectV2;
+    type Item = LiveObject;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_object().ok()
     }

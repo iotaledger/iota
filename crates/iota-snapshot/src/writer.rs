@@ -21,7 +21,7 @@ use futures::StreamExt;
 use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
-    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObjectV2},
+    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     global_state_hasher::GlobalStateHasher,
 };
 use iota_node_storage::GrpcIndexes;
@@ -91,9 +91,9 @@ impl LiveObjectSetWriterV1 {
 
     /// Writes a live object to the object file and the reference to the
     /// reference file.
-    pub fn write(&mut self, object: &LiveObjectV2) -> Result<()> {
-        let object_reference = object.live.object_reference();
-        self.write_object(object)?;
+    pub fn write(&mut self, live_object: &LiveObject) -> Result<()> {
+        let object_reference = live_object.object_reference();
+        self.write_object(live_object)?;
         self.write_object_ref(&object_reference)?;
         Ok(())
     }
@@ -219,10 +219,10 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Writes a `LiveObjectV2` to the object file. Creates a new partition
+    /// Writes a `LiveObject` to the object file. Creates a new partition
     /// (new object file and reference file) if it exceeds the maximum size.
-    fn write_object(&mut self, object: &LiveObjectV2) -> Result<()> {
-        let blob = Blob::encode(object, BlobEncoding::Bcs)?;
+    fn write_object(&mut self, live_object: &LiveObject) -> Result<()> {
+        let blob = Blob::encode(live_object, BlobEncoding::Bcs)?;
         let mut blob_size = blob.data.len().required_space();
         blob_size += BLOB_ENCODING_BYTES;
         blob_size += blob.data.len();
@@ -434,15 +434,15 @@ impl StateSnapshotWriterV1 {
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()>
     where
-        F: Fn(&LiveObjectV2) -> u32,
+        F: Fn(&LiveObject) -> u32,
     {
         let mut object_writers: HashMap<u32, LiveObjectSetWriterV1> = HashMap::new();
         let local_staging_dir_path =
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
         let mut acc = GlobalStateHash::default();
-        for entry in perpetual_db.iter_live_object_set_v2() {
-            GlobalStateHasher::accumulate_live_object(&mut acc, &entry.live);
-            let bucket_num = bucket_func(&entry);
+        for live_object in perpetual_db.iter_live_object_set() {
+            GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+            let bucket_num = bucket_func(&live_object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
             if let Vacant(slot) = object_writers.entry(bucket_num) {
                 slot.insert(LiveObjectSetWriterV1::new(
@@ -455,7 +455,7 @@ impl StateSnapshotWriterV1 {
             let writer = object_writers
                 .get_mut(&bucket_num)
                 .context("Unexpected missing bucket writer")?;
-            writer.write(&entry)?;
+            writer.write(&live_object)?;
         }
         assert_eq!(
             ECMHLiveObjectSetDigest::from(acc.digest()),
@@ -642,7 +642,7 @@ impl StateSnapshotWriterV1 {
         Ok((f, manifest_file_path))
     }
 
-    fn bucket_func(_object: &LiveObjectV2) -> u32 {
+    fn bucket_func(_live_object: &LiveObject) -> u32 {
         // TODO: Use the hash bucketing function used for accumulator tree if there is
         // one
         1u32

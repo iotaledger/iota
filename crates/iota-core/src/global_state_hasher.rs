@@ -192,8 +192,7 @@ impl GlobalStateHasher {
     }
 
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
-        let LiveObject(object) = live_object;
-        acc.insert(object.compute_object_reference().digest);
+        acc.insert(live_object.object.compute_object_reference().digest);
     }
 
     pub fn digest_live_object_set(&self) -> ECMHLiveObjectSetDigest {

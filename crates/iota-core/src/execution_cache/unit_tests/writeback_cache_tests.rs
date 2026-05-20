@@ -407,11 +407,10 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
-            let LiveObject(o) = o;
-            let id = o.id();
+            let id = o.object.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
-                self.objects.insert(id, o);
+                self.objects.insert(id, o.object);
             }
         });
     }
@@ -592,14 +591,9 @@ async fn test_committed() {
         let observed: BTreeMap<_, _> = s
             .store
             .perpetual_tables
-            .iter_live_object_set_v2()
-            .filter(|entry| tracked_ids.contains(&entry.live.object_id()))
-            .map(|entry| {
-                (
-                    entry.live.object_id(),
-                    entry.previous_transaction_checkpoint,
-                )
-            })
+            .iter_live_object_set()
+            .filter(|entry| tracked_ids.contains(&entry.object_id()))
+            .map(|entry| (entry.object_id(), entry.previous_transaction_checkpoint))
             .collect();
         assert_eq!(observed.len(), tracked_ids.len());
         for ckpt in observed.values() {
