@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
-    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
@@ -167,14 +167,16 @@ pub fn keys() -> Vec<IotaKeyPair> {
     let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
     let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
     let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+
     vec![kp1, kp2, kp3]
 }
 
 pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
     let keys = keys();
-    let kp1 = Ed25519PrivateKey::new(keys[0].to_bytes_no_flag().try_into().unwrap());
-    let kp2 = Secp256k1PrivateKey::new(keys[1].to_bytes_no_flag().try_into().unwrap()).unwrap();
-    let kp3 = Secp256r1PrivateKey::new(keys[2].to_bytes_no_flag().try_into().unwrap());
+    let kp1 = Ed25519PrivateKey::from_bytes(&keys[0].to_bytes_no_flag()).unwrap();
+    let kp2 = Secp256k1PrivateKey::from_bytes(&keys[1].to_bytes_no_flag()).unwrap();
+    let kp3 = Secp256r1PrivateKey::from_bytes(&keys[2].to_bytes_no_flag()).unwrap();
+
     (kp1, kp2, kp3)
 }
 
@@ -193,7 +195,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
         2,
     )
     .unwrap();
-    let addr = multisig_pk.derive_address();
+    let addr = IotaAddress::from(&multisig_pk);
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
     let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
