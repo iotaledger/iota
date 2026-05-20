@@ -84,7 +84,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// this node lacks coverage for that epoch and needs an external
     /// backfill to fill the gap).
     ///
-    /// Distinct from [`get_epoch_info`] (which returns the indexer's
+    /// Distinct from `get_epoch_info` (which returns the indexer's
     /// `EpochInfo` for the live `epochs` table) — different shape, different
     /// consumer, different lifecycle.
     fn get_epoch_info_entry(&self, epoch: EpochId) -> Result<Option<EpochInfoEntry>>;

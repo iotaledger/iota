@@ -276,7 +276,7 @@ impl Manifest {
 /// Entries are wrapped in `Option<>` so the wire format can express "no
 /// row for epoch `i`" without bumping to `EpochInfoV2`. Today's writer
 /// always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
-/// (see [`StateSnapshotWriterV1::check_epoch_indexed_watermark`]) refuses
+/// (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`) refuses
 /// to publish unless every epoch in `[0, snapshot_epoch]` has a fully
 /// populated row — but a future partial-coverage writer (e.g. snapshots
 /// that omit pruned epochs) can emit `None` here without breaking V1

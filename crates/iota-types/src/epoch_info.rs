@@ -21,9 +21,7 @@ use crate::{
 /// `EpochInfo::V1`). Refuses to publish unless `EpochIndexed >=
 /// snapshot_epoch`, so emitted entries always have all four fields set.
 ///
-/// Wire-format: BCS-encoded in RocksDB and on the snapshot wire. The field
-/// order is pinned by `epoch_info_entry_field_order_is_locked` in
-/// [`unit_tests/epoch_info_tests.rs`].
+/// Wire-format: BCS-encoded in RocksDB and on the snapshot wire.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoEntry {
     /// First checkpoint of this epoch (`0` for genesis; otherwise the prior

@@ -262,7 +262,7 @@ pub struct StateSnapshotWriterV1 {
     /// publish snapshots must run with `enable_grpc_api = true` so that
     /// `index_epoch` populates the per-epoch metadata this writer emits.
     /// See the `Watermark::EpochIndexed` precondition in
-    /// [`write_epoch_info`].
+    /// `write_epoch_info`.
     grpc_indexes: Arc<dyn GrpcIndexes>,
     concurrency: usize,
 }
