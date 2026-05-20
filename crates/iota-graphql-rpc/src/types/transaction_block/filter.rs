@@ -30,16 +30,6 @@ pub(crate) struct TransactionBlockFilter {
     pub at_checkpoint: Option<UInt53>,
     /// Limit to transaction that occurred strictly before the given checkpoint.
     pub before_checkpoint: Option<UInt53>,
-    /// Limit to transactions that were sent by the given address. NOTE: this
-    /// input filter has been deprecated in favor of `sentAddress` which has
-    /// clearer semantics. Both filters restrict transactions by their sender,
-    /// only, not signers in general.
-    ///
-    /// This filter will be removed after 6 months with the 1.24.0 release.
-    #[graphql(
-        deprecation = "Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release."
-    )]
-    pub sign_address: Option<IotaAddress>,
     /// Limit to transactions that were sent by the given address.
     pub sent_address: Option<IotaAddress>,
     /// Limit to transactions that sent an object to the given address.
@@ -75,7 +65,6 @@ impl TransactionBlockFilter {
             at_checkpoint: intersect!(at_checkpoint, intersect::by_eq)?,
             before_checkpoint: intersect!(before_checkpoint, intersect::by_min)?,
 
-            sign_address: intersect!(sign_address, intersect::by_eq)?,
             sent_address: intersect!(sent_address, intersect::by_eq)?,
             recv_address: intersect!(recv_address, intersect::by_eq)?,
             input_object: intersect!(input_object, intersect::by_eq)?,
@@ -122,7 +111,7 @@ impl TransactionBlockFilter {
             && self.changed_object.is_none()
             && self.wrapped_or_deleted_object.is_none()
         {
-            self.sent_address.or(self.sign_address)
+            self.sent_address
         } else {
             None
         }
@@ -133,7 +122,6 @@ impl TransactionBlockFilter {
     pub(crate) fn has_filters(&self) -> bool {
         self.function.is_some()
             || self.kind.is_some()
-            || self.sign_address.is_some()
             || self.sent_address.is_some()
             || self.recv_address.is_some()
             || self.input_object.is_some()
@@ -158,16 +146,10 @@ impl TransactionBlockFilter {
             )
             // If SystemTx, sender if specified must be 0x0. Conversely, if sender is 0x0, kind must be SystemTx.
             || matches!(
-                (self.kind, self.sent_address.or(self.sign_address)),
-                (Some(kind), Some(signer))
+                (self.kind, self.sent_address),
+                (Some(kind), Some(sender))
                     if (kind == TransactionBlockKindInput::SystemTx)
-                        != (signer == IotaAddress::from(NativeIotaAddress::ZERO))
-            )
-            // Temporary while we deprecate `sign_address` in favor of `sent_address`.
-            || matches!(
-                (self.sign_address, self.sent_address),
-                (Some(signer), Some(sent))
-                    if signer != sent
+                        != (sender == IotaAddress::from(NativeIotaAddress::ZERO))
             )
     }
 }
