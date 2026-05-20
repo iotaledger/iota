@@ -14,7 +14,6 @@ use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
-    attestation::Attestation,
     base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
     executable_transaction::{
@@ -315,14 +314,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-                    let attestation =
-                        if let ConsensusTransactionKind::UserTransactionV2(a) = &transaction.kind {
-                            Some(a.attestation.clone())
-                        } else {
-                            None
-                        };
                     let transaction = SequencedConsensusTransactionKind::External(transaction);
-                    transactions.push((transaction, authority_index, attestation));
+                    transactions.push((transaction, authority_index));
                 }
             }
         }
@@ -350,9 +343,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             // transactions.
             let mut processed_set = HashSet::new();
 
-            for (seq, (transaction, cert_origin, attestation)) in
-                transactions.into_iter().enumerate()
-            {
+            for (seq, (transaction, cert_origin)) in transactions.into_iter().enumerate() {
                 // In process_consensus_transactions_and_commit_boundary(), we will add a system
                 // consensus commit prologue transaction, which will be the
                 // first transaction in this consensus commit batch. Therefore,
@@ -376,7 +367,6 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     certificate_author,
                     consensus_index: current_tx_index,
                     transaction,
-                    attestation,
                 };
 
                 let key = sequenced_transaction.key();
@@ -549,12 +539,6 @@ pub struct SequencedConsensusTransaction {
     pub certificate_author: AuthorityName,
     pub consensus_index: ExecutionIndices,
     pub transaction: SequencedConsensusTransactionKind,
-    /// Attestation extracted from `UserTransactionV2`. `None` for all other
-    /// transaction kinds. Carried alongside the transaction so the scheduler
-    /// can consult the attested computation cost, and so downstream consumers
-    /// (e.g. checkpointing for rewards/penalties) can reach the attestor's
-    /// identity and observed object versions.
-    pub attestation: Option<Attestation>,
 }
 
 #[derive(Debug, Clone)]
@@ -765,7 +749,6 @@ impl SequencedConsensusTransaction {
             certificate_author: AuthorityName::ZERO,
             consensus_index: Default::default(),
             transaction: SequencedConsensusTransactionKind::External(transaction),
-            attestation: None,
         }
     }
 }

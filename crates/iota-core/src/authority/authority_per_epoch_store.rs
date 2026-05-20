@@ -31,6 +31,7 @@ use iota_protocol_config::{
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
+    attestation::Attestation,
     base_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
@@ -4131,7 +4132,6 @@ impl AuthorityPerEpochStore {
             certificate_author,
             consensus_index: _,
             transaction,
-            attestation,
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
 
@@ -4412,17 +4412,18 @@ impl AuthorityPerEpochStore {
                     | ConsensusTransactionKind::UserTransactionV2(_),
                 ..
             }) => {
-                let transaction: &Transaction = match &transaction {
-                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        kind: ConsensusTransactionKind::UserTransactionV1(t),
-                        ..
-                    }) => t,
-                    SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                        kind: ConsensusTransactionKind::UserTransactionV2(a),
-                        ..
-                    }) => &a.transaction,
-                    _ => unreachable!(),
-                };
+                let (transaction, attestation): (&Transaction, Option<Attestation>) =
+                    match &transaction {
+                        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                            kind: ConsensusTransactionKind::UserTransactionV1(t),
+                            ..
+                        }) => (t, None),
+                        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                            kind: ConsensusTransactionKind::UserTransactionV2(a),
+                            ..
+                        }) => (&a.transaction, Some(a.attestation.clone())),
+                        _ => unreachable!(),
+                    };
                 if transaction.is_system_tx() {
                     warn!("User transaction contains system transaction, ignoring");
                     return Ok(ConsensusTransactionResult::Ignored);
@@ -4467,10 +4468,8 @@ impl AuthorityPerEpochStore {
                         CertificateProof::ConsensusOrdered(self.epoch()),
                     ),
                 );
-                let attested_executable_tx = VerifiedExecutableAttestedTransaction::new(
-                    executable_tx,
-                    attestation.clone(),
-                );
+                let attested_executable_tx =
+                    VerifiedExecutableAttestedTransaction::new(executable_tx, attestation);
 
                 let scheduling_result = self.try_schedule(
                     &attested_executable_tx,
