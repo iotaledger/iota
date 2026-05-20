@@ -345,9 +345,7 @@ fn reference_gas_price(authorities: &AuthorityAggregator<LocalAuthorityClient>) 
 }
 
 fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
-    let mut effects = TransactionEffects::default();
-    *effects.transaction_digest_mut_for_testing() = digest;
-    effects
+    TransactionEffects::empty_for_testing(digest)
 }
 
 /// The intent of this is to test whether client side timeouts

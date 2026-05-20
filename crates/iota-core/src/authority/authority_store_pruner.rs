@@ -935,6 +935,7 @@ mod tests {
 
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+        digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPIForTesting},
         object::Object,
         storage::ObjectKey,
@@ -1060,7 +1061,7 @@ mod tests {
                 total_unique_object_ids,
             )
             .unwrap();
-            let mut effects = TransactionEffects::default();
+            let mut effects = TransactionEffects::empty_for_testing(TransactionDigest::default());
             for object in to_delete {
                 effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                     object.0,
@@ -1153,7 +1154,7 @@ mod tests {
         perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);
 
-        let mut effects = TransactionEffects::default();
+        let mut effects = TransactionEffects::empty_for_testing(TransactionDigest::default());
         for object in to_delete {
             effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                 object.0,

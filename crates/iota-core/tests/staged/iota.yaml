@@ -291,13 +291,13 @@ ECMHLiveObjectSetDigest:
         TYPENAME: Digest
 EffectsObjectChange:
   STRUCT:
-    - objectId:
+    - object_id:
         TYPENAME: ObjectId
-    - inputState:
+    - input_state:
         TYPENAME: ObjectIn
-    - outputState:
+    - output_state:
         TYPENAME: ObjectOut
-    - idOperation:
+    - id_operation:
         TYPENAME: IdOperation
 EmptySignInfo:
   STRUCT: []

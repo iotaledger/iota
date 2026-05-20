@@ -410,6 +410,22 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
+    fn empty_for_testing(transaction_digest: TransactionDigest) -> Self {
+        Self::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            transaction_digest,
+            Version::default(),
+            BTreeMap::new(),
+            None,
+            None,
+            vec![],
+        )
+    }
+
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
         &mut self.status
     }

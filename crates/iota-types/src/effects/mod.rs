@@ -85,7 +85,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     fn new_from_execution_v1(
         status: ExecutionStatus,
         epoch: EpochId,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
@@ -240,6 +240,13 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates, and dependencies don't get built with cfg(test) set as far as I
     // can tell.
+    /// Builds empty effects for `transaction_digest` with no object changes
+    /// and no gas object. Useful for system transactions whose effects content
+    /// is irrelevant to a test.
+    fn empty_for_testing(transaction_digest: TransactionDigest) -> Self
+    where
+        Self: Sized;
+
     /// Returns a mutable reference to the execution status, for tests.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
 
@@ -331,7 +338,7 @@ impl TransactionEffectsAPI for TransactionEffects {
     fn new_from_execution_v1(
         status: ExecutionStatus,
         epoch: EpochId,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
         shared_objects: Vec<SharedInput>,
         loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
         transaction_digest: TransactionDigest,
@@ -344,7 +351,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         TransactionEffects::V1(Box::new(TransactionEffectsV1::new_from_execution_v1(
             status,
             epoch,
-            gas_used,
+            gas_cost_summary,
             shared_objects,
             loaded_per_epoch_config_objects,
             transaction_digest,
@@ -438,6 +445,22 @@ impl TransactionEffectsAPI for TransactionEffects {
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffects {
+    fn empty_for_testing(transaction_digest: TransactionDigest) -> Self {
+        Self::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            transaction_digest,
+            SequenceNumber::default(),
+            BTreeMap::new(),
+            None,
+            None,
+            vec![],
+        )
+    }
+
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
         delegate_effects_api!(self, status_mut_for_testing)
     }
@@ -560,7 +583,7 @@ impl TransactionEffectsExt for TransactionEffects {
         TransactionEffectsDebugSummary {
             bcs_size: bcs::serialized_size(self).unwrap(),
             status: self.status().clone(),
-            gas_used: self.gas_cost_summary().clone(),
+            gas_cost_summary: self.gas_cost_summary().clone(),
             transaction_digest: *self.transaction_digest(),
             created_object_count: self.created().len(),
             mutated_object_count: self.mutated().len(),
@@ -588,7 +611,7 @@ pub struct TransactionEffectsDebugSummary {
     /// Size of bcs serialized bytes of the effects.
     pub bcs_size: usize,
     pub status: ExecutionStatus,
-    pub gas_used: GasCostSummary,
+    pub gas_cost_summary: GasCostSummary,
     pub transaction_digest: TransactionDigest,
     pub created_object_count: usize,
     pub mutated_object_count: usize,
@@ -761,10 +784,22 @@ mod tests {
     /// the trait, while direct call sites resolve to the inherent. Silent
     /// divergence would split-brain storage and consensus digests.
     #[test]
-    fn message_and_inherent_digest_agree() {
-        let effects = TransactionEffects::default();
-        let trait_digest = <TransactionEffects as Message>::digest(&effects);
-        let inherent_digest = effects.digest();
-        assert_eq!(trait_digest, inherent_digest);
+    fn message_trait_and_effects_digest_match() {
+        let effects = TransactionEffects::V1(Box::new(TransactionEffectsV1 {
+            status: ExecutionStatus::Success,
+            epoch: 0,
+            gas_cost_summary: GasCostSummary::default(),
+            transaction_digest: TransactionDigest::default(),
+            gas_object_index: None,
+            events_digest: None,
+            dependencies: vec![],
+            lamport_version: Version::default(),
+            changed_objects: vec![],
+            unchanged_shared_objects: vec![],
+            auxiliary_data_digest: None,
+        }));
+        let message_digest = <TransactionEffects as Message>::digest(&effects);
+        let effects_digest = effects.digest();
+        assert_eq!(message_digest, effects_digest);
     }
 }

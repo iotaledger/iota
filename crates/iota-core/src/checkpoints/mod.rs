@@ -3055,12 +3055,11 @@ mod tests {
     fn e(
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::default();
-        *effects.transaction_digest_mut_for_testing() = transaction_digest;
+        let mut effects = TransactionEffects::empty_for_testing(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
-        *effects.gas_cost_summary_mut_for_testing() = gas_used;
+        *effects.gas_cost_summary_mut_for_testing() = gas_cost_summary;
         effects
     }
 
@@ -3069,10 +3068,10 @@ mod tests {
         state: Arc<AuthorityState>,
         digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) {
         let epoch_store = state.epoch_store_for_testing();
-        let effects = e(digest, dependencies, gas_used);
+        let effects = e(digest, dependencies, gas_cost_summary);
         store.insert(digest, effects);
         epoch_store
             .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)

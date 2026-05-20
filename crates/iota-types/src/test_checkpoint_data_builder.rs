@@ -15,7 +15,10 @@ use crate::{
     },
     committee::Committee,
     digests::TransactionDigest,
-    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
+        TransactionEffectsAPIForTesting, TransactionEvents,
+    },
     event::{Event, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
@@ -595,12 +598,14 @@ impl TestCheckpointDataBuilder {
 
         let transaction_events = events.map(|events| TransactionEvents { data: events });
 
+        let effects = TransactionEffects::empty_for_testing(*end_of_epoch_tx.digest());
+
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder
             .transactions
             .push(CheckpointTransaction {
                 transaction: end_of_epoch_tx,
-                effects: Default::default(),
+                effects,
                 events: transaction_events,
                 input_objects: vec![],
                 output_objects: vec![],

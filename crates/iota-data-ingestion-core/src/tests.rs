@@ -19,7 +19,7 @@ use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
-    effects::TransactionEffects,
+    effects::{TransactionEffects, TransactionEffectsAPIForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -450,9 +450,11 @@ async fn basic_flow_with_custom_callback() {
         0,
     );
 
+    let transaction = Transaction::from_data(tx_data, vec![]);
+    let effects = TransactionEffects::empty_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
-        transaction: Transaction::from_data(tx_data, vec![]),
-        effects: TransactionEffects::default(),
+        transaction,
+        effects,
         events: None,
         input_objects: vec![],
         output_objects: vec![],

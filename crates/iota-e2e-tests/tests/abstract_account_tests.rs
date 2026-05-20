@@ -445,7 +445,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         "Expected the TX execution to fail"
     );
     assert!(
-        summary.gas_used.gas_used() == 3401600
+        summary.gas_cost_summary.gas_used() == 3401600
             && summary.mutated_object_count == 2
             && summary.created_object_count == 0
             && summary.unwrapped_object_count == 0
