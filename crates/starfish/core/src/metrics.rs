@@ -255,8 +255,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
-    pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1164,12 +1162,6 @@ impl NodeMetrics {
                 "missing_proposals_by_authority",
                 "Missing proposals per authority (source: persisted or in_memory)",
                 &["authority", "source"],
-                registry,
-            ).unwrap(),
-            invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(
-                "invalid_misbehavior_reports_by_authority",
-                "Number of invalid misbehavior reports received from each authority",
-                &["authority"],
                 registry,
             ).unwrap(),
         }

@@ -165,6 +165,16 @@ impl ReportAggregator {
             .fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Per-authority snapshot of the cumulative invalid-report counts, indexed
+    /// by consensus `AuthorityIndex`. Used by the consensus handler to publish
+    /// the corresponding Prometheus gauge with hostname labels.
+    pub(crate) fn invalid_reports_counts(&self) -> Vec<u64> {
+        self.received_reports_state
+            .iter()
+            .map(|s| s.invalid_reports_count.load(Ordering::Relaxed))
+            .collect()
+    }
+
     #[cfg(test)]
     pub(crate) fn received_reports_state_per_authority_snapshot(
         &self,
