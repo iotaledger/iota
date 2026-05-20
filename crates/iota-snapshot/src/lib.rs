@@ -142,10 +142,8 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │   bcs(EpochInfo)             │
 /// └──────────────────────────────┘
-/// See [`EpochInfo`] for the schema. The snapshot crate treats
-/// `EpochInfoEntry::start_system_state` as opaque bytes; only the indexer
-/// decodes it. Integrity is anchored by `FileMetadata::sha3_digest` in
-/// the MANIFEST (matching `.obj`/`.ref`); no in-file sha3 trailer.
+/// See [`EpochInfo`] for the schema. `FileMetadata::sha3_digest` in the
+/// MANIFEST can be used to verify file integrity.
 ///
 /// MANIFEST File Disk Format
 /// ┌──────────────────────────────┐
