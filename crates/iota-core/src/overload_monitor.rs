@@ -23,7 +23,7 @@ use tokio::time::sleep;
 use tracing::{debug, info};
 use twox_hash::XxHash64;
 
-use crate::authority::AuthorityState;
+use crate::{authority::AuthorityState, consensus_adapter::ConsensusAdapter};
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -73,6 +73,44 @@ pub async fn overload_monitor(
     }
 
     info!("Shut down system overload monitor.");
+}
+
+/// Periodically refreshes the `consensus_queue_load_shedding_percentage`
+/// metric so it tracks the current consensus queue depth even when no
+/// gRPC traffic is arriving (which would otherwise be the only path that
+/// updates the metric, via `check_consensus_queue_graduated_limits` on
+/// `AuthorityState`). Used only in the certificate-less (pcool / white-flag)
+/// mode.
+pub async fn consensus_queue_overload_monitor(
+    authority_state: Weak<AuthorityState>,
+    consensus_adapter: Weak<ConsensusAdapter>,
+    interval: Duration,
+) {
+    info!("Starting consensus queue overload monitor.");
+
+    loop {
+        let (Some(state), Some(adapter)) = (authority_state.upgrade(), consensus_adapter.upgrade())
+        else {
+            // Either `authority_state` or `consensus_adapter` doesn't exist
+            // anymore. Quit monitor.
+            break;
+        };
+
+        let num_inflight_txs = adapter.num_inflight_transactions() as usize;
+        let shedding_pct = compute_graduated_load_shedding_percentage(
+            num_inflight_txs,
+            adapter.max_pending_transactions(),
+            adapter.graduated_load_shedding_soft_limit_pct(),
+        );
+        state
+            .metrics
+            .consensus_queue_load_shedding_percentage
+            .set(shedding_pct as i64);
+
+        sleep(interval).await;
+    }
+
+    info!("Shut down consensus queue overload monitor.");
 }
 
 // Checks authority overload signals, and updates authority's `overload_info`.
@@ -229,7 +267,7 @@ fn check_overload_signals(
     (overload_status, load_shedding_percentage)
 }
 
-// Return true if we should reject the txn with `tx_digest`.
+/// Return true if we should reject the txn with `tx_digest`.
 fn should_reject_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
@@ -243,7 +281,7 @@ fn should_reject_tx(
     value % 100 < load_shedding_percentage as u64
 }
 
-// Checks if we can accept the transaction with `tx_digest`.
+/// Checks if we can accept the transaction with `tx_digest`.
 pub fn overload_monitor_accept_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
@@ -270,6 +308,60 @@ pub fn overload_monitor_accept_tx(
     Ok(())
 }
 
+/// Computes the graduated load shedding percentage based on the current value
+/// relative to its hard limit. Returns 0 if `current` is at or below the soft
+/// limit (computed as `hard_limit * soft_limit_pct / 100`), linearly scales
+/// from 0% to 100% between soft and hard limits, and returns 100% if `current`
+/// is at or above `hard_limit`.
+///
+/// `soft_limit_pct` is expected to be in `[0, 100]`. Values above 100 are
+/// clamped to 100 in release builds and trigger a debug assertion in debug
+/// builds.
+///
+/// Setting `soft_limit_pct = 100` degenerates into a hard binary cutoff: no
+/// shedding below `hard_limit`, full (100%) shedding at and above it.
+///
+/// NOTE: `soft_limit` is computed via integer division `hard_limit *
+/// soft_limit_pct / 100`, so it floors. This is negligible for typical
+/// queue sizes (thousands).
+pub(crate) fn compute_graduated_load_shedding_percentage(
+    current: usize,
+    hard_limit: usize,
+    soft_limit_pct: u32,
+) -> u32 {
+    debug_assert!(
+        soft_limit_pct <= 100,
+        "soft_limit_pct must be <= 100, got {soft_limit_pct}"
+    );
+    // Clamp `soft_limit_pct` to 100% to be safe in release builds.
+    let soft_limit_pct = soft_limit_pct.min(100);
+    // Convert soft limit percentage to absolute soft limit.
+    let soft_limit = hard_limit * soft_limit_pct as usize / 100;
+
+    // At or above hard limit, shed at maximum percentage.
+    // WARN: this hard limit check must come BEFORE the soft limit check.
+    // When `soft_limit_pct == 100`, soft_limit == hard_limit, and at `current ==
+    // hard_limit`, we want 100% shedding (binary cutoff behavior), not 0%.
+    // Swapping the order would incorrectly return 0 in this degenerate case.
+    if current >= hard_limit {
+        return 100;
+    }
+
+    // No shedding below or at soft limit.
+    if current <= soft_limit {
+        return 0;
+    }
+
+    // The two early returns above imply that at this point,
+    // `soft_limit < current < hard_limit`, so the following two
+    // subtraction results are guaranteed to be strictly > 0.
+    let range = hard_limit - soft_limit;
+    let excess = current - soft_limit;
+
+    // Linear interpolation: 0% at `soft_limit`, 100% at `hard_limit`.
+    (excess * 100 / range) as u32
+}
+
 #[cfg(test)]
 #[expect(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
 // driver interaction.
@@ -294,7 +386,7 @@ mod tests {
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
     #[test]
-    pub fn test_authority_overload_info() {
+    fn test_authority_overload_info() {
         let overload_info = AuthorityOverloadInfo::default();
         assert!(!overload_info.is_overload.load(Ordering::Relaxed));
         assert_eq!(
@@ -340,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_calculate_load_shedding_ratio() {
+    fn test_calculate_load_shedding_ratio() {
         assert_eq!(calculate_load_shedding_percentage(95.0, 100.1), 0);
         assert_eq!(calculate_load_shedding_percentage(95.0, 100.0), 2);
         assert_eq!(calculate_load_shedding_percentage(100.0, 100.0), 7);
@@ -351,7 +443,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_check_overload_signals() {
+    fn test_check_overload_signals() {
         let config = AuthorityOverloadConfig {
             execution_queue_latency_hard_limit: Duration::from_secs(10),
             execution_queue_latency_soft_limit: Duration::from_secs(1),
@@ -430,8 +522,91 @@ mod tests {
         );
     }
 
+    /// Tests [`compute_graduated_load_shedding_percentage`]:
+    /// - 0% at or below the soft limit (`hard_limit * soft_limit_pct / 100`)
+    /// - linear scaling between soft and hard limits
+    /// - 100% at or above the hard limit
+    /// - degenerate cases for `soft_limit_pct = 0` and `soft_limit_pct = 100`
+    #[test]
+    fn test_compute_graduated_load_shedding_percentage() {
+        let hard_limit = 20_000;
+        let soft_limit_pct = 50;
+        let soft_limit = hard_limit * soft_limit_pct as usize / 100; // 10_000
+
+        // Below and at soft limit: no shedding.
+        for current in [0, soft_limit - 1, soft_limit] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
+                0,
+                "no shedding expected at or below soft limit ({current} <= {soft_limit})",
+            );
+        }
+
+        // Linear scaling between soft and hard limits:
+        //  - At 25% of range (12_500): 100 * 2_500 / 10_000 = 25
+        //  - At midpoint (15_000):     100 * 5_000 / 10_000 = 50
+        //  - At 75% of range (17_500): 100 * 7_500 / 10_000 = 75
+        //  - Just below hard limit:    100 * 9_999 / 10_000 = 99
+        for (current, expected_pct) in [
+            (12_500, 25),
+            (15_000, 50),
+            (17_500, 75),
+            (hard_limit - 1, 99),
+        ] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
+                expected_pct,
+                "expected shedding percentage to be {expected_pct}% at current={current}",
+            );
+        }
+
+        // At and above hard limit: 100%.
+        for current in [hard_limit, hard_limit + 1, 30_000] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
+                100,
+                "expected 100% shedding at/above hard limit ({current} >= {hard_limit})",
+            );
+        }
+
+        // Degenerate: soft_limit_pct = 100 acts as a binary cutoff:
+        // - below hard_limit: 0%; at/above: 100%.
+        for current in [0, hard_limit - 1] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(current, hard_limit, 100),
+                0,
+                "soft_limit_pct=100: no shedding expected below hard limit ({current} < {hard_limit})",
+            );
+        }
+        for current in [hard_limit, hard_limit + 1] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage(current, hard_limit, 100),
+                100,
+                "soft_limit_pct=100: full shedding expected at/above hard limit ({current} >= \
+                    {hard_limit})",
+            );
+        }
+
+        // Degenerate: soft_limit_pct = 0 means soft_limit = 0; any current > 0 sheds.
+        assert_eq!(
+            compute_graduated_load_shedding_percentage(0, hard_limit, 0),
+            0,
+            "soft_limit_pct=0: at current=0, no shedding expected (current <= soft_limit=0)",
+        );
+        assert_eq!(
+            compute_graduated_load_shedding_percentage(hard_limit / 2, hard_limit, 0),
+            50,
+            "soft_limit_pct=0: at midpoint of hard_limit, 50% shedding expected",
+        );
+        assert_eq!(
+            compute_graduated_load_shedding_percentage(hard_limit, hard_limit, 0),
+            100,
+            "soft_limit_pct=0: at hard_limit, 100% shedding expected",
+        );
+    }
+
     #[tokio::test(flavor = "current_thread")]
-    pub async fn test_check_authority_overload() {
+    async fn test_check_authority_overload() {
         telemetry_subscribers::init_for_testing();
 
         let config = AuthorityOverloadConfig {
@@ -646,7 +821,7 @@ mod tests {
     // Tests that when request generation rate is slower than execution rate, no
     // requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_no_overload() {
+    async fn test_workload_consistent_no_overload() {
         telemetry_subscribers::init_for_testing();
         run_consistent_workload_test(900.0, 1000.0, 0.0, 0.0).await;
     }
@@ -654,7 +829,7 @@ mod tests {
     // Tests that when request generation rate is slightly above execution rate, a
     // small portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_slightly_overload() {
+    async fn test_workload_consistent_slightly_overload() {
         telemetry_subscribers::init_for_testing();
         // Dropping rate should be around 15%.
         run_consistent_workload_test(1100.0, 1000.0, 0.05, 0.25).await;
@@ -663,7 +838,7 @@ mod tests {
     // Tests that when request generation rate is much higher than execution rate, a
     // large portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_overload() {
+    async fn test_workload_consistent_overload() {
         telemetry_subscribers::init_for_testing();
         // Dropping rate should be around 70%.
         run_consistent_workload_test(3000.0, 1000.0, 0.6, 0.8).await;
@@ -672,7 +847,7 @@ mod tests {
     // Tests that when there is a very short single spike, no request should be
     // dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_single_spike() {
+    async fn test_workload_single_spike() {
         telemetry_subscribers::init_for_testing();
         let (state, monitor_handle) = start_overload_monitor().await;
 
@@ -711,7 +886,7 @@ mod tests {
     // Tests that when there are regular spikes that keep queueing latency
     // consistently high, overload monitor should kick in and shed load.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    pub async fn test_workload_consistent_short_spike() {
+    async fn test_workload_consistent_short_spike() {
         telemetry_subscribers::init_for_testing();
         let (state, monitor_handle) = start_overload_monitor().await;
 
