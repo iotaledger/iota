@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -1559,7 +1559,10 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     async fn new() -> Self {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_protocol_version(ProtocolVersion::new(25))
+            .build()
+            .await;
 
         Self {
             test_cluster,
