@@ -73,7 +73,7 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::overload_monitor,
+    overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     storage::{GrpcReadStore, RocksDbStore},
@@ -159,6 +159,11 @@ pub mod metrics;
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
+    /// Handle for the consensus queue overload monitor task, present only
+    /// when the certificate-less (pcool / white-flag) flow is enabled. The
+    /// task self-terminates via `Weak` references; this handle exists purely
+    /// for ownership clarity.
+    consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
     /// Handle for the soft-lock expiry sweep task. The task self-terminates
     /// via a `Weak` reference; this handle exists purely for ownership clarity.
     soft_lock_sweep_handle: JoinHandle<()>,
@@ -1238,6 +1243,27 @@ impl IotaNode {
             None
         };
 
+        // Starts a monitor that periodically refreshes the
+        // `consensus_queue_load_shedding_percentage` metric. Without this, the
+        // metric goes stale once gRPC traffic stops (the only other update
+        // path is `AuthorityState::check_consensus_queue_graduated_limits`, called on
+        // each inbound tx). Used in the certificate-less (pcool / white-flag)
+        // mode.
+        let consensus_queue_overload_monitor_handle =
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                let consensus_queue_monitor_authority_state = Arc::downgrade(&state);
+                let consensus_queue_monitor_consensus_adapter = Arc::downgrade(&consensus_adapter);
+                let consensus_queue_monitor_interval =
+                    config.authority_overload_config.overload_monitor_interval;
+                Some(spawn_monitored_task!(consensus_queue_overload_monitor(
+                    consensus_queue_monitor_authority_state,
+                    consensus_queue_monitor_consensus_adapter,
+                    consensus_queue_monitor_interval,
+                )))
+            } else {
+                None
+            };
+
         Self::start_epoch_specific_validator_components(
             &config,
             state.clone(),
@@ -1253,6 +1279,7 @@ impl IotaNode {
             soft_locks,
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
             soft_lock_sweep_handle,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1278,6 +1305,7 @@ impl IotaNode {
         soft_locks: Arc<PreConsensusSoftLocks>,
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
+        consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
         soft_lock_sweep_handle: JoinHandle<()>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
@@ -1352,6 +1380,7 @@ impl IotaNode {
         Ok(ValidatorComponents {
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
             soft_lock_sweep_handle,
             consensus_manager,
             consensus_store_pruner,
@@ -1441,6 +1470,7 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
+            consensus_config.graduated_load_shedding_soft_limit_pct(),
         )
     }
 
@@ -1843,6 +1873,7 @@ impl IotaNode {
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
                 validator_overload_monitor_handle,
+                consensus_queue_overload_monitor_handle,
                 soft_lock_sweep_handle,
                 consensus_manager,
                 consensus_store_pruner,
@@ -1907,6 +1938,7 @@ impl IotaNode {
                             soft_locks,
                             validator_server_handle,
                             validator_overload_monitor_handle,
+                            consensus_queue_overload_monitor_handle,
                             soft_lock_sweep_handle,
                             checkpoint_metrics,
                             iota_tx_validator_metrics,
