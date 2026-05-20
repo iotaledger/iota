@@ -13,13 +13,13 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_crypto::{Signer as SdkSigner, simple::SimpleKeypair};
+use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::crypto::{Intent, IntentMessage, SimpleSignature};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
-    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey, MultisigMemberSignature},
+    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     object::Owner,
     signature::GenericSignature,
     transaction::{
@@ -388,30 +388,15 @@ impl TestTransactionBuilder {
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&SimpleKeypair],
+        signers: &[&dyn SdkSigner<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
         let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
-
-        let signatures = signers
-            .iter()
-            .map(|kp| match SdkSigner::sign(*kp, &*digest) {
-                SimpleSignature::Ed25519 { signature, .. } => {
-                    MultisigMemberSignature::Ed25519(signature)
-                }
-                SimpleSignature::Secp256k1 { signature, .. } => {
-                    MultisigMemberSignature::Secp256k1(signature)
-                }
-                SimpleSignature::Secp256r1 { signature, .. } => {
-                    MultisigMemberSignature::Secp256r1(signature)
-                }
-                _ => panic!("unsupported signature scheme for multisig"),
-            })
-            .collect();
-
+        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
         let multisig =
             GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
+
         Transaction::from_generic_sig_data(data, vec![multisig])
     }
 }
