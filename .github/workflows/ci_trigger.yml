@@ -49,17 +49,8 @@ name: PR CI checkbox trigger
 # `develop` too (`ref: 'develop'`), so a fork can't ship a modified
 # workflow file via the PR.
 
-# >>> TEMP — REVERT BEFORE MERGE <<<
-# `pull_request_target` is replaced with `pull_request` so this PR's own
-# branch version of the workflow actually runs (pull_request_target always
-# uses the base-branch file, which doesn't have ci_trigger.yml yet). The
-# checkout step below also picks up the PR-branch version of the
-# dispatcher script under `pull_request` (default checkout = merged ref),
-# which is exactly what we want for testing this PR. Revert to
-# `pull_request_target` before merging — that will also switch the loaded
-# script back to the `develop` copy.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited]
 
 # If a user clicks twice quickly, let the newer run cancel the older one.

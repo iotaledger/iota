@@ -141,17 +141,25 @@ module.exports = async ({ github, context, core }) => {
       pr_number: String(prNumber),
       head_sha: headSha,
     };
-    // >>> TEMP — REVERT BEFORE MERGE <<<
-    // Dry-run: log what WOULD be dispatched instead of actually calling
-    // createWorkflowDispatch. heavy_tests.yml isn't on `develop` yet so a
-    // real dispatch would 404. This still exercises the regex / uncheck /
-    // bot-loop guard / active-run check end-to-end. Restore the
-    // createWorkflowDispatch try/catch block (see git history) before
-    // merging.
-    core.notice(
-      `DRY-RUN: would dispatch ${workflow} (label: "${label}") ` +
-        `with inputs ${JSON.stringify(inputs)}`,
+    core.info(
+      `Dispatching ${workflow} (label: "${label}") with ${JSON.stringify(inputs)}`,
     );
+    try {
+      await github.rest.actions.createWorkflowDispatch({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        workflow_id: workflow,
+        ref: 'develop',
+        inputs,
+      });
+    } catch (err) {
+      failed += 1;
+      core.warning(
+        `Failed to dispatch ${workflow}: ${err.message}. ` +
+          `Check that the workflow exists on \`develop\` and accepts ` +
+          `the inputs being passed (${Object.keys(inputs).join(', ')}).`,
+      );
+    }
   }
   if (failed > 0) {
     core.setFailed(`${failed} of ${triggered.length} dispatch(es) failed.`);
