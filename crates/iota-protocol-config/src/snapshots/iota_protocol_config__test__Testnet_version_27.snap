@@ -36,6 +36,7 @@ feature_flags:
   separate_gas_price_feedback_mechanism_for_randomness: true
   metadata_in_module_bytes: true
   publish_package_metadata: true
+  package_metadata_v2: true
   enable_move_authentication: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
