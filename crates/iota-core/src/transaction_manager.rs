@@ -18,7 +18,9 @@ use iota_types::{
     committee::EpochId,
     digests::TransactionEffectsDigest,
     error::{IotaError, IotaResult},
-    executable_transaction::{VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction},
+    executable_transaction::{
+        VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction,
+    },
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
@@ -388,10 +390,7 @@ impl TransactionManager {
         certs: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs
-            .into_iter()
-            .map(|cert| (cert, None, None))
-            .collect();
+        let certs = certs.into_iter().map(|cert| (cert, None, None)).collect();
         self.enqueue_impl(certs, epoch_store)
     }
 

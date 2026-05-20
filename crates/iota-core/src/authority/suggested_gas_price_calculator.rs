@@ -2265,8 +2265,8 @@ mod tests {
         let max_execution_duration_per_commit = match per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 0,
-            PerObjectCongestionControlMode::TotalComputationCost => unimplemented!(),
-            PerObjectCongestionControlMode::TotalGasBudget => 2_999_999,
+            PerObjectCongestionControlMode::TotalGasBudget
+            | PerObjectCongestionControlMode::TotalComputationCost => 2_999_999,
         };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,

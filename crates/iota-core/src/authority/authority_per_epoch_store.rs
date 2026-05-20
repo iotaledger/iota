@@ -3721,7 +3721,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<(
         Vec<VerifiedExecutableAttestedTransaction>, // non-randomness transactions to schedule
         Vec<VerifiedExecutableAttestedTransaction>, // randomness transactions to schedule
-        Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
+        Vec<SequencedConsensusTransactionKey>,      // keys to notify as complete
         Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
