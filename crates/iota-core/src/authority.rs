@@ -1184,7 +1184,11 @@ impl AuthorityState {
         };
 
         // Step 7: build AttestationData.
-        let estimated_computation_cost = effects.gas_cost_summary().computation_cost;
+        // `gas_cost_summary().computation_cost` is in NANO; convert to gas
+        // units (`computation_units = computation_cost / gas_price`) so the
+        // attestation is independent of the gas price the user chose.
+        let estimated_computation_cost =
+            effects.gas_cost_summary().computation_cost / tx_data.gas_price();
 
         // Collect all input object refs seen during execution. Start from the
         // owned objects (extracted in step 5), then add shared objects as

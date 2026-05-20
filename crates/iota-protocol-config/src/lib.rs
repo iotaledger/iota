@@ -2800,6 +2800,10 @@ impl ProtocolConfig {
                         // shared-object scheduling.
                         cfg.feature_flags.per_object_congestion_control_mode =
                             PerObjectCongestionControlMode::TotalComputationCost;
+                        // Raise the per-object commit limit to match
+                        // `max_tx_gas / reference_gas_price` (50 IOTA / 1000) = 50M
+                        // computation gas units — room for one max-budget transaction.
+                        cfg.max_accumulated_txn_cost_per_object_in_mysticeti_commit = Some(50_000_000);
                     }
                 }
 
