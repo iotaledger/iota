@@ -36,6 +36,12 @@ fn make_fb(
     OperationFeedback::builder(v, String::new(), op).result_at(result, ts)
 }
 
+fn now() -> Instant {
+    // `Instant::now()` requires a tokio runtime when run in simtests.
+    // The tests in this module only need some value without touching runtime.
+    Instant::from_std(std::time::Instant::now())
+}
+
 /// Feed all 4 operations interleaved at each timestep.
 ///
 /// Operations must be interleaved (not sequential per-op) because
@@ -80,7 +86,7 @@ mod scoring {
         let mut stats_ok = ClientObservedStats::new(config.clone());
         let mut stats_fail = ClientObservedStats::new(config);
         let v = gen_validator();
-        let t0 = Instant::now();
+        let t0 = now();
         let dt = Duration::from_millis(100);
 
         let mut last_ok = (0.0f64, 0.0f64);
@@ -117,7 +123,7 @@ mod scoring {
         let mut stats_fast = ClientObservedStats::new(config.clone());
         let mut stats_slow = ClientObservedStats::new(config);
         let v = gen_validator();
-        let t0 = Instant::now();
+        let t0 = now();
         let dt = Duration::from_millis(100);
 
         let mut last_fast = (0.0f64, 0.0f64);
@@ -160,7 +166,7 @@ mod selection {
         let stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let result = stats.select_shuffled_preferred_validators(
             std::iter::empty::<&AuthorityName>(),
-            Instant::now(),
+            now(),
             rand::thread_rng(),
         );
         assert!(result.is_empty());
@@ -171,7 +177,7 @@ mod selection {
     fn single_validator_returned() {
         let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let v = gen_validator();
-        let t0 = Instant::now();
+        let t0 = now();
         feed_all(&mut stats, v, Ok(100), 5, t0, Duration::from_millis(100));
         let now = t0 + Duration::from_millis(600);
         let result =
@@ -195,7 +201,7 @@ mod selection {
         let mut stats = ClientObservedStats::new(config);
         let v_good = gen_validator();
         let v_bad = gen_validator();
-        let t0 = Instant::now();
+        let t0 = now();
         let dt = Duration::from_millis(100);
         feed_all(&mut stats, v_good, Ok(50), 20, t0, dt);
         feed_all(&mut stats, v_bad, Ok(5000), 20, t0, dt);
@@ -216,11 +222,8 @@ mod selection {
     fn all_unknown_validators_returned() {
         let stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let v = gen_validators(5);
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            Instant::now(),
-            rand::thread_rng(),
-        );
+        let result =
+            stats.select_shuffled_preferred_validators(v.iter(), now(), rand::thread_rng());
         assert_eq!(
             result.len(),
             v.len(),
@@ -241,7 +244,7 @@ mod data_management {
     fn retain_validators_removes_stale() {
         let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let v = gen_validators(4);
-        let t0 = Instant::now();
+        let t0 = now();
         for vi in &v {
             feed_all(&mut stats, *vi, Ok(100), 5, t0, Duration::from_millis(100));
         }
@@ -260,7 +263,7 @@ mod data_management {
     fn unique_validator_count_tracked_correctly() {
         let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let v = gen_validators(5);
-        let t0 = Instant::now();
+        let t0 = now();
         let dt = Duration::from_millis(100);
         // v[i] gets i+1 observations; v[4] is last updated at t0 + 5*dt.
         for (i, vi) in v.iter().enumerate() {
