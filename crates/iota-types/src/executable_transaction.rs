@@ -85,16 +85,13 @@ impl VerifiedExecutableTransaction {
 }
 
 /// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
-/// [`Attestation`] (if any). Local, runtime-only, never serialized or
-/// checkpointed. Carrying the full attestation (rather than just a derived
-/// hint like `estimated_computation_cost`) lets downstream code consult both
-/// scheduling metadata now and attestor identity / observed object versions
-/// later (e.g. for checkpoint-driven rewards/penalties).
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
 #[derive(Clone, Debug)]
 pub struct VerifiedExecutableAttestedTransaction {
     pub tx: VerifiedExecutableTransaction,
-    /// `None` for unattested transactions (e.g. `UserTransactionV1`, system
-    /// transactions, replay).
+    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
     pub attestation: Option<Attestation>,
 }
 
