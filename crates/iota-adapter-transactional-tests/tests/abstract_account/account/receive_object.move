@@ -3,7 +3,7 @@
 
 // absract account can receive objects
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 --accounts A --package-metadata-v2 false
 
 //# publish --sender A
 module test::authenticate;

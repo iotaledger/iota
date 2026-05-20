@@ -102,31 +102,33 @@ fun package_metadata_conversion_preserves_id_and_authenticator_metadata() {
     let module_name = ascii::string(b"module");
     let function_name = ascii::string(b"authenticate");
 
-    let metadata = package_metadata::create_package_metadata_v1_for_testing_one_authenticator(
+    let metadata_v1 = package_metadata::create_package_metadata_v1_for_testing_one_authenticator(
         package,
         module_name,
         function_name,
         type_name::get<TestAccount>(),
     );
-    let metadata_id = object::id(&metadata);
+    let metadata_id = object::id(&metadata_v1);
 
-    let metadata = package_metadata::package_metadata_v1_to_v2(metadata);
-    assert_eq(object::id(&metadata), metadata_id);
-    assert_eq(metadata.storage_id_v2(), package);
-    let authenticator_metadata = metadata
+    let metadata_v2 = package_metadata::package_metadata_v1_to_v2(&metadata_v1);
+    assert_eq(object::id(&metadata_v2), metadata_id);
+    assert_eq(metadata_v2.storage_id_v2(), package);
+    let authenticator_metadata = metadata_v2
         .modules_metadata_v2(&module_name)
         .authenticator_metadata_v2(&function_name);
     assert_eq(authenticator_metadata.account_type(), type_name::get<TestAccount>());
 
-    let metadata = package_metadata::package_metadata_v2_to_v1(metadata);
-    assert_eq(object::id(&metadata), metadata_id);
-    assert_eq(metadata.storage_id(), package);
-    let authenticator_metadata = metadata
+    let another_metadata_v1 = package_metadata::package_metadata_v2_to_v1(&metadata_v2);
+    assert_eq(object::id(&another_metadata_v1), metadata_id);
+    assert_eq(another_metadata_v1.storage_id(), package);
+    let authenticator_metadata = another_metadata_v1
         .modules_metadata_v1(&module_name)
         .authenticator_metadata_v1(&function_name);
     assert_eq(authenticator_metadata.account_type(), type_name::get<TestAccount>());
 
-    test_utils::destroy(metadata)
+    package_metadata::destroy_package_metadata_v1(metadata_v1);
+    package_metadata::destroy_package_metadata_v1(another_metadata_v1);
+    package_metadata::destroy_package_metadata_v2(metadata_v2);
 }
 
 #[test]
@@ -136,14 +138,15 @@ fun package_metadata_v2_to_v1_with_view_metadata_aborts() {
     let module_name = ascii::string(b"module");
     let function_name = ascii::string(b"get_value");
 
-    let metadata = package_metadata::create_package_metadata_v2_for_testing_one_view_function(
+    let metadata_v2 = package_metadata::create_package_metadata_v2_for_testing_one_view_function(
         package,
         module_name,
         function_name,
     );
 
-    let metadata = package_metadata::package_metadata_v2_to_v1(metadata);
-    test_utils::destroy(metadata)
+    let metadata_v1 = package_metadata::package_metadata_v2_to_v1(&metadata_v2);
+    package_metadata::destroy_package_metadata_v1(metadata_v1);
+    package_metadata::destroy_package_metadata_v2(metadata_v2);
 }
 
 #[test]

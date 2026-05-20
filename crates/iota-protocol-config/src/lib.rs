@@ -144,7 +144,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 26: Introduce a module to allow Move code to query protocol feature
 //             flags at runtime.
 // Version 27: Only sponsor Move authentication is performed pre-consensus in
-//             devnet.
+//             devnet. Start publishing package metadata using the V2 layout when the
+//             package requires it.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -436,8 +437,8 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     publish_package_metadata: bool,
 
-    // If true, package metadata is published as PackageMetadataV2. If false,
-    // package metadata is published as PackageMetadataV1.
+    // If true, package metadata can be published as PackageMetadataV2 when the
+    // package requires the V2 layout. If false, PackageMetadataV1 is used.
     #[serde(skip_serializing_if = "is_false")]
     package_metadata_v2: bool,
 
@@ -2808,12 +2809,6 @@ impl ProtocolConfig {
                     cfg.check_zklogin_issuer_cost_base = None;
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
-                    if cfg.feature_flags.publish_package_metadata {
-                        // Package metadata is already enabled on devnet/testnet. Start publishing
-                        // new metadata objects with the V2 layout so V1 remains compatible with
-                        // existing on-chain metadata.
-                        cfg.feature_flags.package_metadata_v2 = true;
-                    }
                 }
                 26 => {
                     // Introduce a module to allow Move code to query protocol
@@ -2830,6 +2825,9 @@ impl ProtocolConfig {
                         // Only sponsor Move authentication is performed pre-consensus in devnet.
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                    if cfg.feature_flags.publish_package_metadata {
+                        cfg.feature_flags.package_metadata_v2 = true;
                     }
                 }
                 // Use this template when making changes:

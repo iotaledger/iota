@@ -3,7 +3,7 @@
 
 // tests calling private account functions
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 --accounts A --package-metadata-v2 false
 
 //# publish
 module test::account;

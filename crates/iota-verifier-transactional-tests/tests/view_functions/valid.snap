@@ -5,6 +5,6 @@ processed 1 task
 
 task 0, lines 14-208:
 //# publish --view-functions entry_view object_immutable_ref primitive_by_value multiple_generic_object_immutable_ref wrapped_by_value generic_object_immutable_ref template_immutable_ref template_key_store_immutable_ref template_copy_drop_store_immutable_ref non_object_by_value templated_non_object_by_value option_primitive_by_value option_non_object_by_value option_generic_object_immutable_ref vector_primitive_by_value vector_non_object_by_value vector_generic_object_immutable_ref receiving_immutable_ref copy_type_param drop_type_param copy_store_type_param primitive_tuple_return native_view native_view_no_param native_type_param unused_unconstrained_type_param unconstrained_type_param_by_ref unconstrained_type_param_vector_by_ref unconstrained_type_param_option_by_ref
-created: object(1,0)
+created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 26144000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 33880800,  storage_rebate: 0, non_refundable_storage_fee: 0

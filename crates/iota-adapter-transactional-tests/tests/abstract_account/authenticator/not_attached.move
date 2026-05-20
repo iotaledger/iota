@@ -3,7 +3,7 @@
 
 // authenticator is not attached to the abstract account
 
-//# init --addresses test=0x0 --accounts A
+//# init --addresses test=0x0 --accounts A --package-metadata-v2 false
 
 //# publish --sender A
 module test::authenticate;

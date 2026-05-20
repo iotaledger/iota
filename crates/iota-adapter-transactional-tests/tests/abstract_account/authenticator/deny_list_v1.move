@@ -3,7 +3,7 @@
 
 // using a regulated coin in an authenticator
 
-//# init --addresses test_coin=0x0 test_account=0x0 simple_abstract_account=0x0 --accounts A C
+//# init --addresses test_coin=0x0 test_account=0x0 simple_abstract_account=0x0 --accounts A C --package-metadata-v2 false
 
 //# publish --sender C
 module test_coin::regulated_coin {
