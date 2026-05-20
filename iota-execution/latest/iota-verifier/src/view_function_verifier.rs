@@ -1,12 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{Identifier, error::ExecutionError};
+use iota_types::error::ExecutionError;
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
 };
 use move_bytecode_utils::format_signature_token;
+use move_core_types::identifier::IdentStr;
 
 use crate::verification_failure;
 
@@ -14,7 +15,7 @@ use crate::verification_failure;
 /// same bytecode-visible constraints enforced by the source typing pass.
 pub fn verify_view_func(
     module: &CompiledModule,
-    function_identifier: Identifier,
+    function_identifier: &IdentStr,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 
@@ -229,6 +230,7 @@ mod tests {
         Ability, DatatypeHandle, DatatypeHandleIndex, FunctionDefinition, FunctionHandle,
         IdentifierIndex, ModuleHandleIndex, Signature, SignatureIndex, empty_module,
     };
+    use move_core_types::identifier::Identifier;
 
     use super::*;
 
@@ -280,7 +282,7 @@ mod tests {
     }
 
     fn verify(module: &CompiledModule) -> Result<(), ExecutionError> {
-        verify_view_func(module, Identifier::new("view".to_owned()).unwrap())
+        verify_view_func(module, &Identifier::new("view".to_owned()).unwrap())
     }
 
     fn assert_error_contains(module: &CompiledModule, expected: &str) {
