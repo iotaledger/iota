@@ -26,125 +26,11 @@ task 3, line 19:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 21-78:
+task 4, lines 21-50:
 //# run-graphql
 Response: {
   "data": {
-    "bothAddresses": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
     "bySentAddress": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "bySignAddress": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "compoundBothAddresses": {
       "nodes": [
         {
           "effects": {
@@ -258,53 +144,7 @@ Response: {
         }
       ]
     },
-    "compoundDifferentAddresses": {
-      "nodes": []
-    },
-    "differentAddresses": {
-      "nodes": []
-    },
     "sentViaAddress": {
-      "transactionBlocks": {
-        "nodes": [
-          {
-            "effects": {
-              "objectChanges": {
-                "nodes": [
-                  {
-                    "inputState": null,
-                    "outputState": {
-                      "asMoveObject": {
-                        "asCoin": {
-                          "coinBalance": "1000000"
-                        }
-                      }
-                    }
-                  },
-                  {
-                    "inputState": {
-                      "asMoveObject": {
-                        "asCoin": {
-                          "coinBalance": "300000000000000"
-                        }
-                      }
-                    },
-                    "outputState": {
-                      "asMoveObject": {
-                        "asCoin": {
-                          "coinBalance": "299999996039200"
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        ]
-      }
-    },
-    "signViaAddress": {
       "transactionBlocks": {
         "nodes": [
           {
