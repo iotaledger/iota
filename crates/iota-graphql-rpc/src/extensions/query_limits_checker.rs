@@ -623,8 +623,9 @@ impl<'a> TxArgValue<'a> {
                 // Pay for the string, plus the quotes around it.
                 ValueCostReport::new(s.len() + 2)
             }
-            GraphQL(V::Number(n)) => ValueCostReport::new(n.as_str().len()),
-            Resolved(CV::Number(n)) => ValueCostReport::new(n.as_str().len()),
+            GraphQL(V::Number(n)) | Resolved(CV::Number(n)) => {
+                ValueCostReport::new(n.as_str().len())
+            }
             GraphQL(V::Enum(e)) | Resolved(CV::Enum(e)) => ValueCostReport::new(e.as_str().len()),
             GraphQL(V::List(vs)) => {
                 // Pay for the opening and closing brackets and every comma up-front so that
