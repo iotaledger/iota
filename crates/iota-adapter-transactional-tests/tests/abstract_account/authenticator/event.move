@@ -3,7 +3,7 @@
 
 // an event is emitted during authentication
 
-//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A --package-metadata-v2 false
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
 
 //# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 

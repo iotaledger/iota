@@ -3,12 +3,12 @@
 
 // authenticator is not attached to the abstract account
 
-//# init --addresses test=0x0 --accounts A --package-metadata-v2 false
+//# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
 module test::authenticate;
 
-use iota::package_metadata::PackageMetadataV1;
+use iota::package_metadata::PackageMetadataV2;
 use std::ascii;
 
 public struct AbstractAccount has key {
@@ -16,7 +16,7 @@ public struct AbstractAccount has key {
 }
 
 public fun create(
-    _package_metadata: &PackageMetadataV1,
+    _package_metadata: &PackageMetadataV2,
     _module_name: ascii::String,
     _function_name: ascii::String,
     ctx: &mut TxContext,

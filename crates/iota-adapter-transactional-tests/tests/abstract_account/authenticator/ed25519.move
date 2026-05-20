@@ -3,7 +3,7 @@
 
 // ed25519 authenticate test using abstract account
 
-//# init --addresses test=0x0 abstract_account_with_pub_key=0x0 --accounts A --package-metadata-v2 false
+//# init --addresses test=0x0 abstract_account_with_pub_key=0x0 --accounts A
 
 //# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move
 

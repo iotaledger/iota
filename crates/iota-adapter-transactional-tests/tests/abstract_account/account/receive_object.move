@@ -3,7 +3,7 @@
 
 // absract account can receive objects
 
-//# init --addresses test=0x0 --accounts A --package-metadata-v2 false
+//# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
 module test::authenticate;
@@ -12,7 +12,7 @@ use iota::account;
 use iota::authenticator_function;
 use iota::coin::Coin;
 use iota::iota::IOTA;
-use iota::package_metadata::PackageMetadataV1;
+use iota::package_metadata::PackageMetadataV2;
 use std::ascii;
 
 public struct AbstractAccount has key {
@@ -20,12 +20,14 @@ public struct AbstractAccount has key {
 }
 
 public fun create(
-    package_metadata: &PackageMetadataV1,
+    package_metadata: &PackageMetadataV2,
     module_name: ascii::String,
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
+    let authenticator = authenticator_function::create_auth_function_ref_from_package_metadata_v2<
+        AbstractAccount,
+    >(
         package_metadata,
         module_name,
         function_name,
