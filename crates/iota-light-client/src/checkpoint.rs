@@ -209,7 +209,7 @@ pub async fn sync_checkpoint_list_to_latest_from_archive(
     let config = ArchiveReaderConfig {
         remote_store_config: archive_store_config.clone(),
         download_concurrency: NonZeroUsize::new(5).unwrap(),
-        use_for_pruning_watermark: false,
+        ingestion_url: None,
     };
 
     let metrics = ArchiveReaderMetrics::new(&Registry::default());
@@ -235,7 +235,7 @@ pub async fn download_summaries_from_archive_store(
     let archive_reader_config = ArchiveReaderConfig {
         remote_store_config: archive_store_config.clone(),
         download_concurrency: NonZeroUsize::new(5).unwrap(),
-        use_for_pruning_watermark: false,
+        ingestion_url: None,
     };
 
     let store = CheckpointSummaryFileStore::new(config.clone());

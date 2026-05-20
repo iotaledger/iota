@@ -5,7 +5,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
     ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
@@ -384,7 +383,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             genesis.objects(),
             &DBCheckpointConfig::default(),
             config.clone(),
-            ArchiveReaderBalancer::default(),
             None,
             chain_identifier,
             pruner_db,

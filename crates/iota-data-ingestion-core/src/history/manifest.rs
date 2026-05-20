@@ -187,7 +187,7 @@ pub async fn verify_historical_checkpoints_with_checksums(
     let config = HistoricalReaderConfig {
         remote_store_config,
         download_concurrency: NonZeroUsize::new(concurrency).unwrap(),
-        use_for_pruning_watermark: false,
+        ingestion_url: None,
     };
     // Gets the Manifest from the remote store.
     let reader = HistoricalReader::new(config)?;

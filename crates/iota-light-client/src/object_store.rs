@@ -27,7 +27,7 @@ impl CheckpointStore {
         let config = ArchiveReaderConfig {
             remote_store_config: checkpoint_store_config,
             download_concurrency: NonZeroUsize::new(5).unwrap(),
-            use_for_pruning_watermark: false,
+            ingestion_url: None,
         };
 
         Ok(Self {

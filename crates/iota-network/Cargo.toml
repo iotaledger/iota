@@ -30,8 +30,8 @@ tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-archival.workspace = true
 iota-config.workspace = true
+iota-data-ingestion-core.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true

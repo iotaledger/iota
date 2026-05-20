@@ -267,6 +267,26 @@ impl StateSyncConfig {
             Duration::from_secs(10)
         }
     }
+
+    pub fn randomized_for_testing() -> Self {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let config = Self {
+            mailbox_capacity: Some(rng.gen_range(16..=2048)),
+            synced_checkpoint_broadcast_channel_capacity: Some(rng.gen_range(16..=2048)),
+            checkpoint_header_download_concurrency: Some(rng.gen_range(10..=500)),
+            checkpoint_content_download_concurrency: Some(rng.gen_range(10..=500)),
+            ..Default::default()
+        };
+        tracing::info!(
+            mailbox_capacity = config.mailbox_capacity.unwrap(),
+            broadcast_capacity = config.synced_checkpoint_broadcast_channel_capacity.unwrap(),
+            header_concurrency = config.checkpoint_header_download_concurrency.unwrap(),
+            content_concurrency = config.checkpoint_content_download_concurrency.unwrap(),
+            "StateSyncConfig::randomized_for_testing"
+        );
+        config
+    }
 }
 
 /// Access Type of a node.

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
+    base_types::ExecutionData,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -216,6 +217,13 @@ impl CheckpointTransaction {
                     .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)
                     .expect("created objects should show up in output objects")
             })
+    }
+
+    pub fn execution_data(&self) -> ExecutionData {
+        ExecutionData {
+            transaction: self.transaction.clone(),
+            effects: self.effects.clone(),
+        }
     }
 }
 

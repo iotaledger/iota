@@ -30,30 +30,11 @@ It is important to prevent pruning until the corresponding data is uploaded. To 
 :::
 
 ```yaml
-state-archive-write-config:
-  object-store-config:
-    object-store: "S3"
-    bucket: "<bucket_name>"
-    aws-access-key-id: "<AWS_ACCESS_KEY_ID>"
-    aws-secret-access-key: "<AWS_SECRET_ACCESS_KEY>"
-    aws-region: "<aws_region>"
-    object-store-connection-limit: 20
-  concurrency: 5
-  use-for-pruning-watermark: false
 state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      # Use the same bucket which is being used in `state-archive-write-config`
-      bucket: "<bucket_name>"
-      aws-access-key-id: "<AWS_ACCESS_KEY_ID>"
-      aws-secret-access-key: "<AWS_SECRET_ACCESS_KEY>"
-      aws-region: "<aws_region>"
-      object-store-connection-limit: 20
-    concurrency: 5
-    # This should be set to true in this case. Setting this to true
-    # would prevent pruning of local transaction data until it is archived
-    # in the bucket
-    use-for-pruning-watermark: true
+    # Use https://checkpoints.mainnet.iota.io for mainnet
+    # Use https://checkpoints.testnet.iota.io for testnet
+    - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.io"
+      concurrency: 5
 ```
 
 ## Set Up an Archival Fallback
@@ -64,17 +45,10 @@ To enable your node to fallback to an archive in case of lag, add this to your `
   <TabItem value="s3" label="Amazon S3">
     ```yaml
     state-archive-read-config:
-      - object-store-config:
-        object-store: "S3"
-        aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
-        aws-virtual-hosted-style-request: true
-        object-store-connection-limit: 20
-        no-sign-request: true
-      # How many objects to read ahead when catching up  
-      concurrency: 5
-      # Whether to prune local state based on latest checkpoint in archive.
-      # This should stay false for most use cases
-      use-for-pruning-watermark: false
+      # Use https://checkpoints.mainnet.iota.io for mainnet
+      # Use https://checkpoints.testnet.iota.io for testnet
+      - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.io"
+        concurrency: 5
     ```
   </TabItem>
 </Tabs>

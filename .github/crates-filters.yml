@@ -6,8 +6,6 @@ iota-analytics-indexer:
   - "crates/iota-analytics-indexer/**"
 iota-analytics-indexer-derive:
   - "crates/iota-analytics-indexer-derive/**"
-iota-archival:
-  - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
 iota-cluster-test:

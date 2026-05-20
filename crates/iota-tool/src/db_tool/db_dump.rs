@@ -12,7 +12,6 @@ use std::{
 use anyhow::{Ok, anyhow};
 use clap::{Parser, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Row, Table};
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_core::{
     authority::{
@@ -249,7 +248,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         ..Default::default()
     };
     info!("Starting txns and effects pruning");
-    let archive_readers = ArchiveReaderBalancer::default();
     AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
@@ -257,7 +255,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         None,
         pruning_config,
         metrics,
-        archive_readers,
         EPOCH_DURATION_MS_FOR_TESTING,
         None,
     )

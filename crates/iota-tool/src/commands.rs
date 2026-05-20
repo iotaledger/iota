@@ -8,7 +8,6 @@ use anyhow::Result;
 use clap::*;
 use fastcrypto::encoding::Encoding;
 use futures::{StreamExt, future::join_all};
-use iota_archival::{read_manifest_as_json, write_manifest_from_json};
 use iota_config::{
     Config,
     genesis::Genesis,
@@ -35,9 +34,8 @@ use crate::{
     ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
     backfill_checkpoint_summaries, check_completed_snapshot,
     db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
-    download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
-    get_latest_available_epoch, get_object, get_transaction_block, make_clients,
-    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum,
+    download_db_snapshot, download_formal_snapshot, get_latest_available_epoch, get_object,
+    get_transaction_block, make_clients, restore_from_db_checkpoint,
 };
 
 #[derive(Parser, Clone, ValueEnum)]
@@ -123,49 +121,6 @@ pub enum ToolCommand {
         db_path: String,
         #[command(subcommand)]
         cmd: Option<DbToolCommand>,
-    },
-
-    /// Tool to verify the archive store
-    VerifyArchive {
-        #[arg(long)]
-        genesis: PathBuf,
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 5)]
-        download_concurrency: usize,
-    },
-
-    /// Tool to print the archive manifest
-    PrintArchiveManifest {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-    },
-    /// Tool to update the archive manifest
-    UpdateArchiveManifest {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(long = "archive-path")]
-        archive_json_path: PathBuf,
-    },
-    /// Tool to verify the archive store by comparing file checksums
-    #[command(name = "verify-archive-from-checksums")]
-    VerifyArchiveByChecksum {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 5)]
-        download_concurrency: usize,
-    },
-
-    /// Tool to print archive contents in checkpoint range
-    #[command(name = "dump-archive")]
-    DumpArchiveByChecksum {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 0)]
-        start: u64,
-        end: u64,
-        #[arg(default_value_t = 80)]
-        max_content_length: usize,
     },
 
     /// Download all packages to the local filesystem from a GraphQL service.
@@ -995,39 +950,6 @@ impl ToolCommand {
                 chain,
             } => {
                 execute_replay_command(rpc_url, safety_checks, use_authority, cfg_path, chain, cmd)
-                    .await?;
-            }
-            ToolCommand::VerifyArchive {
-                genesis,
-                object_store_config,
-                download_concurrency,
-            } => {
-                verify_archive(&genesis, object_store_config, download_concurrency, true).await?;
-            }
-            ToolCommand::PrintArchiveManifest {
-                object_store_config,
-            } => {
-                println!("{}", read_manifest_as_json(object_store_config).await?);
-            }
-            ToolCommand::UpdateArchiveManifest {
-                object_store_config,
-                archive_json_path,
-            } => {
-                write_manifest_from_json(object_store_config, archive_json_path).await?;
-            }
-            ToolCommand::VerifyArchiveByChecksum {
-                object_store_config,
-                download_concurrency,
-            } => {
-                verify_archive_by_checksum(object_store_config, download_concurrency).await?;
-            }
-            ToolCommand::DumpArchiveByChecksum {
-                object_store_config,
-                start,
-                end,
-                max_content_length,
-            } => {
-                dump_checkpoints_from_archive(object_store_config, start, end, max_content_length)
                     .await?;
             }
             ToolCommand::SignTransaction {

@@ -9,7 +9,6 @@ use std::{
     fmt::Write,
     fs, io,
     num::NonZeroUsize,
-    ops::Range,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -26,14 +25,9 @@ use futures::{
     future::{AbortHandle, join_all},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use iota_archival::{
-    reader::{ArchiveReader, ArchiveReaderMetrics},
-    verify_archive_with_checksums, verify_archive_with_genesis_config,
-};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
-    node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_core::{
@@ -74,7 +68,7 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::MoveStructExt,
-    storage::{ReadStore, SharedInMemoryStore},
+    storage::ReadStore,
 };
 use itertools::Itertools;
 use prometheus_filtered::Registry;
@@ -86,8 +80,10 @@ use typed_store::rocks::bulk_ingestion_options;
 pub mod commands;
 pub mod db_tool;
 pub mod fire_drill;
+mod formal_snapshot_util;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
+use crate::formal_snapshot_util::{FormalSnapshotWorker, read_summaries_for_list_no_verify};
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
@@ -1230,70 +1226,4 @@ pub async fn download_db_snapshot(
         fs::remove_dir_all(&epochs_dir)?;
     }
     Ok(())
-}
-
-pub async fn verify_archive(
-    genesis: &Path,
-    remote_store_config: ObjectStoreConfig,
-    concurrency: usize,
-    interactive: bool,
-) -> Result<()> {
-    verify_archive_with_genesis_config(genesis, remote_store_config, concurrency, interactive, 10)
-        .await
-}
-
-pub async fn dump_checkpoints_from_archive(
-    remote_store_config: ObjectStoreConfig,
-    start_checkpoint: u64,
-    end_checkpoint: u64,
-    max_content_length: usize,
-) -> Result<()> {
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let config = ArchiveReaderConfig {
-        remote_store_config,
-        download_concurrency: NonZeroUsize::new(1).unwrap(),
-        use_for_pruning_watermark: false,
-    };
-    let store = SharedInMemoryStore::default();
-    let archive_reader = ArchiveReader::new(config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
-    let checkpoint_counter = Arc::new(AtomicU64::new(0));
-    let txn_counter = Arc::new(AtomicU64::new(0));
-    archive_reader
-        .read(
-            store.clone(),
-            Range {
-                start: start_checkpoint,
-                end: end_checkpoint,
-            },
-            txn_counter,
-            checkpoint_counter,
-            false,
-        )
-        .await?;
-    for key in store
-        .inner()
-        .checkpoints()
-        .values()
-        .sorted_by(|a, b| a.sequence_number().cmp(&b.sequence_number))
-    {
-        let mut content = serde_json::to_string(
-            &store
-                .try_get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
-                .unwrap(),
-        )?;
-        content.truncate(max_content_length);
-        info!(
-            "{}:{}:{:?}",
-            key.sequence_number, key.content_digest, content
-        );
-    }
-    Ok(())
-}
-
-pub async fn verify_archive_by_checksum(
-    remote_store_config: ObjectStoreConfig,
-    concurrency: usize,
-) -> Result<()> {
-    verify_archive_with_checksums(remote_store_config, concurrency).await
 }

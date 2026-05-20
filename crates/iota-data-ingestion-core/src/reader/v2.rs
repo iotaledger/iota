@@ -136,7 +136,6 @@ impl RemoteStore {
                     download_concurrency: NonZeroUsize::new(batch_size)
                         .expect("batch size must be greater than zero"),
                     remote_store_config,
-                    use_for_pruning_watermark: false,
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;
