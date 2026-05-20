@@ -15,7 +15,6 @@ use iota_sdk_types::crypto::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::SignatureScheme,
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     passkey_authenticator::to_signing_message,
@@ -115,10 +114,6 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let prefix = if y.unwrap()[31] % 2 == 0 { 0x02 } else { 0x03 };
     let mut pk_bytes = [prefix; Secp256r1PublicKey::LENGTH];
     pk_bytes[1..].copy_from_slice(x.unwrap());
-    // pk_bytes.extend_from_slice(x.unwrap());
-    // let passkey_pk =
-    //     PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator,
-    // &pk_bytes).unwrap();
     let passkey_pk = PasskeyPublicKey::new(Secp256r1PublicKey::new(pk_bytes));
 
     // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey) with
@@ -189,39 +184,28 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
         .await
         .unwrap();
 
-    // Parse signature from der format in response and normalize it to lowers.
+    // Parse signature from der format in response and normalize it to lower s.
     let sig_bytes_der = authenticated_cred.response.signature.as_slice();
     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
-
-    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
-    user_sig_bytes.extend_from_slice(&sig_bytes);
-    user_sig_bytes.extend_from_slice(&pk_bytes);
 
     // Parse authenticator_data and client_data_json from response.
     let authenticator_data = authenticated_cred.response.authenticator_data.as_slice();
     let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
-    // TODO yeah I'm not too sure about this...
     let sig = PasskeyAuthenticator::new(
         authenticator_data.to_vec(),
         String::from_utf8(client_data_json.to_vec()).unwrap(),
-        SimpleSignature::Secp256r1 {
-            signature: Secp256r1Signature::new(sig_bytes.into()),
-            public_key: Secp256r1PublicKey::new(pk_bytes),
-        },
+        SimpleSignature::new_secp256r1(
+            Secp256r1Signature::new(sig_bytes.into()),
+            Secp256r1PublicKey::new(pk_bytes),
+        ),
     )
     .unwrap();
-    // let sig = GenericSignature::PasskeyAuthenticator(
-    //     PasskeyAuthenticator::new_for_testing(
-    //         authenticator_data.to_vec(),
-    //         String::from_utf8(client_data_json.to_vec()).unwrap(),
-    //         Signature::from_bytes(&user_sig_bytes).unwrap(),
-    //     )
-    //     .unwrap(),
-    // );
+
     let multisig =
         GenericSignature::MultiSig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
+
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
 }
 
