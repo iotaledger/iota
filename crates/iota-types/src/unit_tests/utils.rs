@@ -126,8 +126,7 @@ pub fn make_sponsored_transaction_data(
 /// is not verified or signed by authority.
 pub fn make_transaction(sender: IotaAddress, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    // TODO converting from SimpleKeypair to IotaKeyPair to avoid changing the
-    // signature of `from_data_and_signer` (for now)
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
     let kp = IotaKeyPair::from_bytes(&kp.to_bytes()).unwrap();
     Transaction::from_data_and_signer(data, vec![&kp])
 }

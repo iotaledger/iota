@@ -1400,6 +1400,7 @@ fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
 #[test]
 fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
     let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
     let kp = SimpleKeypair::from_bytes(&IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
     let tx = make_transaction(sender, &kp);
     let sig = tx.tx_signatures().first().unwrap();
@@ -1443,6 +1444,7 @@ fn compute_auth_digests_non_sponsored_move_authenticator() {
 #[test]
 fn compute_auth_digests_non_sponsored_regular_signature() {
     let (sender, kp): (_, AccountKeyPair) = get_key_pair();
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
     let kp = SimpleKeypair::from_bytes(&IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
     let tx = make_transaction(sender, &kp);
     let sig = tx.tx_signatures().first().unwrap();
