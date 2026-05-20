@@ -44,9 +44,12 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
 use iota_sdk_types::{Identifier, Version};
 use move_binary_format::{
-    binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
+    binary_config::BinaryConfig,
+    file_format::CompiledModule,
+    file_format_common::{IOTA_METADATA_KEY, VERSION_6},
     normalized,
 };
+use move_core_types::identifier::IdentStr;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -502,7 +505,11 @@ pub fn is_view_function_from_fn_info(
 ) -> bool {
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = IotaAddress::from(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
         fn_name,
@@ -547,6 +554,43 @@ where
 
 /// If `include_code` is set to `false`, the normalized module will skip
 /// function bodies but still include the signatures.
+///
+/// The returned metadata is the IOTA-specific runtime metadata attached to the
+/// module, or the default empty metadata when the module has no IOTA metadata.
+pub fn normalize_modules_with_metadata<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
+    modules: I,
+    binary_config: &BinaryConfig,
+    include_code: bool,
+) -> IotaResult<BTreeMap<String, (normalized::Module<S>, RuntimeModuleMetadata)>>
+where
+    I: Iterator<Item = &'a Vec<u8>>,
+{
+    let mut normalized_modules = BTreeMap::new();
+    for bytecode in modules {
+        let module =
+            CompiledModule::deserialize_with_config(bytecode, binary_config).map_err(|error| {
+                IotaError::ModuleDeserializationFailure {
+                    error: error.to_string(),
+                }
+            })?;
+        let metadata = runtime_module_metadata(&module)?;
+        let normalized_module = normalized::Module::new(pool, &module, include_code);
+        normalized_modules.insert(
+            normalized_module.name().to_string(),
+            (normalized_module, metadata),
+        );
+    }
+    Ok(normalized_modules)
+}
+
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
 pub fn normalize_deserialized_modules<
     'a,
     S: Hash + Eq + Clone + ToString,
@@ -566,6 +610,54 @@ where
         normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     normalized_modules
+}
+
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+///
+/// The returned metadata is the IOTA-specific runtime metadata attached to the
+/// module, or the default empty metadata when the module has no IOTA metadata.
+pub fn normalize_deserialized_modules_with_metadata<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
+    modules: I,
+    include_code: bool,
+) -> IotaResult<BTreeMap<String, (normalized::Module<S>, RuntimeModuleMetadata)>>
+where
+    I: Iterator<Item = &'a CompiledModule>,
+{
+    let mut normalized_modules = BTreeMap::new();
+    for module in modules {
+        let metadata = runtime_module_metadata(module)?;
+        let normalized_module = normalized::Module::new(pool, module, include_code);
+        normalized_modules.insert(
+            normalized_module.name().to_string(),
+            (normalized_module, metadata),
+        );
+    }
+    Ok(normalized_modules)
+}
+
+fn runtime_module_metadata(module: &CompiledModule) -> IotaResult<RuntimeModuleMetadata> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(RuntimeModuleMetadata::default());
+    };
+
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
+        })?;
+    RuntimeModuleMetadata::try_from(metadata_wrapper)
 }
 
 fn build_linkage_table<'p>(
