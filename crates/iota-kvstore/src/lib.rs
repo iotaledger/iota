@@ -5,6 +5,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
+    base_types::IotaAddress,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -42,6 +43,15 @@ pub trait KeyValueStoreReader {
         transactions: &[TransactionDigest],
     ) -> Result<Vec<TransactionData>, Self::Error>;
 
+    /// Fetches a list of transaction digests affected by a given address in
+    /// order of execution.
+    ///
+    /// Not found transactions are omitted from the output list.
+    async fn get_transaction_digests_by_address(
+        &mut self,
+        address: IotaAddress,
+    ) -> Result<Vec<TransactionDigest>, Self::Error>;
+
     /// Fetches a list of checkpoints by their sequence numbers.
     ///
     /// Not found checkpoints are omitted from the output list.
@@ -73,6 +83,16 @@ pub trait KeyValueStoreWriter {
         &mut self,
         transactions: &[TransactionData],
     ) -> Result<(), Self::Error>;
+
+    /// Persists a mapping of `(` [`IotaAddress`], `transaction_sequence_number`
+    /// `)` to `TransactionDigest` for every affected address.
+    ///
+    /// An address is considered "affected" if it appears as the sender, a
+    /// recipient, or the gas payer.
+    async fn save_transactions_by_address<I>(&mut self, entries: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (IotaAddress, u64, TransactionDigest)> + Send,
+        I::IntoIter: Send;
 
     /// Persists a checkpoint to the store.
     async fn save_checkpoint(&mut self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
