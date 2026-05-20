@@ -1430,7 +1430,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     // computation was charged and that the correct gas object (the sponsor's coin)
     // was debited.
     assert!(
-        summary.gas_used.computation_cost > 0,
+        summary.gas_cost_summary.computation_cost > 0,
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
