@@ -27,7 +27,7 @@ mod checked {
             TxContext, TxContextKind,
         },
         coin::Coin,
-        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -35,7 +35,7 @@ mod checked {
         move_package::{
             IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -762,13 +762,24 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) = existing_package.normalize(
+        let current_normalized = match normalize_modules_with_metadata(
             pool,
+            existing_package.serialized_module_map().values(),
             &binary_config,
-            // include code
-            true,
-        ) else {
-            invariant_violation!("Tried to normalize modules in existing package but failed")
+            true, // include code
+        ) {
+            Ok(modules) => modules,
+            Err(IotaError::ModuleDeserializationFailure { .. }) => {
+                invariant_violation!("Tried to normalize modules in existing package but failed")
+            }
+            Err(e) => {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::PackageUpgradeError {
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
+                    },
+                    e,
+                ));
+            }
         };
 
         let existing_modules_len = current_normalized.len();
@@ -788,13 +799,22 @@ mod checked {
                 ),
             ));
         }
-        let mut new_normalized = normalize_deserialized_modules(
+
+        let mut new_normalized = normalize_deserialized_modules_with_metadata(
             pool,
             upgrading_modules.iter(),
             true, // include code
-        );
-        for (name, cur_module) in current_normalized {
-            let Some(new_module) = new_normalized.remove(&name) else {
+        )
+        .map_err(|e| {
+            ExecutionError::new_with_source(
+                ExecutionErrorKind::PackageUpgradeError {
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
+                },
+                e,
+            )
+        })?;
+        for (name, (cur_module, cur_metadata)) in current_normalized {
+            let Some((new_module, new_metadata)) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::PackageUpgradeError {
                         kind: PackageUpgradeError::IncompatibleUpgrade,
@@ -803,6 +823,7 @@ mod checked {
                 ));
             };
 
+            check_view_function_compatibility(&name, &cur_metadata, &new_metadata)?;
             check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
 
@@ -840,6 +861,51 @@ mod checked {
                 e,
             )
         })
+    }
+
+    /// Verifies that any function marked `#[view]` in the current package
+    /// remains marked `#[view]` in the upgraded package. Removing the attribute
+    /// would preserve the Move bytecode signature but break clients that rely
+    /// on view-function metadata for read-only execution.
+    fn check_view_function_compatibility(
+        module_name: &str,
+        cur_metadata: &RuntimeModuleMetadata,
+        new_metadata: &RuntimeModuleMetadata,
+    ) -> Result<(), ExecutionError> {
+        let cur_view_functions = view_functions(cur_metadata);
+        if cur_view_functions.is_empty() {
+            return Ok(());
+        }
+
+        let new_view_functions = view_functions(new_metadata);
+        for function_name in cur_view_functions {
+            if !new_view_functions.contains(&function_name) {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::PackageUpgradeError {
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
+                    },
+                    format!(
+                        "Function {module_name}::{function_name} was marked #[view] in the \
+                         previous package version but is not marked #[view] in the upgraded \
+                         package"
+                    ),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn view_functions(metadata: &RuntimeModuleMetadata) -> BTreeSet<String> {
+        metadata
+            .fun_attributes_iter()
+            .filter(|&(_function_name, attributes)| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttribute::View))
+            })
+            .map(|(function_name, _attributes)| function_name.clone())
+            .collect()
     }
 
     /// Retrieves a `PackageObject` from the storage based on the provided
