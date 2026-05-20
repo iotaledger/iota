@@ -29,7 +29,6 @@ use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    epoch_info::EpochInfoEntry,
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
@@ -177,20 +176,6 @@ pub struct CheckpointStoreTables {
     /// A map from epoch ID to the sequence number of the last checkpoint in
     /// that epoch.
     epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
-
-    /// Per-epoch metadata sufficient to rebuild the indexer's `epochs` table
-    /// (consumed by JSON-RPC `iotax_getEpochs`, GraphQL `epochs`, and the
-    /// explorer) without reading historical checkpoint contents from the
-    /// archive.
-    ///
-    /// One row is appended per epoch by the checkpoint executor at every
-    /// AdvanceEpoch transaction (see
-    /// `CheckpointExecutor::write_epoch_info_entry`). The whole column
-    /// family is read by the snapshot V2 writer to produce the snapshot's
-    /// `EPOCH_INFO` file; a future restore path reads `EPOCH_INFO` to
-    /// populate the indexer's `epochs` table directly. See `EpochInfoEntry`
-    /// and iotaledger/iota#11254.
-    epoch_info: DBMap<EpochId, EpochInfoEntry>,
 
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
@@ -823,27 +808,6 @@ impl CheckpointStore {
         Ok(checkpoint)
     }
 
-    /// First checkpoint sequence number of `epoch_id`. For genesis (epoch 0)
-    /// this is `0`; for later epochs it equals the prior epoch's last
-    /// checkpoint sequence number plus one. Caller must have committed the
-    /// previous epoch's last checkpoint before invoking this for
-    /// `epoch_id > 0`; the missing-prev-checkpoint case panics rather than
-    /// returning `Ok(None)`, since for any epoch the executor has reached
-    /// the previous epoch must have been finalized.
-    pub fn get_epoch_first_checkpoint(
-        &self,
-        epoch_id: EpochId,
-    ) -> IotaResult<CheckpointSequenceNumber> {
-        if epoch_id == 0 {
-            Ok(0)
-        } else {
-            let prev = self
-                .get_epoch_last_checkpoint(epoch_id - 1)?
-                .expect("Previous epoch must have a recorded last checkpoint");
-            Ok(prev.sequence_number() + 1)
-        }
-    }
-
     pub fn insert_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,
@@ -852,15 +816,6 @@ impl CheckpointStore {
         self.tables
             .epoch_last_checkpoint_map
             .insert(&epoch_id, checkpoint.sequence_number())?;
-        Ok(())
-    }
-
-    pub fn get_epoch_info(&self, epoch_id: EpochId) -> IotaResult<Option<EpochInfoEntry>> {
-        Ok(self.tables.epoch_info.get(&epoch_id)?)
-    }
-
-    pub fn insert_epoch_info(&self, epoch_id: EpochId, entry: &EpochInfoEntry) -> IotaResult {
-        self.tables.epoch_info.insert(&epoch_id, entry)?;
         Ok(())
     }
 

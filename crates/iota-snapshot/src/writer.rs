@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian, ByteOrder};
 use fastcrypto::hash::MultisetHash;
 use futures::StreamExt;
@@ -22,9 +22,9 @@ use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
     authority::authority_store_tables::{AuthorityPerpetualTables, LiveObjectV2},
-    checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
+use iota_node_storage::GrpcIndexes;
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
@@ -258,6 +258,12 @@ pub struct StateSnapshotWriterV1 {
     file_compression: FileCompression,
     remote_object_store: Arc<DynObjectStore>,
     local_staging_store: Arc<DynObjectStore>,
+    /// Source of `EPOCH_INFO` data for the snapshot. Required: nodes that
+    /// publish snapshots must run with `enable_grpc_api = true` so that
+    /// `index_epoch` populates the per-epoch metadata this writer emits.
+    /// See the `Watermark::EpochIndexed` precondition in
+    /// [`write_epoch_info`].
+    grpc_indexes: Arc<dyn GrpcIndexes>,
     concurrency: usize,
 }
 
@@ -266,6 +272,7 @@ impl StateSnapshotWriterV1 {
         local_staging_path: &std::path::Path,
         local_staging_store: &Arc<DynObjectStore>,
         remote_object_store: &Arc<DynObjectStore>,
+        grpc_indexes: Arc<dyn GrpcIndexes>,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
     ) -> Result<Self> {
@@ -274,6 +281,7 @@ impl StateSnapshotWriterV1 {
             local_staging_dir: local_staging_path.to_path_buf(),
             remote_object_store: remote_object_store.clone(),
             local_staging_store: local_staging_store.clone(),
+            grpc_indexes,
             concurrency: concurrency.get(),
         })
     }
@@ -281,6 +289,7 @@ impl StateSnapshotWriterV1 {
     pub async fn new(
         local_store_config: &ObjectStoreConfig,
         remote_store_config: &ObjectStoreConfig,
+        grpc_indexes: Arc<dyn GrpcIndexes>,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
     ) -> Result<Self> {
@@ -296,6 +305,7 @@ impl StateSnapshotWriterV1 {
             file_compression,
             remote_object_store,
             local_staging_store,
+            grpc_indexes,
             concurrency: concurrency.get(),
         })
     }
@@ -307,10 +317,9 @@ impl StateSnapshotWriterV1 {
         self,
         epoch: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
-        checkpoint_store: Arc<CheckpointStore>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
-        self.write_internal(epoch, perpetual_db, checkpoint_store, root_state_hash)
+        self.write_internal(epoch, perpetual_db, root_state_hash)
             .await
     }
 
@@ -320,9 +329,13 @@ impl StateSnapshotWriterV1 {
         mut self,
         epoch: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
-        checkpoint_store: Arc<CheckpointStore>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
+        // Fail fast on the `Watermark::EpochIndexed` precondition so a
+        // misconfigured node does not perform a full live-object scan
+        // (tens of GiB on mainnet-sized DBs) before failing.
+        self.check_epoch_indexed_watermark(epoch)?;
+
         self.setup_epoch_dir(epoch).await?;
 
         let manifest_file_path = self.epoch_dir(epoch).child("MANIFEST");
@@ -337,7 +350,6 @@ impl StateSnapshotWriterV1 {
             self.write_live_object_set(
                 epoch,
                 perpetual_db,
-                checkpoint_store,
                 sender,
                 Self::bucket_func,
                 root_state_hash,
@@ -417,7 +429,6 @@ impl StateSnapshotWriterV1 {
         &mut self,
         epoch: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
-        checkpoint_store: Arc<CheckpointStore>,
         sender: Sender<FileMetadata>,
         bucket_func: F,
         root_state_hash: ECMHLiveObjectSetDigest,
@@ -461,28 +472,50 @@ impl StateSnapshotWriterV1 {
         // the same upload channel as `.obj`/`.ref` files so the existing
         // upload-MANIFEST-last invariant continues to imply all referenced
         // files are present.
-        let epoch_info_metadata =
-            self.write_epoch_info(epoch, &local_staging_dir_path, &checkpoint_store, &sender)?;
+        let epoch_info_metadata = self.write_epoch_info(epoch, &local_staging_dir_path, &sender)?;
         files.push(epoch_info_metadata);
         // Write the manifest file for the epoch(bucket)
         self.write_manifest(epoch, files)?;
         Ok(())
     }
 
-    /// Writes the per-snapshot `EPOCH_INFO` file, which carries one entry per
-    /// epoch in `[0, epoch]` from `CheckpointStore::epoch_info`. Epochs with
-    /// no row in the source table are emitted as `None` so consumers can
-    /// distinguish a missing entry from a present one.
+    /// Verifies the `Watermark::EpochIndexed` precondition: every epoch
+    /// in `[0, epoch]` must have both boundary writes committed. Called
+    /// from [`Self::write_internal`] before any disk work so a
+    /// misconfigured node fails fast instead of burning a full DB scan.
+    /// `None` and `Some(h) where h < epoch` are distinct failure modes
+    /// with distinct remediations — keep them as separate messages.
+    fn check_epoch_indexed_watermark(&self, epoch: u64) -> Result<()> {
+        match self.grpc_indexes.highest_indexed_epoch()? {
+            None => Err(anyhow!(
+                "Snapshot V2 writer: `EpochIndexed` watermark is absent — \
+                 no epoch_info rows have been fully indexed on this node yet. \
+                 Run the snapshot V2 epoch_info backfill before publishing \
+                 the first V2 snapshot, or wait until at least epoch 0 \
+                 closes under live indexing."
+            )),
+            Some(h) if h < epoch => Err(anyhow!(
+                "Snapshot V2 writer: `EpochIndexed` watermark is at epoch {h}, \
+                 but snapshot_epoch is {epoch}. Run the snapshot V2 \
+                 epoch_info backfill on this node before publishing."
+            )),
+            Some(_) => Ok(()),
+        }
+    }
+
+    /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
+    /// `[0, epoch]` from `IndexStoreTables::epoch_info` via
+    /// `GrpcIndexes::get_epoch_info_entry`. Callers must have run
+    /// [`Self::check_epoch_indexed_watermark`] first; this function
+    /// trusts the precondition and panics on any missing field.
     ///
-    /// File layout: 4-byte magic | bcs(EpochInfo). Integrity is anchored by
-    /// `FileMetadata::sha3_digest` recorded in the MANIFEST (matching how
-    /// `.obj`/`.ref` files are validated); no in-file sha3 trailer is
-    /// written.
+    /// File layout: 4-byte magic | bcs(EpochInfo). Integrity is anchored
+    /// by `FileMetadata::sha3_digest` in the MANIFEST — no in-file sha3
+    /// trailer.
     fn write_epoch_info(
         &self,
         epoch: u64,
         local_staging_dir_path: &std::path::Path,
-        checkpoint_store: &CheckpointStore,
         sender: &Sender<FileMetadata>,
     ) -> Result<FileMetadata> {
         let mut entries = Vec::with_capacity((epoch + 1) as usize);
@@ -490,19 +523,52 @@ impl StateSnapshotWriterV1 {
         // set (millions of rows) and to the snapshot upload, so the simple
         // loop is fine; a range scan would be a micro-optimization.
         for epoch_id in 0..=epoch {
-            let entry = checkpoint_store.get_epoch_info(epoch_id)?;
+            // The watermark precondition above guarantees every entry in
+            // `[0, epoch]` is present with both boundary-2 fields set; the
+            // panics below turn any watermark/row inconsistency into a
+            // loud failure rather than a silently truncated snapshot.
+            // `panic!` is deliberate: this runs inside `spawn_blocking`,
+            // so the panic surfaces as `JoinError` and fails only the
+            // snapshot task — exactly the desired blast radius.
+            let entry = self
+                .grpc_indexes
+                .get_epoch_info_entry(epoch_id)?
+                .unwrap_or_else(|| {
+                    panic!(
+                        "epoch_info[{epoch_id}] is absent despite `EpochIndexed` \
+                         watermark covering it — watermark/row inconsistency"
+                    )
+                });
+            let summary = entry.last_checkpoint_summary.as_ref().unwrap_or_else(|| {
+                panic!(
+                    "epoch_info[{epoch_id}] is missing `last_checkpoint_summary` \
+                     despite `EpochIndexed` watermark covering it — \
+                     watermark/row inconsistency"
+                )
+            });
+            // Boundary-2 writes both `last_checkpoint_summary` and
+            // `end_of_epoch_tx_events` in the same atomic batch, so if
+            // one is set the other must be too. Assert the symmetric
+            // invariant — without it, a future bug that splits the two
+            // writes would silently produce snapshots missing events.
+            assert!(
+                entry.end_of_epoch_tx_events.is_some(),
+                "epoch_info[{epoch_id}] is missing `end_of_epoch_tx_events` \
+                 despite `last_checkpoint_summary` being populated — \
+                 boundary-2 atomicity violation",
+            );
             // Turn a silent miswrite (entry stored under the wrong epoch
             // key) into a loud panic at snapshot time.
-            if let Some(e) = entry.as_ref() {
-                assert_eq!(
-                    e.last_checkpoint_summary.epoch(),
-                    epoch_id,
-                    "epoch_info[{epoch_id}] is populated with an entry for epoch {}; \
-                     the snapshot would silently misattribute checkpoints",
-                    e.last_checkpoint_summary.epoch(),
-                );
-            }
-            entries.push(entry);
+            let entry_epoch = summary.epoch();
+            assert_eq!(
+                entry_epoch, epoch_id,
+                "epoch_info[{epoch_id}] is populated with an entry for epoch \
+                 {entry_epoch}; the snapshot would silently misattribute checkpoints",
+            );
+            // Wire format is `Vec<Option<EpochInfoEntry>>` (see [`EpochInfo`]).
+            // Today's writer always emits `Some` — the watermark precondition
+            // refuses to publish if any row in `[0, epoch]` is incomplete.
+            entries.push(Some(entry));
         }
         let epoch_info = EpochInfo::V1(EpochInfoV1 { entries });
         let serialized = bcs::to_bytes(&epoch_info)?;

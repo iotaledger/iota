@@ -78,8 +78,10 @@ use tokio::time::Instant;
 ///   `previous_transaction_checkpoint` inline.
 /// - REFERENCE file format is unchanged from V1.
 /// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
-///   carrying one entry per epoch in `[0, snapshot_epoch]` from
-///   `CheckpointStore::epoch_info`.
+///   carrying one [`EpochInfoEntry`] per epoch in `[0, snapshot_epoch]` from
+///   `IndexStoreTables::epoch_info`. Writer-node operator contract:
+///   `enable_grpc_api = true`; the writer refuses to publish unless
+///   `Watermark::EpochIndexed >= snapshot_epoch`.
 ///
 /// State Snapshot Directory Layout
 ///  - snapshot/
@@ -140,9 +142,10 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │   bcs(EpochInfo)             │
 /// └──────────────────────────────┘
-/// Integrity is anchored by `FileMetadata::sha3_digest` recorded in the
-/// MANIFEST (matching how `.obj`/`.ref` files are validated); no in-file
-/// sha3 trailer is written.
+/// See [`EpochInfo`] for the schema. The snapshot crate treats
+/// `EpochInfoEntry::start_system_state` as opaque bytes; only the indexer
+/// decodes it. Integrity is anchored by `FileMetadata::sha3_digest` in
+/// the MANIFEST (matching `.obj`/`.ref`); no in-file sha3 trailer.
 ///
 /// MANIFEST File Disk Format
 /// ┌──────────────────────────────┐
@@ -190,8 +193,8 @@ const FILE_METADATA_BYTES: usize =
 pub enum FileType {
     Object = 0,
     Reference = 1,
-    /// V2 only: per-epoch metadata file, populated from `CheckpointStore`'s
-    /// `epoch_info` table.
+    /// V2 only: per-epoch metadata file, populated from
+    /// `IndexStoreTables::epoch_info` via `GrpcIndexes::get_epoch_info_entry`.
     EpochInfo = 2,
 }
 
@@ -268,12 +271,20 @@ impl Manifest {
     }
 }
 
-/// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned to allow
-/// future schema evolution. `entries[i]` is the entry for epoch `i`; `None`
-/// indicates the source `epoch_info` table had no row for that epoch.
-/// Length is `snapshot_epoch + 1`.
-// Note: no `Eq`/`PartialEq` derive here. `EpochInfoEntry` transitively
-// contains `BLS12381AggregateSignature`, which does not implement `PartialEq`.
+/// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
+/// future schema evolution. `entries[i]` is the entry for epoch `i`;
+/// length is `snapshot_epoch + 1`.
+///
+/// Entries are wrapped in `Option<>` so the wire format can express "no
+/// row for epoch `i`" without bumping to `EpochInfoV2`. Today's writer
+/// always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
+/// (see [`StateSnapshotWriterV1::check_epoch_indexed_watermark`]) refuses
+/// to publish unless every epoch in `[0, snapshot_epoch]` has a fully
+/// populated row — but a future partial-coverage writer (e.g. snapshots
+/// that omit pruned epochs) can emit `None` here without breaking V1
+/// decoders.
+// No `Eq`/`PartialEq` derive: `EpochInfoEntry` transitively contains
+// `BLS12381AggregateSignature`, which does not implement `PartialEq`.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EpochInfo {
     V1(EpochInfoV1),

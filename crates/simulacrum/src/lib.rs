@@ -796,6 +796,24 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         }))
     }
 
+    fn get_epoch_info_entry(
+        &self,
+        _epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::epoch_info::EpochInfoEntry>> {
+        // Simulacrum does not produce `EpochInfoEntry` rows — those are
+        // written by `index_epoch` over `CheckpointData`, a pipeline
+        // simulacrum does not exercise. Snapshot V2 production is not part
+        // of the simulator's surface; returning `None` matches the
+        // "row absent" path.
+        Ok(None)
+    }
+
+    fn highest_indexed_epoch(
+        &self,
+    ) -> iota_types::storage::error::Result<Option<iota_types::committee::EpochId>> {
+        Ok(None)
+    }
+
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,

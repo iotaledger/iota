@@ -16,19 +16,183 @@ use futures::future::AbortHandle;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
+    authority::authority_store_tables::AuthorityPerpetualTables,
     global_state_hasher::GlobalStateHasher,
 };
+use iota_node_storage::GrpcIndexes;
 use iota_types::{
-    base_types::ObjectID, global_state_hash::GlobalStateHash,
-    messages_checkpoint::ECMHLiveObjectSetDigest, object::Object,
+    base_types::ObjectID,
+    committee::EpochId,
+    crypto::AuthorityStrongQuorumSignInfo,
+    digests::TransactionDigest,
+    effects::TransactionEvents,
+    epoch_info::EpochInfoEntry,
+    gas::GasCostSummary,
+    global_state_hash::GlobalStateHash,
+    message_envelope::Envelope,
+    messages_checkpoint::{CheckpointSummary, ECMHLiveObjectSetDigest},
+    object::Object,
+    storage::{
+        CoinInfo, DynamicFieldIteratorItem, EpochInfo, OwnedObjectCursor, OwnedObjectIteratorItem,
+        PackageVersionIteratorItem, TransactionInfo, error::Result as StorageResult,
+    },
 };
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FileCompression, FileMetadata, FileType,
-    MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo as SnapshotEpochInfo, EpochInfoV1, FileCompression,
+    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody,
+    OBJECT_REF_BYTES, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
 };
+
+/// In-memory `GrpcIndexes` stub for snapshot tests.
+///
+/// Pre-populates `epoch_info` rows for a contiguous range `[0..=highest]`
+/// with empty-but-structurally-valid `EpochInfoEntry`s and advances the
+/// `EpochIndexed` watermark to `highest`. Lets snapshot-writer tests satisfy
+/// the watermark precondition without standing up a full RocksDB-backed
+/// `IndexStoreTables`. Every method other than the two `epoch_info` paths
+/// returns `None`/empty iterators — tests that exercise other surfaces of
+/// `GrpcIndexes` should not use this stub.
+struct TestGrpcIndexes {
+    entries: HashMap<EpochId, EpochInfoEntry>,
+    highest: Option<EpochId>,
+}
+
+impl TestGrpcIndexes {
+    /// Synthetic state for exercising the writer's `Some(..)` path: every
+    /// epoch in `[0..=highest]` is fully populated and the watermark is
+    /// advanced to `highest`. In production, epoch `N`'s row is only
+    /// finalized when epoch `N+1` is seeded (see the boundary-2 logic in
+    /// `grpc_indexes::write_epoch_info_entries`), so a true production
+    /// state with `EpochIndexed = highest` would additionally carry a
+    /// boundary-1-only row for `highest + 1`. The writer only reads
+    /// `[0, snapshot_epoch]`, so that extra row is irrelevant to the
+    /// tests here — but the asymmetry is worth flagging so future
+    /// readers don't mistake this fixture for a production snapshot.
+    fn with_epochs_through(highest: EpochId) -> Arc<dyn GrpcIndexes> {
+        let mut entries = HashMap::new();
+        for epoch in 0..=highest {
+            entries.insert(epoch, fully_populated_entry(epoch));
+        }
+        Arc::new(TestGrpcIndexes {
+            entries,
+            highest: Some(highest),
+        })
+    }
+
+    /// Stub where the `EpochIndexed` watermark is absent (no epoch has
+    /// been fully indexed yet). Drives the writer's watermark
+    /// precondition into the "no rows" failure branch.
+    fn empty() -> Arc<dyn GrpcIndexes> {
+        Arc::new(TestGrpcIndexes {
+            entries: HashMap::new(),
+            highest: None,
+        })
+    }
+
+    /// Stub with the watermark set to `highest` but no rows populated.
+    /// The watermark precondition fires before any row is read, so this
+    /// is sufficient to drive the "watermark below snapshot_epoch"
+    /// failure branch.
+    fn watermark_only(highest: EpochId) -> Arc<dyn GrpcIndexes> {
+        Arc::new(TestGrpcIndexes {
+            entries: HashMap::new(),
+            highest: Some(highest),
+        })
+    }
+}
+
+/// A recognizable, non-trivial byte pattern stamped into the test
+/// fixture's `start_system_state` so the snapshot round-trip can prove
+/// the opaque bytes pass through writer → BCS → file → BCS → reader
+/// untouched. Mixed-bit nibbles (`0xA5`, `0x5A`) and a length not aligned
+/// to common word sizes (37 bytes) surface off-by-one truncation, byte
+/// swap, or fixed-padding bugs as a specific mismatch rather than an
+/// all-zero or all-`0xFF` clobber.
+const TEST_START_SYSTEM_STATE: &[u8] = &[
+    0xA5, 0x5A, 0xDE, 0xAD, 0xBE, 0xEF, 0xC0, 0xFF, 0xEE, 0x42, 0x13, 0x37, 0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07, 0xFE, 0xED, 0xFA, 0xCE, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+    0xA5, 0x5A, 0xCA, 0xFE, 0x99,
+];
+
+fn fully_populated_entry(epoch: EpochId) -> EpochInfoEntry {
+    let summary = CheckpointSummary {
+        epoch,
+        sequence_number: 0,
+        network_total_transactions: 0,
+        content_digest: Default::default(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data: None,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    EpochInfoEntry {
+        first_checkpoint: 0,
+        start_system_state: TEST_START_SYSTEM_STATE.to_vec(),
+        last_checkpoint_summary: Some(Envelope::new_from_data_and_sig(summary, sig)),
+        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+    }
+}
+
+impl GrpcIndexes for TestGrpcIndexes {
+    fn get_epoch_info(&self, _epoch: EpochId) -> StorageResult<Option<EpochInfo>> {
+        Ok(None)
+    }
+
+    fn get_epoch_info_entry(&self, epoch: EpochId) -> StorageResult<Option<EpochInfoEntry>> {
+        Ok(self.entries.get(&epoch).cloned())
+    }
+
+    fn highest_indexed_epoch(&self) -> StorageResult<Option<EpochId>> {
+        Ok(self.highest)
+    }
+
+    fn get_transaction_info(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> StorageResult<Option<TransactionInfo>> {
+        Ok(None)
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<&OwnedObjectCursor>,
+        _object_type: Option<iota_sdk_types::StructTag>,
+    ) -> StorageResult<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>> {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> StorageResult<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>> {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &iota_sdk_types::StructTag,
+    ) -> StorageResult<Option<CoinInfo>> {
+        Ok(None)
+    }
+
+    fn package_versions_iter(
+        &self,
+        _original_package_id: ObjectID,
+        _cursor: Option<u64>,
+    ) -> StorageResult<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>> {
+        Ok(Box::new(std::iter::empty()))
+    }
+}
 
 pub fn insert_keys(
     db: &AuthorityPerpetualTables,
@@ -95,6 +259,7 @@ async fn snapshot_round_trip(
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
         file_compression,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -103,9 +268,8 @@ async fn snapshot_round_trip(
     insert_keys(&perpetual_db, num_objects)?;
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    let checkpoint_store = CheckpointStore::new(&tmp_dir.join("checkpoint_store"));
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), checkpoint_store, root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
         .await?;
 
     // On-wire size assertion: with no compression the uploaded `.ref` file
@@ -146,18 +310,44 @@ async fn snapshot_round_trip(
             magic, EPOCH_INFO_FILE_MAGIC,
             "EPOCH_INFO magic mismatch: got {magic:#x}, expected {EPOCH_INFO_FILE_MAGIC:#x}"
         );
-        let decoded: EpochInfo = bcs::from_bytes(&bytes[MAGIC_BYTES..])?;
-        let EpochInfo::V1(decoded_v1) = decoded;
-        // The round-trip test uses an empty `CheckpointStore`, so for
-        // epoch 0 the writer emits a single `None` entry.
+        let decoded: SnapshotEpochInfo = bcs::from_bytes(&bytes[MAGIC_BYTES..])?;
+        let SnapshotEpochInfo::V1(decoded_v1) = decoded;
+        // `TestGrpcIndexes::with_epochs_through(0)` provides exactly one
+        // populated entry for epoch 0, so the snapshot's EPOCH_INFO must
+        // carry exactly one entry.
         assert_eq!(
             decoded_v1.entries.len(),
             1,
             "expected `entries` of length 1 for snapshot at epoch 0"
         );
+        // `EpochInfoV1.entries` is `Vec<Option<EpochInfoEntry>>`; the writer
+        // always emits `Some(_)` under its `EpochIndexed` watermark
+        // precondition (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`).
+        let entry = decoded_v1.entries[0]
+            .as_ref()
+            .expect("writer must emit Some entry under the watermark precondition");
+        // Bit-identical round-trip of `start_system_state`. This is the
+        // canary for the contract that the snapshot crate treats the inner
+        // BCS as opaque bytes (never decodes, never reframes) — a writer
+        // bug that truncated, padded, or re-encoded the field would change
+        // these bytes and fail here, even though the outer BCS round-trip
+        // would still succeed.
+        assert_eq!(
+            entry.start_system_state.as_slice(),
+            TEST_START_SYSTEM_STATE,
+            "start_system_state did not round-trip bit-identical through the snapshot"
+        );
+        assert_eq!(
+            entry.first_checkpoint, 0,
+            "first_checkpoint did not round-trip"
+        );
         assert!(
-            decoded_v1.entries[0].is_none(),
-            "expected `entries[0]` to be `None` (CheckpointStore is empty)"
+            entry.last_checkpoint_summary.is_some(),
+            "last_checkpoint_summary did not round-trip"
+        );
+        assert!(
+            entry.end_of_epoch_tx_events.is_some(),
+            "end_of_epoch_tx_events did not round-trip"
         );
     }
 
@@ -184,6 +374,44 @@ async fn snapshot_round_trip(
     Ok(())
 }
 
+/// Runs the snapshot writer against `stub` and returns the resulting
+/// error. Used by the watermark-precondition sub-cases below; collapses
+/// the local/remote-store + empty perpetual-DB boilerplate. The watermark
+/// check is the first thing `write_internal` does, so the DB content is
+/// irrelevant to these cases — an empty DB suffices.
+async fn writer_with_stub_returns_err(
+    tmp_dir: &std::path::Path,
+    snapshot_epoch: u64,
+    stub: Arc<dyn GrpcIndexes>,
+) -> anyhow::Error {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("remote_dir")),
+        ..Default::default()
+    };
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        stub,
+        FileCompression::None,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await
+    .expect("snapshot writer setup");
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    snapshot_writer
+        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .await
+        .expect_err("snapshot writer must reject when watermark is insufficient")
+}
+
 #[tokio::test]
 async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
     // Populated case, with compression - exercises the production path.
@@ -202,6 +430,41 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
     // on `snapshot_round_trip`).
     let checkpoint_dir = iota_common::tempdir();
     snapshot_restores_per_object_checkpoint(checkpoint_dir.path()).await?;
+
+    // Watermark precondition: absent watermark rejects the snapshot.
+    // Matched against the full anyhow chain via `{err:#}` because
+    // `write_internal` wraps the inner error with a context message.
+    let watermark_absent_dir = iota_common::tempdir();
+    let err =
+        writer_with_stub_returns_err(watermark_absent_dir.path(), 0, TestGrpcIndexes::empty())
+            .await;
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("`EpochIndexed` watermark is absent"),
+        "absent-watermark error chain did not match: {msg}"
+    );
+
+    // Watermark precondition: `Some(h)` with `h < snapshot_epoch` rejects
+    // the snapshot. The "watermark is at epoch N, but snapshot_epoch is M"
+    // wording is itself part of the operator-facing contract — pin both
+    // sides so a rewording that drops one is caught here.
+    let watermark_below_dir = iota_common::tempdir();
+    let err = writer_with_stub_returns_err(
+        watermark_below_dir.path(),
+        5,
+        TestGrpcIndexes::watermark_only(3),
+    )
+    .await;
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("`EpochIndexed` watermark is at epoch 3"),
+        "too-low watermark error chain did not match (epoch 3): {msg}"
+    );
+    assert!(
+        msg.contains("snapshot_epoch is 5"),
+        "too-low watermark error chain did not match (snapshot_epoch 5): {msg}"
+    );
+
     Ok(())
 }
 
@@ -231,6 +494,7 @@ async fn snapshot_restores_per_object_checkpoint(
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -257,9 +521,8 @@ async fn snapshot_restores_per_object_checkpoint(
 
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
-    let checkpoint_store = CheckpointStore::new(&tmp_dir.join("checkpoint_store"));
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), checkpoint_store, root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
         .await?;
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -380,15 +643,31 @@ fn write_manifest_file(path: &std::path::Path, manifest: &Manifest) -> std::io::
 
 /// Locks the on-wire format of the `EPOCH_INFO` file body: BCS-encoding
 /// `EpochInfo::V1` must use variant tag `0`, and `entries` must round-trip
-/// with its length and `None`/`Some` shape preserved. `EpochInfoEntry`
-/// does not implement `PartialEq`, so this covers the all-`None` shape
-/// end-to-end. The `Some(..)` payload is not exercised here because
-/// constructing a real `CertifiedCheckpointSummary` requires committee
-/// fixtures from `iota-swarm-config`, which this crate does not depend on.
+/// with its length preserved.
+///
+/// The end-to-end payload (writer → BCS → file → BCS → reader) is covered
+/// by `snapshot_round_trip`'s EPOCH_INFO assertion, which uses the
+/// `TEST_START_SYSTEM_STATE` canary to verify a bit-identical round-trip
+/// of the opaque `start_system_state` bytes plus `first_checkpoint`,
+/// `last_checkpoint_summary`, and `end_of_epoch_tx_events`. This test
+/// exercises the discriminant and Vec framing in isolation so a wire-
+/// format regression that decouples from the writer (e.g. someone adds
+/// an `EpochInfoV2` variant before `V1`) is caught even if the writer
+/// path is healthy.
 #[test]
 fn epoch_info_v1_bcs_round_trip() {
-    let epoch_info = EpochInfo::V1(EpochInfoV1 {
-        entries: vec![None, None, None],
+    // Mix of `Some(_)` and `None` entries so the `Option` framing in
+    // `Vec<Option<EpochInfoEntry>>` is exercised end-to-end. Today's
+    // writer never emits `None` (the watermark precondition forbids it),
+    // but the wire format reserves that shape for a future partial-
+    // coverage writer — see [`EpochInfo`]. Locking the `None`-tag byte
+    // here keeps that forward-compat path honest.
+    let epoch_info = SnapshotEpochInfo::V1(EpochInfoV1 {
+        entries: vec![
+            Some(fully_populated_entry(0)),
+            None,
+            Some(fully_populated_entry(2)),
+        ],
     });
     let bytes = bcs::to_bytes(&epoch_info).unwrap();
     assert_eq!(
@@ -396,8 +675,25 @@ fn epoch_info_v1_bcs_round_trip() {
         "EpochInfo::V1 must remain at BCS discriminant 0"
     );
 
-    let decoded: EpochInfo = bcs::from_bytes(&bytes).unwrap();
-    let EpochInfo::V1(decoded_v1) = decoded;
+    let decoded: SnapshotEpochInfo = bcs::from_bytes(&bytes).unwrap();
+    let SnapshotEpochInfo::V1(decoded_v1) = decoded;
     assert_eq!(decoded_v1.entries.len(), 3);
-    assert!(decoded_v1.entries.iter().all(Option::is_none));
+    assert!(
+        decoded_v1.entries[1].is_none(),
+        "Vec<Option<_>> framing must preserve None entries across BCS"
+    );
+    // Per-entry summary carries the epoch number, so this also asserts
+    // the Vec ordering is preserved across BCS round-trip.
+    let assert_entry_epoch = |i: usize, expected: EpochId| {
+        let entry = decoded_v1.entries[i]
+            .as_ref()
+            .expect("fixture populates this slot");
+        let summary = entry
+            .last_checkpoint_summary
+            .as_ref()
+            .expect("fixture populates last_checkpoint_summary");
+        assert_eq!(summary.epoch(), expected);
+    };
+    assert_entry_epoch(0, 0);
+    assert_entry_epoch(2, 2);
 }

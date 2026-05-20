@@ -7496,6 +7496,8 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
+ "iota-node-storage",
+ "iota-sdk-types",
  "iota-storage",
  "iota-types",
  "num_enum",

@@ -382,6 +382,19 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Ok(None)
     }
 
+    // Mock reader: gRPC-server tests do not exercise snapshot V2
+    // production, so the `epoch_info` table is treated as empty.
+    fn get_epoch_info_entry(
+        &self,
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<iota_types::epoch_info::EpochInfoEntry>> {
+        Ok(None)
+    }
+
+    fn highest_indexed_epoch(&self) -> StorageResult<Option<iota_types::committee::EpochId>> {
+        Ok(None)
+    }
+
     fn get_transaction_info(
         &self,
         _digest: &TransactionDigest,

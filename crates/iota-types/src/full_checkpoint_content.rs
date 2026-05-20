@@ -65,7 +65,15 @@ impl CheckpointData {
             .collect()
     }
 
-    pub fn epoch_info(&self) -> Result<Option<EpochInfo>, StorageError> {
+    /// Returns the epoch boundary information for this checkpoint, paired
+    /// with the events of the transaction that produced this epoch's start
+    /// system state (`EndOfEpoch` for non-genesis checkpoints, `Genesis`
+    /// for checkpoint 0). The events are cloned here so callers don't
+    /// have to take a second `transactions.iter().find(..)` pass to fetch
+    /// them. Returns `None` for non-epoch-boundary checkpoints.
+    pub fn epoch_info(
+        &self,
+    ) -> Result<Option<(EpochInfo, Option<TransactionEvents>)>, StorageError> {
         // If there is no end of epoch data, return None, except for checkpoint 0
         if self.checkpoint_summary.end_of_epoch_data.is_none()
             && self.checkpoint_summary.sequence_number != 0
@@ -109,16 +117,19 @@ impl CheckpointData {
                 ))
             })?;
 
-        Ok(Some(EpochInfo {
-            epoch: system_state.epoch(),
-            protocol_version: system_state.protocol_version(),
-            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
-            end_timestamp_ms: None,
-            start_checkpoint,
-            end_checkpoint: None,
-            reference_gas_price: system_state.reference_gas_price(),
-            system_state,
-        }))
+        Ok(Some((
+            EpochInfo {
+                epoch: system_state.epoch(),
+                protocol_version: system_state.protocol_version(),
+                start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
+                end_timestamp_ms: None,
+                start_checkpoint,
+                end_checkpoint: None,
+                reference_gas_price: system_state.reference_gas_price(),
+                system_state,
+            },
+            transaction.events.clone(),
+        )))
     }
 }
 

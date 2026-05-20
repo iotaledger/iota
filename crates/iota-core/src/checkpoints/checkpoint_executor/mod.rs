@@ -31,7 +31,6 @@ use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
     crypto::RandomnessRound,
     effects::{TransactionEffects, TransactionEffectsAPI},
-    epoch_info::EpochInfoEntry,
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
@@ -435,8 +434,6 @@ impl CheckpointExecutor {
             self.checkpoint_store
                 .insert_epoch_last_checkpoint(self.epoch_store.epoch(), &ckpt_state.data.checkpoint)
                 .expect("Failed to insert epoch last checkpoint");
-
-            self.write_epoch_info_entry(&ckpt_state.data);
 
             self.global_state_hasher
                 .accumulate_epoch(self.epoch_store.clone(), seq)
@@ -901,37 +898,6 @@ impl CheckpointExecutor {
         self.transaction_cache_reader
             .notify_read_executed_effects_digests(&[*change_epoch_tx.digest()])
             .await;
-    }
-
-    // Write the per-epoch metadata used by the snapshot V2 writer to populate
-    // the `EPOCH_INFO` file. Called once per epoch on every node after the
-    // AdvanceEpoch tx has executed and its events have been committed.
-    fn write_epoch_info_entry(&self, ckpt_data: &CheckpointExecutionData) {
-        let epoch = self.epoch_store.epoch();
-        let last_tx_digest = ckpt_data
-            .tx_digests
-            .last()
-            .expect("end-of-epoch checkpoint always contains the AdvanceEpoch tx");
-        // In safe mode the AdvanceEpoch tx's normal execution is dropped and
-        // replaced by `advance_epoch_safe_mode`, which mutates the system-state
-        // object but emits no events — so the effects carry no `events_digest`
-        // and `get_events` legitimately returns `None`.
-        let end_of_epoch_tx_events = self
-            .transaction_cache_reader
-            .get_events(last_tx_digest)
-            .unwrap_or_default();
-        let first_checkpoint = self
-            .checkpoint_store
-            .get_epoch_first_checkpoint(epoch)
-            .expect("Failed to read previous epoch's last checkpoint");
-        let entry = EpochInfoEntry {
-            last_checkpoint_summary: ckpt_data.checkpoint.clone().into_inner(),
-            first_checkpoint,
-            end_of_epoch_tx_events,
-        };
-        self.checkpoint_store
-            .insert_epoch_info(epoch, &entry)
-            .expect("Failed to insert epoch info entry");
     }
 
     // Increment the highest executed checkpoint watermark and prune old

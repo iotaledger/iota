@@ -15,6 +15,8 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,
+    effects::TransactionEvents,
+    epoch_info::EpochInfoEntry,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
@@ -56,11 +58,27 @@ struct MetadataInfo {
     version: u64,
 }
 
-/// Checkpoint watermark type
+/// Watermark type for the gRPC indexes store.
+///
+/// The variants are keys into the shared `watermark` column family
+/// (`DBMap<Watermark, CheckpointSequenceNumber>`). `Indexed` and `Pruned`
+/// store a checkpoint sequence number; `EpochIndexed` stores an epoch id.
+/// They share the same `u64` value type because RocksDB column families
+/// require a single value schema — interpretation depends on the variant
+/// used as the key.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Watermark {
+    /// Highest checkpoint sequence number indexed.
     Indexed,
+    /// Highest checkpoint sequence number pruned.
     Pruned,
+    /// Highest epoch whose `epoch_info` row is fully populated. Value is
+    /// an `EpochId`, not a checkpoint sequence number. Advanced atomically
+    /// with the boundary-2 upsert in `index_epoch`. The snapshot V2 writer
+    /// reads this before publishing; a value `< snapshot_epoch` (or
+    /// absent) means the writer cannot vouch for `[0, snapshot_epoch]`
+    /// and must refuse the snapshot.
+    EpochIndexed,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -345,6 +363,19 @@ struct IndexStoreTables {
     // TODO: https://github.com/iotaledger/iota/issues/10957
     epochs: DBMap<EpochId, EpochInfo>,
 
+    /// Per-epoch metadata sufficient to rebuild the indexer's `epochs`
+    /// table from a snapshot (see `EpochInfoEntry`). Written by
+    /// `index_epoch` over two consecutive epoch boundaries (start-of-N
+    /// fields at N-1 close; end-of-N fields at N close). Read by the
+    /// snapshot V2 writer to produce the `EPOCH_INFO` file. Completeness
+    /// is tracked by `Watermark::EpochIndexed`.
+    ///
+    /// Intentionally not pruned: the snapshot writer needs full
+    /// `[0, snapshot_epoch]` coverage, so this table grows unboundedly
+    /// with epoch count (one row per epoch, ever) by design. Do not add
+    /// it to the `prune` function.
+    epoch_info: DBMap<EpochId, EpochInfoEntry>,
+
     /// Maps transaction digests to the checkpoint that contains them.
     ///
     /// Only contains entries for transactions which have yet to be pruned from
@@ -445,6 +476,13 @@ impl IndexStoreTables {
         if let Some(checkpoint_range) = checkpoint_range {
             self.index_existing_transactions(authority_store, checkpoint_store, checkpoint_range)?;
         }
+
+        // `index_existing_transactions` writes `Watermark::EpochIndexed` and
+        // `epoch_info` rows per batch under `into_par_iter`, which can leave
+        // the watermark non-monotonic and the rows in inconsistent states.
+        // Recompute the watermark from the actual table contents so the
+        // snapshot writer's precondition reflects what was really indexed.
+        self.reconcile_epoch_indexed_watermark()?;
 
         self.initialize_current_epoch(authority_store, checkpoint_store)?;
 
@@ -569,9 +607,15 @@ impl IndexStoreTables {
         checkpoint: &CheckpointData,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
-        let Some(epoch_info) = checkpoint.epoch_info()? else {
+        let Some((epoch_info, end_of_epoch_events)) = checkpoint.epoch_info()? else {
             return Ok(());
         };
+
+        // Two-boundary writes for the `epoch_info` table; staged into the
+        // same batch as the `epochs` writes below so they commit atomically.
+        // See `write_epoch_info_entries` and `EpochInfoEntry` for the
+        // boundary semantics.
+        self.write_epoch_info_entries(checkpoint, &epoch_info, end_of_epoch_events, batch)?;
 
         // We need to handle closing the previous epoch by updating the entry for it, if
         // it exists.
@@ -588,6 +632,146 @@ impl IndexStoreTables {
         // Insert the current epoch info
         batch.insert_batch(&self.epochs, [(epoch_info.epoch, epoch_info)])?;
 
+        Ok(())
+    }
+
+    /// Stage the two-boundary `epoch_info` writes for this checkpoint into
+    /// `batch`. The system state decoded by `checkpoint.epoch_info()` is
+    /// re-encoded here as opaque BCS bytes so the outer `IotaSystemState`
+    /// enum can evolve through its own variant axis (see
+    /// `EpochInfoEntry::start_system_state`).
+    fn write_epoch_info_entries(
+        &self,
+        checkpoint: &CheckpointData,
+        epoch_info: &EpochInfo,
+        end_of_epoch_events: Option<TransactionEvents>,
+        batch: &mut typed_store::rocks::DBBatch,
+    ) -> Result<(), StorageError> {
+        let new_epoch_id = epoch_info.epoch;
+        let first_checkpoint = epoch_info.start_checkpoint;
+        let start_system_state = bcs::to_bytes(&epoch_info.system_state)
+            .map_err(|e| StorageError::custom(format!("Failed to encode system state: {e}")))?;
+
+        // Boundary 1 — seed `new_epoch_id`'s row with start-of-epoch fields.
+        // On a re-run over the same boundary (e.g. an init replay), preserve
+        // any boundary-2 fields that may already be set on the row;
+        // `first_checkpoint` and `start_system_state` are deterministic per
+        // epoch, so re-stamping them is a no-op on a healthy node.
+        let new_entry = match self.epoch_info.get(&new_epoch_id)? {
+            Some(existing) => {
+                debug_assert_eq!(
+                    existing.first_checkpoint, first_checkpoint,
+                    "epoch {new_epoch_id}: re-seeded `first_checkpoint` diverges from existing row",
+                );
+                debug_assert_eq!(
+                    existing.start_system_state, start_system_state,
+                    "epoch {new_epoch_id}: re-seeded `start_system_state` diverges from existing row",
+                );
+                EpochInfoEntry {
+                    first_checkpoint,
+                    start_system_state,
+                    ..existing
+                }
+            }
+            None => EpochInfoEntry {
+                first_checkpoint,
+                start_system_state,
+                last_checkpoint_summary: None,
+                end_of_epoch_tx_events: None,
+            },
+        };
+        batch.insert_batch(&self.epoch_info, [(new_epoch_id, new_entry)])?;
+
+        // Boundary 2 — finalize `prev_epoch`'s row. Genesis has no previous
+        // epoch to finalize; epoch 0's boundary 2 fires when epoch 1 is
+        // seeded, so `EpochIndexed` stays absent until then.
+        if new_epoch_id == 0 {
+            return Ok(());
+        }
+        let prev_epoch = new_epoch_id - 1;
+        // In safe mode the AdvanceEpoch tx is replaced by
+        // `advance_epoch_safe_mode`, which mutates `0x5` but emits no
+        // events. `Some(default())` says "finalized, with no events" —
+        // distinct from the boundary-2 `None` lifecycle state.
+        let end_of_epoch_tx_events = Some(end_of_epoch_events.unwrap_or_default());
+        let last_checkpoint_summary = checkpoint.checkpoint_summary.clone();
+        let prev_entry = match self.epoch_info.get(&prev_epoch)? {
+            Some(existing) => EpochInfoEntry {
+                last_checkpoint_summary: Some(last_checkpoint_summary),
+                end_of_epoch_tx_events,
+                ..existing
+            },
+            // No boundary-1 row exists — this node didn't see `prev_epoch`'s
+            // start (e.g. bootstrapped mid-epoch). Skip the upsert; the row
+            // stays absent and the watermark stays behind, so the snapshot
+            // writer correctly refuses to publish until an external backfill
+            // fills the gap.
+            None => return Ok(()),
+        };
+        batch.insert_batch(&self.epoch_info, [(prev_epoch, prev_entry)])?;
+        batch.insert_batch(&self.watermark, [(Watermark::EpochIndexed, prev_epoch)])?;
+
+        Ok(())
+    }
+
+    /// Read a single `epoch_info` row. Returns `None` if the row is absent
+    /// or has not yet been seeded (boundary 1 not done).
+    ///
+    /// Named `get_epoch_info_entry` (not `get_epoch_info`) to avoid
+    /// shadowing the auto-derived accessor for the existing `epochs`
+    /// table, which returns the indexer's `EpochInfo` type.
+    fn get_epoch_info_entry(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<EpochInfoEntry>, TypedStoreError> {
+        self.epoch_info.get(&epoch)
+    }
+
+    /// Read `Watermark::EpochIndexed`: the highest epoch whose
+    /// `epoch_info` row is fully populated (both boundary-2 fields set).
+    /// `None` if no epoch has been fully indexed yet.
+    fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
+        self.watermark.get(&Watermark::EpochIndexed)
+    }
+
+    /// Re-derive `Watermark::EpochIndexed` from the actual contents of the
+    /// `epoch_info` table, set it to the contiguous-prefix maximum, and
+    /// remove the watermark entirely if no epoch is fully populated.
+    ///
+    /// The snapshot writer's precondition requires that *all* rows in
+    /// `[0, watermark]` are fully populated, so the walk stops at the
+    /// first gap (missing row) or partially-populated row. Even though
+    /// the parallel init path may stamp a higher value into the watermark
+    /// from a racing batch, the value written here is the only one that
+    /// honours that invariant.
+    ///
+    /// The contiguous-prefix walk relies on `safe_iter` returning rows in
+    /// ascending `EpochId` order. `typed_store` encodes integer keys big-
+    /// endian (see `bincode::DefaultOptions::with_big_endian` in
+    /// `typed-store/src/util.rs`), so RocksDB byte-order iteration is
+    /// numeric ascending. A future codec change would silently break this
+    /// walk.
+    fn reconcile_epoch_indexed_watermark(&self) -> Result<(), TypedStoreError> {
+        let mut expected: EpochId = 0;
+        for result in self.epoch_info.safe_iter() {
+            let (epoch_id, entry) = result?;
+            if epoch_id != expected {
+                break;
+            }
+            if entry.last_checkpoint_summary.is_none() || entry.end_of_epoch_tx_events.is_none() {
+                break;
+            }
+            expected += 1;
+        }
+
+        if expected == 0 {
+            self.watermark.remove(&Watermark::EpochIndexed)?;
+            debug!("EpochIndexed watermark reconciled: absent (no fully-populated epochs)");
+        } else {
+            let highest = expected - 1;
+            self.watermark.insert(&Watermark::EpochIndexed, &highest)?;
+            debug!("EpochIndexed watermark reconciled to epoch {highest}");
+        }
         Ok(())
     }
 
@@ -1065,6 +1249,17 @@ impl GrpcIndexesStore {
         self.tables
             .package_versions_iter(original_package_id, cursor)
     }
+
+    pub fn get_epoch_info_entry(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<EpochInfoEntry>, TypedStoreError> {
+        self.tables.get_epoch_info_entry(epoch)
+    }
+
+    pub fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
+        self.tables.highest_indexed_epoch()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1078,6 +1273,21 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
     ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
         self.tables
             .get_epoch_info(epoch)
+            .map_err(|e| StorageError::custom(e.to_string()))
+    }
+
+    fn get_epoch_info_entry(
+        &self,
+        epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<EpochInfoEntry>> {
+        self.tables
+            .get_epoch_info_entry(epoch)
+            .map_err(|e| StorageError::custom(e.to_string()))
+    }
+
+    fn highest_indexed_epoch(&self) -> iota_types::storage::error::Result<Option<EpochId>> {
+        self.tables
+            .highest_indexed_epoch()
             .map_err(|e| StorageError::custom(e.to_string()))
     }
 
