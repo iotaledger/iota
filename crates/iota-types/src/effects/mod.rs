@@ -5,13 +5,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use iota_sdk_types::effects::{
-    ChangedObject as EffectsObjectChange, IdOperation as IDOperation, InputSharedObject,
-    ObjectChange, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
-    UnchangedSharedKind,
+    ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
+    TransactionEffects, TransactionEffectsV1, UnchangedSharedKind,
 };
 use iota_sdk_types::{
-    EpochId, ExecutionStatus, GasCostSummary, IntentScope, Owner, UnchangedSharedObject, Version,
-    crypto::Intent,
+    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, Owner, UnchangedSharedObject,
+    Version, crypto::Intent,
 };
 use serde::{Deserialize, Serialize};
 pub use test_effects_builder::TestEffectsBuilder;
@@ -64,6 +63,57 @@ impl Message for TransactionEffects {
 pub enum ObjectRemoveKind {
     Delete,
     Wrap,
+}
+
+/// Description of a shared object that was used as input to a transaction.
+///
+/// Captures how each shared object was accessed during execution: whether it
+/// was mutated, read-only, deleted after mutable or read-only access, or
+/// cancelled.
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum InputSharedObject {
+    Mutate(ObjectRef),
+    ReadOnly(ObjectRef),
+    ReadDeleted(ObjectID, Version),
+    MutateDeleted(ObjectID, Version),
+    Cancelled(ObjectID, Version),
+}
+
+impl InputSharedObject {
+    pub fn id_and_version(&self) -> (ObjectID, Version) {
+        let (object_id, version, ..) = self.object_ref().into_parts();
+        (object_id, version)
+    }
+
+    pub fn object_ref(&self) -> ObjectRef {
+        match self {
+            InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
+            InputSharedObject::ReadDeleted(id, version)
+            | InputSharedObject::MutateDeleted(id, version) => {
+                ObjectRef::new(*id, *version, Digest::OBJECT_DELETED)
+            }
+            InputSharedObject::Cancelled(id, version) => {
+                ObjectRef::new(*id, *version, Digest::OBJECT_CANCELLED)
+            }
+        }
+    }
+}
+
+/// Effect on an individual object, keyed by its [`ObjectID`].
+///
+/// Describes the input and output version/digest of a single object that was
+/// read or modified during transaction execution, along with the
+/// [`IDOperation`] that was applied to it. This is a flattened,
+/// version-agnostic view derived from the effects via
+/// [`TransactionEffectsAPI::object_changes`].
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub struct ObjectChange {
+    pub id: ObjectID,
+    pub input_version: Option<Version>,
+    pub input_digest: Option<Digest>,
+    pub output_version: Option<Version>,
+    pub output_digest: Option<Digest>,
+    pub id_operation: IDOperation,
 }
 
 mod transaction_effects_api {
@@ -785,19 +835,7 @@ mod tests {
     /// divergence would split-brain storage and consensus digests.
     #[test]
     fn message_trait_and_effects_digest_match() {
-        let effects = TransactionEffects::V1(Box::new(TransactionEffectsV1 {
-            status: ExecutionStatus::Success,
-            epoch: 0,
-            gas_cost_summary: GasCostSummary::default(),
-            transaction_digest: TransactionDigest::default(),
-            gas_object_index: None,
-            events_digest: None,
-            dependencies: vec![],
-            lamport_version: Version::default(),
-            changed_objects: vec![],
-            unchanged_shared_objects: vec![],
-            auxiliary_data_digest: None,
-        }));
+        let effects = TransactionEffects::empty_for_testing(TransactionDigest::default());
         let message_digest = <TransactionEffects as Message>::digest(&effects);
         let effects_digest = effects.digest();
         assert_eq!(message_digest, effects_digest);
