@@ -46,7 +46,7 @@ jobs:
         run: |
           WORKING_DIR=/tmp/mainnet-split-cluster-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
-          scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ github.sha }}
+          scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ inputs.head_sha || github.sha }}
 
       - name: Upload mainnet split cluster logs on failure
         if: failure()
@@ -73,7 +73,7 @@ jobs:
         run: |
           WORKING_DIR=/tmp/testnet-split-cluster-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=testnet \
-          scripts/compatibility/split-cluster-check.sh origin/testnet ${{ github.sha }}
+          scripts/compatibility/split-cluster-check.sh origin/testnet ${{ inputs.head_sha || github.sha }}
 
       - name: Upload testnet split cluster logs on failure
         if: failure()

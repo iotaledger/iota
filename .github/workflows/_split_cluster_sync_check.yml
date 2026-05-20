@@ -45,7 +45,7 @@ jobs:
         run: |
           WORKING_DIR=/tmp/mainnet-split-cluster-sync-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
-          scripts/compatibility/split-cluster-sync-check.sh origin/mainnet ${{ github.sha }}
+          scripts/compatibility/split-cluster-sync-check.sh origin/mainnet ${{ inputs.head_sha || github.sha }}
       - name: Upload mainnet split cluster sync logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -77,7 +77,7 @@ jobs:
         run: |
           WORKING_DIR=/tmp/testnet-split-cluster-sync-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=testnet \
-          scripts/compatibility/split-cluster-sync-check.sh origin/testnet ${{ github.sha }}
+          scripts/compatibility/split-cluster-sync-check.sh origin/testnet ${{ inputs.head_sha || github.sha }}
       - name: Upload testnet split cluster sync logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
