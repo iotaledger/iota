@@ -39,11 +39,7 @@ use crate::{
         create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
-    checkpoints::CheckpointStore,
-    consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-        MockConsensusClient,
-    },
+    consensus_adapter::ConsensusAdapter,
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
     test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},
@@ -745,16 +741,8 @@ async fn test_authority_txn_signing_pushback() {
 
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),
@@ -876,16 +864,8 @@ async fn test_authority_txn_execution_pushback() {
         .await;
 
     // Create a validator service around the `authority_state`.
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),

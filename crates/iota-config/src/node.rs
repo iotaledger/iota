@@ -808,19 +808,26 @@ impl NodeConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    // Base consensus DB path for all epochs.
+    /// Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
-    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    /// The number of epochs for which to retain the consensus DBs.
+    /// Setting it to 0 will make a consensus DB getting dropped
+    /// as soon as system is switched to a new epoch.
     pub db_retention_epochs: Option<u64>,
 
-    // Pruner will run on every epoch change but it will also check periodically on every
-    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    /// Pruner will run on every epoch change but it will also check
+    /// periodically on every `db_pruner_period_secs` seconds to see
+    /// if there are any epoch DBs to remove.
     pub db_pruner_period_secs: Option<u64>,
 
-    /// Maximum number of pending transactions to submit to consensus, including
-    /// those in submission wait.
+    /// Hard limit on the number of pending transactions to submit to
+    /// consensus, including those in submission wait. Used as the upper
+    /// bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (pcool / white-flag) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
@@ -843,6 +850,15 @@ pub struct ConsensusConfig {
     /// Parameters for Starfish consensus
     #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
     pub parameters: Option<StarfishParameters>,
+
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (pcool /
+    /// white-flag) mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_soft_limit_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -850,8 +866,21 @@ impl ConsensusConfig {
         &self.db_path
     }
 
+    /// Returns the hard limit on the number of pending transactions to submit
+    /// to consensus, including those in submission wait. Defaults to 20_000
+    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (pcool / white-flag) mode.
+    pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+            .unwrap_or(50)
+            .min(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -1183,52 +1212,57 @@ pub struct TransactionKeyValueStoreWriteConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityOverloadConfig {
+    /// Maximum time a transaction can wait in the transaction manager execution
+    /// queue before it triggers an overload detection on the object it depends
+    /// on.
     #[serde(default = "default_max_txn_age_in_queue")]
     pub max_txn_age_in_queue: Duration,
 
-    // The interval of checking overload signal.
+    /// The interval of checking overload signal.
     #[serde(default = "default_overload_monitor_interval")]
     pub overload_monitor_interval: Duration,
 
-    // The execution queueing latency when entering load shedding mode.
+    /// The execution queueing latency when entering load shedding mode.
     #[serde(default = "default_execution_queue_latency_soft_limit")]
     pub execution_queue_latency_soft_limit: Duration,
 
-    // The execution queueing latency when entering aggressive load shedding mode.
+    /// The execution queueing latency when entering aggressive load shedding
+    /// mode.
     #[serde(default = "default_execution_queue_latency_hard_limit")]
     pub execution_queue_latency_hard_limit: Duration,
 
-    // The maximum percentage of transactions to shed in load shedding mode.
+    /// The maximum percentage of transactions to shed in load shedding mode.
     #[serde(default = "default_max_load_shedding_percentage")]
     pub max_load_shedding_percentage: u32,
 
-    // When in aggressive load shedding mode, the minimum percentage of
-    // transactions to shed.
+    /// When in aggressive load shedding mode, the minimum percentage of
+    /// transactions to shed.
     #[serde(default = "default_min_load_shedding_percentage_above_hard_limit")]
     pub min_load_shedding_percentage_above_hard_limit: u32,
 
-    // If transaction ready rate is below this rate, we consider the validator
-    // is well under used, and will not enter load shedding mode.
+    /// If transaction ready rate is below this rate, we consider the validator
+    /// is well under used, and will not enter load shedding mode.
     #[serde(default = "default_safe_transaction_ready_rate")]
     pub safe_transaction_ready_rate: u32,
 
-    // When set to true, transaction signing may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction signing may be rejected when the validator
+    /// is overloaded.
     #[serde(default = "default_check_system_overload_at_signing")]
     pub check_system_overload_at_signing: bool,
 
-    // When set to true, transaction execution may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction execution may be rejected when the
+    /// validator is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
 
-    // Reject a transaction if transaction manager queue length is above this threshold.
-    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    /// Reject a transaction if transaction manager queue length is above this
+    /// threshold. 100_000 = 10k TPS * 5s resident time in transaction
+    /// manager (pending + executing) * 2.
     #[serde(default = "default_max_transaction_manager_queue_length")]
     pub max_transaction_manager_queue_length: usize,
 
-    // Reject a transaction if the number of pending transactions depending on the object
-    // is above the threshold.
+    /// Reject a transaction if the number of pending transactions depending on
+    /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
 }

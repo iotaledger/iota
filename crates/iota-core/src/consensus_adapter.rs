@@ -239,31 +239,56 @@ pub trait ConsensusClient: Sync + Send + 'static {
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
     consensus_client: Arc<dyn ConsensusClient>,
+
     /// The checkpoint store for the validator
     checkpoint_store: Arc<CheckpointStore>,
+
     /// Authority pubkey.
     authority: AuthorityName,
-    /// The limit to number of inflight transactions at this node.
+
+    /// The hard limit on the number of inflight transactions at this node.
+    /// Used as the upper bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (pcool / white-flag) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
+
     /// Number of submitted transactions still inflight at this node.
     num_inflight_transactions: AtomicU64,
+
     /// Dictates the maximum position  from which will submit to consensus. Even
     /// if the is elected to submit from a higher position than this, it
     /// will "reset" to the max_submit_position.
     max_submit_position: Option<usize>,
+
     /// When provided it will override the current back off logic and will use
     /// this value instead as delay step.
     submit_delay_step_override: Option<Duration>,
+
     /// A structure to check the connection statuses populated by the Connection
     /// Monitor Listener
     connection_monitor_status: Arc<dyn CheckConnection>,
+
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
+
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
+
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
+
+    /// Tracks consensus submission latency for adaptive submit-delay backoff.
     latency_observer: LatencyObserver,
+
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (pcool /
+    /// white-flag) mode.
+    graduated_load_shedding_soft_limit_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -296,6 +321,7 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
+        graduated_load_shedding_soft_limit_pct: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -313,7 +339,26 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
+            graduated_load_shedding_soft_limit_pct,
         }
+    }
+
+    /// Test-only: creates a consensus adapter with a `MockConsensusClient`,
+    /// default values for all parameters, and the given authority name.
+    #[cfg(test)]
+    pub fn new_for_testing_with_authority_name(authority_name: AuthorityName) -> Self {
+        Self::new(
+            Arc::new(MockConsensusClient::new()),
+            CheckpointStore::new_for_tests(),
+            authority_name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        )
     }
 
     pub fn swap_low_scoring_authorities(
@@ -598,29 +643,62 @@ impl ConsensusAdapter {
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 
+    /// Returns the limit on the number of inflight transactions at this node.
+    pub(super) fn max_pending_transactions(&self) -> usize {
+        self.max_pending_transactions
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (pcool / white-flag) mode.
+    pub(super) fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+    }
+
     /// Returns the number of transactions currently in-flight in consensus.
-    pub fn num_inflight_transactions(&self) -> u64 {
+    pub(super) fn num_inflight_transactions(&self) -> u64 {
         self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
-    /// Performs weakly consistent checks on internal buffers to quickly
-    /// discard transactions if we are overloaded
-    pub fn check_limits(&self) -> bool {
-        // First check total transactions (waiting and in submission)
+    /// Test-only: sets the number of in-flight transactions.
+    #[cfg(test)]
+    pub(super) fn set_num_inflight_transactions_for_testing(&self, value: u64) {
+        self.num_inflight_transactions
+            .store(value, Ordering::Relaxed);
+    }
+
+    /// Returns `true` if both hard limits allow another transaction:
+    /// (i) in-flight count is at or below `max_pending_transactions`, and
+    /// (ii) `submit_semaphore` has at least one available permit.
+    ///
+    /// Uses relaxed atomic reads: the two limits are not observed atomically.
+    fn check_consensus_hard_limits(&self) -> bool {
+        // First check total in-flight transactions (waiting and in submission).
+        // TODO: this check is redundant in the white-flag flow - graduated
+        // shedding already rejects at 100% once `num_inflight_transactions`
+        // reaches `max_pending_transactions`. Remove when the certificate-based
+        // flow is removed from the codebase. The semaphore check below stays in
+        // either case, since it is a separate concurrency limit not covered
+        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
             return false;
         }
-        // Then check if submit_semaphore has permits
+
+        // Then check if `submit_semaphore` has permits
         self.submit_semaphore.available_permits() > 0
     }
 
+    /// `IotaResult` wrapper for `check_consensus_hard_limits`. Returns
+    /// `TooManyTransactionsPendingConsensus` when the hard limits are exceeded.
     pub(crate) fn check_consensus_overload(&self) -> IotaResult {
         fp_ensure!(
-            self.check_limits(),
+            self.check_consensus_hard_limits(),
             IotaError::TooManyTransactionsPendingConsensus
         );
+
         Ok(())
     }
 
@@ -1452,6 +1530,7 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
+            50,
         );
 
         // transaction to submit
@@ -1482,6 +1561,7 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         );
 
         let (delay_step, position, positions_moved, _) =
