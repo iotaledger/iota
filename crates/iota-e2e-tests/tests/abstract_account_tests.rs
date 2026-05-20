@@ -1111,6 +1111,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
     // Disable Move authentication for the sponsor.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
         config
     });
 
@@ -1172,6 +1173,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
     // Disable Move authentication for the sponsor.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
         config
     });
 
@@ -1342,6 +1344,199 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     assert!(
         matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
         "Expected MoveAuthenticatorExecutionFailure for wrong sponsor MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+// ------------------------------------------------------------------
+// --- pre_consensus_sponsor_only_move_authentication flag tests  ---
+// ------------------------------------------------------------------
+
+/// With `pre_consensus_sponsor_only_move_authentication` enabled, only the
+/// sponsor's MA runs pre-consensus for a sponsored TX. A sender MA signed over
+/// the wrong digest is therefore accepted pre-consensus (the sponsor's
+/// free-access MA passes) but fails post-consensus when the sender's MA is
+/// finally executed and the signature doesn't match.
+#[sim_test]
+async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs_pre_consensus()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Sender is an AA with ED25519 authentication; sponsor is an AA with
+    // free-access authentication.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender's MA is signed over the wrong digest — it will fail post-consensus.
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // Pre-consensus: only the sponsor's MA is executed (free-access → passes).
+    // The validator must sign the TX, producing a certificate.
+    let cert = test_env
+        .test_cluster
+        .create_certificate(tx, Some(client_ip))
+        .await?;
+
+    // Post-consensus: both MAs are executed → sender's ED25519 MA fails.
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await?;
+
+    let summary = effects_cert.summary_for_debug();
+    assert!(
+        summary.status.is_failure(),
+        "Expected TX to fail post-consensus due to the sender's MA failure"
+    );
+    assert!(
+        matches!(
+            summary.status.unwrap_err().0,
+            ExecutionFailureStatus::MoveAbort { .. }
+        ),
+        "Expected a Move abort from the failed ED25519 authentication"
+    );
+
+    // Even though the TX failed, the sponsor must have paid gas. Verify that
+    // computation was charged and that the correct gas object (the sponsor's coin)
+    // was debited.
+    assert!(
+        summary.gas_used.computation_cost > 0,
+        "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
+    );
+    assert_eq!(
+        effects_cert.data().gas_object().0.object_id,
+        sponsor_gas.object_id,
+        "Expected the sponsor's gas coin to be used for the failed TX"
+    );
+
+    Ok(())
+}
+
+/// With `pre_consensus_sponsor_only_move_authentication` disabled, both the
+/// sender's and the sponsor's MAs run pre-consensus. A sender MA signed over
+/// the wrong digest is therefore rejected immediately, before consensus.
+#[sim_test]
+async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable the flag so ALL MAs run pre-consensus.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // Pre-consensus: both MAs are executed → sender's MA fails → rejected
+    // immediately.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure from the sender's MA, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// With `pre_consensus_sponsor_only_move_authentication` enabled, the flag
+/// only skips the sender's MA pre-consensus check for *sponsored* transactions.
+/// For non-sponsored transactions, the sender's MA still runs pre-consensus, so
+/// a bad sender MA is still rejected before consensus.
+#[sim_test]
+async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_only_flag()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Non-sponsored TX — sender pays its own gas.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Sender's MA is signed over the wrong digest.
+    let wrong_digest = [0u8; 32];
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig]);
+
+    // Pre-consensus: non-sponsored TX → sender's MA always runs pre-consensus even
+    // with the sponsor-only flag → sender's MA fails → rejected immediately.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure for non-sponsored TX, got: {err:?}"
     );
 
     Ok(())

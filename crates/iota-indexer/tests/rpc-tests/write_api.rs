@@ -1592,7 +1592,9 @@ fn dry_run_request_add_stake() {
         let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
             IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(s) => s.active_validators[0].iota_address,
-            _ => unimplemented!("there is a new system state summary variant that must be handled"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         let tx_bytes: TransactionBlockBytes = client

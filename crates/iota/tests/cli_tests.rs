@@ -6619,15 +6619,13 @@ async fn setup_move_authenticator_account(
 ) -> Result<ObjectID, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_obj_id = client
-        .read_api()
-        .get_owned_objects(publisher, None, None, None)
+        .coin_read_api()
+        .get_coins(publisher, None, None, None)
         .await?
         .data
         .first()
         .unwrap()
-        .object()
-        .unwrap()
-        .object_id;
+        .coin_object_id;
 
     let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()

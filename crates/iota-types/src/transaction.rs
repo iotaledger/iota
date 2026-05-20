@@ -25,7 +25,7 @@ pub use iota_sdk_types::{
     TransactionV1 as TransactionDataV1, TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
-    Identifier, Input, ObjectId, TypeTag,
+    Digest, Identifier, Input, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -292,7 +292,7 @@ impl CallArgExt for CallArg {
                 mutable: *mutable,
             }),
             CallArg::Pure(_) | CallArg::Receiving(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 
@@ -310,7 +310,7 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
         Ok(())
     }
@@ -675,7 +675,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
             CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 
@@ -1260,28 +1260,28 @@ impl TransactionDataAPI for TransactionData {
     fn sender(&self) -> IotaAddress {
         match self {
             Self::V1(v1) => v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn kind(&self) -> &TransactionKind {
         match self {
             Self::V1(v1) => &v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn kind_mut(&mut self) -> &mut TransactionKind {
         match self {
             Self::V1(v1) => &mut v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn into_kind(self) -> TransactionKind {
         match self {
             Self::V1(v1) => v1.kind,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -1296,7 +1296,7 @@ impl TransactionDataAPI for TransactionData {
     fn gas_data(&self) -> &GasData {
         match self {
             Self::V1(v1) => &v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -1319,7 +1319,7 @@ impl TransactionDataAPI for TransactionData {
     fn expiration(&self) -> &TransactionExpiration {
         match self {
             Self::V1(v1) => &v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -1395,21 +1395,21 @@ impl TransactionDataAPI for TransactionData {
     fn sender_mut_for_testing(&mut self) -> &mut IotaAddress {
         match self {
             Self::V1(v1) => &mut v1.sender,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn gas_data_mut(&mut self) -> &mut GasData {
         match self {
             Self::V1(v1) => &mut v1.gas_payment,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration {
         match self {
             Self::V1(v1) => &mut v1.expiration,
-            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -1804,9 +1804,7 @@ impl TransactionDataAPI for TransactionData {
     fn message_version(&self) -> u64 {
         match self {
             TransactionData::V1(_) => 1,
-            _ => unimplemented!(
-                "a new TransactionData enum variant was added and needs to be handled"
-            ),
+            _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
         }
     }
 
@@ -2039,7 +2037,7 @@ impl SenderSignedData {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
             _ => unimplemented!(
-                "a new TransactionExpiration variant was added and needs to be handled"
+                "a new TransactionExpiration enum variant was added and needs to be handled"
             ),
         } {
             return Err(IotaError::TransactionExpired);
@@ -2082,6 +2080,7 @@ impl SenderSignedData {
             .collect()
     }
 
+    /// Returns the senders's [`MoveAuthenticator`], if the sender uses one.
     pub fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
         let sender = self.intent_message().value.sender();
 
@@ -2091,6 +2090,50 @@ impl SenderSignedData {
                 Ok(addr) => addr == sender,
                 Err(_) => false,
             })
+    }
+
+    /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
+    /// sponsored and the sponsor uses one.
+    pub fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
+        let tx_data = self.transaction_data();
+
+        if tx_data.is_sponsored_tx() {
+            let gas_owner = tx_data.gas_owner();
+
+            self.move_authenticators()
+                .into_iter()
+                .find(|a| match a.address() {
+                    Ok(addr) => addr == gas_owner,
+                    Err(_) => false,
+                })
+        } else {
+            None
+        }
+    }
+
+    /// Computes the auth digest for the sender and, if sponsored, for the
+    /// sponsor. See [`auth_digest_for_sig`] for the per-signature logic.
+    pub fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
+        let tx_data = self.transaction_data();
+
+        let digest_for_address = |address: IotaAddress| {
+            self.tx_signatures()
+                .iter()
+                .find(|sig| IotaAddress::try_from(*sig).ok() == Some(address))
+                .ok_or_else(|| IotaError::InvalidSignature {
+                    error: format!("no signature found for address {address}"),
+                })
+                .and_then(auth_digest_for_sig)
+        };
+
+        let sender_auth_digest = digest_for_address(tx_data.sender())?;
+        let sponsor_auth_digest = if tx_data.is_sponsored_tx() {
+            Some(digest_for_address(tx_data.gas_owner())?)
+        } else {
+            None
+        };
+
+        Ok((sender_auth_digest, sponsor_auth_digest))
     }
 
     /// Returns all unique input objects including those from
@@ -3305,6 +3348,30 @@ impl TransactionKey {
         match self {
             TransactionKey::Digest(d) => d,
             _ => panic!("called expect_digest on a non-Digest TransactionKey: {self:?}"),
+        }
+    }
+}
+
+/// Computes the auth digest for a single [`GenericSignature`].
+///
+/// For [`MoveAuthenticator`] signatures this equals
+/// [`MoveAuthenticator::digest()`]. For all other supported signature types it
+/// is the Blake2b256 of the serialized (flag-prefixed) signature bytes.
+/// Returns an error for [`GenericSignature::ZkLoginAuthenticatorDeprecated`]
+/// since zkLogin was never enabled on IOTA.
+#[allow(deprecated)]
+pub fn auth_digest_for_sig(sig: &GenericSignature) -> IotaResult<Digest> {
+    match sig {
+        GenericSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
+        GenericSignature::ZkLoginAuthenticatorDeprecated(_) => Err(IotaError::UnsupportedFeature {
+            error: "zkLogin is not supported".to_string(),
+        }),
+        GenericSignature::MultiSig(_)
+        | GenericSignature::Signature(_)
+        | GenericSignature::PasskeyAuthenticator(_) => {
+            let mut hasher = DefaultHash::default();
+            hasher.update(sig.as_ref());
+            Ok(Digest::new(hasher.finalize().into()))
         }
     }
 }

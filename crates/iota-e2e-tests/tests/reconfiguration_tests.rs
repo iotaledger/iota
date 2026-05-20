@@ -550,7 +550,9 @@ async fn test_validator_candidate_pool_read() {
             match &system_state_summary {
                 IotaSystemStateSummary::V1(v1) => v1.validator_candidates_id,
                 IotaSystemStateSummary::V2(v2) => v2.validator_candidates_id,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             },
             &address,
             Some(system_state.protocol_version()),
@@ -1103,7 +1105,9 @@ async fn safe_mode_reconfig_test() {
     {
         IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
         IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     // On startup, we should be at V1.
@@ -1307,7 +1311,9 @@ async fn add_validator_candidate(
         {
             IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
             IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
     });
     let address = (&new_validator.account_key_pair.public()).into();
@@ -1336,7 +1342,9 @@ async fn add_validator_candidate(
         let validator_candidates_size = match system_state_summary {
             IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
             IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
@@ -1352,7 +1360,9 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
         {
             IotaSystemStateSummary::V1(v1) => v1.pending_removals,
             IotaSystemStateSummary::V2(v2) => v2.pending_removals,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
         .len()
     });
@@ -1382,7 +1392,9 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
         let pending_removals = match system_state.into_iota_system_state_summary() {
             IotaSystemStateSummary::V1(v1) => v1.pending_removals,
             IotaSystemStateSummary::V2(v2) => v2.pending_removals,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
         assert_eq!(pending_removals.len(), cur_pending_removals + 1);
     });

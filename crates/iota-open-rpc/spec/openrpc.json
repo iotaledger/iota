@@ -1335,6 +1335,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": false,
                 "pass_validator_scores_to_advance_epoch": false,
                 "passkey_auth": true,
+                "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
                 "relocate_event_module": true,

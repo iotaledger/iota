@@ -794,7 +794,7 @@ impl<'a> PTBBuilder<'a> {
                                 .await
                             }
                             _ => unimplemented!(
-                                "a new enum variant was added and needs to be handled"
+                                "a new Argument enum variant was added and needs to be handled"
                             ),
                         }
                     }

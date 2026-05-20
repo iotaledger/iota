@@ -203,7 +203,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 (version, digest),
                                                 owner,
                                             )),
-                                            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                                            _ => unimplemented!("a new ObjectIn enum variant was added and needs to be handled"),
                                         },
                                         output_state: match obj.output_state {
                                             ObjectOut::Missing => {
@@ -221,7 +221,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                     digest,
                                                 ))
                                             }
-                                            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                                            _ => unimplemented!("a new ObjectOut enum variant was added and needs to be handled"),
                                         },
                                         id_operation: match obj.id_operation {
                                             IdOperation::None => crate::effects::IDOperation::None,
@@ -231,7 +231,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             IdOperation::Deleted => {
                                                 crate::effects::IDOperation::Deleted
                                             }
-                                            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                                            _ => unimplemented!("a new IdOperation enum variant was added and needs to be handled"),
                                         },
                                     },
                                 )
@@ -254,7 +254,9 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
 
                 Ok(effects)
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -497,7 +499,9 @@ impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommit
                     digest: crate::digests::Digest::new(digest.into_inner()),
                 })
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new CheckpointCommitment enum variant was added and needs to be handled"
+            ),
         }
     }
 }

@@ -1592,7 +1592,9 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error} in command {idx}"),
             },
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1897,8 +1899,8 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                     })
                     .collect(),
             ),
-            _ => unreachable!(
-                "a new ConsensusDeterminedVersionAssignments variant was added and needs to be handled"
+            _ => unimplemented!(
+                "a new ConsensusDeterminedVersionAssignments enum variant was added and needs to be handled"
             ),
         }
     }
