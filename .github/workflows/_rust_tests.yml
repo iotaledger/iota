@@ -1,3 +1,10 @@
+# SECURITY-SENSITIVE: read .github/workflows/README.md before editing.
+# CI workflows here interact with GitHub Actions' security model; subtle
+# edits (trigger change, missing `persist-credentials: false`, unpinned
+# action) can introduce critical supply-chain vulnerabilities. This is a
+# reusable workflow that runs PR-author-controlled code — callers MUST
+# pass `head_sha` (see README's "head_sha contract" section).
+
 name: Rust tests
 
 on:

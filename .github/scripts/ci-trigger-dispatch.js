@@ -1,3 +1,10 @@
+// SECURITY-SENSITIVE: read .github/workflows/README.md before editing.
+// CI scripts here interact with GitHub Actions' security model; subtle
+// edits (regex change, broadened allowlist, removed permission gate)
+// can introduce critical supply-chain vulnerabilities. The full threat
+// model lives in the README's "ci_trigger.yml + ci-trigger-dispatch.js"
+// section.
+//
 // Dispatcher logic for `.github/workflows/ci_trigger.yml`. Extracted to a
 // separate file for proper JavaScript tooling (syntax highlighting, lint,
 // format). Invoked from the workflow via `actions/github-script` + `require`.
@@ -5,8 +12,7 @@
 // Security model: the workflow uses `pull_request_target` and the
 // `actions/checkout` step there grabs the BASE ref by default, so this file
 // is always loaded from `develop` — a PR author can't replace the dispatcher
-// logic by editing this file in their PR branch. See the top-of-file comment
-// in `ci_trigger.yml` for the full design / security notes.
+// logic by editing this file in their PR branch.
 
 // Closed-by-default map from a checkbox's visible label text to the workflow
 // file dispatched when the box is ticked. Any other checkbox in the body
