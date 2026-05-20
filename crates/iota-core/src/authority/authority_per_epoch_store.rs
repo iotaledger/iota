@@ -836,6 +836,17 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Per-validator received misbehavior reports state. Keyed by the
+    /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
+    /// at 256 by Starfish). Each entry is the merged-max observation set plus
+    /// invalid-report counter, snapshotted from the live aggregator when its
+    /// state changes inside a consensus commit. Written atomically with the
+    /// rest of `ConsensusCommitOutput::write_to_batch`. Survives restart;
+    /// `ReportAggregator::restore_from_tables` loads it during epoch-store
+    /// construction.
+    pub(crate) received_reports_state:
+        DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1083,6 +1094,9 @@ impl AuthorityPerEpochStore {
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
+        report_aggregator
+            .restore_from_tables(&tables)
+            .expect("AuthorityEpochTables should contain valid ReportAggregator state");
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scoreboard = Scoreboard::new(voting_power, &protocol_config);
 
@@ -4211,8 +4225,10 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(&report.authority)
                     .expect("authority in committee");
-                self.report_aggregator
+                let snapshot = self
+                    .report_aggregator
                     .process_report(authority_index, report);
+                output.record_report_state_snapshot(authority_index, snapshot);
 
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
