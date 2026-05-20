@@ -434,7 +434,7 @@ impl BaseCommitter {
         let voters = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_round(voting_round);
+            .get_block_headers_at_round_above_last_commit(voting_round);
         let mut vote_refs = HashSet::new();
         let mut strong_vote_refs = HashSet::new();
         for voter in &voters {
@@ -458,8 +458,8 @@ impl BaseCommitter {
         let (voters, decision_blocks) = {
             let dag_state = self.dag_state.read();
             (
-                dag_state.get_uncommitted_block_headers_at_round(voting_round),
-                dag_state.get_uncommitted_block_headers_at_round(certifying_round),
+                dag_state.get_block_headers_at_round_above_last_commit(voting_round),
+                dag_state.get_block_headers_at_round_above_last_commit(certifying_round),
             )
         };
 
@@ -543,7 +543,7 @@ impl BaseCommitter {
         let voting_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_round(voting_round);
+            .get_block_headers_at_round_above_last_commit(voting_round);
 
         let mut strong_blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
