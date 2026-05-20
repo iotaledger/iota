@@ -11,7 +11,7 @@ use fastcrypto::{
     traits::{ToFromBytes, VerifyingKey},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_types::crypto::{Intent, IntentScope, PublicKey as SdkPublicKey, UserSignature};
+use iota_sdk_types::crypto::{Intent, IntentScope, PublicKey, UserSignature};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
     crypto::{
@@ -687,9 +687,9 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
     // Public keys (Base64)
-    let pk1 = SdkPublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
-    let pk2 = SdkPublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
-    let pk3 = SdkPublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
+    let pk1 = PublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
+    let pk2 = PublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
+    let pk3 = PublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
     let pks = vec![pk1, pk2, pk3];
     let weights = vec![1, 1, 1];
     let threshold = 2;
