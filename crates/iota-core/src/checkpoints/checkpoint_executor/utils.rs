@@ -16,7 +16,7 @@ use iota_types::{
 };
 use strum::VariantNames;
 use tokio::sync::watch;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 use super::metrics::CheckpointExecutorMetrics;
 use crate::{checkpoints::CheckpointStore, execution_cache::TransactionCacheRead};
@@ -60,7 +60,7 @@ pub(super) fn stream_synced_checkpoints(
                     state.panic_timeout,
                 )
                 .await;
-                info!(
+                debug!(
                     "received synced checkpoint: {:?}",
                     checkpoint.sequence_number
                 );

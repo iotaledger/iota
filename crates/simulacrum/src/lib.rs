@@ -37,7 +37,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
+    base_types::{AuthorityName, IotaAddress, ObjectID, StructTag, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -57,8 +57,8 @@ use iota_types::{
     signature::VerifyParams,
     storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
     transaction::{
-        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
-        VerifiedTransaction,
+        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind, VerifiedTransaction,
     },
 };
 use rand::rngs::OsRng;
@@ -306,10 +306,10 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
         drop(inner);
 
-        let next_epoch_system_package_bytes = vec![];
+        let next_epoch_system_package_bytes: Vec<iota_types::transaction::SystemPackage> = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
-            next_epoch_protocol_version,
+            next_epoch_protocol_version.as_u64(),
             gas_cost_summary.storage_cost,
             gas_cost_summary.computation_cost,
             gas_cost_summary.computation_cost_burned,
@@ -440,7 +440,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let object = self
             .with_store(|store| {
                 store.owned_objects(sender).find(|object| {
-                    object.is_gas_coin() && object.get_coin_value_unsafe() > amount + NANOS_PER_IOTA
+                    object.is_gas_coin()
+                        && object.get_coin_value_unchecked() > amount + NANOS_PER_IOTA
                 })
             })
             .ok_or_else(|| {
@@ -448,7 +449,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             })?;
 
         let gas_data = iota_types::transaction::GasData {
-            payment: vec![object.compute_object_reference()],
+            objects: vec![object.compute_object_reference()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: NANOS_PER_IOTA,
@@ -461,7 +462,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             builder.finish()
         };
 
-        let kind = iota_types::transaction::TransactionKind::ProgrammableTransaction(pt);
+        let kind = iota_types::transaction::TransactionKind::Programmable(pt);
         let tx_data =
             iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
         let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
@@ -726,7 +727,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)
@@ -831,7 +832,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         &self,
         _owner: iota_types::base_types::IotaAddress,
         _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
-        _object_type: Option<move_core_types::language_storage::StructTag>,
+        _object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>,
     > {
@@ -857,7 +858,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn get_coin_info(
         &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
+        _coin_type: &StructTag,
     ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         Ok(None)
     }
@@ -902,9 +903,9 @@ impl Simulacrum {
             builder.finish()
         };
 
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let gas_data = GasData {
-            payment: vec![object.compute_object_reference()],
+            objects: vec![object.compute_object_reference()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: 1_000_000_000,
@@ -998,10 +999,10 @@ mod tests {
     #[test]
     fn transfer() {
         let sim = Simulacrum::new();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().payment[0].0;
+        let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();

@@ -16,8 +16,7 @@ mod checked {
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
@@ -27,8 +26,9 @@ mod checked {
         object::{Object, Owner},
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-            ObjectReadResultKind, ReceivingObjectReadResult, ReceivingObjects, TransactionData,
-            TransactionDataAPI, TransactionKind,
+            ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
+            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
+            TransactionKindExt,
         },
     };
     use tracing::{error, instrument};
@@ -179,7 +179,7 @@ mod checked {
         _receiving_objects: ReceivingObjects,
     ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
-        if kind.is_system_tx() {
+        if kind.is_system() {
             return Err(UserInputError::Unsupported(format!(
                 "Transaction kind {kind} is not supported in dev-inspect"
             ))
@@ -344,13 +344,9 @@ mod checked {
         //
         // If there are any object IDs in common (either between receiving objects and
         // input objects) we return an error.
-        for ReceivingObjectReadResult {
-            object_ref: (object_id, version, object_digest),
-            object,
-        } in receiving_objects.iter()
-        {
+        for ReceivingObjectReadResult { object_ref, object } in receiving_objects.iter() {
             fp_ensure!(
-                *version < SequenceNumber::MAX_VALID_EXCL,
+                object_ref.version < SequenceNumber::MAX_VALID_EXCL,
                 UserInputError::InvalidSequenceNumber.into()
             );
 
@@ -359,15 +355,15 @@ mod checked {
                 continue;
             };
 
-            if !(object.owner.is_address_owned()
-                && object.version() == *version
-                && object.digest() == *object_digest)
+            if !(object.owner.is_address()
+                && object.version() == object_ref.version
+                && object.digest() == object_ref.digest)
             {
                 // Version mismatch
                 fp_ensure!(
-                    object.version() == *version,
+                    object.version() == object_ref.version,
                     UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: (*object_id, *version, *object_digest),
+                        provided_obj_ref: *object_ref,
                         current_version: object.version(),
                     }
                     .into()
@@ -377,7 +373,7 @@ mod checked {
                 fp_ensure!(
                     !object.is_package(),
                     UserInputError::MovePackageAsObject {
-                        object_id: *object_id
+                        object_id: object_ref.object_id
                     }
                     .into()
                 );
@@ -385,62 +381,63 @@ mod checked {
                 // Digest mismatch
                 let expected_digest = object.digest();
                 fp_ensure!(
-                    expected_digest == *object_digest,
+                    expected_digest == object_ref.digest,
                     UserInputError::InvalidObjectDigest {
-                        object_id: *object_id,
+                        object_id: object_ref.object_id,
                         expected_digest
                     }
                     .into()
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) => {
+                    Owner::Address(_) => {
                         debug_assert!(
                             false,
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id),
-                            object
+                            object_ref, object
                         );
                         error!(
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            (*object_id, *version, *object_id),
-                            object
+                            object_ref, object
                         );
                         // We should never get here, but if for some reason we do just default to
                         // object not found and reject signing the transaction.
                         fp_bail!(
                             UserInputError::ObjectNotFound {
-                                object_id: *object_id,
-                                version: Some(*version),
+                                object_id: object_ref.object_id,
+                                version: Some(object_ref.version),
                             }
                             .into()
                         )
                     }
-                    Owner::ObjectOwner(owner) => {
+                    Owner::Object(owner) => {
                         fp_bail!(
                             UserInputError::InvalidChildObjectArgument {
                                 child_id: object.id(),
-                                parent_id: owner.into(),
+                                parent_id: owner,
                             }
                             .into()
                         )
                     }
-                    Owner::Shared { .. } => fp_bail!(UserInputError::NotSharedObject.into()),
+                    Owner::Shared(_) => fp_bail!(UserInputError::NotSharedObject.into()),
                     Owner::Immutable => fp_bail!(
                         UserInputError::MutableParameterExpected {
-                            object_id: *object_id
+                            object_id: object_ref.object_id
                         }
                         .into()
                     ),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 };
             }
 
             fp_ensure!(
-                !objects_in_txn.contains(object_id),
+                !objects_in_txn.contains(&object_ref.object_id),
                 UserInputError::DuplicateObjectRefInput.into()
             );
 
-            objects_in_txn.insert(*object_id);
+            objects_in_txn.insert(object_ref.object_id);
         }
         Ok(())
     }
@@ -502,10 +499,10 @@ mod checked {
         let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
         let mut gas_objects = vec![];
         for obj_ref in gas {
-            let obj = objects.get(&obj_ref.0);
+            let obj = objects.get(&obj_ref.object_id);
             let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                object_id: obj_ref.0,
-                version: Some(obj_ref.1),
+                object_id: obj_ref.object_id,
+                version: Some(obj_ref.version),
             })?;
             gas_objects.push(obj);
         }
@@ -535,7 +532,7 @@ mod checked {
         }
 
         let gas_coins: HashSet<ObjectID> =
-            HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.0));
+            HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.object_id));
         for object in objects.iter() {
             let input_object_kind = object.input_object_kind;
 
@@ -578,38 +575,40 @@ mod checked {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
                 fp_ensure!(
-                    object.data.try_as_package().is_some(),
+                    object.data.as_package_opt().is_some(),
                     UserInputError::MoveObjectAsPackage {
                         object_id: package_id
                     }
                 );
             }
-            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+            InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
                 fp_ensure!(
                     !object.is_package(),
-                    UserInputError::MovePackageAsObject { object_id }
+                    UserInputError::MovePackageAsObject {
+                        object_id: object_ref.object_id
+                    }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
+                    object_ref.version < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
                 // This is an invariant - we just load the object with the given ID and version.
                 assert_eq!(
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     "The fetched object version {} does not match the requested version {}, object id: {}",
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     object.id(),
                 );
 
                 // Check the digest matches - user could give a mismatched ObjectDigest
                 let expected_digest = object.digest();
                 fp_ensure!(
-                    expected_digest == object_digest,
+                    expected_digest == object_ref.digest,
                     UserInputError::InvalidObjectDigest {
-                        object_id,
+                        object_id: object_ref.object_id,
                         expected_digest
                     }
                 );
@@ -618,32 +617,36 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner(actual_owner) => {
+                    Owner::Address(actual_owner) => {
                         // Check the owner is correct.
                         fp_ensure!(
                             owner == &actual_owner,
                             UserInputError::IncorrectUserSignature {
                                 error: format!(
-                                    "Object {object_id:?} is owned by account address {actual_owner}, but given owner/signer address is {owner}"
+                                    "Object {} is owned by account address {}, but given owner/signer address is {}",
+                                    object_ref.object_id, actual_owner, owner
                                 ),
                             }
                         );
                     }
-                    Owner::ObjectOwner(owner) => {
+                    Owner::Object(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {
                             child_id: object.id(),
-                            parent_id: owner.into(),
+                            parent_id: owner,
                         });
                     }
-                    Owner::Shared { .. } => {
+                    Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
                     }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_CLOCK_OBJECT_ID,
+                id: ObjectID::CLOCK,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
@@ -653,24 +656,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_CLOCK_OBJECT_ID,
+                        object_id: ObjectID::CLOCK,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                id: ObjectID::AUTHENTICATOR_STATE,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        object_id: ObjectID::AUTHENTICATOR_STATE,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                id: ObjectID::RANDOMNESS_STATE,
                 mutable: true,
                 ..
             } => {
@@ -680,7 +683,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        object_id: ObjectID::RANDOMNESS_STATE,
                     });
                 }
             }
@@ -694,17 +697,18 @@ mod checked {
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                    Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                         // When someone locks an object as shared it must be shared already.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    Owner::Shared {
-                        initial_shared_version: actual_initial_shared_version,
-                    } => {
+                    Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
                             input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             }
@@ -745,32 +749,34 @@ mod checked {
             InputObjectKind::MovePackage(package_id) => {
                 return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
             }
-            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+            InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
                 fp_ensure!(
                     !object.is_package(),
-                    UserInputError::MovePackageAsObject { object_id }
+                    UserInputError::MovePackageAsObject {
+                        object_id: object_ref.object_id
+                    }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
+                    object_ref.version < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
                 // This is an invariant - we just load the object with the given ID and version.
                 assert_eq!(
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     "The fetched object version {} does not match the requested version {}, object id: {}",
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     object.id(),
                 );
 
                 // Check the digest matches - user could give a mismatched `ObjectDigest`.
                 let expected_digest = object.digest();
                 fp_ensure!(
-                    expected_digest == object_digest,
+                    expected_digest == object_ref.digest,
                     UserInputError::InvalidObjectDigest {
-                        object_id,
+                        object_id: object_ref.object_id,
                         expected_digest
                     }
                 );
@@ -779,20 +785,23 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner { .. } => {
+                    Owner::Address(_) => {
                         return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
-                    Owner::ObjectOwner { .. } => {
+                    Owner::Object(_) => {
                         return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
-                    Owner::Shared { .. } => {
+                    Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 };
             }
@@ -821,17 +830,18 @@ mod checked {
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                    Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                         // When someone locks an object as shared it must be shared already.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    Owner::Shared {
-                        initial_shared_version: actual_initial_shared_version,
-                    } => {
+                    Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
                             input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
+                    }
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
                     }
                 }
             }
@@ -885,7 +895,7 @@ mod checked {
             return Ok(());
         }
 
-        let TransactionKind::ProgrammableTransaction(pt) = transaction.kind() else {
+        let TransactionKind::Programmable(pt) = transaction.kind() else {
             return Ok(());
         };
 

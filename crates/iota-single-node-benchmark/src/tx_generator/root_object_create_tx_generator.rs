@@ -35,7 +35,7 @@ impl TxGenerator for RootObjectCreateTxGenerator {
             self.move_package,
             "benchmark",
             "generate_dynamic_fields",
-            vec![CallArg::Pure(bcs::to_bytes(&self.child_per_root).unwrap())],
+            vec![CallArg::pure(&self.child_per_root)],
         )
         .build_and_sign(account.keypair.as_ref())
     }

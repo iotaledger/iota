@@ -210,16 +210,11 @@ impl Env {
             proxy.get_current_epoch(),
         );
 
-        let primary_gas_owner_addr = ObjectID::from_hex_literal(primary_gas_owner_id)?;
+        let primary_gas_owner_addr = ObjectID::from_prefixed_short_hex(primary_gas_owner_id)?;
         let keystore_path = Some(&keystore_path)
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)
-            .ok_or_else(|| {
-                anyhow!(format!(
-                    "Failed to find keypair at path: {}",
-                    &keystore_path
-                ))
-            })?;
+            .ok_or_else(|| anyhow!("Failed to find keypair at path: {}", &keystore_path))?;
 
         let current_gas = if use_fullnode_for_execution {
             // Go through fullnode to get the current gas object.
@@ -242,7 +237,10 @@ impl Env {
                 primary_gas_obj.id()
             );
 
-            let primary_gas_account = primary_gas_obj.owner.get_owner_address()?;
+            let primary_gas_account = *primary_gas_obj
+                .owner
+                .address_or_object()
+                .ok_or_else(|| anyhow!("Not an address or object owner"))?;
 
             let keypair = Arc::new(get_ed25519_keypair_from_keystore(
                 keystore_path,
@@ -260,7 +258,7 @@ impl Env {
 
             for obj in genesis.objects().iter() {
                 let owner = &obj.owner;
-                if let Owner::AddressOwner(addr) = owner {
+                if let Owner::Address(addr) = owner {
                     if *addr == primary_gas_owner_addr.into() {
                         genesis_gas_objects.push(obj.clone());
                     }
@@ -273,7 +271,10 @@ impl Env {
                 .clone();
 
             let current_gas_object = proxy.get_object(genesis_gas_obj.id()).await?;
-            let current_gas_account = current_gas_object.owner.get_owner_address()?;
+            let current_gas_account = *current_gas_object
+                .owner
+                .address_or_object()
+                .ok_or_else(|| anyhow::anyhow!("Not an address or object owner"))?;
 
             let keypair = Arc::new(get_ed25519_keypair_from_keystore(
                 keystore_path,

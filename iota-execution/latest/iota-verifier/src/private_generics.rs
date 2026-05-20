@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{IOTA_FRAMEWORK_ADDRESS, error::ExecutionError};
+use iota_types::{base_types::IotaAddress, error::ExecutionError};
 use move_binary_format::{
     CompiledModule,
     file_format::{
@@ -11,7 +11,7 @@ use move_binary_format::{
     },
 };
 use move_bytecode_utils::format_signature_token;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
+use move_core_types::{ident_str, identifier::IdentStr};
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
@@ -61,8 +61,8 @@ pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
-    if *module.address() == IOTA_FRAMEWORK_ADDRESS
-        && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
+    if module.address().as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        && module.name().as_str() == TEST_SCENARIO_MODULE_NAME
     {
         // exclude test_module which is a test-only module in the IOTA framework which
         // "emulates" transactional execution and needs to allow test code to
@@ -100,11 +100,11 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
 
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
-            if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+            if ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
                 verify_private_transfer_module_functions(view, fhandle, type_arguments)?
-            } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+            } else if ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
-            } else if ident == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+            } else if ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
                 verify_private_account_module_functions(view, fhandle, type_arguments)?
             }
         }
@@ -118,7 +118,7 @@ fn verify_private_transfer_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
@@ -144,7 +144,7 @@ fn verify_private_transfer_module_functions(
             The transferred object's type must be defined in the current module. \
             If the object has the 'store' type ability, you can use the non-internal variant \
             instead, i.e. '{iota}::transfer::public_{f}'",
-            iota = IOTA_FRAMEWORK_ADDRESS,
+            iota = IotaAddress::FRAMEWORK,
             f = fident,
             t = format_signature_token(view, type_arg),
         ));
@@ -159,7 +159,7 @@ fn verify_private_account_module_functions(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE) {
+    if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
@@ -183,7 +183,7 @@ fn verify_private_account_module_functions(
         return Err(format!(
             "Invalid call to '{iota}::{account}::{f}' on an object of type '{t}'. \
             The account object's type must be defined in the current module.",
-            iota = IOTA_FRAMEWORK_ADDRESS,
+            iota = IotaAddress::FRAMEWORK,
             account = ACCOUNT_MODULE,
             f = fident,
             t = format_signature_token(view, type_arg),
@@ -218,7 +218,7 @@ fn verify_private_event_emit(
         return Err(format!(
             "Invalid call to '{}::event::{}' with an event type '{}'. \
                 The event's type must be defined in the current module",
-            IOTA_FRAMEWORK_ADDRESS,
+            IotaAddress::FRAMEWORK,
             fident,
             format_signature_token(view, type_arg),
         ));
@@ -257,8 +257,8 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
 fn addr_module<'a>(
     view: &'a CompiledModule,
     mhandle: &ModuleHandle,
-) -> (AccountAddress, &'a IdentStr) {
+) -> (IotaAddress, &'a IdentStr) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
-    (*maddr, mident)
+    (IotaAddress::new(maddr.into_bytes()), mident)
 }

@@ -16,14 +16,13 @@ use iota_json_rpc_types::{
 use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, ObjectID, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -73,10 +72,7 @@ fn transfer_object() {
             .await
             .unwrap();
 
-        assert_eq!(
-            transferred_object.owner(),
-            Some(Owner::AddressOwner(receiver))
-        );
+        assert_eq!(transferred_object.owner(), Some(Owner::Address(receiver)));
     });
 }
 
@@ -252,7 +248,7 @@ fn move_call() {
             let tx_bytes = client
                 .move_call(
                     sender,
-                    ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    ObjectID::FRAMEWORK,
                     "coin".to_string(),
                     "join".to_string(),
                     type_args![GAS::type_tag()].unwrap(),
@@ -411,7 +407,7 @@ fn batch_transaction() {
                     sender,
                     vec![
                         RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                            package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                            package_object_id: ObjectID::FRAMEWORK,
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,
@@ -806,8 +802,8 @@ async fn create_coins_and_wait_for_indexer(
                 address,
             )
             .await;
-        indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-        coins.push(coin.0);
+        indexer_wait_for_object(indexer_client, coin.object_id, coin.version).await;
+        coins.push(coin.object_id);
     }
     coins
 }
@@ -822,7 +818,7 @@ async fn create_cluster_with_timelocked_iota(
 
     let timelock_iota = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
@@ -836,9 +832,9 @@ async fn create_cluster_with_timelocked_iota(
         .unwrap()
     };
     let timelock_iota = ObjectInner {
-        owner: Owner::AddressOwner(address),
-        data: Data::Move(timelock_iota),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        owner: Owner::Address(address),
+        data: Data::Struct(timelock_iota),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -887,7 +883,11 @@ async fn create_cluster_with_timelocked_iota(
 }
 
 async fn get_validator(client: &HttpClient) -> IotaAddress {
-    let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+    let iota_system_state = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
     match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,

@@ -11,24 +11,22 @@ use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
-    type_input::TypeInput,
+    transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
 };
 
 /// MoveAuthenticator is a GenericSignature variant that enables a new
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     #[serde(flatten)]
     pub(crate) inner: MoveAuthenticatorInner,
@@ -42,7 +40,7 @@ impl MoveAuthenticator {
     /// Creates a new MoveAuthenticator of version 1.
     pub fn new_v1(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
@@ -85,7 +83,7 @@ impl MoveAuthenticator {
     }
 
     /// Returns the type arguments of the MoveAuthenticator.
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         self.inner.type_arguments()
     }
 
@@ -114,7 +112,7 @@ impl MoveAuthenticator {
 
     /// Returns all shared input objects used by the MoveAuthenticator,
     /// including those from the object to authenticate.
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
         self.inner.shared_objects()
     }
 
@@ -217,7 +215,7 @@ impl Eq for MoveAuthenticator {}
 /// MoveAuthenticatorInner is an enum that represents the different versions
 /// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MoveAuthenticatorInner {
     V1(MoveAuthenticatorV1),
 }
@@ -225,7 +223,7 @@ pub enum MoveAuthenticatorInner {
 impl MoveAuthenticatorInner {
     pub fn new_v1(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         MoveAuthenticatorInner::V1(MoveAuthenticatorV1::new(
@@ -253,7 +251,7 @@ impl MoveAuthenticatorInner {
         }
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.type_arguments(),
         }
@@ -285,7 +283,7 @@ impl MoveAuthenticatorInner {
         }
     }
 
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.shared_objects(),
         }
@@ -299,13 +297,12 @@ impl MoveAuthenticatorInner {
 }
 
 /// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticatorV1 {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
-    #[schemars(with = "Vec<String>")]
-    type_arguments: Vec<TypeInput>,
+    type_arguments: Vec<TypeTag>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
     object_to_authenticate: CallArg,
@@ -314,7 +311,7 @@ pub struct MoveAuthenticatorV1 {
 impl MoveAuthenticatorV1 {
     pub fn new(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
@@ -335,7 +332,7 @@ impl MoveAuthenticatorV1 {
         &self.call_args
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         &self.type_arguments
     }
 
@@ -352,26 +349,29 @@ impl MoveAuthenticatorV1 {
                     "MoveAuthenticatorV1 cannot authenticate pure inputs".to_string(),
                 ));
             }
-            CallArg::Object(object_arg) => match object_arg {
-                ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
-                    (*id, Some(*sequence_number), Some(*digest))
-                }
-                ObjectArg::SharedObject { id, mutable, .. } => {
-                    if *mutable {
-                        return Err(UserInputError::Unsupported(
-                            "MoveAuthenticatorV1 cannot authenticate mutable shared objects"
-                                .to_string(),
-                        ));
-                    }
-
-                    (*id, None, None)
-                }
-                ObjectArg::Receiving(_) => {
+            CallArg::ImmutableOrOwned(object_ref) => (
+                object_ref.object_id,
+                Some(object_ref.version),
+                Some(object_ref.digest),
+            ),
+            CallArg::Shared(SharedObjectRef {
+                object_id, mutable, ..
+            }) => {
+                if *mutable {
                     return Err(UserInputError::Unsupported(
-                        "MoveAuthenticatorV1 cannot authenticate receiving objects".to_string(),
+                        "MoveAuthenticatorV1 cannot authenticate mutable shared objects"
+                            .to_string(),
                     ));
                 }
-            },
+
+                (*object_id, None, None)
+            }
+            CallArg::Receiving(_) => {
+                return Err(UserInputError::Unsupported(
+                    "MoveAuthenticator cannot authenticate receiving objects".to_string(),
+                ));
+            }
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 
@@ -380,25 +380,26 @@ impl MoveAuthenticatorV1 {
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.input_objects())
-            .chain(self.object_to_authenticate().input_objects())
+            .filter_map(|arg| arg.input_object_kind())
+            .chain(self.object_to_authenticate().input_object_kind())
             .collect::<Vec<_>>()
     }
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.receiving_objects())
+            .filter_map(|arg| arg.as_receiving_opt().copied())
             .collect()
     }
 
     /// Returns all shared input objects used by the MoveAuthenticatorV1,
     /// including those from the object to authenticate.
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.shared_objects())
-            .chain(self.object_to_authenticate().shared_objects())
+            .filter_map(|arg| arg.as_shared_opt())
+            .chain(self.object_to_authenticate().as_shared_opt())
+            .cloned()
             .collect()
     }
 
@@ -452,11 +453,7 @@ impl MoveAuthenticatorV1 {
         // `ProgrammableMoveCall`.
         let mut type_arguments_count = 0;
         self.type_arguments().iter().try_for_each(|type_arg| {
-            crate::transaction::type_input_validity_check(
-                type_arg,
-                config,
-                &mut type_arguments_count,
-            )
+            crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)
         })?;
 
         Ok(())
@@ -491,17 +488,17 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectID, ObjectRef, SequenceNumber},
         digests::ObjectDigest,
-        transaction::{CallArg, ObjectArg},
+        transaction::CallArg,
     };
 
     fn make_simple_authenticator() -> MoveAuthenticator {
-        let object_to_authenticate = CallArg::Object(ObjectArg::ImmOrOwnedObject((
-            ObjectID::ZERO,
-            SequenceNumber::default(),
-            ObjectDigest::MIN,
-        )));
+        let object_to_authenticate = CallArg::ImmutableOrOwned(ObjectRef {
+            object_id: ObjectID::ZERO,
+            version: SequenceNumber::default(),
+            digest: ObjectDigest::MIN,
+        });
         MoveAuthenticator::new_v1(vec![], vec![], object_to_authenticate)
     }
 

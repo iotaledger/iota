@@ -5,20 +5,21 @@
 use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
+    base_types::Identifier,
     crypto::{AccountKeyPair, get_key_pair},
     execution_status::ExecutionStatus,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 
 use super::*;
 use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 
 #[tokio::test]
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
-    // This test tests a sucecssful normal batch transaction.
+    // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
@@ -46,13 +47,15 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     for _ in 0..N {
         builder
             .move_call(
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                    CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+                    CallArg::Pure(
+                        bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
+                    ),
                 ],
             )
             .unwrap();
@@ -83,14 +86,14 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         effects
             .created()
             .iter()
-            .all(|(_, owner)| owner == &Owner::AddressOwner(sender))
+            .all(|(_, owner)| owner == &Owner::Address(sender))
     );
     // N of the objects should now be owned by recipient.
     assert_eq!(
         effects
             .mutated()
             .iter()
-            .filter(|(_, owner)| owner == &Owner::AddressOwner(recipient))
+            .filter(|(_, owner)| owner == &Owner::Address(recipient))
             .count(),
         N
     );
@@ -128,9 +131,9 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     }
     builder
         .move_call(
-            package.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("create").to_owned(),
+            package.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
             vec![],
             vec![],
         )
@@ -153,7 +156,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
 
     let response = send_and_confirm_transaction(&authority_state, tx).await?.1;
     let effects = response.into_data();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(
         (effects.created().len(), effects.mutated().len()),
         (0, N + 1)
@@ -184,13 +187,15 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     for _ in 0..N {
         builder
             .move_call(
-                package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                package.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                    CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+                    CallArg::Pure(
+                        bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
+                    ),
                 ],
             )
             .unwrap();

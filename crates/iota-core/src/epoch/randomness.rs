@@ -309,7 +309,7 @@ impl RandomnessManager {
             used_messages: OnceCell::new(),
             confirmations: BTreeMap::new(),
             dkg_output: OnceCell::new(),
-            next_randomness_round: RandomnessRound(0),
+            next_randomness_round: RandomnessRound::new(0),
             highest_completed_round: Arc::new(Mutex::new(highest_completed_round)),
         };
         let dkg_output = tables
@@ -377,22 +377,21 @@ impl RandomnessManager {
             .randomness_next_round
             .get(&SINGLETON_KEY)
             .expect("typed_store should not fail")
-            .unwrap_or(RandomnessRound(0));
+            .unwrap_or(RandomnessRound::new(0));
         info!(
             "random beacon: starting from next_randomness_round={}",
-            rm.next_randomness_round.0
+            rm.next_randomness_round
         );
         let first_incomplete_round = highest_completed_round
             .map(|r| r + 1)
-            .unwrap_or(RandomnessRound(0));
+            .unwrap_or(RandomnessRound::new(0));
         if first_incomplete_round < rm.next_randomness_round {
             info!(
-                "random beacon: resuming generation for randomness rounds from {} to {}",
-                first_incomplete_round,
+                "random beacon: resuming generation for randomness rounds from {first_incomplete_round} to {}",
                 rm.next_randomness_round - 1,
             );
-            for r in first_incomplete_round.0..rm.next_randomness_round.0 {
-                network_handle.send_partial_signatures(committee.epoch(), RandomnessRound(r));
+            for r in first_incomplete_round.value()..rm.next_randomness_round.value() {
+                network_handle.send_partial_signatures(committee.epoch(), RandomnessRound::new(r));
             }
         }
 
@@ -577,8 +576,7 @@ impl RandomnessManager {
             && round
                 > epoch_store
                     .protocol_config()
-                    .random_beacon_dkg_timeout_round()
-                    .into()
+                    .random_beacon_dkg_timeout_round() as u64
         {
             error!(
                 "random beacon: DKG timed out. Randomness disabled for this epoch. All randomness-using transactions will fail."
@@ -834,9 +832,9 @@ pub enum DkgStatus {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use consensus_core::{BlockRef, BlockStatus};
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::messages_consensus::ConsensusTransactionKind;
+    use starfish_core::{BlockRef, BlockStatus};
     use tokio::sync::mpsc;
 
     use crate::{
@@ -885,7 +883,11 @@ mod tests {
                     tx_consensus.try_send(transactions.to_vec()).unwrap();
                     true
                 })
-                .returning(|_, _| Ok(with_block_status(BlockStatus::Sequenced(BlockRef::MIN))));
+                .returning(|_, _| {
+                    Ok(with_block_status(BlockStatus::Sequenced(
+                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                    )))
+                });
 
             let state = TestAuthorityBuilder::new()
                 .with_protocol_config(protocol_config.clone())
@@ -1032,8 +1034,8 @@ mod tests {
                     true
                 })
                 .returning(|_, _| {
-                    Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
-                        BlockRef::MIN,
+                    Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
                     )))
                 });
 

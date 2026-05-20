@@ -23,7 +23,6 @@ RUN mkdir -p ~/.cargo && \
 RUN apt install -y libpq5 libpq-dev ca-certificates git
 
 # Copy in all crates, Cargo.toml, Cargo.lock, and binary build list
-COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY examples examples

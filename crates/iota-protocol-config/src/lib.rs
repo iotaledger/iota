@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 25;
+pub const MAX_PROTOCOL_VERSION: u64 = 26;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -141,6 +141,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable additional borrow checks.
 // Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
 //             supported.
+// Version 26: Introduce a module to allow Move code to query protocol feature
+//             flags at runtime.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -259,7 +261,10 @@ struct FeatureFlags {
     per_object_congestion_control_mode: PerObjectCongestionControlMode,
 
     // The consensus protocol to be used for the epoch.
-    #[serde(skip_serializing_if = "ConsensusChoice::is_mysticeti")]
+    #[serde(
+        default = "ConsensusChoice::mysticeti_deprecated",
+        skip_serializing_if = "ConsensusChoice::is_mysticeti_deprecated"
+    )]
     consensus_choice: ConsensusChoice,
 
     // Consensus network to use.
@@ -513,14 +518,28 @@ impl PerObjectCongestionControlMode {
 // Configuration options for consensus algorithm.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
+    /// Kept only so protocol-config serialization of historical epochs stays
+    /// bit-for-bit identical; no runtime code branches on it.
+    #[deprecated(note = "Mysticeti was replaced by Starfish")]
+    MysticetiDeprecated,
     #[default]
-    Mysticeti,
     Starfish,
 }
 
+#[expect(deprecated)]
 impl ConsensusChoice {
-    pub fn is_mysticeti(&self) -> bool {
-        matches!(self, ConsensusChoice::Mysticeti)
+    /// serde deserialization default: an absent `consensus_choice` field in a
+    /// historical snapshot deserializes to `MysticetiDeprecated` so that
+    /// re-serialization stays byte-identical (the skip condition below also
+    /// triggers on that variant). Decoupled from the Rust `Default` impl,
+    /// which returns `Starfish` to reflect that Starfish is the current
+    /// consensus protocol.
+    fn mysticeti_deprecated() -> Self {
+        ConsensusChoice::MysticetiDeprecated
+    }
+
+    pub fn is_mysticeti_deprecated(&self) -> bool {
+        matches!(self, ConsensusChoice::MysticetiDeprecated)
     }
     pub fn is_starfish(&self) -> bool {
         matches!(self, ConsensusChoice::Starfish)
@@ -2264,9 +2283,14 @@ impl ProtocolConfig {
             }
         }
 
-        // Enable Mysticeti on mainnet.
-        cfg.feature_flags.consensus_choice = ConsensusChoice::Mysticeti;
-        // Use tonic networking for Mysticeti.
+        // Historical default: Mysticeti. Kept explicitly to match the
+        // serialized form of pre-v14/v19/v24 configs. No runtime behavior
+        // depends on this — Starfish is the only consensus protocol.
+        #[expect(deprecated)]
+        {
+            cfg.feature_flags.consensus_choice = ConsensusChoice::MysticetiDeprecated;
+        }
+        // Use tonic networking for consensus.
         cfg.feature_flags.consensus_network = ConsensusNetwork::Tonic;
 
         cfg.feature_flags.per_object_congestion_control_mode =
@@ -2720,6 +2744,10 @@ impl ProtocolConfig {
                     cfg.check_zklogin_issuer_cost_base = None;
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
+                }
+                26 => {
+                    // Introduce a module to allow Move code to query protocol
+                    // feature flags at runtime.
                 }
 
                 // Use this template when making changes:

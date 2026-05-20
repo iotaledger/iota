@@ -12,7 +12,10 @@ use iota_grpc_types::{
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
     },
 };
-use iota_types::{base_types::ObjectID, dynamic_field::visitor as DFV};
+use iota_types::{
+    base_types::{ObjectID, TypeTag},
+    dynamic_field::visitor as DFV,
+};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -109,19 +112,19 @@ fn load_dynamic_field(
         return Ok(());
     };
 
-    let Some(move_object) = field_object.data.try_as_move() else {
+    let Some(move_object) = field_object.data.as_struct_opt() else {
         return Ok(());
     };
 
+    let struct_tag = move_object.struct_tag();
+
     // Only proceed if this is actually a `Field<Name, Value>` type.
-    if !move_object.type_().is_dynamic_field() {
+    if !struct_tag.is_dynamic_field() {
         return Ok(());
     }
 
-    let struct_tag: move_core_types::language_storage::StructTag =
-        move_object.type_().clone().into();
     let layout = match reader
-        .get_type_layout(&iota_types::TypeTag::Struct(Box::new(struct_tag)))
+        .get_type_layout(&TypeTag::from(struct_tag.clone()))
         .map_err(RpcError::from)?
     {
         Some(layout) => layout,
@@ -203,7 +206,7 @@ fn load_dynamic_field(
                 // object, not BCS-decode `value` using `value_type`.
                 if read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name) {
                     if let Some(struct_tag) = child_object.struct_tag() {
-                        let type_tag = iota_types::TypeTag::from(struct_tag);
+                        let type_tag = TypeTag::from(struct_tag);
                         message.value_type = Some(type_tag.to_canonical_string(true));
                     }
                 }

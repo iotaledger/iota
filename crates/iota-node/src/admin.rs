@@ -359,7 +359,7 @@ async fn randomness_partial_sigs(
     state
         .node
         .randomness_handle()
-        .admin_get_partial_signatures(RandomnessRound(round), tx);
+        .admin_get_partial_signatures(RandomnessRound::new(round), tx);
 
     let sigs = match rx.await {
         Ok(sigs) => sigs,
@@ -410,7 +410,12 @@ async fn randomness_inject_partial_sigs(
     state
         .node
         .randomness_handle()
-        .admin_inject_partial_signatures(authority_name, RandomnessRound(round), sigs, tx_result);
+        .admin_inject_partial_signatures(
+            authority_name,
+            RandomnessRound::new(round),
+            sigs,
+            tx_result,
+        );
 
     match rx_result.await {
         Ok(Ok(())) => (StatusCode::OK, "partial signatures injected\n".to_string()),
@@ -443,7 +448,7 @@ async fn randomness_inject_full_sig(
 
     let (tx_result, rx_result) = oneshot::channel();
     state.node.randomness_handle().admin_inject_full_signature(
-        RandomnessRound(round),
+        RandomnessRound::new(round),
         sig,
         tx_result,
     );

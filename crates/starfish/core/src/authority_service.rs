@@ -1397,6 +1397,10 @@ struct SubscriptionCounter {
 
 impl SubscriptionCounter {
     fn new(context: Arc<Context>, dispatcher: Arc<dyn CoreThreadDispatcher>) -> Self {
+        // Drop any label combos left over from previous epochs whose hostnames
+        // are no longer in the current committee — otherwise IntGaugeVec keeps
+        // re-emitting the last value (typically 1) forever.
+        context.metrics.node_metrics.subscribed_by.reset();
         // Set the subscribed peers by default to 0
         for (_, authority) in context.committee.authorities() {
             context

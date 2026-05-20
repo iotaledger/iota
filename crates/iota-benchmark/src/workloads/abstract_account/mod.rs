@@ -151,8 +151,8 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
             .await
             .expect("create_abstract_account failed");
 
-            let aa_obj_id = aa_ref.0;
-            let aa_initial_shared_version = aa_ref.1;
+            let aa_obj_id = aa_ref.object_id;
+            let aa_initial_shared_version = aa_ref.version;
             let aa_address: IotaAddress = aa_obj_id.into();
 
             info!(

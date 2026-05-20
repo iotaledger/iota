@@ -378,6 +378,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
             chain_identifier,
             pruner_db,
+            None,
         )
         .await;
 

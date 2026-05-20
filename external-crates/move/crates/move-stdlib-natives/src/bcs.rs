@@ -30,8 +30,8 @@ use crate::helpers::make_module_natives;
 ///             size_of(val) * input_unit_cost +             | serialize value
 ///             max(size_of(output), 1) * output_unit_cost
 ///
-///             If any of the first two steps fails, a partial cost + an
-/// additional failure_cost             will be charged.
+/// If any of the first two steps fails, a partial cost + an
+/// additional failure_cost will be charged.
 ///
 /// ****************************************************************************
 #[derive(Debug, Clone)]

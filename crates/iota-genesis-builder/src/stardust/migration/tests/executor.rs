@@ -75,7 +75,7 @@ fn create_bag_with_pt() {
         .values()
         .find(|object| object.is_coin() && !object.is_gas_coin())
         .expect("there should be only a single coin: the total supply of native tokens");
-    let coin_type_tag = initial_supply_coin_object.coin_type_maybe().unwrap();
+    let coin_type_tag = initial_supply_coin_object.coin_type_opt().cloned().unwrap();
     let initial_supply_coin_data = initial_supply_coin_object.as_coin_maybe().unwrap();
 
     // Mock the native token
@@ -105,10 +105,7 @@ fn create_bag_with_pt() {
         .filter(|object| object.is_child_object())
         .collect::<Vec<_>>();
     assert_eq!(tokens.len(), 1);
-    assert_eq!(
-        tokens[0].owner,
-        Owner::ObjectOwner((*bag.id.object_id()).into())
-    );
+    assert_eq!(tokens[0].owner, Owner::Object(*bag.id.object_id()));
     let token_as_df = tokens[0].to_rust::<Field<String, Balance>>().unwrap();
     // Verify name
     let expected_name = coin_type_tag.to_canonical_string(false);

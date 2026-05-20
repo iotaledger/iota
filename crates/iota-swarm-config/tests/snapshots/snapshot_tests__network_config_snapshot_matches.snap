@@ -23,7 +23,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -37,7 +36,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -124,7 +122,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -138,7 +135,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -225,7 +221,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -239,7 +234,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -326,7 +320,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -340,7 +333,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -427,7 +419,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -441,7 +432,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -528,7 +518,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -542,7 +531,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000
@@ -629,7 +617,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -643,7 +630,6 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
       max-checkpoints-in-batch: 10
       max-transactions-in-batch: 1000

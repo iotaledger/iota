@@ -16,7 +16,7 @@ use tokio::{
     process::Command,
     sync::Mutex,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::types::{BuildCacheResponse, BuildJob, BuildResponse, BuildStatus};
 
@@ -651,6 +651,26 @@ impl BuildCache {
         Ok(resolved_commit)
     }
 
+    /// Return extra CXXFLAGS needed for a given CPU target.
+    ///
+    /// The `librocksdb-sys` build script translates Rust target features into
+    /// C++ compiler flags but omits `-mpclmul`, which RocksDB's CRC32C code
+    /// requires when CLMUL intrinsics are available (x86-64-v3 and above).
+    fn cxxflags_for_cpu_target(cpu_target: &str) -> String {
+        // x86-64-v3 and v4 include PCLMUL; v1 and v2 do not.
+        let needs_pclmul = matches!(cpu_target, "x86-64-v3" | "x86-64-v4");
+
+        let mut existing = std::env::var("CXXFLAGS").unwrap_or_default();
+        if needs_pclmul && !existing.contains("-mpclmul") {
+            if existing.is_empty() {
+                existing = "-mpclmul".to_string();
+            } else {
+                existing.push_str(" -mpclmul");
+            }
+        }
+        existing
+    }
+
     /// Calculate SHA256 hash of a file
     fn calculate_sha256(file_path: &Path) -> Result<String> {
         let mut file = fs::File::open(file_path)?;
@@ -673,8 +693,13 @@ impl BuildCache {
         // Create output directory
         fs::create_dir_all(output_path)?;
 
-        // Set RUSTFLAGS for CPU target optimization
-        let rustflags = format!("-C target-cpu={cpu_target}");
+        // Append CPU target to any existing RUSTFLAGS (e.g., -fuse-ld=lld from
+        // $CARGO_HOME/config.toml) rather than replacing them.
+        let mut rustflags = std::env::var("RUSTFLAGS").unwrap_or_default();
+        if !rustflags.is_empty() {
+            rustflags.push(' ');
+        }
+        rustflags.push_str(&format!("-C target-cpu={cpu_target}"));
 
         info!("Building binaries with RUSTFLAGS: {rustflags}");
 
@@ -696,6 +721,23 @@ impl BuildCache {
         } else {
             None
         };
+
+        // Ensure rustfmt is installed for the current toolchain (some build.rs
+        // scripts need it)
+        let rustfmt_output = Command::new("rustup")
+            .args(["component", "add", "rustfmt"])
+            .current_dir(repo_path)
+            .output()
+            .await;
+
+        if let Ok(output) = rustfmt_output {
+            if !output.status.success() {
+                warn!(
+                    "Failed to install rustfmt: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
 
         // Build each binary
         for binary in binaries {
@@ -721,13 +763,25 @@ impl BuildCache {
                 repo_path.display()
             );
 
-            let mut child = Command::new("cargo")
-                .args(&args)
+            // Set CXXFLAGS for native C/C++ dependencies (e.g., RocksDB).
+            // The librocksdb-sys build script enables ISA extensions based on
+            // CARGO_CFG_TARGET_FEATURE but omits -mpclmul, which is needed for
+            // RocksDB's CRC32C CLMUL intrinsics on x86-64-v3+.
+            let cxxflags = Self::cxxflags_for_cpu_target(cpu_target);
+
+            let mut cmd = Command::new("cargo");
+            cmd.args(&args)
                 .current_dir(repo_path)
                 .env("RUSTFLAGS", &rustflags)
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()?;
+                .stderr(Stdio::piped());
+
+            if !cxxflags.is_empty() {
+                info!("Setting CXXFLAGS: {cxxflags}");
+                cmd.env("CXXFLAGS", &cxxflags);
+            }
+
+            let mut child = cmd.spawn()?;
 
             // Stream output for monitoring
             if let Some(stdout) = child.stdout.take() {

@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, fmt::Debug};
 
-use schemars::JsonSchema;
+pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -40,7 +40,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use crate::execution_status::{CommandIndex, ExecutionFailureStatus};
+use crate::execution_status::ExecutionFailureStatus;
 
 #[macro_export]
 macro_rules! exit_main {
@@ -101,7 +101,7 @@ pub enum UserInputError {
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
-        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
+        .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,
@@ -381,17 +381,7 @@ pub enum UserInputError {
 }
 
 #[derive(
-    Eq,
-    PartialEq,
-    Clone,
-    Debug,
-    Serialize,
-    Deserialize,
-    Hash,
-    AsRefStr,
-    IntoStaticStr,
-    JsonSchema,
-    Error,
+    Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash, AsRefStr, IntoStaticStr, Error,
 )]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {
@@ -429,9 +419,6 @@ pub enum IotaError {
 
     #[error("Error checking transaction object: {error}")]
     IotaObjectResponse { error: IotaObjectResponseError },
-
-    #[error("Expecting a single owner, shared ownership found")]
-    UnexpectedOwnerType,
 
     #[error("There are already {queue_len} transactions pending, above threshold of {threshold}")]
     TooManyTransactionsPendingExecution { queue_len: usize, threshold: usize },
@@ -1001,7 +988,7 @@ pub struct ExecutionError {
 struct ExecutionErrorInner {
     kind: ExecutionErrorKind,
     source: Option<BoxError>,
-    command: Option<CommandIndex>,
+    command: Option<u64>,
 }
 
 impl ExecutionError {
@@ -1023,7 +1010,7 @@ impl ExecutionError {
         Self::new_with_source(ExecutionFailureStatus::InvariantViolation, source)
     }
 
-    pub fn with_command_index(mut self, command: CommandIndex) -> Self {
+    pub fn with_command_index(mut self, command: u64) -> Self {
         self.inner.command = Some(command);
         self
     }
@@ -1036,7 +1023,7 @@ impl ExecutionError {
         &self.inner.kind
     }
 
-    pub fn command(&self) -> Option<CommandIndex> {
+    pub fn command(&self) -> Option<u64> {
         self.inner.command
     }
 
@@ -1044,7 +1031,7 @@ impl ExecutionError {
         &self.inner.source
     }
 
-    pub fn to_execution_status(&self) -> (ExecutionFailureStatus, Option<CommandIndex>) {
+    pub fn to_execution_status(&self) -> (ExecutionFailureStatus, Option<u64>) {
         (self.kind().clone(), self.command())
     }
 }

@@ -25,7 +25,7 @@ rocksdb = { version = "0.24.0", default-features = false, features = ["snappy", 
 serde.workspace = true
 tap.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full", "test-util"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -40,6 +40,7 @@ once_cell.workspace = true
 rand.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 uint = "0.9"
 
 # Most packages should depend on iota-simulator instead of directly on msim, but for typed-store

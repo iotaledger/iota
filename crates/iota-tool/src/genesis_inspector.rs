@@ -98,7 +98,7 @@ pub fn examine_genesis_checkpoint(
         owner_map.insert(object.id(), object.owner);
 
         match &object.data {
-            iota_types::object::Data::Move(move_object) => {
+            iota_types::object::Data::Struct(move_object) => {
                 if let Ok(gas) = GasCoin::try_from(&object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
@@ -352,7 +352,7 @@ fn examine_object(
             }
             Ok(name) if name == STR_OTHER => {
                 for other_obj in other_object_map.values() {
-                    println!("{:#?}", other_obj.type_());
+                    println!("{:#?}", other_obj.struct_tag());
                     println!("{:?}", other_obj.version());
                 }
                 print_divider("Other");

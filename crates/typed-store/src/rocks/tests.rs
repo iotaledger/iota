@@ -425,7 +425,7 @@ async fn test_delete_batch() {
 #[tokio::test]
 async fn test_delete_range() {
     let tmp_dir = iota_common::tempdir();
-    let options = ReadWriteOptions::default().set_ignore_range_deletions(false);
+    let options = ReadWriteOptions::default();
     let db: DBMap<i32, String> = DBMap::reopen(
         &open_rocksdb(tmp_dir.path(), &[rocksdb::DEFAULT_COLUMN_FAMILY_NAME]),
         None,

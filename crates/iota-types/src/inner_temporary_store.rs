@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::Identifier;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
@@ -16,6 +17,7 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
+    move_package::MovePackageExt,
     object::{Object, Owner},
     storage::{BackingPackageStore, InputKey, PackageObject},
 };
@@ -57,7 +59,7 @@ impl InnerTemporaryStore {
         let deleted: HashMap<_, _> = effects
             .deleted()
             .iter()
-            .map(|oref| (oref.0, oref.1))
+            .map(|oref| (oref.object_id, oref.version))
             .collect();
 
         // add deleted shared objects to the outputkeys that then get sent to
@@ -114,11 +116,14 @@ where
     type Item = Arc<CompiledModule>;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {
-        let obj = self.temp_store.written.get(&ObjectID::from(*id.address()));
+        let obj = self
+            .temp_store
+            .written
+            .get(&ObjectID::new(id.address().into_bytes()));
         if let Some(o) = obj {
-            if let Some(p) = o.data.try_as_package() {
+            if let Some(p) = o.data.as_package_opt() {
                 return Ok(Some(Arc::new(p.deserialize_module(
-                    &id.name().into(),
+                    &Identifier::new_unchecked(id.name().as_str()),
                     &self.temp_store.binary_config,
                 )?)));
             }

@@ -61,7 +61,7 @@ impl FromStr for FuzzStartPoint {
                         "{} is not a valid checkpoint (err: {:?}) or transaction digest (err: {:?})",
                         s, u64_err, tx_err
                     );
-                    Err(tx_err)
+                    Err(tx_err.into())
                 }
             },
         }

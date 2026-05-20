@@ -2,16 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::TypeTag;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
     annotated_visitor::{self, StructDriver, ValueDriver, VariantDriver, VecDriver, Visitor},
-    language_storage::TypeTag,
     u256::U256,
 };
 
 use super::{DynamicFieldInfo, DynamicFieldType};
-use crate::{base_types::ObjectID, id::UID};
+use crate::{
+    base_types::ObjectID,
+    id::UID,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+};
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
 /// while leaving its name and value untouched.
@@ -62,9 +66,11 @@ impl Field<'_, '_> {
     /// points to (which must be fetched to extract its type).
     pub fn value_metadata(&self) -> Result<ValueMetadata, Error> {
         match self.kind {
-            DynamicFieldType::DynamicField => Ok(ValueMetadata::DynamicField(TypeTag::from(
-                self.value_layout,
-            ))),
+            DynamicFieldType::DynamicField => {
+                Ok(ValueMetadata::DynamicField(type_tag_core_to_sdk(
+                    &move_core_types::language_storage::TypeTag::from(self.value_layout),
+                )))
+            }
 
             DynamicFieldType::DynamicObject => {
                 let id: ObjectID =
@@ -83,7 +89,9 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
         &mut self,
         driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Error> {
-        if !DynamicFieldInfo::is_dynamic_field(&driver.struct_layout().type_) {
+        if !DynamicFieldInfo::is_dynamic_field(&struct_tag_core_to_sdk(
+            &driver.struct_layout().type_,
+        )) {
             return Err(Error::NotADynamicField);
         }
 
@@ -215,7 +223,7 @@ fn extract_name_layout(
         return Ok((DynamicFieldType::DynamicField, layout));
     };
 
-    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_.type_) {
+    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_tag_core_to_sdk(&struct_.type_)) {
         return Ok((DynamicFieldType::DynamicField, layout));
     }
 

@@ -19,8 +19,7 @@ use iota_names::{
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
@@ -191,13 +190,13 @@ async fn construct_object_response(
                 )?))
             }
         }
-        ObjectRead::Deleted((object_id, version, digest)) => Ok(
-            IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                object_id,
-                version,
-                digest,
-            }),
-        ),
+        ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::Deleted {
+                object_id: object_ref.object_id,
+                version: object_ref.version,
+                digest: object_ref.digest,
+            },
+        )),
     }
 }
 
@@ -491,7 +490,7 @@ impl IndexerApiServer for IndexerApi {
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address.into(),
+                self.iota_names_config.package_address,
             ))),
             options,
         };

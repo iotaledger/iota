@@ -13,10 +13,10 @@ use iota_json_rpc_types::{
     IotaCommittee, IotaData, IotaEvent, IotaExecutionStatus, IotaGetPastObjectRequest,
     IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
     IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData,
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock,
-    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
@@ -27,11 +27,10 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType, SequenceNumber,
-        TransactionDigest, random_object_ref,
+        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectRef, ObjectType, SequenceNumber,
+        StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
@@ -40,19 +39,21 @@ use iota_types::{
     event::EventID,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    id::UID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
-    object::{MoveObject, Owner},
+    object::{MoveObject, MoveObjectExt, Owner},
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
-    annotated_value::MoveStructLayout,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+    language_storage::ModuleId,
     resolver::ModuleResolver,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -145,12 +146,12 @@ impl RpcExampleProvider {
 
         let tx_params = vec![
             RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                package_object_id: IOTA_FRAMEWORK_PACKAGE_ID,
+                package_object_id: ObjectID::FRAMEWORK,
                 module: "pay".to_string(),
                 function: "split".to_string(),
                 type_arguments: vec![IotaTypeTag::new("0x2::iota::IOTA".to_string())],
                 arguments: vec![
-                    IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
+                    IotaJsonValue::new(json!(coin_ref.object_id)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
                 ]
                 .into_iter()
@@ -167,20 +168,20 @@ impl RpcExampleProvider {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    Identifier::from_str("pay").unwrap(),
-                    Identifier::from_str("split").unwrap(),
+                    ObjectID::FRAMEWORK,
+                    Identifier::from_static("pay"),
+                    Identifier::from_static("split"),
                     vec![],
                     vec![
-                        CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref)),
-                        CallArg::Pure(bcs::to_bytes(&random_amount).unwrap()),
+                        CallArg::ImmutableOrOwned(coin_ref),
+                        CallArg::pure(&random_amount),
                     ],
                 )
                 .unwrap();
             builder
                 .transfer_object(
                     recipient,
-                    (
+                    ObjectRef::new(
                         object_id,
                         SequenceNumber::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
@@ -192,7 +193,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![(
+            vec![ObjectRef::new(
                 gas_id,
                 SequenceNumber::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
@@ -332,7 +333,7 @@ impl RpcExampleProvider {
                         )
                         .unwrap(),
                     ),
-                    owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                    owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                         self.rng.gen(),
                     )))),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -340,7 +341,7 @@ impl RpcExampleProvider {
                     object_id,
                     version: SequenceNumber::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -376,7 +377,7 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+            owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                 self.rng.gen(),
             )))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -384,7 +385,7 @@ impl RpcExampleProvider {
             object_id,
             version: SequenceNumber::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+            type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
             display: None,
         });
@@ -475,8 +476,8 @@ impl RpcExampleProvider {
                 object_id: ObjectID::new(self.rng.gen()),
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
-                owner: Some(Owner::AddressOwner(owner)),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
                 display: None,
@@ -676,12 +677,12 @@ impl RpcExampleProvider {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
         let recipient = IotaAddress::from(ObjectID::new(self.rng.gen()));
         let obj_id = ObjectID::new(self.rng.gen());
-        let gas_ref = (
+        let gas_ref = ObjectRef::new(
             ObjectID::new(self.rng.gen()),
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = (
+        let object_ref = ObjectRef::new(
             obj_id,
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
@@ -705,10 +706,10 @@ impl RpcExampleProvider {
         let tx_digest = tx.digest();
         let object_change = ObjectChange::Transferred {
             sender: signer,
-            recipient: Owner::AddressOwner(recipient),
+            recipient: Owner::Address(recipient),
             object_type: parse_iota_struct_tag("0x2::example::Object").unwrap(),
-            object_id: object_ref.0,
-            version: object_ref.1,
+            object_id: object_ref.object_id,
+            version: object_ref.version,
             digest: ObjectDigest::new(self.rng.gen()),
         };
         struct NoOpsModuleResolver;
@@ -737,12 +738,12 @@ impl RpcExampleProvider {
                     created: vec![],
                     mutated: vec![
                         OwnedObjectRef {
-                            owner: Owner::AddressOwner(signer),
-                            reference: gas_ref.into(),
+                            owner: Owner::Address(signer),
+                            reference: gas_ref,
                         },
                         OwnedObjectRef {
-                            owner: Owner::AddressOwner(recipient),
-                            reference: object_ref.into(),
+                            owner: Owner::Address(recipient),
+                            reference: object_ref,
                         },
                     ],
                     unwrapped: vec![],
@@ -750,8 +751,8 @@ impl RpcExampleProvider {
                     unwrapped_then_deleted: vec![],
                     wrapped: vec![],
                     gas_object: OwnedObjectRef {
-                        owner: Owner::ObjectOwner(signer),
-                        reference: IotaObjectRef::from(gas_ref),
+                        owner: Owner::Object(ObjectID::from(signer)),
+                        reference: gas_ref,
                     },
                     events_digest: Some(TransactionEventsDigest::new(self.rng.gen())),
                     dependencies: vec![],
@@ -789,7 +790,7 @@ impl RpcExampleProvider {
                 event_seq: 0,
             },
             package_id: ObjectID::new(self.rng.gen()),
-            transaction_module: Identifier::from_str("test_module").unwrap(),
+            transaction_module: Identifier::from_static("test_module"),
             sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
@@ -1201,26 +1202,30 @@ impl RpcExampleProvider {
         };
 
         let struct_tag = parse_iota_struct_tag("0x9::test::TestField").unwrap();
+        let contents = UID::new(parent_object_id).to_bcs_bytes();
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
                     {
                         MoveObject::new_from_execution_with_limit(
-                            MoveObjectType::from(struct_tag.clone()),
+                            struct_tag.clone(),
                             SequenceNumber::from_u64(1),
-                            Vec::new(),
-                            5,
+                            contents,
+                            100,
                         )
                         .unwrap()
                     },
                     MoveStructLayout {
-                        type_: struct_tag,
-                        fields: Vec::new(),
+                        type_: struct_tag_sdk_to_core(&struct_tag),
+                        fields: vec![MoveFieldLayout::new(
+                            ident_str!("id").to_owned(),
+                            MoveTypeLayout::Struct(Box::new(UID::layout())),
+                        )],
                     },
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+            owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                 self.rng.gen(),
             )))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -1228,9 +1233,11 @@ impl RpcExampleProvider {
             object_id: parent_object_id,
             version: SequenceNumber::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(MoveObjectType::from(
-                parse_iota_struct_tag("0x9::test::TestField").unwrap(),
-            ))),
+            type_: Some(ObjectType::Struct(
+                parse_iota_struct_tag("0x9::test::TestField")
+                    .unwrap()
+                    .into(),
+            )),
             bcs: None,
             display: None,
         });
@@ -1270,13 +1277,13 @@ impl RpcExampleProvider {
             .map(|_| {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: None,
-                    owner: Some(Owner::AddressOwner(owner)),
+                    owner: Some(Owner::Address(owner)),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id: ObjectID::new(self.rng.gen()),
                     version: SequenceNumber::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -1310,7 +1317,7 @@ impl RpcExampleProvider {
 
     fn iotax_query_events(&mut self) -> Examples {
         let package_id = ObjectID::new(self.rng.gen());
-        let identifier = Identifier::from_str("test").unwrap();
+        let identifier = Identifier::from_static("test");
         let mut event_ids = self.get_event_ids(5..9);
         let has_next_page = event_ids.len() > (9 - 5);
         event_ids.truncate(9 - 5);
@@ -1345,7 +1352,7 @@ impl RpcExampleProvider {
                         "query",
                         json!(EventFilter::MoveModule {
                             package: ObjectID::new(self.rng.gen()),
-                            module: Identifier::from_str("test").unwrap(),
+                            module: Identifier::from_static("test"),
                         }),
                     ),
                     ("cursor", json!(cursor)),
@@ -1489,7 +1496,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                     self.rng.gen(),
                 )))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -1497,7 +1504,7 @@ impl RpcExampleProvider {
                 object_id,
                 version: SequenceNumber::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),
@@ -1509,7 +1516,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                     self.rng.gen(),
                 )))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -1517,7 +1524,7 @@ impl RpcExampleProvider {
                 object_id: object_id2,
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),

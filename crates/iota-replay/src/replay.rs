@@ -26,7 +26,7 @@ use iota_types::{
             AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1,
         },
     },
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -36,6 +36,7 @@ use iota_types::{
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
@@ -46,8 +47,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
-        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKind::{self, ProgrammableTransaction},
+        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
         VerifiedTransaction,
     },
 };
@@ -55,7 +55,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
+    language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
 use prometheus::Registry;
@@ -463,18 +463,18 @@ impl LocalExec {
                 .live_objects_store
                 .lock()
                 .expect("Can't lock")
-                .insert(o_ref.0, obj.clone());
+                .insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         tokio::task::yield_now().await;
@@ -509,18 +509,18 @@ impl LocalExec {
         for obj in objs.clone() {
             let o_ref = obj.compute_object_reference();
             // We dont always want the latest in store
-            // self.storage.store.insert(o_ref.0, obj.clone());
+            // self.storage.store.insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         Ok(objs.collect())
@@ -567,7 +567,7 @@ impl LocalExec {
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(o)
     }
 
@@ -640,7 +640,7 @@ impl LocalExec {
                     .object_version_cache
                     .lock()
                     .expect("Can't lock")
-                    .insert((obj_ref.0, obj_ref.1), object.clone());
+                    .insert((obj_ref.object_id, obj_ref.version), object.clone());
                 Ok(Some(object))
             }
             Err(ReplayEngineError::ObjectNotExist { id }) => {
@@ -739,7 +739,7 @@ impl LocalExec {
             .filter_shared_objects()
             .iter()
             .map(|s| match s {
-                SharedInput::Existing(obj_ref) => obj_ref.0,
+                SharedInput::Existing(obj_ref) => obj_ref.object_id,
                 SharedInput::Deleted((id, _, _, _)) => *id,
                 SharedInput::Cancelled((id, _)) => *id,
             })
@@ -771,7 +771,7 @@ impl LocalExec {
         let expensive_checks = true;
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let gas_status = if tx_info.kind.is_system_tx() {
+        let gas_status = if tx_info.kind.is_system() {
             IotaGasStatus::new_unmetered()
         } else {
             IotaGasStatus::new(
@@ -783,7 +783,7 @@ impl LocalExec {
             .expect("Failed to create gas status")
         };
         let gas_data = GasData {
-            payment: tx_info.gas.clone(),
+            objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
@@ -925,12 +925,12 @@ impl LocalExec {
 
         let skip_checks = true;
         let gas_data = GasData {
-            payment: tx_info.gas.clone(),
+            objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
         };
-        if let ProgrammableTransaction(pt) = transaction_kind {
+        if let TransactionKind::Programmable(pt) = transaction_kind {
             trace!(
                 target: "replay_ptb_info",
                 "{}",
@@ -1317,7 +1317,7 @@ impl LocalExec {
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(Some(o))
     }
 
@@ -1519,8 +1519,11 @@ impl LocalExec {
                 .map(|o| (o.compute_object_reference(), o.previous_transaction))
                 .collect();
 
-            previous_txs.iter().for_each(|((id, ver, _), tx)| {
-                mapping.entry(*id).or_insert(vec![]).push((*ver, *tx));
+            previous_txs.iter().for_each(|(object_ref, tx)| {
+                mapping
+                    .entry(object_ref.object_id)
+                    .or_insert(vec![])
+                    .push((object_ref.version, *tx));
             });
 
             // Next round
@@ -1528,11 +1531,11 @@ impl LocalExec {
             let previous_ver_refs: Vec<_> = previous_txs
                 .iter()
                 .filter_map(|(q, _)| {
-                    let prev_ver = u64::from(q.1) - 1;
+                    let prev_ver = q.version - 1;
                     if prev_ver == 0 {
                         None
                     } else {
-                        Some((q.0, SequenceNumber::from(prev_ver)))
+                        Some((q.object_id, prev_ver))
                     }
                 })
                 .collect();
@@ -1741,28 +1744,24 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();
         let gas_data = match tx_info.clone().transaction.unwrap().data {
             iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.gas_data,
         };
-        let gas_object_refs: Vec<_> = gas_data
-            .payment
-            .iter()
-            .map(|obj_ref| obj_ref.to_object_ref())
-            .collect();
+        let gas_object_refs = gas_data.payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = effects.executed_epoch;
@@ -1840,12 +1839,12 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();
@@ -1853,7 +1852,7 @@ impl LocalExec {
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = dp.node_state_dump.executed_epoch;
@@ -1867,7 +1866,7 @@ impl LocalExec {
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
         let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment;
+        let gas_object_refs: Vec<_> = gas_data.clone().objects;
 
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),
@@ -1910,8 +1909,9 @@ impl LocalExec {
         if !deleted_shared_objects.is_empty() {
             for tx_digest in tx_info.dependencies.iter() {
                 let tx_info = self.resolve_tx_components(tx_digest).await?;
-                for (obj_id, version, _) in tx_info.shared_object_refs.iter() {
-                    deleted_shared_info_map.insert(*obj_id, (tx_info.tx_digest, *version));
+                for obj_ref in tx_info.shared_object_refs.iter() {
+                    deleted_shared_info_map
+                        .insert(obj_ref.object_id, (tx_info.tx_digest, obj_ref.version));
                 }
             }
         }
@@ -1925,7 +1925,7 @@ impl LocalExec {
                     Ok(())
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(o_ref) => {
-                    imm_owned_inputs.push((o_ref.0, o_ref.1));
+                    imm_owned_inputs.push((o_ref.object_id, o_ref.version));
                     Ok(())
                 }
                 InputObjectKind::SharedMoveObject {
@@ -2000,7 +2000,7 @@ impl LocalExec {
                         .object_version_cache
                         .lock()
                         .expect("Cannot lock")
-                        .get(&(o_ref.0, o_ref.1))
+                        .get(&(o_ref.object_id, o_ref.version))
                         .unwrap()
                         .clone()
                         .into(),
@@ -2050,10 +2050,13 @@ impl LocalExec {
         let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
             .shared_object_refs
             .iter()
-            .partition(|r| r.2 != ObjectDigest::OBJECT_DIGEST_DELETED);
+            .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
-        let shared_refs: Vec<_> = shared_refs.iter().map(|r| (r.0, r.1)).collect();
+        let shared_refs: Vec<_> = shared_refs
+            .iter()
+            .map(|r| (r.object_id, r.version))
+            .collect();
         self.multi_download_and_store(&shared_refs).await?;
 
         // Download gas (although this should already be in cache from modified at
@@ -2061,7 +2064,7 @@ impl LocalExec {
         let gas_refs: Vec<_> = tx_info
             .gas
             .iter()
-            .filter_map(|w| (w.0 != ObjectID::ZERO).then_some((w.0, w.1)))
+            .filter_map(|w| (w.object_id != ObjectID::ZERO).then_some((w.object_id, w.version)))
             .collect();
         self.multi_download_and_store(&gas_refs).await?;
 
@@ -2147,7 +2150,7 @@ fn load_authenticator_function_ref(
 
     let field_move_object = field_obj
         .data
-        .try_as_move()
+        .as_struct_opt()
         .expect("dynamic field should never be a package object");
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
@@ -2222,7 +2225,7 @@ impl ChildObjectResolver for LocalExec {
                 )));
             }
             let parent = *parent;
-            if child_object.owner != Owner::ObjectOwner(parent.into()) {
+            if child_object.owner != Owner::Object(parent) {
                 return Err(IotaError::InvalidChildObjectAccess {
                     object: *child,
                     given_parent: parent,
@@ -2269,7 +2272,7 @@ impl ChildObjectResolver for LocalExec {
                     {receive_object_at_version} but expected the version to be == {receive_object_at_version}"
                 )));
             }
-            if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+            if recv_object.owner != Owner::Address((*owner).into()) {
                 return Ok(None);
             }
             Ok(Some(recv_object))
@@ -2298,7 +2301,7 @@ impl ResourceResolver for LocalExec {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        type_: &StructTag,
+        type_: &move_core_types::language_storage::StructTag,
     ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
@@ -2307,7 +2310,7 @@ impl ResourceResolver for LocalExec {
         ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
-                &ObjectID::from(*address),
+                &ObjectID::new(address.into_bytes()),
                 false, // we expect a Move obj
             )?
             else {
@@ -2315,9 +2318,9 @@ impl ResourceResolver for LocalExec {
             };
 
             match &object.data {
-                Data::Move(m) => {
+                Data::Struct(m) => {
                     assert!(
-                        m.is_type(type_),
+                        m.is_struct_tag(type_),
                         "Invariant violation: ill-typed object in storage \
                         or bad object request from caller"
                     );
@@ -2330,7 +2333,7 @@ impl ResourceResolver for LocalExec {
             }
         }
 
-        let res = inner(self, address, type_);
+        let res = inner(self, address, &struct_tag_core_to_sdk(type_));
         self.exec_store_events
             .lock()
             .expect("Unable to lock events list")

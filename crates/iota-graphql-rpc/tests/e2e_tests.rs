@@ -19,10 +19,10 @@ mod tests {
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
+        base_types::{IotaAddress, ObjectID},
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
-        transaction::{CallArg, ObjectArg, Transaction, TransactionDataAPI},
+        transaction::{CallArg, Transaction, TransactionDataAPI},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -256,7 +256,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IOTA_FRAMEWORK_ADDRESS.to_canonical_string(true)
+            IotaAddress::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -265,7 +265,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            STARDUST_ADDRESS.to_canonical_string(true)
+            IotaAddress::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -466,8 +466,9 @@ mod tests {
             }
             "#;
 
-        let response_fields =
-            format!("effects {{ transactionBlock {{ {tx_block_gql_fields} }} }} errors");
+        let response_fields = format!(
+            "effects {{ checkpoint {{ sequenceNumber }} transactionBlock {{ {tx_block_gql_fields} }} }} errors"
+        );
 
         let tx = cluster.build_transfer_iota_for_test().await;
         let signed_tx = cluster.sign_transaction(&tx);
@@ -531,7 +532,11 @@ mod tests {
         assert_eq!(mutation_tx_data, immediate_tx_data);
         assert_eq!(immediate_tx_data, checkpointed_tx_data);
 
-        // Check that optimistic indexing happened
+        // The mutation response carries a checkpoint only when optimistic
+        // indexing was skipped and the executor fell back to checkpointed reads.
+        let optimistically_indexed =
+            execute_transaction_block_res["effects"]["checkpoint"].is_null();
+
         let digest_bytes = Base58::decode(digest).unwrap();
         let pool = cluster.indexer_store.blocking_cp();
 
@@ -543,10 +548,18 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(
-            count, 1,
-            "Transaction should be present in optimistic_transactions table"
-        );
+        if optimistically_indexed {
+            assert_eq!(
+                count, 1,
+                "Transaction should be present in optimistic_transactions table"
+            );
+        } else {
+            assert_eq!(
+                count, 0,
+                "Transaction should NOT be present in optimistic_transactions table \
+                 when optimistic indexing was skipped"
+            );
+        }
     }
 
     #[tokio::test]
@@ -828,13 +841,10 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectID::FRAMEWORK,
                 "coin",
                 "split",
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                    CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-                ],
+                vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
             .with_type_args(vec![GAS::type_tag()])
             .build();

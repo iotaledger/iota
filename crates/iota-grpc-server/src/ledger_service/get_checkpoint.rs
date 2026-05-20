@@ -226,10 +226,9 @@ pub(crate) fn get_checkpoint(
     let sequence_number = match req.checkpoint_id {
         Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::SequenceNumber(seq)) => seq,
         Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Digest(digest)) => {
-            let sdk_digest: iota_sdk_types::Digest = (&digest)
+            let digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
-            let digest: iota_types::digests::CheckpointDigest = sdk_digest.into();
             service
                 .reader
                 .get_checkpoint_sequence_number_by_digest(&digest)

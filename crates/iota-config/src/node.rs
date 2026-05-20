@@ -11,7 +11,6 @@ use std::{
 };
 
 use anyhow::Result;
-use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
@@ -801,14 +800,6 @@ impl NodeConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ConsensusProtocol {
-    #[serde(rename = "mysticeti")]
-    Mysticeti,
-    #[serde(rename = "starfish")]
-    Starfish,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
     // Base consensus DB path for all epochs.
@@ -843,12 +834,9 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    /// Parameters for Mysticeti consensus
-    pub parameters: Option<ConsensusParameters>,
-
     /// Parameters for Starfish consensus
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starfish_parameters: Option<StarfishParameters>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
+    pub parameters: Option<StarfishParameters>,
 }
 
 impl ConsensusConfig {
@@ -1012,10 +1000,6 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// time interval used by the pruner to determine whether there are any
-    /// epoch DBs to remove
-    #[serde(default = "default_epoch_db_pruning_period_secs")]
-    pub epoch_db_pruning_period_secs: u64,
     /// number of epochs to keep the latest version of objects for.
     /// Note that a zero value corresponds to an aggressive pruner.
     /// This mode is experimental and needs to be used with caution.
@@ -1062,10 +1046,6 @@ fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
 }
 
-fn default_epoch_db_pruning_period_secs() -> u64 {
-    3600
-}
-
 fn default_max_transactions_in_batch() -> usize {
     1000
 }
@@ -1086,7 +1066,6 @@ impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
-            epoch_db_pruning_period_secs: default_epoch_db_pruning_period_secs(),
             num_epochs_to_retain: 0,
             pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
             max_checkpoints_in_batch: default_max_checkpoints_in_batch(),

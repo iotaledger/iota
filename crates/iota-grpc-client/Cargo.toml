@@ -22,7 +22,7 @@ tonic.workspace = true
 
 # internal dependencies
 iota-grpc-types.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde", "hash"] }
 
 [features]
 default = ["tls-ring", "tls-native-roots"]

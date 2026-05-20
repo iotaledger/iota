@@ -8,14 +8,14 @@ use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{Data, ObjectRead, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::CompiledModule;
@@ -48,7 +48,7 @@ async fn test_publishing_with_unpublished_deps() {
     .await;
 
     let ObjectRead::Exists(read_ref, package_obj, _) =
-        authority.get_object_read(&package.0).unwrap()
+        authority.get_object_read(&package.object_id).unwrap()
     else {
         panic!("Can't read package")
     };
@@ -63,7 +63,7 @@ async fn test_publishing_with_unpublished_deps() {
         move_package
             .serialized_module_map()
             .keys()
-            .map(String::as_str)
+            .map(<Identifier>::as_str)
             .collect::<HashSet<_>>(),
         HashSet::from(["depends_on_basics", "object_basics"]),
     );
@@ -73,7 +73,7 @@ async fn test_publishing_with_unpublished_deps() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "depends_on_basics",
         "delegate",
         vec![],
@@ -82,14 +82,15 @@ async fn test_publishing_with_unpublished_deps() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
-    let ((_, v, _), owner) = effects.created()[0];
+    let (object_ref, owner) = effects.created()[0];
+    let v = object_ref.version;
 
     // Check that calling the function does what we expect
     assert!(matches!(
         owner,
-        Owner::Shared { initial_shared_version: initial } if initial == v
+        Owner::Shared(initial) if initial == v
     ));
 }
 
@@ -140,7 +141,7 @@ async fn test_publish_empty_package() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )
@@ -176,7 +177,7 @@ async fn test_publish_duplicate_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )
@@ -362,7 +363,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     );
@@ -390,7 +391,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     );
@@ -427,7 +428,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )

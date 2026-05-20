@@ -7,14 +7,13 @@
 use std::collections::BTreeMap;
 
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -38,7 +37,7 @@ impl<'chk> Extractor<'chk> {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(obj_ref.object_id));
             }
         }
         latest_live_objects.into_values()
@@ -51,7 +50,7 @@ impl<'chk> Extractor<'chk> {
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
+                eventually_removed_object_refs.insert(obj_ref.object_id, (obj_ref, *digest));
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -65,14 +64,14 @@ impl<'chk> Extractor<'chk> {
 /// Field or a Dynamic Object Field based on its type.
 pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
-    let move_object = o.data.try_as_move()?;
+    let move_object = o.data.as_struct_opt()?;
 
-    if !move_object.type_().is_dynamic_field() {
+    if !move_object.struct_tag().is_dynamic_field() {
         return None;
     }
 
-    let type_: StructTag = move_object.type_().clone().into();
-    let [name, _] = type_.type_params.as_slice() else {
+    let type_ = move_object.struct_tag();
+    let [name, _] = type_.type_params() else {
         return None;
     };
 
@@ -142,11 +141,10 @@ impl RemovedObject {
         transaction_digest: TransactionDigest,
         object_ref: ObjectRef,
     ) -> Self {
-        let (object_id, object_version, _) = object_ref;
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
-            object_id,
-            object_version: object_version.into(),
+            object_id: object_ref.object_id,
+            object_version: object_ref.version.as_u64(),
         };
         Self {
             indexed_object,
@@ -235,7 +233,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.version() < version.value(),
+                    existing.version() < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.version()
                 );
@@ -256,7 +254,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object().version().value() < version,
+                    existing.object().version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object().version(),
                 );

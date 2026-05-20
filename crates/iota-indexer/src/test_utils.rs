@@ -162,7 +162,15 @@ pub async fn start_test_indexer_impl(
             let pool = store.blocking_cp();
             let store_clone = store.clone();
             tokio::spawn(async move {
-                Indexer::start_reader(&config, store_clone, &registry, pool, indexer_metrics).await
+                Indexer::start_reader(
+                    &config,
+                    store_clone,
+                    &registry,
+                    pool,
+                    indexer_metrics,
+                    CancellationToken::new(),
+                )
+                .await
             })
         }
         IndexerTypeConfig::Writer {

@@ -11,8 +11,10 @@ use iota_json_rpc_api::{
     GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
-    ValidatorApy, ValidatorApys,
+    DelegatedStake, DelegatedTimelockedStake, IotaCommittee,
+    IotaSystemStateSummary as IotaSystemStateSummarySchema,
+    IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, Stake, StakeStatus,
+    TimelockedStake, ValidatorApy, ValidatorApys,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -27,9 +29,7 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
-        iota_system_state_summary::{
-            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
-        },
+        iota_system_state_summary::{IotaSystemStateSummaryV1, IotaSystemStateSummaryV2},
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
@@ -331,15 +331,18 @@ impl GovernanceReadApi {
         for stake in iter {
             match stake {
                 ObjectRead::Exists(_, o, _) => stakes.push((o, true)),
-                ObjectRead::Deleted((object_id, version, _)) => {
+                ObjectRead::Deleted(object_ref) => {
                     let Some(o) = self
                         .state
-                        .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
+                        .find_object_lt_or_eq_version(
+                            &object_ref.object_id,
+                            &object_ref.version.previous().unwrap(),
+                        )
                         .await?
                     else {
                         Err(IotaRpcInputError::UserInput(
                             UserInputError::ObjectNotFound {
-                                object_id,
+                                object_id: object_ref.object_id,
                                 version: None,
                             },
                         ))?
@@ -409,25 +412,27 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
         async move {
             Ok(self
                 .state
                 .get_system_state()?
-                .into_iota_system_state_summary())
+                .into_iota_system_state_summary()
+                .into())
         }
         .trace()
         .await
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
         async move {
-            Ok(self
-                .state
-                .get_system_state()?
-                .into_iota_system_state_summary()
-                .try_into()?)
+            Ok(IotaSystemStateSummaryV1::try_from(
+                self.state
+                    .get_system_state()?
+                    .into_iota_system_state_summary(),
+            )?
+            .into())
         }
         .trace()
         .await
@@ -896,7 +901,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
@@ -928,7 +933,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,

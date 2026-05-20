@@ -12,7 +12,7 @@ mod sim_only_tests {
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
         base_types::ObjectID, digests::TransactionDigest,
-        messages_checkpoint::CheckpointSequenceNumber,
+        messages_checkpoint::CheckpointSequenceNumber, transaction::CallArg,
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
@@ -142,7 +142,7 @@ mod sim_only_tests {
                 .join("../iota-surfer/tests/move_building_blocks"),
         )
         .await
-        .0;
+        .object_id;
 
         let object_id = test_cluster
             .sign_and_execute_transaction(
@@ -176,8 +176,7 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .to_object_ref()
-            .0
+            .object_id
     }
 
     async fn wrap_child(
@@ -197,7 +196,11 @@ mod sim_only_tests {
                         package_id,
                         "objects",
                         "wrap_child",
-                        vec![object.into(), child.into(), true.into()],
+                        vec![
+                            CallArg::ImmutableOrOwned(object),
+                            CallArg::ImmutableOrOwned(child),
+                            CallArg::pure(&true),
+                        ],
                     )
                     .build(),
             )
@@ -209,8 +212,8 @@ mod sim_only_tests {
             test_cluster
                 .get_object_or_tombstone_from_fullnode_store(child_id)
                 .await
-                .2
-                .is_wrapped()
+                .digest
+                .is_object_wrapped()
         );
         effects
     }
@@ -230,7 +233,7 @@ mod sim_only_tests {
                         package_id,
                         "objects",
                         "unwrap_and_delete_child",
-                        vec![object.into()],
+                        vec![CallArg::ImmutableOrOwned(object)],
                     )
                     .build(),
             )
@@ -252,7 +255,12 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(package_id, "objects", "delete", vec![object.into()])
+                    .move_call(
+                        package_id,
+                        "objects",
+                        "delete",
+                        vec![CallArg::ImmutableOrOwned(object)],
+                    )
                     .build(),
             )
             .await

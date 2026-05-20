@@ -7,8 +7,11 @@ use std::sync::Arc;
 use iota_json_rpc_api::GovernanceReadApiClient;
 use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
 use iota_types::{
-    base_types::IotaAddress, iota_serde::BigInt,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    base_types::IotaAddress,
+    iota_serde::BigInt,
+    iota_system_state::iota_system_state_summary::{
+        IotaSystemStateSummary, IotaSystemStateSummaryV1,
+    },
 };
 
 use crate::{RpcClient, error::IotaRpcResult};
@@ -68,7 +71,12 @@ impl GovernanceApi {
     #[allow(deprecated)]
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
         if self.api.info.iota_system_state_v2_support {
-            Ok(self.api.http.get_latest_iota_system_state_v2().await?)
+            Ok(self
+                .api
+                .http
+                .get_latest_iota_system_state_v2()
+                .await?
+                .into())
         } else {
             // Fallback to v1, v2 is not available on networks with protocol version < 5
             Ok(self
@@ -76,6 +84,7 @@ impl GovernanceApi {
                 .http
                 .get_latest_iota_system_state()
                 .await
+                .map(IotaSystemStateSummaryV1::from)
                 .map(IotaSystemStateSummary::from)?)
         }
     }

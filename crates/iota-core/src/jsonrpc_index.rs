@@ -22,8 +22,8 @@ use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
-        TransactionDigest, TxSequenceNumber,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag,
+        TransactionDigest, TxSequenceNumber, TypeTag,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
@@ -34,7 +34,9 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -520,7 +522,7 @@ impl IndexStore {
             .iter()
             .filter_map(|(owner, obj_id)| {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
-                let coin_type_tag = object.coin_type_maybe().unwrap_or_else(|| {
+                let coin_type_tag = object.coin_type_opt().unwrap_or_else(|| {
                     panic!(
                         "object_id: {obj_id:?} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest:?}"
                     )
@@ -557,7 +559,7 @@ impl IndexStore {
         .filter_map(|((owner, obj_id), obj_info)| {
             // If it's in written_coins, then it's not a coin. Skip it.
             let obj = written_coins.get(obj_id)?;
-            let coin_type_tag = obj.coin_type_maybe().unwrap_or_else(|| {
+            let coin_type_tag = obj.coin_type_opt().cloned().unwrap_or_else(|| {
                 panic!(
                     "object_id: {obj_id:?} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest:?}"
                 )
@@ -659,7 +661,7 @@ impl IndexStore {
             &self.tables.transactions_by_mutated_object_id,
             mutated_objects
                 .clone()
-                .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), *digest)),
         )?;
 
         batch.insert_batch(
@@ -672,8 +674,7 @@ impl IndexStore {
             &self.tables.transactions_to_addr,
             mutated_objects.filter_map(|(_, owner)| {
                 owner
-                    .get_address_owner_address()
-                    .ok()
+                    .into_address_opt()
                     .map(|addr| ((addr, sequence), digest))
             }),
         )?;
@@ -717,7 +718,10 @@ impl IndexStore {
                 .map(|(i, e)| {
                     (
                         i,
-                        ModuleId::new(e.package_id.into(), e.transaction_module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.package_id.into_bytes()),
+                            Identifier::new(e.module.as_str()).unwrap(),
+                        ),
                     )
                 })
                 .map(|(i, m)| ((m, (sequence, i)), (event_digest, *digest, timestamp_ms))),
@@ -756,7 +760,10 @@ impl IndexStore {
             events.data.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address().into_bytes()),
+                            Identifier::new(e.type_.module().as_str()).unwrap(),
+                        ),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),
@@ -1706,7 +1713,6 @@ mod tests {
         object,
         object::Owner,
     };
-    use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
@@ -1726,7 +1732,7 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let address: IotaAddress = AccountAddress::random().into();
+        let address = IotaAddress::random();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
 
@@ -1740,7 +1746,7 @@ mod tests {
                     version: object.version(),
                     digest: object.digest(),
                     type_: ObjectType::Struct(object.type_().unwrap().clone()),
-                    owner: Owner::AddressOwner(address),
+                    owner: Owner::Address(address),
                     previous_transaction: object.previous_transaction,
                 },
             ));

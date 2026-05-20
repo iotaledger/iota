@@ -69,7 +69,7 @@ impl Worker for ObjectHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
@@ -129,9 +129,9 @@ impl ObjectHandler {
         }
         for (object_ref, _) in effects.all_removed_objects().iter() {
             let entry = ObjectEntry {
-                object_id: object_ref.0.to_string(),
-                digest: object_ref.2.to_string(),
-                version: u64::from(object_ref.1),
+                object_id: object_ref.object_id.to_string(),
+                digest: object_ref.digest.to_string(),
+                version: object_ref.version.as_u64(),
                 type_: None,
                 checkpoint,
                 epoch,
@@ -140,7 +140,7 @@ impl ObjectHandler {
                 owner_address: None,
                 object_status: ObjectStatus::Deleted,
                 initial_shared_version: None,
-                previous_transaction: checkpoint_transaction.transaction.digest().base58_encode(),
+                previous_transaction: checkpoint_transaction.transaction.digest().to_base58(),
                 storage_rebate: None,
                 bcs: None,
                 coin_type: None,
@@ -163,10 +163,10 @@ impl ObjectHandler {
         object_status_tracker: &ObjectStatusTracker,
         state: &mut State,
     ) -> Result<()> {
-        let move_obj_opt = object.data.try_as_move();
+        let move_obj_opt = object.data.as_struct_opt();
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
-            .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
+            .and_then(|tag| object.data.as_struct_opt().map(|mo| (tag, mo.contents())))
         {
             let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
             Some(move_struct)
@@ -183,12 +183,12 @@ impl ObjectHandler {
         } else {
             (None, None)
         };
-        let object_type = move_obj_opt.map(|o| o.type_().to_string());
+        let object_type = move_obj_opt.map(|o| o.struct_tag().to_string());
         let object_id = object.id();
         let entry = ObjectEntry {
             object_id: object_id.to_string(),
             digest: object.digest().to_string(),
-            version: object.version().value(),
+            version: object.version().as_u64(),
             type_: object_type,
             checkpoint,
             epoch,
@@ -199,12 +199,12 @@ impl ObjectHandler {
                 .get_object_status(&object_id)
                 .expect("object must be in output objects"),
             initial_shared_version: initial_shared_version(object),
-            previous_transaction: object.previous_transaction.base58_encode(),
+            previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
             bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
-            coin_type: object.coin_type_maybe().map(|t| t.to_string()),
-            coin_balance: if object.coin_type_maybe().is_some() {
-                Some(object.get_coin_value_unsafe())
+            coin_type: object.coin_type_opt().map(|t| t.to_string()),
+            coin_balance: if object.coin_type_opt().is_some() {
+                Some(object.get_coin_value_unchecked())
             } else {
                 None
             },

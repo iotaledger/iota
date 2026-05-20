@@ -17,7 +17,7 @@ use iota_grpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, StructTag, TypeTag, VersionNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -483,13 +483,7 @@ impl GrpcReader {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-
-                                        // Convert matching event to SDK type
-                                        let sdk_event: iota_sdk_types::Event = raw_event
-                                            .clone()
-                                            .try_into()
-                                            .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
-                                        let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
@@ -679,7 +673,7 @@ impl GrpcReader {
 
     pub fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state_reader
             .get_type_layout(type_tag)
@@ -693,7 +687,7 @@ impl GrpcReader {
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<&OwnedObjectCursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
@@ -722,7 +716,7 @@ impl GrpcReader {
     /// Get unified coin info.
     pub fn get_coin_info(
         &self,
-        coin_type: &move_core_types::language_storage::StructTag,
+        coin_type: &StructTag,
     ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
@@ -1153,8 +1147,7 @@ impl GrpcReader {
 
             let transaction_data = fields
                 .include_transaction
-                .then(|| transaction.transaction_data().clone().try_into())
-                .transpose()?;
+                .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
                 .include_signatures
@@ -1250,7 +1243,7 @@ impl GrpcReader {
             // Get output objects only if requested
             let output_objects = if fields.include_output_objects {
                 let mut objects = Vec::new();
-                for ((object_id, version, _digest), _owner) in effects
+                for (object_ref, _owner) in effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
@@ -1258,7 +1251,7 @@ impl GrpcReader {
                 {
                     if let Some(obj) = self
                         .state_reader
-                        .try_get_object_by_key(&object_id, version)?
+                        .try_get_object_by_key(&object_ref.object_id, object_ref.version)?
                     {
                         objects.push(obj);
                     }

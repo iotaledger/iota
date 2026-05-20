@@ -25,12 +25,11 @@ use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
-    DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
-    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
+    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -58,10 +57,10 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, Field},
+    dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
@@ -75,17 +74,13 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
-    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
-};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -923,7 +918,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )?
                 } else {
                     None
@@ -1095,7 +1090,7 @@ impl IotaClientCommands {
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        AccountAddress::ZERO,
+                        IotaAddress::ZERO,
                     )?
                 } else {
                     None
@@ -1957,8 +1952,8 @@ impl IotaClientCommands {
                     (false, true, _) => ValidationMode::deps(),
                     (true, false, None) => ValidationMode::root(),
                     (true, true, None) => ValidationMode::root_and_deps(),
-                    (true, false, Some(at)) => ValidationMode::root_at(*at),
-                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
+                    (true, false, Some(at)) => ValidationMode::root_at(at.into()),
+                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(at.into()),
                 };
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
@@ -2380,7 +2375,7 @@ impl Display for IotaClientCommandResult {
                 let df_refs = DynamicFieldOutput {
                     has_next_page: df_refs.has_next_page,
                     next_cursor: df_refs.next_cursor,
-                    data: df_refs.data.clone(),
+                    data: df_refs.data.iter().cloned().map(Into::into).collect(),
                 };
 
                 let json_obj = json!(df_refs);
@@ -3199,7 +3194,10 @@ pub async fn execute_dry_run(
                 let gas_coins = client
                     .read_api()
                     .multi_get_object_with_options(
-                        gas_payment.iter().map(|object_ref| object_ref.0).collect(),
+                        gas_payment
+                            .iter()
+                            .map(|object_ref| object_ref.object_id)
+                            .collect(),
                         IotaObjectDataOptions::bcs_lossless(),
                     )
                     .await?;
@@ -3396,7 +3394,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             .input_objects()?
             .iter()
             .filter_map(|o| match o {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 _ => None,
             })
             .collect();
@@ -3445,10 +3443,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 json_args,
             )
             .await?;
-            Some((
-                call_args,
-                type_args.into_iter().map(TypeInput::from).collect(),
-            ))
+            Some((call_args, type_args))
         } else {
             None
         };
@@ -3511,7 +3506,6 @@ async fn execute_dev_inspect(
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
 
     let dev_inspect_args = DevInspectArgs {
         gas_sponsor,
@@ -3691,7 +3685,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::from(module.unit.address.into_inner())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,
@@ -3870,9 +3864,9 @@ async fn create_move_authenticator_signature(
     Ok(GenericSignature::MoveAuthenticator(
         MoveAuthenticator::new_v1(
             call_args,
-            type_args.into_iter().map(TypeInput::from).collect(),
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(address),
+            type_args,
+            CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::from(address),
                 initial_shared_version,
                 mutable: false,
             }),

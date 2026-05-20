@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
+use iota_json_rpc_types::{
+    DelegatedStake, DelegatedTimelockedStake, IotaCommittee, IotaSystemStateSummary,
+    IotaSystemStateSummaryV1, ValidatorApys,
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+};
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     iota_serde::BigInt,
-    iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary, IotaSystemStateSummaryV1,
-    },
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -23,26 +24,29 @@ pub trait GovernanceReadApi {
     #[method(name = "getStakesByIds")]
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        #[schemars(with = "Vec<ObjectIDSchema>")] staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return all [DelegatedStake].
     #[method(name = "getStakes")]
-    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>>;
+    async fn get_stakes(
+        &self,
+        #[schemars(with = "IotaAddressSchema")] owner: IotaAddress,
+    ) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn
     /// its status will be Unstaked.
     #[method(name = "getTimelockedStakesByIds")]
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        #[schemars(with = "Vec<ObjectIDSchema>")] timelocked_staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return all [DelegatedTimelockedStake].
     #[method(name = "getTimelockedStakes")]
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        #[schemars(with = "IotaAddressSchema")] owner: IotaAddress,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return the committee information for the asked `epoch`.
@@ -50,6 +54,7 @@ pub trait GovernanceReadApi {
     async fn get_committee_info(
         &self,
         /// The epoch of interest. If None, default to the latest epoch
+        #[schemars(with = "Option<String>")]
         epoch: Option<BigInt<u64>>,
     ) -> RpcResult<IotaCommittee>;
 
@@ -68,6 +73,7 @@ pub trait GovernanceReadApi {
 
     /// Return the reference gas price for the network
     #[method(name = "getReferenceGasPrice")]
+    #[schemars(with = "String")]
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the validator APY
