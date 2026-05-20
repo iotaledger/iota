@@ -142,9 +142,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
 //             supported.
 // Version 26: Enable white flag flow and validator attestation in devnet.
-//             Switch per-object congestion-control mode to TotalComputationCost
-//             (uses attested computation cost from UserTransactionV2 for
-//             shared-object scheduling) in devnet.
+//             Switch per-object congestion-control mode to
+//             TotalComputationCost.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -530,7 +529,7 @@ pub enum PerObjectCongestionControlMode {
     None, // No congestion control.
     TotalGasBudget,       // Use txn gas budget as execution cost.
     TotalTxCount,         // Use total txn count as execution cost.
-    TotalComputationCost, // Use attested computation cost from AttestedTransaction.
+    TotalComputationCost, // Use attested computation cost as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -2798,8 +2797,7 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_validator_attestation = true;
                         // Switch the per-object congestion-control mode to use the
                         // attested computation cost from `UserTransactionV2` for
-                        // shared-object scheduling (falls back to gas budget for
-                        // unattested transactions).
+                        // shared-object scheduling.
                         cfg.feature_flags.per_object_congestion_control_mode =
                             PerObjectCongestionControlMode::TotalComputationCost;
                     }

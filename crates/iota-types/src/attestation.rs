@@ -96,10 +96,6 @@ impl AttestedTransaction {
     pub fn digest(&self) -> &TransactionDigest {
         self.transaction.digest()
     }
-
-    pub fn estimated_computation_cost(&self) -> u64 {
-        self.attestation.estimated_computation_cost()
-    }
 }
 
 #[cfg(test)]
