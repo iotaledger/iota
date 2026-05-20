@@ -40,14 +40,12 @@ pub async fn execution_process(
         let certificate;
         let expected_effects_digest;
         let txn_ready_time;
-        let attestation;
         tokio::select! {
             result = rx_ready_certificates.recv() => {
                 if let Some(pending_cert) = result {
                     certificate = pending_cert.certificate;
                     expected_effects_digest = pending_cert.expected_effects_digest;
                     txn_ready_time = pending_cert.stats.ready_time.unwrap();
-                    attestation = pending_cert.attestation;
                 } else {
                     // Should only happen after the AuthorityState has shut down and tx_ready_certificate
                     // has been dropped by TransactionManager.
@@ -118,12 +116,6 @@ pub async fn execution_process(
             }
 
             fail_point_async!("transaction_execution_delay");
-
-            // `attestation` is available here for transactions that arrived
-            // as `UserTransactionV2`; it is plumbed through `PendingCertificate`
-            // so future PRs can attach execution-time consumers (metrics,
-            // checkpoint accounting, …) without further pipeline changes.
-            let _ = &attestation;
 
             match authority.try_execute_immediately(
                 &certificate,

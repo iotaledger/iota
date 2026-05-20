@@ -13,7 +13,6 @@ use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    attestation::Attestation,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     committee::EpochId,
     digests::TransactionEffectsDigest,
@@ -76,8 +75,13 @@ pub struct PendingCertificateStats {
 
 #[derive(Clone, Debug)]
 pub struct PendingCertificate {
-    // Certified transaction to be executed.
-    pub certificate: VerifiedExecutableTransaction,
+    // Certified transaction to be executed, paired with its pre-consensus
+    // attestation when sequenced as `UserTransactionV2`. The attestation is
+    // `None` for non-consensus paths (replay, change-epoch, finalizer) and
+    // for `UserTransactionV1`. Available at execution time for future
+    // consumers (comparison metrics, attestor reward/penalty accounting at
+    // checkpoint time).
+    pub certificate: VerifiedExecutableAttestedTransaction,
     // When executing from checkpoint, the certified effects digest is provided, so that forks can
     // be detected prior to committing the transaction.
     pub expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -86,11 +90,6 @@ pub struct PendingCertificate {
     pub waiting_input_objects: BTreeSet<InputKey>,
     // Stores stats about this transaction.
     pub stats: PendingCertificateStats,
-    // Pre-consensus attestation, when the transaction was sequenced as
-    // `UserTransactionV2`. Used at execution time to emit comparison metrics
-    // (attested vs actual computation cost) and, in the future, for
-    // attestor reward/penalty accounting at checkpoint time.
-    pub attestation: Option<Attestation>,
 }
 
 struct CacheInner {
@@ -390,25 +389,22 @@ impl TransactionManager {
         certs: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs.into_iter().map(|cert| (cert, None, None)).collect();
+        let certs = certs
+            .into_iter()
+            .map(|cert| (cert.into(), None))
+            .collect();
         self.enqueue_impl(certs, epoch_store)
     }
 
     /// Like [`Self::enqueue`], but preserves the pre-consensus attestation for
-    /// transactions that arrived as `UserTransactionV2`. The attestation
-    /// travels with the certificate through execution so downstream code can
-    /// emit comparison metrics (attested vs actual computation cost) and
-    /// later participate in attestor reward/penalty accounting.
+    /// transactions that arrived as `UserTransactionV2`.
     #[instrument("transaction_manager_enqueue_attested", level = "trace", skip_all)]
     pub(crate) fn enqueue_attested(
         &self,
         certs: Vec<VerifiedExecutableAttestedTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs
-            .into_iter()
-            .map(|attested| (attested.tx, None, attested.attestation))
-            .collect();
+        let certs = certs.into_iter().map(|attested| (attested, None)).collect();
         self.enqueue_impl(certs, epoch_store)
     }
 
@@ -420,7 +416,7 @@ impl TransactionManager {
     ) {
         let certs = certs
             .into_iter()
-            .map(|(cert, fx)| (cert, Some(fx), None))
+            .map(|(cert, fx)| (cert.into(), Some(fx)))
             .collect();
         self.enqueue_impl(certs, epoch_store)
     }
@@ -428,9 +424,8 @@ impl TransactionManager {
     fn enqueue_impl(
         &self,
         certs: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
-            Option<Attestation>,
         )>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
@@ -442,7 +437,7 @@ impl TransactionManager {
 
             certs
                 .into_iter()
-                .filter(|(cert, _, _)| {
+                .filter(|(cert, _)| {
                     tracing::trace!(tx_digest = ?cert.digest(), "checking if already executed");
 
                     let digest = *cert.digest();
@@ -473,7 +468,7 @@ impl TransactionManager {
 
             certs
                 .into_iter()
-                .filter_map(|(cert, fx_digest, attestation)| {
+                .filter_map(|(cert, fx_digest)| {
                     // Check availability of all transaction associated input objects(transaction +
                     // authenticators).
                     let input_object_kinds =
@@ -524,7 +519,7 @@ impl TransactionManager {
                         }
                     }
 
-                    Some((cert, fx_digest, attestation, input_object_keys))
+                    Some((cert, fx_digest, input_object_keys))
                 })
                 .collect()
         };
@@ -606,7 +601,7 @@ impl TransactionManager {
         let mut pending = Vec::new();
         let pending_cert_enqueue_time = Instant::now();
 
-        for (cert, expected_effects_digest, attestation, input_object_keys) in certs {
+        for (cert, expected_effects_digest, input_object_keys) in certs {
             pending.push(PendingCertificate {
                 certificate: cert,
                 expected_effects_digest,
@@ -616,7 +611,6 @@ impl TransactionManager {
                     enqueue_time: pending_cert_enqueue_time,
                     ready_time: None,
                 },
-                attestation,
             });
         }
 

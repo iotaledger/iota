@@ -4408,7 +4408,6 @@ impl AuthorityPerEpochStore {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind:
                     ConsensusTransactionKind::UserTransactionV1(_)
-                    // TODO: adjust when UserTransactionV2 logic is added to sequencer
                     | ConsensusTransactionKind::UserTransactionV2(_),
                 ..
             }) => {
