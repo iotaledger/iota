@@ -103,7 +103,7 @@ fn verify_runtime_metadata(
                 IotaAttribute::View => {
                     verify_view_func(
                         module,
-                        Identifier::new(fn_name.clone()).map_err(|err| {
+                        &Identifier::new(fn_name.clone()).map_err(|err| {
                             verification_failure(format!("Failed to read function name: {err}",))
                         })?,
                     )?;
