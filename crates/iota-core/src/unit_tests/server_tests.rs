@@ -44,11 +44,7 @@ use crate::{
     authority_server::{
         AuthorityServer, ValidatorService, ValidatorServiceMetrics, make_tonic_request_for_testing,
     },
-    checkpoints::CheckpointStore,
-    consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-        MockConsensusClient,
-    },
+    consensus_adapter::ConsensusAdapter,
 };
 
 // This is the most basic example of how to test the server logic
@@ -107,16 +103,8 @@ async fn test_authority_reject_authority_capabilities() {
         .await;
 
     // Create a validator service around the `authority_state`.
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     // Create the validator service that will handle capability notifications
@@ -214,16 +202,8 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -273,16 +253,8 @@ async fn test_get_checkpoint_happy_path() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -439,16 +411,8 @@ async fn test_v2_submit_tx_success() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -510,16 +474,8 @@ async fn test_v2_submit_tx_invalid_signature() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -578,16 +534,8 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -645,16 +593,8 @@ async fn test_v2_submit_tx_already_executed() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -713,16 +653,8 @@ async fn test_v2_submit_tx_multiple_transactions() {
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_id1), (sender, gas_id2)]).await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -773,16 +705,8 @@ async fn test_v2_submit_tx_invalid_transaction() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -845,16 +769,8 @@ async fn test_v2_submit_tx_gas_object_validation() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -910,16 +826,8 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_id1), (sender, gas_id2)]).await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -994,16 +902,8 @@ async fn test_v2_submit_tx_oversized_transaction() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1129,16 +1029,8 @@ async fn test_v2_get_tx_status_already_executed() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1212,16 +1104,8 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1293,16 +1177,8 @@ async fn test_v2_get_tx_status_multiple_queries() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1386,16 +1262,8 @@ async fn test_v2_get_tx_status_too_many_queries() {
 
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1430,16 +1298,8 @@ async fn test_v2_get_tx_status_empty_queries_ping() {
 
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1468,16 +1328,8 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
 
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let dropped_digest = iota_types::digests::TransactionDigest::random();
@@ -1519,16 +1371,8 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
 
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1582,16 +1426,8 @@ async fn test_v2_notify_capabilities_reject_unauthorized() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
@@ -1671,16 +1507,8 @@ async fn test_v2_notify_capabilities_feature_disabled() {
         .build()
         .await;
 
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
 
     let validator_service = Arc::new(ValidatorService::new_for_tests(
