@@ -23,7 +23,10 @@ use serde::{Deserialize, Serialize};
 /// BigTable Key Value store implementation.
 mod bigtable;
 
-pub use bigtable::{client, worker::KvWorker};
+pub use bigtable::{
+    client,
+    worker::{BigtableTable, KvWorker},
+};
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 
 use crate::bigtable::client::{TransactionSequenceNumber, TransactionsOrder};
