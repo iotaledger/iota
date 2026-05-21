@@ -62,26 +62,15 @@ const operator = [
     },
     {
         type: 'category',
-        label: 'Indexer',
+        label: 'Data Infrastructure',
+        link: {
+            type: 'doc',
+            id: 'operator/data-infrastructure/overview',
+        },
         items: [
-            'operator/indexer/overview',
-            'operator/indexer/docker',
-            'operator/indexer/source',
-            {
-                type: 'category',
-                label: 'Indexer Configuration',
-                link: {
-                    type: 'doc',
-                    id: 'operator/indexer/configuration',
-                },
-                items: [
-                    'operator/indexer/configs/pruning',
-                ],
-            },
-            'operator/indexer/graphql',
-            'operator/indexer/schema',
-            'operator/indexer/monitoring',
-            'operator/indexer/troubleshooting',
+            'operator/data-infrastructure/iota-indexer',
+            'operator/data-infrastructure/json-rpc',
+            'operator/data-infrastructure/graphql',
         ],
     },
     {
