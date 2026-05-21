@@ -837,6 +837,17 @@ pub struct AuthorityState {
 /// The authority state encapsulates all state, drives execution, and ensures
 /// safety.
 ///
+/// Outputs of the shared transaction validation pipeline used by both
+/// `handle_transaction_validation_checks` and `attest_transaction`.
+struct ValidationOutputs<'a> {
+    tx_input_objects: InputObjects,
+    per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+    move_authenticators: Vec<&'a MoveAuthenticator>,
+    gas_status: IotaGasStatus,
+    tx_checked_input_objects: CheckedInputObjects,
+    per_authenticator_checked_inputs: Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
+}
+
 /// Note the authority operations can be accessed through a read ref (&) and do
 /// not require &mut. Internally a database is synchronized through a mutex
 /// lock.
@@ -887,67 +898,21 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<Vec<ObjectRef>> {
         let protocol_config = epoch_store.protocol_config();
-        let reference_gas_price = epoch_store.reference_gas_price();
-
-        let epoch = epoch_store.epoch();
-
         let tx_data = transaction.data().transaction_data();
 
-        // Note: the deny checks may do redundant package loads but:
-        // - they only load packages when there is an active package deny map
-        // - the loads are cached anyway
-        iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
-            &transaction.input_objects()?,
-            &tx_data.receiving_objects(),
-            &self.config.transaction_deny_config,
-            self.get_backing_package_store().as_ref(),
-        )?;
+        let ValidationOutputs {
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+            tx_input_objects: _,
+            per_authenticator_inputs: _,
+        } = self.run_validation_checks(transaction, epoch_store)?;
 
-        // Load all transaction-related input objects.
-        // Authenticator input objects and the account object are loaded in the same
-        // call if there is a sender `MoveAuthenticator` signature present in the
-        // transaction.
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
-
-        // Get the `MoveAuthenticator`s, if any.
-        let move_authenticators = transaction.move_authenticators();
-
-        // Check the inputs for signing.
-        // If there are `MoveAuthenticator` signatures, their input objects and the
-        // account objects are also checked and must be provided.
-        // It is also checked if there is enough gas to execute the transaction and its
-        // authenticators.
-        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
-            .check_transaction_inputs_for_validation(
-                protocol_config,
-                reference_gas_price,
-                tx_data,
-                tx_input_objects,
-                &tx_receiving_objects,
-                &move_authenticators,
-                per_authenticator_inputs,
-            )?;
-
-        // Get the input objects for the authenticators, if there are
-        // `MoveAuthenticator`s.
-        let per_authenticator_checked_input_objects = per_authenticator_checked_inputs
+        let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
             .iter()
             .map(|i| &i.0)
             .collect();
-
-        // Check if any of the sender, the transaction input objects, the receiving
-        // objects and the authenticator input objects are in the coin deny
-        // list, which would prevent the transaction from being signed.
-        check_coin_deny_list_v1(
-            tx_data.sender(),
-            &tx_checked_input_objects,
-            &tx_receiving_objects,
-            &per_authenticator_checked_input_objects,
-            &self.get_object_store(),
-        )?;
 
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
@@ -1025,9 +990,11 @@ impl AuthorityState {
     /// in a validator attestation and attached to the transaction before
     /// submitting it to consensus.
     ///
-    /// Subsumes `handle_transaction_validation_checks`: it runs the same
-    /// pipeline — deny checks, object loading, input validation, coin deny
-    /// list — and then replaces the final `authenticate_transaction` call with
+    /// Shares the validation pipeline with
+    /// `handle_transaction_validation_checks`
+    /// via [`Self::run_validation_checks`] (deny checks, input object loading,
+    /// input checks, coin deny list), and then replaces the
+    /// `authenticate_transaction` call with
     /// `authenticate_then_execute_transaction_to_effects` so that Move
     /// authentication and transaction execution run together and produce full
     /// `TransactionEffects` including the accurate `computation_cost`.
@@ -1040,50 +1007,16 @@ impl AuthorityState {
 
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
-        let epoch = epoch_store.epoch();
         let tx_data = transaction.data().transaction_data();
 
-        // Step 1: deny checks.
-        iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
-            &transaction.input_objects()?,
-            &tx_data.receiving_objects(),
-            &self.config.transaction_deny_config,
-            self.get_backing_package_store().as_ref(),
-        )?;
-
-        // Step 2: load all input objects including authenticator inputs.
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
-
-        // Step 3: get Move authenticators.
-        let move_authenticators = transaction.move_authenticators();
-
-        // Step 4: check inputs for signing (validates gas budget covers auth + tx).
-        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
-            .check_transaction_inputs_for_validation(
-                protocol_config,
-                reference_gas_price,
-                tx_data,
-                tx_input_objects.clone(),
-                &tx_receiving_objects,
-                &move_authenticators,
-                per_authenticator_inputs.clone(),
-            )?;
-
-        // Step 5: coin deny list.
-        let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
-            .iter()
-            .map(|i| &i.0)
-            .collect();
-        check_coin_deny_list_v1(
-            tx_data.sender(),
-            &tx_checked_input_objects,
-            &tx_receiving_objects,
-            &per_authenticator_checked_input_objects,
-            &self.get_object_store(),
-        )?;
+        let ValidationOutputs {
+            tx_input_objects,
+            per_authenticator_inputs,
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs: _,
+        } = self.run_validation_checks(transaction, epoch_store)?;
 
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
@@ -1096,9 +1029,8 @@ impl AuthorityState {
         let (kind, signer, gas_data) = tx_data.execution_parts();
         let tx_digest = *transaction.digest();
 
-        // Step 6: execute.
         let effects = if move_authenticators.is_empty() {
-            // Common path: no Move authentication, execute directly.
+            // No Move authentication, execute directly.
             let (_, _, effects, _) = epoch_store.executor().execute_transaction_to_effects(
                 backing_store.as_ref(),
                 protocol_config,
@@ -1117,9 +1049,8 @@ impl AuthorityState {
             );
             effects
         } else {
-            // MoveAuthenticator path: get AuthenticatorFunctionRefForExecution
-            // for each authenticator, then run auth + execution in one pass with an
-            // execution-mode gas status.
+            // get AuthenticatorFunctionRefForExecution for each authenticator, then run
+            // auth + execution in one pass with an execution-mode gas status.
             let tx_data_bytes =
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
@@ -1183,13 +1114,13 @@ impl AuthorityState {
             effects
         };
 
-        // Step 7: build AttestationData.
+        // Build AttestationData.
         let estimated_computation_cost = effects.gas_cost_summary().computation_cost;
 
         // Collect all input object refs seen during execution. Start from the
-        // owned objects (extracted in step 5), then add shared objects as
-        // recorded in effects (includes authenticator + deny-list objects),
-        // receiving objects, and gas payment objects.
+        // owned objects, then add shared objects as recorded in effects (includes
+        // authenticator + deny-list objects), receiving objects, and gas payment
+        // objects.
         let mut seen_ids = std::collections::HashSet::new();
         let mut object_versions: Vec<ObjectRef> = Vec::new();
         let mut push = |oref: ObjectRef| {
@@ -5712,6 +5643,85 @@ impl AuthorityState {
     }
 
     #[allow(clippy::type_complexity)]
+    /// Shared validation pipeline for `handle_transaction_validation_checks`
+    /// and `attest_transaction`. Runs, in order:
+    ///   1. transaction deny checks
+    ///   2. input object loading (transaction + per-authenticator + account)
+    ///   3. `MoveAuthenticator` collection
+    ///   4. input checks (gas budget covers transaction + authenticators)
+    ///   5. coin deny list check
+    ///
+    /// Keep this helper as the single source of truth so the two callers
+    /// cannot drift. Raw inputs are cloned and returned for
+    /// `attest_transaction`'s MoveAuthenticator path;
+    /// `handle_transaction_validation_checks` ignores them.
+    fn run_validation_checks<'a>(
+        &self,
+        transaction: &'a VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<ValidationOutputs<'a>> {
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+        let epoch = epoch_store.epoch();
+        let tx_data = transaction.data().transaction_data();
+
+        // Step 1: deny checks.
+        // Note: the deny checks may do redundant package loads but:
+        // - they only load packages when there is an active package deny map
+        // - the loads are cached anyway
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx_data,
+            transaction.tx_signatures(),
+            &transaction.input_objects()?,
+            &tx_data.receiving_objects(),
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+
+        // Step 2: load all input objects (including authenticator + account).
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            self.read_objects_for_validation(transaction, epoch)?;
+
+        // Step 3: get Move authenticators.
+        let move_authenticators = transaction.move_authenticators();
+
+        // Step 4: check inputs for signing (validates gas budget covers auth + tx).
+        // Clone raw inputs so attest_transaction's MoveAuthenticator path can
+        // reuse them in execution-mode.
+        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
+            .check_transaction_inputs_for_validation(
+                protocol_config,
+                reference_gas_price,
+                tx_data,
+                tx_input_objects.clone(),
+                &tx_receiving_objects,
+                &move_authenticators,
+                per_authenticator_inputs.clone(),
+            )?;
+
+        // Step 5: coin deny list.
+        let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
+        check_coin_deny_list_v1(
+            tx_data.sender(),
+            &tx_checked_input_objects,
+            &tx_receiving_objects,
+            &per_authenticator_checked_input_objects,
+            &self.get_object_store(),
+        )?;
+
+        Ok(ValidationOutputs {
+            tx_input_objects,
+            per_authenticator_inputs,
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+        })
+    }
+
     fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
