@@ -10,6 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
+use dashmap::DashMap;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -19,7 +20,7 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_common::{
-    fatal,
+    fatal, in_test_configuration,
     sync::{notify_once::NotifyOnce, notify_read::NotifyRead},
 };
 use iota_config::node::ExpensiveSafetyCheckConfig;
@@ -621,6 +622,13 @@ pub struct AuthorityPerEpochStore {
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
+    /// In-memory cache of signed effects digests. Populated from disk at
+    /// startup, updated on insert, and pruned on checkpoint finalization.
+    /// `get_signed_effects_digest` is called on every transaction; this
+    /// avoids a disk read on the hot path where the vast majority of
+    /// lookups return `None`. Writes still go to disk for crash recovery.
+    signed_effects_digests_cache: DashMap<TransactionDigest, TransactionEffectsDigest>,
+
     /// Cancellation token used to signal epoch termination to all in-flight
     /// tasks.
     epoch_alive_token: CancellationToken,
@@ -1015,6 +1023,15 @@ impl AuthorityPerEpochStore {
             .load_reconfig_state()
             .expect("Load reconfig state at initialization cannot fail");
 
+        // Populate the in-memory cache of signed effects digests from disk. The set is
+        // bounded by uncommitted (not-yet-checkpoint-finalized) transactions in the
+        // current epoch.
+        let signed_effects_digests_cache = DashMap::new();
+        for item in tables.signed_effects_digests.safe_iter() {
+            let (tx_digest, effects_digest) = item?;
+            signed_effects_digests_cache.insert(tx_digest, effects_digest);
+        }
+
         let epoch_alive_token = CancellationToken::new();
         let pending_consensus_transactions = tables.get_all_pending_consensus_transactions()?;
         let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
@@ -1110,6 +1127,7 @@ impl AuthorityPerEpochStore {
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
+            signed_effects_digests_cache,
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1488,6 +1506,8 @@ impl AuthorityPerEpochStore {
             [(tx_digest, effects_digest)],
         )?;
         batch.write()?;
+        self.signed_effects_digests_cache
+            .insert(*tx_digest, *effects_digest);
         Ok(())
     }
 
@@ -1529,8 +1549,22 @@ impl AuthorityPerEpochStore {
         &self,
         tx_digest: &TransactionDigest,
     ) -> IotaResult<Option<TransactionEffectsDigest>> {
-        let tables = self.tables()?;
-        Ok(tables.signed_effects_digests.get(tx_digest)?)
+        let cached = self.signed_effects_digests_cache.get(tx_digest).map(|r| *r);
+        if in_test_configuration() {
+            let from_db = self.tables()?.signed_effects_digests.get(tx_digest)?;
+            if cached != from_db {
+                // Cache and DB writes are not atomic, so retry after a brief delay to
+                // allow eventual consistency before panicking.
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let from_db = self.tables()?.signed_effects_digests.get(tx_digest)?;
+                let cached = self.signed_effects_digests_cache.get(tx_digest).map(|r| *r);
+                assert_eq!(
+                    cached, from_db,
+                    "signed_effects_digests cache inconsistency for {tx_digest}"
+                );
+            }
+        }
+        Ok(cached)
     }
 
     pub fn get_transaction_cert_sig(
@@ -1679,6 +1713,10 @@ impl AuthorityPerEpochStore {
         let mut quarantine = self.consensus_quarantine.write();
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
+
+        for digest in digests {
+            self.signed_effects_digests_cache.remove(digest);
+        }
 
         self.consensus_output_cache
             .remove_executed_in_epoch(digests);
