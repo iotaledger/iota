@@ -55,7 +55,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 signAddress: "@{A}"}) {
+  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 sentAddress: "@{A}"}) {
     pageInfo {
       hasNextPage
       hasPreviousPage
@@ -75,7 +75,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 signAddress: "@{B}"}) {
+  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 sentAddress: "@{B}"}) {
     pageInfo {
       hasNextPage
       hasPreviousPage
@@ -95,7 +95,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 signAddress: "@{C}"}) {
+  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 sentAddress: "@{C}"}) {
     pageInfo {
       hasNextPage
       hasPreviousPage
@@ -115,7 +115,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 signAddress: "@{D}"}) {
+  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 sentAddress: "@{D}"}) {
     pageInfo {
       hasNextPage
       hasPreviousPage
@@ -135,7 +135,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 signAddress: "@{E}"}) {
+  transactionBlocks(first: 50 filter: {kind: PROGRAMMABLE_TX atCheckpoint: 2 sentAddress: "@{E}"}) {
     pageInfo {
       hasNextPage
       hasPreviousPage
