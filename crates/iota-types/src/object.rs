@@ -184,12 +184,14 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Update the `timestamp_ms: u64` field of the `Clock` type.
-    ///
-    /// Panics if the object isn't a `Clock`.
+    /// Useful for updating the clock without deserializing the object into a
+    /// Move value. It is the caller's responsibility to check that `self` is a
+    /// `Clock`.
+    /// This function may panic or do something unexpected otherwise.
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
-        assert!(self.struct_tag().is_clock());
+        debug_assert!(self.struct_tag().is_clock());
         // 32 bytes for object ID, 8 for timestamp
-        assert!(self.contents().len() == 40);
+        debug_assert!(self.contents().len() == 40);
 
         let mut new_contents = self.contents().to_vec();
         new_contents[ID_END_INDEX..].copy_from_slice(&timestamp_ms.to_le_bytes());
