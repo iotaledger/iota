@@ -28,7 +28,7 @@ export DIGEST=$(echo $JSON | jq -r .digest)
 export ACCOUNT_ADDRESS=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::account::Account"))) | .objectId')
 export INITIAL_VERSION=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::account::Account"))) | .owner.Shared.initial_shared_version')
 export PACKAGE_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::account::Account"))) | .objectType | split("::") | .[0]')
-export METADATA_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and .objectType == "0x2::package_metadata::PackageMetadataV1") | .objectId')
+export METADATA_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and .objectType == "0x2::package_metadata::PackageMetadataV2") | .objectId')
 echo "Transaction Digest: $DIGEST"
 echo "Account Object ID: $ACCOUNT_ADDRESS"
 echo "Initial Shared Version: $INITIAL_VERSION"

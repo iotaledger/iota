@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -1559,10 +1559,7 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     async fn new() -> Self {
-        let test_cluster = TestClusterBuilder::new()
-            .with_protocol_version(ProtocolVersion::new(25))
-            .build()
-            .await;
+        let test_cluster = TestClusterBuilder::new().build().await;
 
         Self {
             test_cluster,
@@ -1819,7 +1816,7 @@ impl TestEnvironment {
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("authenticator_function"),
-                Identifier::from_static("create_auth_function_ref_v1"),
+                Identifier::from_static("create_auth_function_ref_from_package_metadata_v2"),
                 vec![delayed_abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
@@ -2031,7 +2028,7 @@ impl TestEnvironment {
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::from_static("authenticator_function"),
-            Identifier::from_static("create_auth_function_ref_v1"),
+            Identifier::from_static("create_auth_function_ref_from_package_metadata_v2"),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
@@ -2105,7 +2102,7 @@ impl TestEnvironment {
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::from_static("authenticator_function"),
-                Identifier::from_static("create_auth_function_ref_v1"),
+                Identifier::from_static("create_auth_function_ref_from_package_metadata_v2"),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {

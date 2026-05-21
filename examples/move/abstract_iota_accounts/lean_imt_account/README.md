@@ -56,7 +56,7 @@ echo $JSON
 # Derive the ids needed to build authenticator function refs
 export DIGEST=$(echo $JSON | jq -r .digest)
 export PACKAGE_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "published") | .packageId')
-export METADATA_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and .objectType == "0x2::package_metadata::PackageMetadataV1") | .objectId')
+export METADATA_ID=$(echo $JSON | jq -r '.objectChanges[] | select(.type == "created" and .objectType == "0x2::package_metadata::PackageMetadataV2") | .objectId')
 echo "Transaction Digest: $DIGEST"
 echo "Package ID: $PACKAGE_ID"
 echo "Package Metadata Object ID: $METADATA_ID"
