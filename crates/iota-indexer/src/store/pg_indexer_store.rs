@@ -52,8 +52,8 @@ use crate::{
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
         objects::{
-            StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
-            StoredObjects,
+            StoredBackwardHistoryObject, StoredCheckpointedObject, StoredDeletedObject,
+            StoredHistoryObject, StoredObject, StoredObjectSnapshot, StoredObjects,
         },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
@@ -65,13 +65,14 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query, run_query_with_retry,
     schema::{
-        chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
-        event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
-        event_struct_package, events, feature_flags, objects, objects_history, objects_snapshot,
-        objects_version, optimistic_transactions, packages, protocol_configs, pruner_cp_watermark,
-        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests,
-        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
-        tx_wrapped_or_deleted_objects, watermarks,
+        chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
+        event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
+        event_struct_name, event_struct_package, events, feature_flags, objects,
+        objects_backward_history, objects_history, objects_snapshot, objects_version,
+        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, transactions,
+        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order,
+        tx_input_objects, tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
+        watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
@@ -481,6 +482,66 @@ impl PgIndexerStore {
         })
     }
 
+    fn persist_checkpointed_objects_chunk(
+        &self,
+        objects: Vec<StoredCheckpointedObject>,
+    ) -> Result<(), IndexerError> {
+        use diesel::upsert::excluded;
+
+        let len = objects.len();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update!(
+                        checkpointed_objects::table,
+                        chunk,
+                        checkpointed_objects::object_id,
+                        (
+                            checkpointed_objects::object_version
+                                .eq(excluded(checkpointed_objects::object_version)),
+                            checkpointed_objects::object_status
+                                .eq(excluded(checkpointed_objects::object_status)),
+                            checkpointed_objects::object_digest
+                                .eq(excluded(checkpointed_objects::object_digest)),
+                            checkpointed_objects::checkpoint_sequence_number
+                                .eq(excluded(checkpointed_objects::checkpoint_sequence_number)),
+                            checkpointed_objects::owner_type
+                                .eq(excluded(checkpointed_objects::owner_type)),
+                            checkpointed_objects::owner_id
+                                .eq(excluded(checkpointed_objects::owner_id)),
+                            checkpointed_objects::object_type
+                                .eq(excluded(checkpointed_objects::object_type)),
+                            checkpointed_objects::object_type_package
+                                .eq(excluded(checkpointed_objects::object_type_package)),
+                            checkpointed_objects::object_type_module
+                                .eq(excluded(checkpointed_objects::object_type_module)),
+                            checkpointed_objects::object_type_name
+                                .eq(excluded(checkpointed_objects::object_type_name)),
+                            checkpointed_objects::serialized_object
+                                .eq(excluded(checkpointed_objects::serialized_object)),
+                            checkpointed_objects::coin_type
+                                .eq(excluded(checkpointed_objects::coin_type)),
+                            checkpointed_objects::coin_balance
+                                .eq(excluded(checkpointed_objects::coin_balance)),
+                            checkpointed_objects::df_kind
+                                .eq(excluded(checkpointed_objects::df_kind)),
+                        ),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Persisted {len} checkpointed objects");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to persist checkpointed objects: {e}");
+        })
+    }
+
     fn persist_object_mutation_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
@@ -632,6 +693,13 @@ impl PgIndexerStore {
         .tap_err(|e| {
             tracing::error!("failed to persist object history with error: {e}");
         })
+    }
+
+    fn persist_objects_backward_history_chunk(
+        &self,
+        stored: Vec<StoredBackwardHistoryObject>,
+    ) -> Result<(), IndexerError> {
+        persist_chunk_into_table!(objects_backward_history::table, stored, &self.blocking_cp)
     }
 
     fn persist_object_version_chunk(
@@ -1485,6 +1553,48 @@ impl PgIndexerStore {
         )
     }
 
+    fn prune_backward_history_by_checkpoint_with_limit(
+        &self,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use diesel::prelude::*;
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                let sql = r#"
+                    WITH to_delete AS (
+                        SELECT superseded_at_checkpoint, object_id, object_version
+                        FROM objects_backward_history
+                        WHERE superseded_at_checkpoint BETWEEN $1 AND $2
+                        ORDER BY superseded_at_checkpoint, object_id, object_version
+                        FOR UPDATE
+                        LIMIT $3
+                    )
+                    DELETE FROM objects_backward_history bh
+                    USING to_delete
+                    WHERE (bh.superseded_at_checkpoint, bh.object_id, bh.object_version) =
+                          (to_delete.superseded_at_checkpoint, to_delete.object_id, to_delete.object_version)
+                "#;
+                diesel::sql_query(sql)
+                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!(
+                            "failed to prune objects_backward_history by checkpoint range [{start}..={end}] with limit {limit}"
+                        )
+                        .as_str(),
+                    )
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
     fn prune_cp_tx_table_by_range(&self, min_cp: u64, max_cp: u64) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
@@ -2307,7 +2417,7 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_checkpoint_objects(
+    async fn persist_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError> {
@@ -2349,6 +2459,94 @@ impl IndexerStore for PgIndexerStore {
         info!(
             elapsed,
             "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
+        );
+        Ok(())
+    }
+
+    async fn persist_object_backward_history(
+        &self,
+        objects: Vec<StoredBackwardHistoryObject>,
+    ) -> Result<(), IndexerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        let len = objects.len();
+        let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
+        let futures = chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_objects_backward_history_chunk(c))
+        });
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "failed to join persist_objects_backward_history_chunk futures: {e}"
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all objects backward history chunks: {e:?}"
+                ))
+            })?;
+        info!("Persisted {} objects backward history", len);
+        Ok(())
+    }
+
+    async fn persist_checkpointed_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        let CheckpointObjectChanges {
+            changed_objects: mutations,
+            deleted_objects: deletions,
+        } = retain_latest_objects_from_checkpoint_batch(objects);
+        let mutation_len = mutations.len();
+        let deletion_len = deletions.len();
+
+        let checkpointed_objects: Vec<StoredCheckpointedObject> = mutations
+            .into_iter()
+            .map(|live| {
+                let (indexed, _tx_digest) = live.split();
+                StoredObjectSnapshot::try_from(indexed)
+            })
+            .chain(
+                deletions
+                    .into_iter()
+                    .map(|removed| Ok(StoredObjectSnapshot::from(removed.indexed_object))),
+            )
+            .map(|snap| Ok(StoredCheckpointedObject::from(&snap?)))
+            .collect::<Result<Vec<_>, IndexerError>>()?;
+
+        let len = checkpointed_objects.len();
+        let chunks = chunk!(
+            checkpointed_objects,
+            self.config.parallel_objects_chunk_size
+        );
+        let futures = chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_chunk(c))
+        });
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join futures for persisting checkpointed objects: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all checkpointed object chunks: {e:?}",
+                ))
+            })?;
+
+        info!(
+            "Persisted {len} checkpointed objects ({mutation_len} mutations, {deletion_len} deletions)",
         );
         Ok(())
     }
@@ -2443,6 +2641,28 @@ impl IndexerStore for PgIndexerStore {
 
         self.execute_in_blocking_worker(move |this| {
             this.prune_optimistic_tx_by_global_seq(start, end, limit)
+        })
+        .await
+    }
+
+    async fn prune_table_by_checkpoint_with_limit(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        if !matches!(table, PrunableTable::ObjectsBackwardHistory) {
+            return Err(IndexerError::InvalidArgument(format!(
+                "table {} does not support pruning by checkpoint with limit",
+                table.as_ref()
+            )));
+        }
+
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_backward_history_by_checkpoint_with_limit(start, end, limit)
         })
         .await
     }

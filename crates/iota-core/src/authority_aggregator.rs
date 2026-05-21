@@ -35,7 +35,6 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    message_envelope::Message,
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, LayoutGenerationOption, ObjectInfoRequest,
@@ -480,7 +479,7 @@ struct ProcessCertificateState {
 #[derive(Debug)]
 pub enum ProcessTransactionResult {
     Certified {
-        certificate: CertifiedTransaction,
+        certificate: Box<CertifiedTransaction>,
         /// Whether this certificate is newly created by aggregating 2f+1
         /// signatures. If a validator returned a cert directly, this
         /// will be false. This is used to inform the quorum driver,
@@ -488,14 +487,14 @@ pub enum ProcessTransactionResult {
         /// such as settlement latency.
         newly_formed: bool,
     },
-    Executed(VerifiedCertifiedTransactionEffects, TransactionEvents),
+    Executed(Box<VerifiedCertifiedTransactionEffects>, TransactionEvents),
 }
 
 impl ProcessTransactionResult {
     /// Returns the `CertifiedTransaction` if it is a `Certified` variant.
     pub fn into_cert_for_testing(self) -> CertifiedTransaction {
         match self {
-            Self::Certified { certificate, .. } => certificate,
+            Self::Certified { certificate, .. } => *certificate,
             Self::Executed(..) => panic!("Wrong type"),
         }
     }
@@ -505,7 +504,7 @@ impl ProcessTransactionResult {
     pub fn into_effects_for_testing(self) -> VerifiedCertifiedTransactionEffects {
         match self {
             Self::Certified { .. } => panic!("Wrong type"),
-            Self::Executed(effects, ..) => effects,
+            Self::Executed(effects, ..) => *effects,
         }
     }
 }
@@ -1383,7 +1382,7 @@ where
                     CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
                 certificate.verify_committee_sigs_only(&self.committee)?;
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: true,
                 }))
             }
@@ -1406,7 +1405,7 @@ where
                 // A certificate in a past epoch does not guarantee finality
                 // and validators may reject to process it.
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: false,
                 }))
             }
@@ -1440,7 +1439,7 @@ where
                             cert_sig,
                         );
                         Ok(Some(ProcessTransactionResult::Executed(
-                            ct.verify(&self.committee)?,
+                            Box::new(ct.verify(&self.committee)?),
                             events,
                         )))
                     }
@@ -1839,9 +1838,9 @@ where
             .process_transaction(transaction.clone(), client_addr)
             .await?;
         let cert = match result {
-            ProcessTransactionResult::Certified { certificate, .. } => certificate,
+            ProcessTransactionResult::Certified { certificate, .. } => *certificate,
             ProcessTransactionResult::Executed(effects, _) => {
-                return Ok(effects);
+                return Ok(*effects);
             }
         };
         self.metrics.total_tx_certificates_created.inc();

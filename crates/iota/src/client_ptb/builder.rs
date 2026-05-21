@@ -135,11 +135,11 @@ impl<'a> Resolver<'a> for ToObject {
         let obj_arg = match owner {
             Owner::Address(_) if self.is_receiving => CallArg::Receiving(object_ref),
             Owner::Immutable | Owner::Address(_) => CallArg::ImmutableOrOwned(object_ref),
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                object_id: object_ref.object_id,
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                object_ref.object_id,
                 initial_shared_version,
-                mutable: self.is_mut,
-            }),
+                self.is_mut,
+            )),
             Owner::Object(_) => {
                 error!(loc => help: {
                     "{obj_id} is an object-owned object, you can only use immutable, shared, or owned objects here."

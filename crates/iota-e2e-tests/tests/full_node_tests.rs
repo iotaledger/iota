@@ -27,7 +27,6 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
-    message_envelope::Message,
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, Owner, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,

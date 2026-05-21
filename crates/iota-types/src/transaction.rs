@@ -785,13 +785,9 @@ impl TransactionKindExt for TransactionKind {
 
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
-            Self::ConsensusCommitPrologueV1(_) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef {
-                    object_id: ObjectID::CLOCK,
-                    initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                })))
-            }
+            Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
+                SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+            ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
                 // Deprecated: Authenticator state (JWK) is deprecated and
@@ -800,11 +796,11 @@ impl TransactionKindExt for TransactionKind {
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef {
-                    object_id: ObjectID::RANDOMNESS_STATE,
-                    initial_shared_version: update.randomness_obj_initial_shared_version,
-                    mutable: true,
-                })))
+                Either::Left(Either::Left(iter::once(SharedObjectRef::new(
+                    ObjectID::RANDOMNESS_STATE,
+                    update.randomness_obj_initial_shared_version,
+                    true,
+                ))))
             }
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
@@ -1721,11 +1717,11 @@ impl TransactionDataAPI for TransactionData {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                    object_id: upgrade_capability.object_id,
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                    upgrade_capability.object_id,
                     initial_shared_version,
-                    mutable: true,
-                }),
+                    true,
+                )),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }

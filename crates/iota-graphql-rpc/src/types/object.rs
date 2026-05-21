@@ -12,7 +12,9 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper, sql_types,
+};
 use iota_indexer::{
     models::objects::{StoredHistoryObject, StoredObject},
     schema::{objects, objects_history, objects_version},
@@ -29,9 +31,10 @@ use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{Checkpointed, View, build_objects_query},
+    consistency::Checkpointed,
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
@@ -865,17 +868,26 @@ impl Object {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_available_range = db.max_available_range;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                let (prev, next, results_iter) = page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    objects_query(&filter, range, &page),
-                )?))
+                    backward_objects_query(&filter, checkpoint_viewed_at, &page),
+                )?;
+                let results = results_iter.collect();
+                let results = resolve_tombstone_versions(conn, results)?;
+                Ok(Some((prev, next, results)))
             })
             .await?
         else {
@@ -890,8 +902,9 @@ impl Object {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
             let object =
-                Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
             conn.edges.push(Edge::new(cursor, downcast(object)?));
         }
 
@@ -1266,10 +1279,6 @@ impl ObjectFilter {
 
         query
     }
-
-    pub(crate) fn has_filters(&self) -> bool {
-        self != &Default::default()
-    }
 }
 
 impl HistoricalObjectCursor {
@@ -1320,6 +1329,198 @@ impl RawPaginated<Cursor> for StoredHistoryObject {
 }
 
 impl Target<Cursor> for StoredHistoryObject {
+    fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
+        Cursor::new(HistoricalObjectCursor::new(
+            self.object_id.clone(),
+            checkpoint_viewed_at,
+        ))
+    }
+}
+
+/// Query-result struct for the backward diff read path. Used by
+/// `build_backward_objects_query` which unions `checkpointed_objects` and
+/// `objects_backward_history`. Has explicit `sql_type` annotations because
+/// there is no single backing Diesel table definition.
+#[derive(diesel::QueryableByName, Clone, Debug)]
+pub(crate) struct StoredBackwardObject {
+    #[diesel(sql_type = sql_types::Binary)]
+    pub object_id: Vec<u8>,
+    #[diesel(sql_type = sql_types::BigInt)]
+    pub object_version: i64,
+    #[diesel(sql_type = sql_types::SmallInt)]
+    pub object_status: i16,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Binary>)]
+    pub object_digest: Option<Vec<u8>>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::SmallInt>)]
+    pub owner_type: Option<i16>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Binary>)]
+    pub owner_id: Option<Vec<u8>>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Text>)]
+    pub object_type: Option<String>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Binary>)]
+    pub object_type_package: Option<Vec<u8>>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Text>)]
+    pub object_type_module: Option<String>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Text>)]
+    pub object_type_name: Option<String>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Binary>)]
+    pub serialized_object: Option<Vec<u8>>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::Text>)]
+    pub coin_type: Option<String>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
+    pub coin_balance: Option<i64>,
+    #[diesel(sql_type = sql_types::Nullable<sql_types::SmallInt>)]
+    pub df_kind: Option<i16>,
+    /// `TRUE` when the row came from `objects_backward_history`, `FALSE`
+    /// otherwise (from `checkpointed_objects` or `objects_version`). Used to
+    /// decide whether version correction is needed for `WrappedOrDeleted`
+    /// entries, since backward history stores a lamport-1 approximation.
+    #[diesel(sql_type = sql_types::Bool)]
+    pub from_backward_history: bool,
+}
+
+impl StoredBackwardObject {
+    /// Convert into a `StoredHistoryObject`, filling in
+    /// `checkpoint_sequence_number` with the checkpoint the object was
+    /// viewed at. The backward diff query guarantees the result is valid at
+    /// this checkpoint, so it's the most accurate value we have.
+    pub(crate) fn into_stored_history(self, checkpoint_viewed_at: u64) -> StoredHistoryObject {
+        StoredHistoryObject {
+            object_id: self.object_id,
+            object_version: self.object_version,
+            object_status: self.object_status,
+            object_digest: self.object_digest,
+            checkpoint_sequence_number: checkpoint_viewed_at as i64,
+            owner_type: self.owner_type,
+            owner_id: self.owner_id,
+            object_type: self.object_type,
+            object_type_package: self.object_type_package,
+            object_type_module: self.object_type_module,
+            object_type_name: self.object_type_name,
+            serialized_object: self.serialized_object,
+            coin_type: self.coin_type,
+            coin_balance: self.coin_balance,
+            df_kind: self.df_kind,
+        }
+    }
+}
+
+/// Resolves real tombstone versions for `WrappedOrDeleted` entries from
+/// `objects_backward_history`.
+///
+/// The backward history stores a lamport-1 version approximation which may be
+/// higher than the actual tombstone version. This function looks up the real
+/// version from `objects_version` using a single batch query that unnests
+/// bound `bytea[]` / `bigint[]` parameter arrays into `(object_id, version)`
+/// pairs and joins them via `MAX(object_version) <= backward_history_version`.
+/// Only entries tagged with `from_backward_history = true` are resolved;
+/// entries from `checkpointed_objects` already have the correct version.
+pub(crate) fn resolve_tombstone_versions(
+    conn: &mut crate::data::pg::PgConnection<'_>,
+    results: Vec<StoredBackwardObject>,
+) -> Result<Vec<StoredBackwardObject>, diesel::result::Error> {
+    let (ids, versions): (Vec<Vec<u8>>, Vec<i64>) = results
+        .iter()
+        .filter(|r| {
+            r.from_backward_history
+                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
+        })
+        .map(|r| (r.object_id.clone(), r.object_version))
+        .unzip();
+
+    if ids.is_empty() {
+        return Ok(results);
+    }
+
+    // Bound `unnest` arrays (rather than an inlined `VALUES` list) keep the
+    // SQL text constant across calls so Postgres can reuse a cached plan,
+    // and skip the parser cost of every `::bytea` / `::bigint` cast.
+    let sql = "SELECT pairs.object_id, pairs.backward_history_version, \
+                      MAX(ov.object_version) AS real_version \
+               FROM unnest($1::bytea[], $2::bigint[]) \
+                    AS pairs(object_id, backward_history_version) \
+               LEFT JOIN objects_version ov \
+                 ON ov.object_id = pairs.object_id \
+                AND ov.object_version <= pairs.backward_history_version \
+               GROUP BY pairs.object_id, pairs.backward_history_version";
+
+    #[derive(diesel::QueryableByName)]
+    struct ResolvedVersion {
+        #[diesel(sql_type = sql_types::Binary)]
+        object_id: Vec<u8>,
+        #[diesel(sql_type = sql_types::BigInt)]
+        backward_history_version: i64,
+        #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
+        real_version: Option<i64>,
+    }
+
+    let rows: Vec<ResolvedVersion> = conn.results(|| {
+        diesel::sql_query(sql)
+            .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
+            .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
+    })?;
+
+    // Key by (object_id, backward_history_version) → real_version
+    let resolved_map: HashMap<Vec<u8>, HashMap<i64, i64>> = rows
+        .into_iter()
+        .filter_map(|r| {
+            r.real_version
+                .map(|real| (r.object_id, r.backward_history_version, real))
+        })
+        .fold(HashMap::new(), |mut acc, (id, ver, real)| {
+            acc.entry(id).or_default().insert(ver, real);
+            acc
+        });
+
+    Ok(results
+        .into_iter()
+        .map(|mut r| {
+            if r.from_backward_history
+                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
+            {
+                if let Some(&real_version) = resolved_map
+                    .get(&r.object_id)
+                    .and_then(|versions| versions.get(&r.object_version))
+                {
+                    r.object_version = real_version;
+                }
+            }
+            r
+        })
+        .collect())
+}
+
+impl RawPaginated<Cursor> for StoredBackwardObject {
+    fn filter_ge(cursor: &Cursor, query: RawQuery) -> RawQuery {
+        filter!(
+            query,
+            format!(
+                "candidates.object_id >= '\\x{}'::bytea",
+                hex::encode(cursor.object_id.clone())
+            )
+        )
+    }
+
+    fn filter_le(cursor: &Cursor, query: RawQuery) -> RawQuery {
+        filter!(
+            query,
+            format!(
+                "candidates.object_id <= '\\x{}'::bytea",
+                hex::encode(cursor.object_id.clone())
+            )
+        )
+    }
+
+    fn order(asc: bool, query: RawQuery) -> RawQuery {
+        if asc {
+            query.order_by("candidates.object_id ASC")
+        } else {
+            query.order_by("candidates.object_id DESC")
+        }
+    }
+}
+
+impl Target<Cursor> for StoredBackwardObject {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(HistoricalObjectCursor::new(
             self.object_id.clone(),
@@ -1592,14 +1793,19 @@ impl Loader<LatestAtKey> for Db {
                 .insert(key.id);
         }
 
+        let max_available_range = self.max_available_range;
+
         // Issue concurrent reads for each group of keys.
         let futures =
             keys_by_cursor_and_parent_version
                 .into_iter()
                 .map(|(checkpoint_viewed_at, ids)| {
                     self.execute_repeatable(move |conn| {
-                        let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)?
-                        else {
+                        if !AvailableRange::is_checkpoint_in_backward_history_range(
+                            conn,
+                            checkpoint_viewed_at,
+                            max_available_range,
+                        )? {
                             return Ok::<Vec<(u64, StoredHistoryObject)>, diesel::result::Error>(
                                 vec![],
                             );
@@ -1610,19 +1816,24 @@ impl Loader<LatestAtKey> for Db {
                             ..Default::default()
                         };
 
-                        Ok(conn
-                            .results(move || {
-                                build_objects_query(
-                                    View::Consistent,
-                                    range,
-                                    &Page::bounded(ids.len() as u64),
-                                    |q| filter.apply(q),
-                                    |q| q,
-                                )
-                                .into_boxed()
-                            })?
+                        let results: Vec<StoredBackwardObject> = conn.results(move || {
+                            consistent::query(
+                                checkpoint_viewed_at,
+                                &Page::bounded(ids.len() as u64),
+                                |q| filter.apply(q),
+                            )
+                            .into_boxed()
+                        })?;
+                        let results = resolve_tombstone_versions(conn, results)?;
+
+                        Ok(results
                             .into_iter()
-                            .map(|r| (checkpoint_viewed_at, r))
+                            .map(|r| {
+                                (
+                                    checkpoint_viewed_at,
+                                    r.into_stored_history(checkpoint_viewed_at),
+                                )
+                            })
                             .collect())
                     })
                 });
@@ -1703,13 +1914,18 @@ pub(crate) async fn deserialize_move_struct(
     Ok((struct_tag, move_struct))
 }
 
-/// Constructs a raw query to fetch objects from the database. Objects are
-/// filtered out if they satisfy the criteria but have a later version in the
-/// same checkpoint. If object keys are provided, or no filters are specified at
-/// all, then this final condition is not applied.
-fn objects_query(filter: &ObjectFilter, range: AvailableRange, page: &Page<Cursor>) -> RawQuery
-where
-{
+/// Constructs a backward diff query for objects.
+///
+/// Uses consistent view for most queries to ensure point-in-time correctness.
+/// Falls back to historical view only for object-key lookups (specific
+/// id+version pairs) which don't need consistency filtering. When both
+/// `object_ids` and `object_keys` are provided, the results from both views
+/// are unioned.
+fn backward_objects_query(
+    filter: &ObjectFilter,
+    checkpoint_viewed_at: u64,
+    page: &Page<Cursor>,
+) -> RawQuery {
     if let (Some(_), Some(_)) = (&filter.object_ids, &filter.object_keys) {
         // If both object IDs and object keys are specified, then we need to query in
         // both historical and consistent views, and then union the results.
@@ -1717,27 +1933,19 @@ where
             object_keys: None,
             ..filter.clone()
         };
-        let (id_query, id_bindings) = build_objects_query(
-            View::Consistent,
-            range,
-            page,
-            move |query| ids_only_filter.apply(query),
-            move |newer| newer,
-        )
+        let (id_query, id_bindings) = consistent::query(checkpoint_viewed_at, page, move |query| {
+            ids_only_filter.apply(query)
+        })
         .finish();
 
-        let keys_only_filter = ObjectFilter {
+        let keys_filter: HistoricalFilter = ObjectFilter {
             object_ids: None,
             ..filter.clone()
-        };
-        let (key_query, key_bindings) = build_objects_query(
-            View::Historical,
-            range,
-            page,
-            move |query| keys_only_filter.apply(query),
-            move |newer| newer,
-        )
-        .finish();
+        }
+        .try_into()
+        .expect("object_keys is Some by match-arm guard");
+        let (key_query, key_bindings) =
+            historical::query(checkpoint_viewed_at, page, &keys_filter).finish();
 
         RawQuery::new(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
@@ -1745,21 +1953,10 @@ where
         )
         .order_by("object_id")
         .limit(page.limit() as i64)
+    } else if let Ok(keys_filter) = HistoricalFilter::try_from(filter.clone()) {
+        historical::query(checkpoint_viewed_at, page, &keys_filter)
     } else {
-        // Only one of object IDs or object keys is specified, or neither are specified.
-        let view = if filter.object_keys.is_some() || !filter.has_filters() {
-            View::Historical
-        } else {
-            View::Consistent
-        };
-
-        build_objects_query(
-            view,
-            range,
-            page,
-            move |query| filter.apply(query),
-            move |newer| newer,
-        )
+        consistent::query(checkpoint_viewed_at, page, move |query| filter.apply(query))
     }
 }
 

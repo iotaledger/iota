@@ -9,7 +9,7 @@ pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
     config::PruningOptions,
     errors::IndexerError,
-    store::{PgIndexerStore, indexer_store::IndexerStore},
+    store::PgIndexerStore,
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_node_storage::GrpcStateReader;
@@ -380,36 +380,6 @@ impl ExecutorCluster {
     /// Waits for the indexer to prune a given checkpoint.
     pub async fn wait_for_checkpoint_pruned(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
-    }
-
-    /// The ObjectsSnapshotProcessor is a long-running task that periodically
-    /// takes a snapshot of the objects table. This leads to flakiness in
-    /// tests, so we wait until the objects_snapshot has reached the
-    /// expected state.
-    pub async fn wait_for_objects_snapshot_catchup(&self, base_timeout: Duration) {
-        let mut latest_snapshot_cp = 0;
-
-        let latest_cp = self
-            .indexer_store
-            .get_latest_checkpoint_sequence_number()
-            .await
-            .unwrap()
-            .unwrap();
-
-        tokio::time::timeout(base_timeout, async {
-            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_min_lag as u64 {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                latest_snapshot_cp = self
-                    .indexer_store
-                    .get_latest_object_snapshot_watermark()
-                    .await
-                    .unwrap()
-                    .map(|watermark| watermark.max_committed_cp)
-                    .unwrap_or_default();
-            }
-        })
-        .await
-        .unwrap_or_else(|_| panic!("timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
     }
 
     /// Sends a cancellation signal to the graphql and indexer services, waits

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use diesel::{CombineDsl, ExpressionMethods, QueryDsl, QueryResult};
-use iota_indexer::schema::{checkpoints, objects_snapshot};
+use diesel::{ExpressionMethods, QueryDsl, QueryResult};
+use iota_indexer::schema::{checkpoints, watermarks};
 
 use crate::{
     data::{Conn, Db, DbConnection, QueryExecutor},
@@ -36,10 +36,12 @@ impl AvailableRange {
 
 impl AvailableRange {
     /// Look up the available range when viewing the data consistently at
-    /// `checkpoint_viewed_at`.
+    /// `checkpoint_viewed_at`. Uses the executor's configured
+    /// `max_available_range`.
     pub(crate) async fn query(db: &Db, checkpoint_viewed_at: u64) -> Result<Self, Error> {
+        let max_available_range = db.max_available_range;
         let Some(range): Option<Self> = db
-            .execute(move |conn| Self::result(conn, checkpoint_viewed_at))
+            .execute(move |conn| Self::result(conn, checkpoint_viewed_at, max_available_range))
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch available range: {e}")))?
         else {
@@ -52,46 +54,67 @@ impl AvailableRange {
         Ok(range)
     }
 
-    /// Look up the available range when viewing the data consistently at
-    /// `checkpoint_viewed_at`. Made available on the `Conn` type to make it
-    /// easier to call as part of other queries.
+    /// Computes the backward-diff retention window. Returns `Some(range)`
+    /// when `checkpoint_viewed_at` falls inside it, `None` otherwise. The
+    /// lower bound is the greater of the backward history watermark
+    /// (`min_available_cp`) and `latest_checkpoint - max_available_range`; the
+    /// upper bound is `checkpoint_viewed_at` itself, so the returned range
+    /// never extends past the request's captured watermark.
     ///
-    /// Returns an error if there was an issue querying the database, Ok(None)
-    /// if the checkpoint being viewed is not in the database's available
-    /// range, or Ok(Some(AvailableRange)) otherwise.
-    pub(crate) fn result(conn: &mut Conn, checkpoint_viewed_at: u64) -> QueryResult<Option<Self>> {
-        use checkpoints::dsl as checkpoints;
-        use objects_snapshot::dsl as snapshots;
+    /// `max_available_range` caps how far back a consistent view can be
+    /// requested, for performance reasons (the further back, the more
+    /// backward history entries to traverse).
+    pub(crate) fn result(
+        conn: &mut Conn,
+        checkpoint_viewed_at: u64,
+        max_available_range: u64,
+    ) -> QueryResult<Option<Self>> {
+        use checkpoints::dsl as cp;
+        use watermarks::dsl as wm;
 
-        let checkpoint_range: Vec<i64> = conn.results(move || {
-            let rhs = checkpoints::checkpoints
-                .select(checkpoints::sequence_number)
-                .order(checkpoints::sequence_number.desc())
-                .limit(1);
+        let last: Option<i64> = conn
+            .results(|| {
+                cp::checkpoints
+                    .select(cp::sequence_number)
+                    .order(cp::sequence_number.desc())
+                    .limit(1)
+                    .into_boxed()
+            })?
+            .into_iter()
+            .next();
 
-            let lhs = snapshots::objects_snapshot
-                .select(snapshots::checkpoint_sequence_number)
-                .order(snapshots::checkpoint_sequence_number.desc())
-                .limit(1);
-            // We need to use `union_all` in case `lhs` and `rhs` have the same value.
-            lhs.union_all(rhs)
-        })?;
+        let watermark_first: Option<i64> = conn
+            .results(|| {
+                wm::watermarks
+                    .filter(wm::entity.eq(crate::backward_view::BACKWARD_HISTORY_WATERMARK_ENTITY))
+                    .select(wm::min_available_cp)
+                    .limit(1)
+                    .into_boxed()
+            })?
+            .into_iter()
+            .next();
 
-        let (first, mut last) = match checkpoint_range.as_slice() {
-            [] => (0, 0),
-            [single_value] => (0, *single_value as u64),
-            values => {
-                let min_value = *values.iter().min().unwrap();
-                let max_value = *values.iter().max().unwrap();
-                (min_value as u64, max_value as u64)
-            }
-        };
+        let last = last.unwrap_or(0) as u64;
+        let watermark_first = watermark_first.unwrap_or(0) as u64;
+        let lag_first = last.saturating_sub(max_available_range);
+        let first = watermark_first.max(lag_first);
 
-        if checkpoint_viewed_at < first || last < checkpoint_viewed_at {
+        if checkpoint_viewed_at < first || checkpoint_viewed_at > last {
             return Ok(None);
         }
+        // Cap `last` to `checkpoint_viewed_at` so a single request never
+        // reports a range extending past its captured watermark.
+        Ok(Some(Self {
+            first,
+            last: checkpoint_viewed_at,
+        }))
+    }
 
-        last = checkpoint_viewed_at;
-        Ok(Some(Self { first, last }))
+    pub(crate) fn is_checkpoint_in_backward_history_range(
+        conn: &mut Conn,
+        checkpoint_viewed_at: u64,
+        max_available_range: u64,
+    ) -> QueryResult<bool> {
+        Ok(Self::result(conn, checkpoint_viewed_at, max_available_range)?.is_some())
     }
 }

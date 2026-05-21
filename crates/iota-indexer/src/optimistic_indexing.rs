@@ -167,7 +167,7 @@ impl OptimisticTransactionExecutor {
         // The methods check for fields being Some. Based on the provided read mask,
         // all fields should be Some, the only exception should be `checkpoint` &
         // `timestamp` fields which are always None.
-        let effects = executed_transaction.effects()?.effects()?.try_into()?;
+        let effects = executed_transaction.effects()?.effects()?;
         let events = TransactionEvents::from(executed_transaction.events()?.events()?);
         let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
@@ -213,11 +213,8 @@ impl OptimisticTransactionExecutor {
             .index_transaction_in_blocking_task(&full_tx_data)
             .await?;
 
-        self.update_optimistic_watermark(
-            full_tx_data.effects.executed_epoch(),
-            optimistic_tx.as_ref(),
-        )
-        .await?;
+        self.update_optimistic_watermark(full_tx_data.effects.epoch(), optimistic_tx.as_ref())
+            .await?;
 
         Ok(optimistic_tx)
     }

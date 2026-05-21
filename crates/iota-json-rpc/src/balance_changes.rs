@@ -13,7 +13,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
     coin::Coin,
     digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     execution_status::ExecutionStatus,
     gas_coin::GAS,
     object::{Object, Owner},

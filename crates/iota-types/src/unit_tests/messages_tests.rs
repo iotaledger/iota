@@ -28,7 +28,7 @@ use crate::{
         get_key_pair,
     },
     digests::TransactionEventsDigest,
-    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI},
+    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
     object::Owner,
@@ -1081,11 +1081,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedObjectRef {
-            object_id: ObjectID::CLOCK,
-            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-            mutable: true,
-        },
+        SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1135,11 +1131,11 @@ fn test_move_input_objects() {
             ])
             .unwrap(),
         builder
-            .input(CallArg::Shared(SharedObjectRef {
-                object_id: shared.object_id,
-                initial_shared_version: shared.version,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectRef::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
     builder.command(Command::new_move_call(
@@ -1224,11 +1220,11 @@ fn test_unique_input_objects() {
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Shared(SharedObjectRef {
-                object_id: shared.object_id,
-                initial_shared_version: shared.version,
-                mutable: true,
-            }))
+            .input(CallArg::Shared(SharedObjectRef::new(
+                shared.object_id,
+                shared.version,
+                true,
+            )))
             .unwrap(),
     ];
 

@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 42 tasks
 
@@ -289,13 +290,13 @@ task 27, line 227:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 28, lines 229-258:
+task 28, lines 229-261:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 3
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 10
@@ -305,36 +306,35 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": null
+            "allBalances": {
+              "nodes": [
+                {
+                  "coinObjectCount": 1,
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  },
+                  "totalBalance": "299999982382000"
+                },
+                {
+                  "coinObjectCount": 3,
+                  "coinType": {
+                    "repr": "0x97a73654d6f792c4f911e41da7099fa0ba3c9fd820112a3772c282cca96e98ab::fake::FAKE"
+                  },
+                  "totalBalance": "700"
+                }
+              ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "700"
+            }
           }
         }
       ]
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 17,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        0,
-        "sender",
-        "allBalances"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }
 
-task 29, lines 260-281:
+task 29, lines 263-284:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
@@ -370,7 +370,7 @@ Response: {
   }
 }
 
-task 30, lines 283-304:
+task 30, lines 286-307:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
@@ -406,29 +406,29 @@ Response: {
   }
 }
 
-task 32, line 308:
+task 32, line 311:
 //# create-checkpoint
 Checkpoint created: 11
 
-task 34, line 312:
+task 34, line 315:
 //# create-checkpoint
 Checkpoint created: 12
 
-task 36, line 316:
+task 36, line 319:
 //# create-checkpoint
 Checkpoint created: 13
 
-task 38, line 320:
+task 38, line 323:
 //# create-checkpoint
 Checkpoint created: 14
 
-task 39, lines 322-351:
+task 39, lines 325-355:
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 14
@@ -438,42 +438,41 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": null
+            "allBalances": {
+              "nodes": [
+                {
+                  "coinObjectCount": 1,
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  },
+                  "totalBalance": "299999982382000"
+                },
+                {
+                  "coinObjectCount": 3,
+                  "coinType": {
+                    "repr": "0x97a73654d6f792c4f911e41da7099fa0ba3c9fd820112a3772c282cca96e98ab::fake::FAKE"
+                  },
+                  "totalBalance": "700"
+                }
+              ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "700"
+            }
           }
         }
       ]
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 17,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        0,
-        "sender",
-        "allBalances"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }
 
-task 40, lines 353-382:
+task 40, lines 357-386:
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 14
@@ -483,42 +482,41 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": null
+            "allBalances": {
+              "nodes": [
+                {
+                  "coinObjectCount": 1,
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  },
+                  "totalBalance": "299999981382000"
+                },
+                {
+                  "coinObjectCount": 2,
+                  "coinType": {
+                    "repr": "0x97a73654d6f792c4f911e41da7099fa0ba3c9fd820112a3772c282cca96e98ab::fake::FAKE"
+                  },
+                  "totalBalance": "600"
+                }
+              ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "600"
+            }
           }
         }
       ]
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 17,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        0,
-        "sender",
-        "allBalances"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }
 
-task 41, lines 384-413:
+task 41, lines 388-417:
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 14
@@ -528,31 +526,30 @@ Response: {
       "nodes": [
         {
           "sender": {
-            "fakeCoinBalance": null
+            "allBalances": {
+              "nodes": [
+                {
+                  "coinObjectCount": 1,
+                  "coinType": {
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+                  },
+                  "totalBalance": "299999980382000"
+                },
+                {
+                  "coinObjectCount": 1,
+                  "coinType": {
+                    "repr": "0x97a73654d6f792c4f911e41da7099fa0ba3c9fd820112a3772c282cca96e98ab::fake::FAKE"
+                  },
+                  "totalBalance": "400"
+                }
+              ]
+            },
+            "fakeCoinBalance": {
+              "totalBalance": "400"
+            }
           }
         }
       ]
     }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 17,
-          "column": 9
-        }
-      ],
-      "path": [
-        "transactionBlocks",
-        "nodes",
-        0,
-        "sender",
-        "allBalances"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
+  }
 }

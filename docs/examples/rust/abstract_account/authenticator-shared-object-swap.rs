@@ -327,7 +327,7 @@ pub async fn create_blacklist(
     let blacklist_ref = tx_effects
         .created()
         .first()
-        .map(|blacklist| blacklist.reference.clone())
+        .map(|blacklist| blacklist.reference)
         .expect("There are no created objects");
 
     println!("Blacklist Ref: {blacklist_ref:?}");
@@ -348,11 +348,11 @@ pub async fn add_address_to_blacklist(
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let blacklist_call_arg = builder.input(CallArg::Shared(SharedObjectRef {
-            object_id: blacklist_ref.object_id,
-            initial_shared_version: blacklist_ref.version,
-            mutable: true,
-        }))?;
+        let blacklist_call_arg = builder.input(CallArg::Shared(SharedObjectRef::new(
+            blacklist_ref.object_id,
+            blacklist_ref.version,
+            true,
+        )))?;
         let address_to_add_call_arg = builder.pure(address_to_add)?;
 
         builder.programmable_move_call(
@@ -404,16 +404,16 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: account_ref.object_id,
-        initial_shared_version: account_ref.version,
-        mutable: false,
-    });
-    let blacklist_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: blacklist_ref.object_id,
-        initial_shared_version: blacklist_ref.version,
-        mutable: false,
-    });
+    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
+        account_ref.object_id,
+        account_ref.version,
+        false,
+    ));
+    let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
+        blacklist_ref.object_id,
+        blacklist_ref.version,
+        false,
+    ));
 
     let hex_encoded_signature: String =
         Hex::encode(keystore.sign_hashed(&publisher, tx_digest.as_ref())?)
@@ -437,11 +437,11 @@ pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
     new_blacklist_ref: &ObjectRef,
 ) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: new_blacklist_ref.object_id,
-        initial_shared_version: new_blacklist_ref.version,
-        mutable: false,
-    });
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
+        new_blacklist_ref.object_id,
+        new_blacklist_ref.version,
+        false,
+    ));
 
     let new_sig = match &transaction.inner_mut().tx_signatures[0] {
         GenericSignature::MoveAuthenticator(move_authenticator) => {

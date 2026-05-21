@@ -32,7 +32,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{PublicKey, SignatureScheme},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
@@ -445,7 +445,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         "Expected the TX execution to fail"
     );
     assert!(
-        summary.gas_used.gas_used() == 3401600
+        summary.gas_cost_summary.gas_used() == 3401600
             && summary.mutated_object_count == 2
             && summary.created_object_count == 0
             && summary.unwrapped_object_count == 0
@@ -1430,7 +1430,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     // computation was charged and that the correct gas object (the sponsor's coin)
     // was debited.
     assert!(
-        summary.gas_used.computation_cost > 0,
+        summary.gas_cost_summary.computation_cost > 0,
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
@@ -1822,11 +1822,11 @@ impl TestEnvironment {
             ) {
                 // Create the delayed abstract account.
                 let arguments = vec![
-                    builder.obj(CallArg::Shared(SharedObjectRef {
-                        object_id: delayed_aa_ref.object_id,
-                        initial_shared_version: delayed_aa_ref.version,
-                        mutable: true,
-                    }))?,
+                    builder.obj(CallArg::Shared(SharedObjectRef::new(
+                        delayed_aa_ref.object_id,
+                        delayed_aa_ref.version,
+                        true,
+                    )))?,
                     builder.pure(aa_owner_pk.as_ref())?,
                     Argument::Result(authenticator_function_ref_v1),
                 ];
@@ -1937,16 +1937,16 @@ impl TestEnvironment {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
-        let self_call_arg = CallArg::Shared(SharedObjectRef {
-            object_id: aa_ref.object_id,
-            initial_shared_version: aa_ref.version,
-            mutable: false,
-        });
-        let sponsor_call_arg = CallArg::Shared(SharedObjectRef {
-            object_id: aa_sponsor_ref.object_id,
-            initial_shared_version: aa_sponsor_ref.version,
-            mutable: false,
-        });
+        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
+            aa_ref.object_id,
+            aa_ref.version,
+            false,
+        ));
+        let sponsor_call_arg = CallArg::Shared(SharedObjectRef::new(
+            aa_sponsor_ref.object_id,
+            aa_sponsor_ref.version,
+            false,
+        ));
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_v1(vec![self_call_arg], vec![], sponsor_call_arg),
         ))
@@ -1964,11 +1964,11 @@ impl TestEnvironment {
 
         // Random IOTA account command.
         let arguments = vec![
-            builder.obj(CallArg::Shared(SharedObjectRef {
-                object_id: aa_ref.object_id,
-                initial_shared_version: aa_ref.version,
-                mutable: true,
-            }))?,
+            builder.obj(CallArg::Shared(SharedObjectRef::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             builder.pure(1_u8)?,
             builder.pure(2_u8)?,
         ];
@@ -2034,11 +2034,11 @@ impl TestEnvironment {
         ) {
             // rotate the key in the abstract account.
             let arguments = vec![
-                builder.obj(CallArg::Shared(SharedObjectRef {
-                    object_id: aa_ref.object_id,
-                    initial_shared_version: aa_ref.version,
-                    mutable: true,
-                }))?,
+                builder.obj(CallArg::Shared(SharedObjectRef::new(
+                    aa_ref.object_id,
+                    aa_ref.version,
+                    true,
+                )))?,
                 builder.pure(new_aa_owner_pk.as_ref())?,
                 Argument::Result(authenticator_function_ref_v1),
             ];
@@ -2149,11 +2149,11 @@ impl TestEnvironment {
         let mut b = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            b.obj(CallArg::Shared(SharedObjectRef {
-                object_id: aa_ref.object_id,
-                initial_shared_version: aa_ref.version,
-                mutable: true,
-            }))?,
+            b.obj(CallArg::Shared(SharedObjectRef::new(
+                aa_ref.object_id,
+                aa_ref.version,
+                true,
+            )))?,
             // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`
             // yields a Receiving PTB arg (SDK converts when building the call).
             b.obj(CallArg::Receiving(gas_ref))?,
@@ -2241,11 +2241,11 @@ impl TestEnvironment {
         &self,
         aa_obj_ref: ObjectRef,
     ) -> anyhow::Result<GenericSignature> {
-        let self_call_arg = CallArg::Shared(SharedObjectRef {
-            object_id: aa_obj_ref.object_id,
-            initial_shared_version: aa_obj_ref.version,
-            mutable: false,
-        });
+        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
+            aa_obj_ref.object_id,
+            aa_obj_ref.version,
+            false,
+        ));
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_v1(vec![], vec![], self_call_arg),
         ))
@@ -2303,11 +2303,11 @@ impl TestEnvironment {
         aa_obj_ref: ObjectRef,
         signature: iota_types::crypto::Signature,
     ) -> anyhow::Result<GenericSignature> {
-        let self_call_arg = CallArg::Shared(SharedObjectRef {
-            object_id: aa_obj_ref.object_id,
-            initial_shared_version: aa_obj_ref.version,
-            mutable: false,
-        });
+        let self_call_arg = CallArg::Shared(SharedObjectRef::new(
+            aa_obj_ref.object_id,
+            aa_obj_ref.version,
+            false,
+        ));
         let hex_encoded_signature: String = Hex::encode(signature)
             .chars()
             .skip(2) // flag prefix length

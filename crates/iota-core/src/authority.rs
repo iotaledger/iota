@@ -72,7 +72,7 @@ use iota_types::{
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
-        TransactionEvents, VerifiedSignedTransactionEffects,
+        TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
@@ -2534,6 +2534,8 @@ impl AuthorityState {
         effects: &mut TransactionEffects,
     ) {
         use std::cell::RefCell;
+
+        use iota_types::effects::TransactionEffectsAPIForTesting;
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
@@ -4533,10 +4535,10 @@ impl AuthorityState {
                 // a proof of inclusion in a checkpoint. In the case above, the
                 // Quorum Driver would return a proof of inclusion in the final
                 // checkpoint, and this code would no longer be necessary.
-                if effects.executed_epoch() != epoch_store.epoch() {
+                if effects.epoch() != epoch_store.epoch() {
                     debug!(
                         tx_digest=?transaction_digest,
-                        effects_epoch=?effects.executed_epoch(),
+                        effects_epoch=?effects.epoch(),
                         epoch=?epoch_store.epoch(),
                         "Re-signing the effects with the current epoch"
                     );

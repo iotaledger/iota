@@ -28,7 +28,7 @@ use iota_types::{
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
@@ -1796,7 +1796,7 @@ impl CheckpointBuilder {
                 }
 
                 // Skip roots already included in checkpoints or roots from previous epochs
-                if tx_included || effect.executed_epoch() < self.epoch_store.epoch() {
+                if tx_included || effect.epoch() < self.epoch_store.epoch() {
                     continue;
                 }
 
@@ -2698,7 +2698,10 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        effects::{TransactionEffects, TransactionEvents},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
+            TransactionEvents,
+        },
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
         object,
@@ -3055,12 +3058,11 @@ mod tests {
     fn e(
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::default();
-        *effects.transaction_digest_mut_for_testing() = transaction_digest;
+        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
-        *effects.gas_cost_summary_mut_for_testing() = gas_used;
+        *effects.gas_cost_summary_mut_for_testing() = gas_cost_summary;
         effects
     }
 
@@ -3069,10 +3071,10 @@ mod tests {
         state: Arc<AuthorityState>,
         digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) {
         let epoch_store = state.epoch_store_for_testing();
-        let effects = e(digest, dependencies, gas_used);
+        let effects = e(digest, dependencies, gas_cost_summary);
         store.insert(digest, effects);
         epoch_store
             .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)

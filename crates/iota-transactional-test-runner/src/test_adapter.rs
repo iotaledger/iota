@@ -665,10 +665,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
                     .await;
 
-                offchain_reader
-                    .wait_for_objects_snapshot_catchup(Duration::from_secs(180))
-                    .await;
-
                 if let Some(checkpoint_to_prune) = wait_for_checkpoint_pruned {
                     offchain_reader
                         .wait_for_pruned_checkpoint(checkpoint_to_prune, Duration::from_secs(60))

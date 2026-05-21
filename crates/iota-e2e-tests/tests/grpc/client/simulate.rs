@@ -11,6 +11,7 @@ use iota_sdk_types::Transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
 };
@@ -47,7 +48,7 @@ async fn simulate_transaction_scenarios() {
             "{mode_name} simulation should succeed"
         );
 
-        let gas_summary = effects.gas_summary();
+        let gas_summary = effects.gas_cost_summary();
         assert!(
             gas_summary.computation_cost > 0 || gas_summary.storage_cost > 0,
             "{mode_name} simulation should report gas costs"

@@ -1010,10 +1010,13 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
                 inner.status = clever_status;
                 inner.into()
             }
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1030,7 +1033,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
     fn from(native: T) -> Self {
         Self {
             status: native.status().clone().into(),
-            executed_epoch: native.executed_epoch(),
+            executed_epoch: native.epoch(),
             modified_at_versions: native
                 .modified_at_versions()
                 .into_iter()

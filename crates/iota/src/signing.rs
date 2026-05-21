@@ -83,11 +83,11 @@ pub(crate) async fn sign_transaction(
             MoveAuthenticator::new_v1(
                 auth_call_args,
                 auth_type_args,
-                CallArg::Shared(SharedObjectRef {
-                    object_id: ObjectID::from(*signer_address),
+                CallArg::Shared(SharedObjectRef::new(
+                    ObjectID::from(*signer_address),
                     initial_shared_version,
-                    mutable: false,
-                }),
+                    false,
+                )),
             ),
         ));
     }

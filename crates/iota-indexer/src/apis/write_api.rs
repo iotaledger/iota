@@ -29,7 +29,9 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
@@ -130,8 +132,7 @@ impl WriteApi {
             .chain(output_objects.iter())
             .collect::<Vec<_>>();
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let tx_signatures = executed_transaction
             .signatures()?
@@ -254,8 +255,7 @@ impl WriteApi {
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let raw_effects = show_raw_txn_data_and_effects
             .then(|| bcs::to_bytes(&tx_effects))

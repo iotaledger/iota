@@ -338,7 +338,7 @@ pub async fn create_blacklist(
     let blacklist_ref = tx_effects
         .created()
         .first()
-        .map(|blacklist| blacklist.reference.clone())
+        .map(|blacklist| blacklist.reference)
         .expect("There are no created objects");
 
     println!("Blacklist Ref: {blacklist_ref:?}");
@@ -370,16 +370,16 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: account_ref.object_id,
-        initial_shared_version: account_ref.version,
-        mutable: false,
-    });
-    let blacklist_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: blacklist_ref.object_id,
-        initial_shared_version: blacklist_ref.version,
-        mutable: false,
-    });
+    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
+        account_ref.object_id,
+        account_ref.version,
+        false,
+    ));
+    let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
+        blacklist_ref.object_id,
+        blacklist_ref.version,
+        false,
+    ));
 
     let raw_value: u64 = 42;
     let raw_value_arg = CallArg::Pure(bcs::to_bytes(&raw_value)?);
@@ -412,11 +412,11 @@ pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
     new_blacklist_ref: &ObjectRef,
 ) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: new_blacklist_ref.object_id,
-        initial_shared_version: new_blacklist_ref.version,
-        mutable: false,
-    });
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
+        new_blacklist_ref.object_id,
+        new_blacklist_ref.version,
+        false,
+    ));
 
     let new_sig = match &transaction.inner_mut().tx_signatures[0] {
         GenericSignature::MoveAuthenticator(move_authenticator) => {
