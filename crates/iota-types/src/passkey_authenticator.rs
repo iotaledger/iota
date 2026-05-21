@@ -32,31 +32,6 @@ use crate::{
 #[path = "unit_tests/passkey_authenticator_test.rs"]
 mod passkey_authenticator_test;
 
-pub trait PasskeyAuthenticatorExt {
-    fn new_for_testing(
-        authenticator_data: Vec<u8>,
-        client_data_json: String,
-        user_signature: Signature,
-    ) -> Result<PasskeyAuthenticator, IotaError>;
-}
-
-impl PasskeyAuthenticatorExt for PasskeyAuthenticator {
-    /// A constructor for [struct PasskeyAuthenticator] with custom defined
-    /// fields. Used for testing.
-    fn new_for_testing(
-        authenticator_data: Vec<u8>,
-        client_data_json: String,
-        user_signature: Signature,
-    ) -> Result<Self, IotaError> {
-        let raw = RawPasskeyAuthenticator {
-            authenticator_data,
-            client_data_json,
-            user_signature,
-        };
-        raw.try_into()
-    }
-}
-
 // /// Convert [struct RawPasskeyAuthenticator] to [struct PasskeyAuthenticator]
 // /// with validations.
 // impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
