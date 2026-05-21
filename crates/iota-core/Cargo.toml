@@ -54,6 +54,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net", "tracing"] }
 tokio-stream.workspace = true
+tokio-util.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
 

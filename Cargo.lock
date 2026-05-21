@@ -5721,6 +5721,7 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tokio-stream",
+ "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tower 0.4.13",
  "tracing",
  "twox-hash 1.6.3",
