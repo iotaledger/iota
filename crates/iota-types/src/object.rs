@@ -669,8 +669,11 @@ impl ObjectInner {
         Ok(type_tag)
     }
 
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        self.data.as_struct_opt().and_then(|data| data.to_rust())
+    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
+        self.data
+            .as_struct_opt()
+            .ok_or_else(|| bcs::Error::Custom("Object is not a struct".to_string()))?
+            .to_rust()
     }
 }
 

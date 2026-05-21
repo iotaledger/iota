@@ -2164,9 +2164,9 @@ fn load_authenticator_function_ref(
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
         .to_rust()
-        .ok_or_else(|| ReplayEngineError::GeneralError {
+        .map_err(|e| ReplayEngineError::GeneralError {
             err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}"
+                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
             ),
         })?;
 

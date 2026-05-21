@@ -5494,11 +5494,11 @@ impl AuthorityState {
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().ok_or(
+                field_move_object.to_rust().map_err(|_| {
                     UserInputError::InvalidAuthenticatorFunctionRefField {
                         account_object_id: auth_account_object_id,
-                    },
-                )?;
+                    }
+                })?;
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,

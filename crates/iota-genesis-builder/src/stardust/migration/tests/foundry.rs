@@ -95,7 +95,7 @@ fn migrate_foundry(
 
     let coin_manager: CoinManager = coin_manager_object
         .to_rust()
-        .ok_or(anyhow!("expected a coin manager"))?;
+        .map_err(|e| anyhow!("expected a coin manager: {}", e))?;
 
     let coin_metadata = coin_manager
         .metadata
