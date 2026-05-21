@@ -64,9 +64,9 @@ impl AuthenticatorTrait for MultiSig {
         // Verify each signature against its corresponding signature scheme and public
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
-        // TODO unwrap
-        for (signature, i) in self.signatures().iter().zip(self.get_indices().unwrap()) {
-            // let (subsig_pubkey, weight) =
+        // TODO we can unwrap depending if we validate the whole multisig or not
+        let indices = self.get_indices().unwrap();
+        for (signature, i) in self.signatures().iter().zip(indices) {
             let member =
                 self.committee()
                     .members()
@@ -89,7 +89,7 @@ impl AuthenticatorTrait for MultiSig {
 
             let res = match signature {
                 MultisigMemberSignature::Passkey(auth) => {
-                    // TODO conversion
+                    // TODO https://github.com/iotaledger/iota/issues/11607
                     let authenticator = PasskeyAuthenticator::from_bytes(&auth.to_bytes())
                         .map_err(|_| IotaError::InvalidSignature {
                             error: "Invalid passkey authenticator bytes".to_string(),
@@ -106,7 +106,6 @@ impl AuthenticatorTrait for MultiSig {
                 }
                 _ => verifier
                     .verify_member_signature(&*digest, member.public_key(), signature)
-                    // TODO not sure about these map_err
                     .map_err(|e| fastcrypto::error::FastCryptoError::GeneralError(e.to_string())),
             };
 
