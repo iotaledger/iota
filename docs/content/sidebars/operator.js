@@ -62,15 +62,15 @@ const operator = [
     },
     {
         type: 'category',
-        label: 'Data Infrastructure',
+        label: 'Extended Data Services',
         link: {
             type: 'doc',
-            id: 'operator/data-infrastructure/overview',
+            id: 'operator/extended-data-services/overview',
         },
         items: [
-            'operator/data-infrastructure/iota-indexer',
-            'operator/data-infrastructure/json-rpc',
-            'operator/data-infrastructure/graphql',
+            'operator/extended-data-services/iota-indexer',
+            'operator/extended-data-services/json-rpc',
+            'operator/extended-data-services/graphql',
         ],
     },
     {

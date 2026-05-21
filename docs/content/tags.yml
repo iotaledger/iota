@@ -329,9 +329,9 @@ indexer-operation:
   label: Indexer Operation
   description: Indexer Operation
 
-data-infrastructure:
-  label: Data Infrastructure
-  description: Data Infrastructure services (Indexer, JSON-RPC, GraphQL) operated independently of a full node.
+extended-data-services:
+  label: Extended Data Services
+  description: Extended Data Services (Indexer, JSON-RPC, GraphQL) operated independently of a full node.
 
 infrastructure:
   label: Infrastructure
