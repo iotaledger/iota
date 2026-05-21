@@ -221,7 +221,7 @@ impl GenericSignature {
                     error: "zkLogin is not supported".to_string(),
                 })
             }
-            GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+            GenericSignature::PasskeyAuthenticator(s) => Ok(s.public_key().into()),
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
             }),

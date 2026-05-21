@@ -30,7 +30,6 @@ use passkey_types::{
 };
 use url::Url;
 
-use super::to_signing_message;
 use crate::{
     base_types::{IotaAddress, dbg_addr},
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
@@ -130,7 +129,7 @@ async fn create_credential_and_sign_test_tx(
 
     // Compute the challenge as blake2b_hash(intent_msg(tx)). This is the challenge
     // for the passkey to sign.
-    let passkey_digest = to_signing_message(&intent_msg);
+    let passkey_digest = intent_msg.signing_digest();
 
     // Send the challenge to the passkey to sign with the rp_id.
     let credential_request = CredentialRequestOptions {

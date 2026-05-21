@@ -258,7 +258,7 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                     error: "zkLogin is not supported".to_string(),
                 })
             }
-            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
+            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(s.public_key())),
             GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
         }
     }
