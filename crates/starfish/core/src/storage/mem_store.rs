@@ -311,8 +311,12 @@ impl Store for MemStore {
             refs.push_front(BlockRef::new(round, author, digest));
         }
 
-        // Read and combine transactions and headers
-        let results = self.read_blocks(refs.as_slices().0)?;
+        // Read and combine transactions and headers.
+        // Use make_contiguous() rather than as_slices().0 to ensure all refs are read
+        // when the VecDeque ring buffer wraps; otherwise trailing entries would be
+        // silently dropped.
+        let refs_slice = refs.make_contiguous();
+        let results = self.read_blocks(refs_slice)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
