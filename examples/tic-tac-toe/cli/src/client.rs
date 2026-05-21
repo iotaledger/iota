@@ -20,7 +20,7 @@ use iota_sdk::{
 use iota_sdk_types::crypto::{Intent, UserSignature};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
-    crypto::{PublicKey, Signature},
+    crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -711,14 +711,16 @@ impl Client {
         admin_key: MultiSigPublicKey,
         data: TransactionData,
     ) -> Result<Transaction> {
-        let sponsor_sig: Signature = self
+        let sponsor_sig: GenericSignature = self
             .wallet
             .config()
             .keystore()
             .sign_secure(&sender, &data, Intent::iota_transaction())
-            .context("Signing transaction")?;
+            .context("Signing transaction")?
+            .into();
 
-        let member_sig: UserSignature = GenericSignature::Signature(sponsor_sig.clone())
+        let member_sig: UserSignature = sponsor_sig
+            .clone()
             .try_into()
             .context("Converting sponsor signature for multisig")?;
 
@@ -728,7 +730,7 @@ impl Client {
 
         Ok(Transaction::from_generic_sig_data(
             data,
-            vec![multi_sig, GenericSignature::Signature(sponsor_sig)],
+            vec![multi_sig, sponsor_sig],
         ))
     }
 
