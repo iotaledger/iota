@@ -29,6 +29,17 @@ remote-store-url: "http://localhost:50051"
 #
 progress-store-path: "/iota/output/kv_ingestion_progress.json"
 
+# The starting checkpoint for the ingestion pipeline (inclusive).
+# If omitted, the pipeline resumes from the latest watermark stored in 'progress-store-path'.
+# If provided, the pipeline starts from the specified checkpoint (e.g., 0 for genesis).
+#
+# start-checkpoint: 0
+
+# The ending checkpoint for the ingestion pipeline (inclusive).
+# If omitted, the pipeline continues indefinitely until the end of the data stream.
+#
+# end-checkpoint: 1000000
+
 metrics-port: 8084
 
 # Workers Configs
