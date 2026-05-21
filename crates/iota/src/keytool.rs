@@ -433,7 +433,7 @@ impl KeyToolCommand {
                 let pub_keys = members
                     .iter()
                     .map(|member| MultiSigOutput {
-                        address: member.public_key().derive_address(),
+                        address: member.public_key().into(),
                         public_base64_key_with_flag: member.public_key().to_base64(),
                         weight: member.weight(),
                     })
@@ -740,6 +740,14 @@ impl KeyToolCommand {
                 pks,
                 weights,
             } => {
+                if pks.len() != weights.len() {
+                    bail!(
+                        "Number of public keys ({}) does not match number of weights ({})",
+                        pks.len(),
+                        weights.len()
+                    );
+                }
+
                 let mut members = Vec::new();
                 let mut multisig_output = Vec::new();
                 for (pk, w) in pks.into_iter().zip(weights) {
@@ -766,6 +774,13 @@ impl KeyToolCommand {
                 weights,
                 threshold,
             } => {
+                if pks.len() != weights.len() {
+                    bail!(
+                        "Number of public keys ({}) does not match number of weights ({})",
+                        pks.len(),
+                        weights.len()
+                    );
+                }
                 let members = pks
                     .into_iter()
                     .zip(weights.into_iter())
