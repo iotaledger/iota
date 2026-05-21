@@ -325,8 +325,7 @@ mod passkey {
         let user_sig: Signature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
         let passkey =
-            PasskeyAuthenticator::new_for_testing(vec![], client_data_json.to_string(), user_sig)
-                .unwrap();
+            PasskeyAuthenticator::new(vec![], client_data_json.to_string(), user_sig).unwrap();
         GenericSignature::PasskeyAuthenticator(passkey)
     }
 }

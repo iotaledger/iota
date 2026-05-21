@@ -35,7 +35,7 @@ use crate::{
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
     error::IotaError,
     object::Object,
-    passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
+    passkey_authenticator::PasskeyAuthenticator,
     signature::GenericSignature,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
@@ -237,7 +237,7 @@ async fn test_passkey_authenticator() {
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
             Signature::from_bytes(&response.user_sig_bytes).unwrap(),
