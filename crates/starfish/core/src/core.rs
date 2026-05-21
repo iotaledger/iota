@@ -115,6 +115,10 @@ pub(crate) struct Core {
     /// Any subsequent block-creation attempt at that same round skips the
     /// strong-vote quorum check, regardless of the reason that triggered it.
     strong_vote_timed_out_round: Option<Round>,
+    /// First moment in the current clock round at which the ordinary (base
+    /// Starfish) propose condition was satisfied. Used to measure the extra
+    /// wait imposed by StarfishSpeed's strong-vote condition.
+    ordinary_propose_ready_at: Option<(Round, Instant)>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -261,6 +265,7 @@ impl Core {
             encoder,
             commit_vote_monitor,
             strong_vote_timed_out_round: None,
+            ordinary_propose_ready_at: None,
         }
         .recover()
     }
@@ -825,6 +830,25 @@ impl Core {
         // block header's strong_vote field.
         let leader_header = self.leader_header(quorum_round);
 
+        // Record the first moment in this clock round at which the ordinary
+        // (base Starfish) propose condition was satisfied. Used to observe the
+        // extra wait imposed by the StarfishSpeed strong-vote condition.
+        if self.context.protocol_config.consensus_starfish_speed()
+            && !reason.is_forced()
+            && leader_header.is_some()
+            && Duration::from_millis(
+                self.context
+                    .clock
+                    .timestamp_utc_ms()
+                    .saturating_sub(self.last_proposed_timestamp_ms()),
+            ) >= self.context.parameters.min_block_delay
+            && self
+                .ordinary_propose_ready_at
+                .is_none_or(|(r, _)| r != clock_round)
+        {
+            self.ordinary_propose_ready_at = Some((clock_round, Instant::now()));
+        }
+
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
@@ -907,6 +931,20 @@ impl Core {
             .block_proposal_leader_wait_count
             .with_label_values(&[leader_authority])
             .inc();
+
+        // Extra wait between ordinary-condition readiness and actual proposal,
+        // attributable to the StarfishSpeed strong-vote condition.
+        if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
+            if let Some((r, start)) = self.ordinary_propose_ready_at {
+                if r == clock_round {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .strong_vote_extra_wait_seconds
+                        .observe(start.elapsed().as_secs_f64());
+                }
+            }
+        }
 
         self.context
             .metrics
