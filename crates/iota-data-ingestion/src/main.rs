@@ -10,11 +10,13 @@ use iota_data_ingestion::{
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionLimit, ReaderOptions,
+    WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -54,6 +56,12 @@ struct IndexerConfig {
     path: PathBuf,
     tasks: Vec<TaskConfig>,
     progress_store_path: String,
+    /// The sequence number of the checkpoint to start ingestion from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_checkpoint: Option<CheckpointSequenceNumber>,
+    /// The inclusive sequence number of the checkpoint to end ingestion at.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_checkpoint: Option<CheckpointSequenceNumber>,
     #[serde(skip_serializing_if = "Option::is_none")]
     remote_store_url: Option<String>,
     #[serde(default = "default_remote_read_batch_size")]
@@ -193,6 +201,12 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::BigTableKv(kv_config) => {
+                if let Some(start_checkpoint) = config.start_checkpoint {
+                    executor
+                        .update_watermark(task_config.name.clone(), start_checkpoint)
+                        .await?;
+                }
+
                 let client = if let Some(emulator_host) = kv_config.emulator_host {
                     std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
                     BigTableClient::new_local(
@@ -212,7 +226,7 @@ async fn main() -> Result<()> {
                     .await?
                 };
                 let worker_pool = WorkerPool::new(
-                    KvWorker { client },
+                    KvWorker::new(client, kv_config.tables),
                     task_config.name,
                     task_config.concurrency,
                     Default::default(),
@@ -243,6 +257,10 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
         };
+    }
+
+    if let Some(end_checkpoint) = config.end_checkpoint {
+        executor.with_ingestion_limit(IngestionLimit::MaxCheckpoint(end_checkpoint));
     }
 
     let reader_options = ReaderOptions {
