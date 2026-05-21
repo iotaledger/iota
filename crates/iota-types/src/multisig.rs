@@ -9,7 +9,7 @@ pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
-use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
+use iota_sdk_types::{SignatureScheme, crypto::IntentMessage};
 use serde::Serialize;
 
 use crate::{
@@ -27,25 +27,6 @@ mod multisig_tests;
 pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
 
-// /// The struct that contains signatures and public keys necessary for
-// /// authenticating a MultiSig.
-// #[serde_as]
-// #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
-// pub struct MultiSig {
-//     /// The plain signature encoded with signature scheme.
-//     sigs: Vec<CompressedSignature>,
-//     /// A bitmap that indicates the position of which public key the
-// signature     /// should be authenticated with.
-//     bitmap: BitmapUnit,
-//     /// The public key encoded with each public key with its signature scheme
-//     /// used along with the corresponding weight.
-//     multisig_pk: MultiSigPublicKey,
-//     /// A bytes representation of [struct MultiSig]. This helps with
-//     /// implementing [trait AsRef<[u8]>].
-//     #[serde(skip)]
-//     bytes: OnceCell<Vec<u8>>,
-// }
-
 impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
@@ -56,6 +37,7 @@ impl AuthenticatorTrait for MultiSig {
     where
         T: Serialize,
     {
+        // TODO why not validate the whole Multisig?
         self.committee()
             .validate()
             .map_err(|e| IotaError::InvalidSignature {
@@ -68,7 +50,7 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
-        if self.has_scheme_signatures(SkdSignatureScheme::PasskeyAuthenticator)
+        if self.has_scheme_signatures(SignatureScheme::PasskeyAuthenticator)
             && !verify_params.accept_passkey_in_multisig
         {
             return Err(IotaError::InvalidSignature {
@@ -154,15 +136,3 @@ impl AuthenticatorTrait for MultiSig {
         }
     }
 }
-
-// impl MultiSig {
-
-// /// The struct that contains the public key used for authenticating a
-// MultiSig. #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,
-// JsonSchema)] pub struct MultiSigPublicKey {
-//     /// A list of public key and its corresponding weight.
-//     pk_map: Vec<(PublicKey, WeightUnit)>,
-//     /// If the total weight of the public keys corresponding to verified
-//     /// signatures is larger than threshold, the MultiSig is verified.
-//     threshold: ThresholdUnit,
-// }
