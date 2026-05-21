@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use enum_dispatch::enum_dispatch;
-use fastcrypto::{hash::HashFunction, traits::ToFromBytes};
+use fastcrypto::traits::ToFromBytes;
 use iota_sdk_crypto::multisig::MultisigVerifier;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
@@ -14,7 +14,6 @@ use serde::Serialize;
 
 use crate::{
     base_types::IotaAddress,
-    crypto::DefaultHash,
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, VerifyParams},
@@ -30,7 +29,7 @@ pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
 impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
-        value: &IntentMessage<T>,
+        intent_message: &IntentMessage<T>,
         multisig_address: IotaAddress,
         verify_params: &VerifyParams,
     ) -> Result<(), IotaError>
@@ -59,11 +58,7 @@ impl AuthenticatorTrait for MultiSig {
         }
 
         let mut weight_sum: u16 = 0;
-        // TODO signing digest?
-        let message = bcs::to_bytes(&value).expect("Message serialization should not fail");
-        let mut hasher = DefaultHash::default();
-        hasher.update(message);
-        let digest = hasher.finalize().digest;
+        let digest = intent_message.signing_digest();
         let verifier = MultisigVerifier::new();
 
         // Verify each signature against its corresponding signature scheme and public
@@ -100,13 +95,17 @@ impl AuthenticatorTrait for MultiSig {
                             error: "Invalid passkey authenticator bytes".to_string(),
                         })?;
                     authenticator
-                        .verify_claims(value, IotaAddress::from(member.public_key()), verify_params)
+                        .verify_claims(
+                            intent_message,
+                            IotaAddress::from(member.public_key()),
+                            verify_params,
+                        )
                         .map_err(|e| {
                             fastcrypto::error::FastCryptoError::GeneralError(e.to_string())
                         })
                 }
                 _ => verifier
-                    .verify_member_signature(&digest, member.public_key(), signature)
+                    .verify_member_signature(&*digest, member.public_key(), signature)
                     // TODO not sure about these map_err
                     .map_err(|e| fastcrypto::error::FastCryptoError::GeneralError(e.to_string())),
             };
