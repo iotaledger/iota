@@ -145,6 +145,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             flags at runtime.
 // Version 27: Only sponsor Move authentication is performed pre-consensus in
 //             devnet.
+//             Enable consensus block restrictions on testnet and devnet:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
