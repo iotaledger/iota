@@ -477,7 +477,7 @@ async fn test_upgrade_cannot_remove_view_attribute() {
 
     assert_eq!(
         effects.into_status().unwrap_err().0,
-        ExecutionFailureStatus::PackageUpgradeError {
+        ExecutionError::PackageUpgradeError {
             kind: PackageUpgradeError::IncompatibleUpgrade,
         },
     )

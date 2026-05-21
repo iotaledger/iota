@@ -56,7 +56,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IotaAddress,
+    IotaAddress, MoveTypeTagTrait,
     base_types::SequenceNumber,
     collection_types::{Entry, VecMap},
     derived_object,
@@ -70,6 +70,10 @@ pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataV1");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
+pub const PACKAGE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageViewFunctionsMetadata");
+pub const MODULE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME: Identifier =
+    Identifier::from_static("ModuleViewFunctionsMetadata");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -1107,4 +1111,64 @@ pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
     #[serde_as(as = "TypeName")]
     pub account_type: TypeTag,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageViewFunctions {
+    // Map of view functions contained in a package, where the key is the
+    // module name and the value is the list of view function names in that module.
+    pub view_functions: VecMap<String, ModuleViewFunctions>,
+}
+
+impl PackageViewFunctions {
+    pub fn new() -> Self {
+        Self {
+            view_functions: VecMap { contents: vec![] },
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME,
+            vec![],
+        )
+    }
+}
+
+// Trait needed for this Type to be used as a dynamic field
+impl MoveTypeTagTrait for PackageViewFunctions {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(Self::type_()))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleViewFunctions {
+    // List of view functions contained in a module.
+    pub view_functions: Vec<String>,
+}
+
+impl ModuleViewFunctions {
+    pub fn new() -> Self {
+        Self {
+            view_functions: Vec::new(),
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            MODULE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME,
+            vec![],
+        )
+    }
+}
+
+// Trait needed for this Type to be used as a dynamic field
+impl MoveTypeTagTrait for ModuleViewFunctions {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(Self::type_()))
+    }
 }

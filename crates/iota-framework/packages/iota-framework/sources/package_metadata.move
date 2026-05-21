@@ -6,8 +6,10 @@
 /// on-chain, additional information about the package.
 module iota::package_metadata;
 
+use iota::dynamic_field;
 use iota::vec_map::VecMap;
 use std::ascii;
+use std::string;
 use std::type_name::TypeName;
 
 // === Errors ===
@@ -18,6 +20,10 @@ const EModuleMetadataNotFound: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
+
+// === Dynamic field keys ===
+
+const PACKAGE_VIEW_FUNCTIONS_METADATA_FIELD_NAME: vector<u8> = b"view_functions";
 
 // === Structs ===
 
@@ -40,6 +46,16 @@ public struct PackageMetadataV1 has key {
     package_version: u64,
     // Handles to internal package modules
     modules_metadata: VecMap<ascii::String, ModuleMetadataV1>,
+}
+
+/// Represents view function metadata for a package.
+public struct PackageViewFunctionsMetadata has copy, drop, store {
+    view_functions: VecMap<ascii::String, ModuleViewFunctionsMetadata>,
+}
+
+/// Represents view functions contained in a module.
+public struct ModuleViewFunctionsMetadata has copy, drop, store {
+    view_functions: vector<ascii::String>,
 }
 
 /// Represents metadata associated with a module in the package.
@@ -89,6 +105,14 @@ public fun modules_metadata_v1(
 ): &ModuleMetadataV1 {
     assert!(self.modules_metadata.contains(module_name), EModuleMetadataNotFound);
     self.modules_metadata.get(module_name)
+}
+
+/// Borrow the view function metadata dynamic field of the package represented by this metadata.
+public fun view_functions_metadata(self: &PackageMetadataV1): &PackageViewFunctionsMetadata {
+    dynamic_field::borrow<string::String, PackageViewFunctionsMetadata>(
+        &self.id,
+        string::utf8(PACKAGE_VIEW_FUNCTIONS_METADATA_FIELD_NAME),
+    )
 }
 
 /// Safely get the `AuthenticatorMetadataV1` associated with the specified

@@ -23,12 +23,15 @@ mod checked {
         move_package::MovePackage,
     };
     use iota_types::{
+        MoveTypeTagTrait,
         balance::Balance,
         base_types::{IotaAddress, TxContext},
         coin::Coin,
+        dynamic_field::{Field, derive_dynamic_field_id},
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
+        id::UID,
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
@@ -52,6 +55,7 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::{data_store::DataStore, loaded_data::runtime_types::Type};
+    use serde::Serialize;
     use tracing::instrument;
 
     use crate::{
@@ -267,11 +271,17 @@ mod checked {
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
             let object_id = self.tx_context.borrow_mut().fresh_id();
+            self.record_new_uid(object_id)?;
+            Ok(object_id)
+        }
+
+        /// Record a newly-created UID in the object runtime.
+        pub(crate) fn record_new_uid(&mut self, object_id: ObjectId) -> Result<(), ExecutionError> {
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
-            Ok(object_id)
+            Ok(())
         }
 
         /// Create a new ID and update the state
@@ -280,11 +290,7 @@ mod checked {
             package_storage_id: ObjectId,
         ) -> Result<ObjectId, ExecutionError> {
             let object_id = derive_package_metadata_id(package_storage_id);
-
-            self.native_extensions
-                .get_mut()
-                .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
-                .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
+            self.record_new_uid(object_id)?;
             Ok(object_id)
         }
 
@@ -657,6 +663,60 @@ mod checked {
         pub fn freeze_object(&mut self, obj: ObjectValue) -> Result<(), ExecutionError> {
             self.additional_transfers.push((Owner::Immutable, obj));
             Ok(())
+        }
+
+        /// Record an additional write for an object owned by another object.
+        pub(crate) fn make_object_owned_by_object(
+            &mut self,
+            parent: ObjectId,
+            obj: ObjectValue,
+        ) -> Result<(), ExecutionError> {
+            self.additional_transfers.push((Owner::Object(parent), obj));
+            Ok(())
+        }
+
+        pub(crate) fn attach_dynamic_field_to_object<N, V>(
+            &mut self,
+            parent_id: ObjectId,
+            name: N,
+            value: V,
+        ) -> Result<(), ExecutionError>
+        where
+            N: Serialize + MoveTypeTagTrait,
+            V: Serialize + MoveTypeTagTrait,
+        {
+            let name_type = N::get_type_tag();
+            let value_type = V::get_type_tag();
+            let name_bytes = bcs::to_bytes(&name).map_err(|e| {
+                ExecutionError::invariant_violation(format!(
+                    "failed to serialize dynamic field name: {e}"
+                ))
+            })?;
+            let field_id =
+                derive_dynamic_field_id(parent_id, &name_type, &name_bytes).map_err(|e| {
+                    ExecutionError::invariant_violation(format!(
+                        "failed to derive dynamic field id: {e}"
+                    ))
+                })?;
+            self.record_new_uid(field_id)?;
+
+            let field = Field {
+                id: UID::new(field_id),
+                name,
+                value,
+            };
+            let field_bytes = bcs::to_bytes(&field).map_err(|e| {
+                ExecutionError::invariant_violation(format!(
+                    "failed to serialize dynamic field: {e}"
+                ))
+            })?;
+            let field_object = self.make_object_value(
+                StructTag::new_dynamic_field(name_type, value_type),
+                // used_in_non_entry_move_call
+                false,
+                &field_bytes,
+            )?;
+            self.make_object_owned_by_object(parent_id, field_object)
         }
 
         /// Create a new package

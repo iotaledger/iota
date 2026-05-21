@@ -251,6 +251,12 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
+impl MoveTypeTagTrait for String {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_string()))
+    }
+}
+
 impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address

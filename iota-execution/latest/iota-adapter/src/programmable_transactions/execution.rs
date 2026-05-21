@@ -27,14 +27,16 @@ mod checked {
             RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
+        collection_types::Entry,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
-            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            IotaAttribute, ModuleViewFunctions, MovePackageExt, PackageMetadata,
+            PackageViewFunctions, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap,
+            UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
@@ -976,6 +978,7 @@ mod checked {
         package_version: u64,
     ) -> Result<(), ExecutionError> {
         let mut modules_metadata_map = BTreeMap::new();
+        let mut package_view_functions_map = PackageViewFunctions::new();
         // Extract metadata for each module
         for module in modules {
             if let Some(md) = module
@@ -1005,6 +1008,7 @@ mod checked {
                 //    - Authenticator attributes, if present, are extracted to create
                 //      AuthenticatorMetadata to insert into the PackageMetadata
                 let mut module_metadata_map = BTreeMap::new();
+                let mut module_view_functions = ModuleViewFunctions::new();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
@@ -1019,6 +1023,11 @@ mod checked {
                                     "Duplicate function metadata for authenticator"
                                 );
                             }
+                            IotaAttribute::View => {
+                                module_view_functions
+                                    .view_functions
+                                    .push(fn_name.to_string());
+                            }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
                         }
                     }
@@ -1029,13 +1038,27 @@ mod checked {
                 if !module_metadata_map.is_empty() {
                     modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
                 }
+                if !module_view_functions.view_functions.is_empty() {
+                    package_view_functions_map
+                        .view_functions
+                        .contents
+                        .push(Entry {
+                            key: module.name().to_string(),
+                            value: module_view_functions,
+                        });
+                }
                 // End of PackageMetadataV1 specific
             }
         }
 
         // Only publish package metadata if there is at least one module with
         // relevant metadata
-        if !modules_metadata_map.is_empty() {
+        if !modules_metadata_map.is_empty()
+            || !package_view_functions_map
+                .view_functions
+                .contents
+                .is_empty()
+        {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
             // Create the package metadata object content
@@ -1052,6 +1075,11 @@ mod checked {
                 // used_in_non_entry_move_call
                 false,
                 &metadata.to_bcs_bytes(),
+            )?;
+            context.attach_dynamic_field_to_object(
+                metadata_uid,
+                String::from("view_functions"),
+                package_view_functions_map,
             )?;
             // Freeze the package metadata object
             context.freeze_object(package_metadata)?
