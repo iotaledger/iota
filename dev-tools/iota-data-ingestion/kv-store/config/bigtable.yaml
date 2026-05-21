@@ -66,3 +66,18 @@ tasks:
       column-family: "iota"
       timeout-secs: 60
       # emulator-host: "localhost:8086"
+
+      # Subset of BigTable tables this worker writes to.
+      #
+      # Default (field omitted or empty list): writes every supported
+      # table. Production deployments should leave this unset.
+      #
+      # Set to a list of tables when running a backfill that should
+      # populate only those tables, without re-writing data the main
+      # ingestion pipeline already owns.
+      #
+      # tables:
+      #   - objects
+      #   - transactions
+      #   - transactions-by-address
+      #   - checkpoints
