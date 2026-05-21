@@ -1,0 +1,37 @@
+warning: unused variable: `other`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:503:37
+    |
+503 |     fn check_join_invariants(&self, other: &Self) {
+    |                                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `r`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:558:44
+    |
+558 |     fn check_self_epsilon_invariant(&self, r: Ref) {
+    |                                            ^ help: if this is intentional, prefix it with an underscore: `_r`
+
+warning: method `check_invariants` is never used
+   --> external-crates/move/crates/move-regex-borrow-graph/src/references.rs:188:19
+    |
+187 | impl<Loc, Lbl: Ord> Edge<Loc, Lbl> {
+    | ---------------------------------- method in this implementation
+188 |     pub(crate) fn check_invariants(&self) {
+    |                   ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `move-regex-borrow-graph` (lib) generated 3 warnings (run `cargo fix --lib -p move-regex-borrow-graph` to apply 2 suggestions)
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.45s
+warning: the following packages contain code that will be rejected by a future version of Rust: num-bigint-dig v0.8.4
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/stress --local false --fullnode-rpc-addresses 'http://127.0.0.1:9000' --use-fullnode-for-execution true --use-fullnode-for-reconfig true --genesis-blob-path /Users/andrewcullen/Documents/GitHub/iota/dev-tools/iota-private-network/configs/genesis/genesis.blob --keystore-path /Users/andrewcullen/Documents/GitHub/iota/dev-tools/iota-private-network/configs/genesis/benchmark.keystore --primary-gas-owner-id 0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681 --num-client-threads 4 --num-transfer-accounts 2 --run-duration 120s bench --target-qps 2000 --num-workers 12 --in-flight-ratio 5 --transfer-object 100 --shared-counter 0`
+Found new state (reference gas price and/or protocol config) from system state object = 1000
+Benchmark Report:
++-------------+-----+-----+--------+-----------------+-------------+---------------+---------------+---------------+------------------------+-------------------+-----------------------------+
+| duration(s) | tps | cps | error% | expected error% | success txs | latency (min) | latency (p50) | latency (p99) | gas used (NANOS total) | gas used (NANOS   | gas used/hr (NANOS approx.) |
+|             |     |     |        |                 |             |               |               |               |                        | computation cost) |                             |
++=============================================================================================================================================================================================+
+| 120         | 899 | 899 | 0      | 0               | 107896      | 604           | 8807          | 19087         | 319,458,476,800        | 855,904,000,000   | 9,583,754,304,000           |
++-------------+-----+-----+--------+-----------------+-------------+---------------+---------------+---------------+------------------------+-------------------+-----------------------------+

@@ -145,6 +145,24 @@ fn check_execution_overload(
         .get_cache_commit()
         .approximate_pending_transaction_count() as usize;
 
+    // Surface the rate and cache-pressure raw inputs to the load-shedding
+    // calculation as gauges so dashboards can answer "why is this source's
+    // percentage what it is?". Queueing latency and inflight queue length are
+    // already exposed via `execution_queueing_delay_s` and
+    // `transaction_manager_num_pending_certificates` respectively.
+    authority
+        .metrics
+        .overload_signal_txn_ready_rate_tps
+        .set(txn_ready_rate as i64);
+    authority
+        .metrics
+        .overload_signal_execution_rate_tps
+        .set(execution_rate as i64);
+    authority
+        .metrics
+        .overload_signal_cache_pending_count
+        .set(cache_pending_count as i64);
+
     debug!(
         "Check authority overload signal, queueing latency {:?}, ready rate {:?}, execution rate {:?}, inflight queue len {:?}, cache pending count {:?}.",
         queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len, cache_pending_count
@@ -184,6 +202,21 @@ fn check_execution_overload(
     authority
         .metrics
         .cache_backpressure_load_shedding_percentage
+        .set(cache_based_percentage as i64);
+    authority
+        .metrics
+        .authority_load_shedding_source
+        .with_label_values(&["latency"])
+        .set(latency_based_percentage as i64);
+    authority
+        .metrics
+        .authority_load_shedding_source
+        .with_label_values(&["queue_length"])
+        .set(queue_based_percentage as i64);
+    authority
+        .metrics
+        .authority_load_shedding_source
+        .with_label_values(&["cache_backpressure"])
         .set(cache_based_percentage as i64);
 
     // The final load shedding percentage combines three signals:

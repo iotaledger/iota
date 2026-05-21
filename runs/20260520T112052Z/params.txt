@@ -1,0 +1,16 @@
+ts=20260520T112052Z
+qps=2000
+duration=120s
+workers=12
+in_flight_ratio=5
+num_transfer_accounts=2
+num_client_threads=4
+transfer_object_pct=100
+shared_counter_pct=0
+execution_delay_ms=100
+execution_delay_ms_per_validator=0,0,0,20
+fullnode_rpc=http://127.0.0.1:9000
+primary_gas_owner=0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681
+start_epoch=1779276052
+end_epoch=1779276207
+exit_code=0

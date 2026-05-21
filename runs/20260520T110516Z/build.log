@@ -1,0 +1,74 @@
+   Compiling iota-network-stack v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-network-stack)
+   Compiling iota-protocol-config v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-protocol-config)
+warning: unused variable: `other`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:503:37
+    |
+503 |     fn check_join_invariants(&self, other: &Self) {
+    |                                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `r`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:558:44
+    |
+558 |     fn check_self_epsilon_invariant(&self, r: Ref) {
+    |                                            ^ help: if this is intentional, prefix it with an underscore: `_r`
+
+warning: method `check_invariants` is never used
+   --> external-crates/move/crates/move-regex-borrow-graph/src/references.rs:188:19
+    |
+187 | impl<Loc, Lbl: Ord> Edge<Loc, Lbl> {
+    | ---------------------------------- method in this implementation
+188 |     pub(crate) fn check_invariants(&self) {
+    |                   ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `move-regex-borrow-graph` (lib) generated 3 warnings (run `cargo fix --lib -p move-regex-borrow-graph` to apply 2 suggestions)
+   Compiling telemetry-subscribers v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/telemetry-subscribers)
+   Compiling iota-network v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-network)
+   Compiling iota-grpc-types v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-grpc-types)
+   Compiling iota-benchmark v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-benchmark)
+   Compiling iota-node v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-node)
+   Compiling starfish-config v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/crates/starfish/config)
+   Compiling iota-types v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-types)
+   Compiling iota-framework v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-framework)
+   Compiling iota-framework-snapshot v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-framework-snapshot)
+   Compiling iota-package-management v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-package-management)
+   Compiling iota-common v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-common)
+   Compiling iota-names v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-names)
+   Compiling iota-verifier-latest v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/iota-execution/latest/iota-verifier)
+   Compiling iota-move-natives-latest v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/iota-execution/latest/iota-move-natives)
+   Compiling iota-keys v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-keys)
+   Compiling iota-package-resolver v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-package-resolver)
+   Compiling iota-json v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-json)
+   Compiling iota-node-storage v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-node-storage)
+   Compiling iota-authority-aggregation v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-authority-aggregation)
+   Compiling iota-metrics-push-client v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-metrics-push-client)
+   Compiling typed-store v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/typed-store)
+   Compiling iota-json-rpc-types v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-json-rpc-types)
+   Compiling starfish-core v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/crates/starfish/core)
+   Compiling iota-adapter-latest v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/iota-execution/latest/iota-adapter)
+   Compiling iota-execution v0.1.0 (/Users/andrewcullen/Documents/GitHub/iota/iota-execution)
+   Compiling iota-genesis-common v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-genesis-common)
+   Compiling iota-config v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-config)
+   Compiling iota-json-rpc-api v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-json-rpc-api)
+   Compiling iota-transaction-builder v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-transaction-builder)
+   Compiling iota-storage v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-storage)
+   Compiling iota-transaction-checks v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-transaction-checks)
+   Compiling iota-grpc-server v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-grpc-server)
+   Compiling iota-sdk v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-sdk)
+   Compiling iota-archival v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-archival)
+   Compiling iota-move-build v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-move-build)
+   Compiling iota-genesis-builder v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-genesis-builder)
+   Compiling iota-simulator v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-simulator)
+   Compiling iota-swarm-config v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-swarm-config)
+   Compiling iota-test-transaction-builder v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-test-transaction-builder)
+   Compiling iota-core v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-core)
+   Compiling iota-snapshot v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-snapshot)
+   Compiling iota-json-rpc v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-json-rpc)
+   Compiling iota-swarm v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/iota-swarm)
+   Compiling test-cluster v1.23.0-alpha (/Users/andrewcullen/Documents/GitHub/iota/crates/test-cluster)
+    Finished `release` profile [optimized + debuginfo] target(s) in 4m 19s
+warning: the following packages contain code that will be rejected by a future version of Rust: num-bigint-dig v0.8.4
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

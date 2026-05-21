@@ -1,0 +1,81 @@
+warning: unused variable: `other`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:503:37
+    |
+503 |     fn check_join_invariants(&self, other: &Self) {
+    |                                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `r`
+   --> external-crates/move/crates/move-regex-borrow-graph/src/collections.rs:558:44
+    |
+558 |     fn check_self_epsilon_invariant(&self, r: Ref) {
+    |                                            ^ help: if this is intentional, prefix it with an underscore: `_r`
+
+warning: method `check_invariants` is never used
+   --> external-crates/move/crates/move-regex-borrow-graph/src/references.rs:188:19
+    |
+187 | impl<Loc, Lbl: Ord> Edge<Loc, Lbl> {
+    | ---------------------------------- method in this implementation
+188 |     pub(crate) fn check_invariants(&self) {
+    |                   ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `move-regex-borrow-graph` (lib) generated 3 warnings (run `cargo fix --lib -p move-regex-borrow-graph` to apply 2 suggestions)
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.45s
+warning: the following packages contain code that will be rejected by a future version of Rust: num-bigint-dig v0.8.4
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/stress --local false --fullnode-rpc-addresses 'http://127.0.0.1:9000' --use-fullnode-for-execution true --use-fullnode-for-reconfig true --genesis-blob-path /Users/andrewcullen/Documents/GitHub/iota/dev-tools/iota-private-network/configs/genesis/genesis.blob --keystore-path /Users/andrewcullen/Documents/GitHub/iota/dev-tools/iota-private-network/configs/genesis/benchmark.keystore --primary-gas-owner-id 0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681 --num-client-threads 4 --num-transfer-accounts 2 --run-duration 120s bench --target-qps 2000 --num-workers 12 --in-flight-ratio 5 --transfer-object 100 --shared-counter 0`
+Found new state (reference gas price and/or protocol config) from system state object = 1000
+2026-05-18T16:23:51.426539Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("48Q8pEeFmPTuL2GapPvNpxBMF6EYZrx74M11tfHr5GZk") retry_cnt=0
+2026-05-18T16:23:51.887567Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("CqtCCdrq5fAzRxbtmPKd5yXgJ2u2PWrKWVRpzYcxdeA") retry_cnt=0
+2026-05-18T16:23:51.915177Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("6woaoTvYtzhW6ZaXe8ihA6epNomXc4VETzFUZpjgTwB2") retry_cnt=0
+2026-05-18T16:23:51.915180Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("G7fc3cvnaJ2C3WRbTRD9jsg1BCF6jckjopJXdwhwhuyw") retry_cnt=0
+2026-05-18T16:23:52.007900Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("84dUvfdpasT2xmwBzmTaYK8tBEi4PwWxMDRc3sM3iXmp") retry_cnt=0
+2026-05-18T16:23:52.096043Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("6Y4JBfR1TzUEkwXZFSgovWk9F48cYd7ccSvfBz4UzdEF") retry_cnt=0
+2026-05-18T16:23:52.151638Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("7L5qyVKKWzP1wsofhNGzsfNJnac5rFWxgHpG4wZK4nFH") retry_cnt=0
+2026-05-18T16:23:52.188797Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("Fj219aX7rx5pBb8akHzExGrV8irM7fMkTr5vwoAkXb7k") retry_cnt=0
+2026-05-18T16:23:52.482214Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("HDeSuJjg3ewugSqZUNj3VajR2UM5TntpGZTRb2nRFcwn") retry_cnt=0
+2026-05-18T16:23:52.809900Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("344cSQ6PTG6KJaLVhXmotL9QHz3ffQMkPmpK1U6Kz2BA") retry_cnt=0
+2026-05-18T16:23:52.820809Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("JiUYEkhEgsWjDfmvCPNiG1Q2bqufCWvJqoKSNhASyFN") retry_cnt=0
+2026-05-18T16:23:53.325341Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("DuNJVwrexsi6e89tsEzgk4ZM8spnxm2PhfYAcFx2CN9A") retry_cnt=0
+2026-05-18T16:23:53.681998Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("4NVgnRea4nTw43VLrsTybejNQ3YF7qqj4RXw2aikkB6W") retry_cnt=0
+2026-05-18T16:23:53.702131Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("721Mt79zEBf8SqdJrhkBJXzTk9rsKr8ApWa8tyfn3ykz") retry_cnt=0
+2026-05-18T16:23:53.786778Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("Y4FKqYkkqCSZYQhEGyiNVKNtv7jr96WoXu598dKKPM7") retry_cnt=0
+2026-05-18T16:23:54.118057Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("31kpoAscuUPLngnWRYR3JCN2wok1yBb2f8xGHppScRoF") retry_cnt=0
+2026-05-18T16:23:54.185070Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("8pQJouyYWXXMgQZjS4aCwHcEnBjmGSZUzJY2RipXxLrd") retry_cnt=0
+2026-05-18T16:23:54.203590Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("3feoyFXC3v8rLBCeHN2SY6LDtWjthKCXb9E1BFULTyNm") retry_cnt=0
+2026-05-18T16:23:54.457357Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("6eu1spyWv3fWNyYgdz6hfnryv89AEJU33ffn6x8Jmmza") retry_cnt=0
+2026-05-18T16:23:54.600886Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("7CGQhwXDFMkPyyuRsFzGY1rUdJtFwfBA9PFv5sGgi6VN") retry_cnt=0
+2026-05-18T16:23:54.601257Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("BpBpiP1bfv11R5zgfTxktioeFn9TSZudujdvwpBWXKqm") retry_cnt=0
+2026-05-18T16:23:55.162999Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("2x7wfvE26vVU3mGh5JVZtaPeNMH9jiQa4MJrBicDDMPJ") retry_cnt=0
+2026-05-18T16:23:55.421670Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("DvmjDxbrSPAMCcN2bjjKpPRLb519DCTw463v855NFa8T") retry_cnt=0
+2026-05-18T16:23:55.544281Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("FQpCW2EVvmHB8fW8ufx39VQNu96pvt5TWy8RzjkGnvV5") retry_cnt=0
+2026-05-18T16:23:55.616403Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("AvzifcjXArciuqoWSfkMBtXHSaA2p7xU1gYiFqbZF4hU") retry_cnt=0
+2026-05-18T16:23:55.672196Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("7bVq7NWY6aPydGgSJZV2T3atq3h3XXLhqNGLqnniY1eA") retry_cnt=0
+2026-05-18T16:23:55.748907Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("DjVdLLgb79kQ1Nh9KzDKKcLGFNthbg9sCVYC5GmNqSvL") retry_cnt=0
+2026-05-18T16:23:55.935700Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("91MVgXgbhj97WRhTKjrWRkDaGEamhoKzx4vLkdws139Y") retry_cnt=0
+2026-05-18T16:23:56.036902Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("GxRhDTYtSV44sbLzxej53SM2cLr2ecggs1EAZm1oH7U") retry_cnt=0
+2026-05-18T16:23:56.043906Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("97cBUntQJJERcic778EQkg8trLrHmAGZbXGzmHBzfv3n") retry_cnt=0
+2026-05-18T16:23:56.678478Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("4rhru6MWSX7ZASxJHUL4J253gUtpvqkfAUX4fQPS9Lnk") retry_cnt=0
+2026-05-18T16:23:56.927381Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("ALdzzKyNuc6c89HFqDZWPKdGh2buFG7PgGuEktkzQgjc") retry_cnt=0
+2026-05-18T16:23:57.159556Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("8ubPDK6ye681WxempvnMWGuBnBAZrng9AiZxC7Kyqsn1") retry_cnt=0
+2026-05-18T16:23:57.356467Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("HLYrKCZvK72hgS3SXEV3nvDXnQZRYeZpCDdc7dTX2app") retry_cnt=0
+2026-05-18T16:23:57.475849Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("Ba2YH8VTLPb6x7pzzo2yUtRazBWnbCYpo3U3vr1fwttx") retry_cnt=0
+2026-05-18T16:23:57.831456Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("2GMzQS2jbTtkyuoB3JWWDXfzE78VYhqgFUTYYg6L66DH") retry_cnt=0
+2026-05-18T16:23:57.916610Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("AhXTnDFJkL1eHKcd4xJucxBkPtuEm1e1ND5jpTanj1kx") retry_cnt=0
+2026-05-18T16:23:58.389242Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("5Qdg4ZPczCMasdU9Uj9ZWYp7M1AfbmafyFrMKvXmxWpr") retry_cnt=0
+2026-05-18T16:23:58.835560Z ERROR iota_benchmark: Transaction failed with err: Rpc(Call(ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None })) tx_digest=Digest("5eVSdGtigvnBw82S5CE8U7U5JoQEwv1uYJZ36kQ2c3PQ") retry_cnt=0
+2026-05-18T16:23:59.485106Z ERROR iota_benchmark::system_state_observer: Failed to get system state object: client error (SendRequest)
+
+Caused by:
+    0: dispatch task is gone
+    1: runtime dropped the dispatch task
+Benchmark Report:
++-------------+-----+-----+--------+-----------------+-------------+---------------+---------------+---------------+------------------------+-------------------+-----------------------------+
+| duration(s) | tps | cps | error% | expected error% | success txs | latency (min) | latency (p50) | latency (p99) | gas used (NANOS total) | gas used (NANOS   | gas used/hr (NANOS approx.) |
+|             |     |     |        |                 |             |               |               |               |                        | computation cost) |                             |
++=============================================================================================================================================================================================+
+| 120         | 676 | 676 | 0      | 0               | 81130       | 341           | 8647          | 20367         | 240,209,704,000        | 768,036,000,000   | 7,206,291,120,000           |
++-------------+-----+-----+--------+-----------------+-------------+---------------+---------------+---------------+------------------------+-------------------+-----------------------------+

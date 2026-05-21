@@ -1,0 +1,88 @@
+# validator-1-8080.yaml
+max-txn-age-in-queue:
+  secs: 0
+  nanos: 500000000
+overload-monitor-interval:
+  secs: 10
+  nanos: 0
+execution-queue-latency-soft-limit:
+  secs: 1
+  nanos: 0
+execution-queue-latency-hard-limit:
+  secs: 10
+  nanos: 0
+max-load-shedding-percentage: 95
+min-load-shedding-percentage-above-hard-limit: 50
+safe-transaction-ready-rate: 100
+check-system-overload-at-signing: true
+max-transaction-manager-queue-length: 100000
+max-transaction-manager-per-object-queue-length: 20
+max-transaction-manager-queue-length-soft-limit-pct: 50
+execution-delay-ms: 0
+
+# validator-2-8080.yaml
+max-txn-age-in-queue:
+  secs: 0
+  nanos: 500000000
+overload-monitor-interval:
+  secs: 10
+  nanos: 0
+execution-queue-latency-soft-limit:
+  secs: 1
+  nanos: 0
+execution-queue-latency-hard-limit:
+  secs: 10
+  nanos: 0
+max-load-shedding-percentage: 95
+min-load-shedding-percentage-above-hard-limit: 50
+safe-transaction-ready-rate: 100
+check-system-overload-at-signing: true
+max-transaction-manager-queue-length: 100000
+max-transaction-manager-per-object-queue-length: 20
+max-transaction-manager-queue-length-soft-limit-pct: 50
+execution-delay-ms: 0
+
+# validator-3-8080.yaml
+max-txn-age-in-queue:
+  secs: 0
+  nanos: 500000000
+overload-monitor-interval:
+  secs: 10
+  nanos: 0
+execution-queue-latency-soft-limit:
+  secs: 1
+  nanos: 0
+execution-queue-latency-hard-limit:
+  secs: 10
+  nanos: 0
+max-load-shedding-percentage: 95
+min-load-shedding-percentage-above-hard-limit: 50
+safe-transaction-ready-rate: 100
+check-system-overload-at-signing: true
+max-transaction-manager-queue-length: 100000
+max-transaction-manager-per-object-queue-length: 20
+max-transaction-manager-queue-length-soft-limit-pct: 50
+execution-delay-ms: 0
+
+# validator-4-8080.yaml
+max-txn-age-in-queue:
+  secs: 0
+  nanos: 500000000
+overload-monitor-interval:
+  secs: 10
+  nanos: 0
+execution-queue-latency-soft-limit:
+  secs: 1
+  nanos: 0
+execution-queue-latency-hard-limit:
+  secs: 10
+  nanos: 0
+max-load-shedding-percentage: 95
+min-load-shedding-percentage-above-hard-limit: 50
+safe-transaction-ready-rate: 100
+check-system-overload-at-signing: true
+max-transaction-manager-queue-length: 100000
+max-transaction-manager-per-object-queue-length: 20
+max-transaction-manager-queue-length-soft-limit-pct: 50
+execution-delay-ms: 20
+

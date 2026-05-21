@@ -325,11 +325,19 @@ impl IotaNode {
                         authority_name,
                         current as u8,
                     );
-                    if let Err(e) = consensus_adapter.submit(transaction, None, &epoch_store) {
-                        tracing::warn!(
-                            "Failed to submit overload notification to consensus: {:?}",
-                            e
-                        );
+                    match consensus_adapter.submit(transaction, None, &epoch_store) {
+                        Ok(_) => {
+                            state
+                                .metrics
+                                .authority_overload_notifications_sent_total
+                                .inc();
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to submit overload notification to consensus: {:?}",
+                                e
+                            );
+                        }
                     }
                 }
             }

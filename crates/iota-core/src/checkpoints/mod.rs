@@ -1295,6 +1295,91 @@ impl CheckpointBuilder {
                 .get(&summary.sequence_number)?
             {
                 if previously_computed_summary != *summary {
+                    // Diagnostic dump: capture inputs to the divergent build to
+                    // /opt/iota/db/checkpoint-divergence.log (host-bind-mounted,
+                    // so it survives the container restart-loop). When a
+                    // validator panics here repeatedly, in-memory metrics never
+                    // get scraped — we need on-disk artifacts to figure out
+                    // which transactions diverged.
+                    //
+                    // Wrapped in a closure so any I/O failure can't suppress
+                    // the fatal! that must follow.
+                    let _ = (|| -> std::io::Result<()> {
+                        use std::io::Write;
+                        let mut f = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/opt/iota/db/checkpoint-divergence.log")?;
+                        let ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+                        writeln!(f, "==== checkpoint divergence at unix={ts} ====")?;
+                        writeln!(f, "  sequence_number: {}", summary.sequence_number)?;
+                        writeln!(f, "  prev summary: {previously_computed_summary:?}")?;
+                        writeln!(f, "  new  summary: {summary:?}")?;
+                        let new_digests: Vec<_> =
+                            contents.iter().map(|d| d.transaction).collect();
+                        writeln!(f, "  new contents ({} txs):", new_digests.len())?;
+                        for d in &new_digests {
+                            writeln!(f, "    {d:?}")?;
+                        }
+                        let prev_content_digest = previously_computed_summary.content_digest;
+                        match self
+                            .store
+                            .tables
+                            .checkpoint_content
+                            .get(&prev_content_digest)
+                        {
+                            Ok(Some(prev)) => {
+                                let prev_digests: Vec<_> =
+                                    prev.iter().map(|d| d.transaction).collect();
+                                writeln!(
+                                    f,
+                                    "  prev contents ({} txs):",
+                                    prev_digests.len()
+                                )?;
+                                for d in &prev_digests {
+                                    writeln!(f, "    {d:?}")?;
+                                }
+                                let new_set: std::collections::HashSet<_> =
+                                    new_digests.iter().collect();
+                                let prev_set: std::collections::HashSet<_> =
+                                    prev_digests.iter().collect();
+                                let only_new: Vec<_> =
+                                    new_set.difference(&prev_set).collect();
+                                let only_prev: Vec<_> =
+                                    prev_set.difference(&new_set).collect();
+                                writeln!(
+                                    f,
+                                    "  only in NEW build ({}):",
+                                    only_new.len()
+                                )?;
+                                for d in &only_new {
+                                    writeln!(f, "    {d:?}")?;
+                                }
+                                writeln!(
+                                    f,
+                                    "  only in PREV build ({}):",
+                                    only_prev.len()
+                                )?;
+                                for d in &only_prev {
+                                    writeln!(f, "    {d:?}")?;
+                                }
+                            }
+                            Ok(None) => writeln!(
+                                f,
+                                "  prev contents missing from checkpoint_content for digest {prev_content_digest:?}"
+                            )?,
+                            Err(e) => writeln!(
+                                f,
+                                "  prev contents lookup failed: {e:?}"
+                            )?,
+                        }
+                        writeln!(f)?;
+                        f.flush()?;
+                        Ok(())
+                    })();
                     // Panic so that we don't send out an equivocating checkpoint sig.
                     fatal!(
                         "Checkpoint {} was previously built with a different result: {previously_computed_summary:?} vs {summary:?}",

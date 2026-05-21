@@ -1,0 +1,46 @@
+=== Per-host summary ===
+
+-- local_pct --
+       fullnode-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-2  peak=   0.000  avg=   0.000  final=   0.000
+      validator-3  peak=   0.000  avg=   0.000  final=   0.000
+      validator-4  peak=   0.000  avg=   0.000  final=   0.000
+
+-- quorum_pct --
+
+-- useful_tps --
+       fullnode-1  peak=1173.600  avg= 380.940  final=   0.397
+      validator-1  peak=1399.427  avg= 402.824  final=   1.125
+      validator-2  peak=1263.235  avg= 465.643  final=   0.464
+      validator-3  peak=1577.867  avg= 402.128  final=   1.333
+      validator-4  peak=1585.706  avg= 397.021  final=   1.132
+
+-- sent_rate --
+
+-- dropped_rate --
+
+-- queue_p99 --
+       fullnode-1  peak=   1.990  avg=   1.079  final=   1.990
+      validator-1  peak=   0.100  avg=   0.078  final=   0.100
+      validator-2  peak=   0.243  avg=   0.090  final=   0.050
+      validator-3  peak=   0.995  avg=   0.386  final=   0.995
+      validator-4  peak=   0.243  avg=   0.094  final=   0.100
+
+=== Counter totals over run window ===
+
+-- sent_total --
+       fullnode-1  total=0
+      validator-1  total=70.00343642611683
+      validator-2  total=151.00296438807962
+      validator-3  total=106.00208489044489
+      validator-4  total=208.00408275428885
+
+-- dropped_total --
+       fullnode-1  total=0
+      validator-1  total=96663.74516445753
+      validator-2  total=4803.0942910989825
+      validator-3  total=26932.529719523227
+      validator-4  total=4803.094276292545
+
+=== Source breakdown (final percentage per host x source) ===

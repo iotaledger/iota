@@ -295,6 +295,16 @@ pub struct AuthorityMetrics {
     pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
     pub(crate) cache_backpressure_load_shedding_percentage: IntGauge,
 
+    // Post-consensus load-shedding instrumentation.
+    pub(crate) authority_load_shedding_source: IntGaugeVec,
+    pub authority_overload_notifications_sent_total: IntCounter,
+    pub(crate) authority_overload_notifications_received_total: IntCounterVec,
+    pub(crate) authority_quorum_load_shedding_percentage: IntGauge,
+    pub(crate) post_consensus_load_shedding_dropped_transactions_total: IntCounter,
+    pub(crate) overload_signal_txn_ready_rate_tps: IntGauge,
+    pub(crate) overload_signal_execution_rate_tps: IntGauge,
+    pub(crate) overload_signal_cache_pending_count: IntGauge,
+
     pub(crate) transaction_overload_sources: IntCounterVec,
 
     // Post processing metrics
@@ -559,6 +569,48 @@ impl AuthorityMetrics {
             cache_backpressure_load_shedding_percentage: register_int_gauge_with_registry!(
                 "cache_backpressure_load_shedding_percentage",
                 "Percentage of transactions shed due to writeback-cache backpressure.",
+                registry)
+                .unwrap(),
+            authority_load_shedding_source: register_int_gauge_vec_with_registry!(
+                "authority_load_shedding_source",
+                "Per-signal load-shedding percentage. The maximum across labels is the value advertised by the validator.",
+                &["source"],
+                registry)
+                .unwrap(),
+            authority_overload_notifications_sent_total: register_int_counter_with_registry!(
+                "authority_overload_notifications_sent_total",
+                "Number of OverloadNotificationV1 consensus transactions submitted by this validator.",
+                registry)
+                .unwrap(),
+            authority_overload_notifications_received_total: register_int_counter_vec_with_registry!(
+                "authority_overload_notifications_received_total",
+                "Number of OverloadNotificationV1 consensus transactions observed, by originating authority.",
+                &["from_authority"],
+                registry)
+                .unwrap(),
+            authority_quorum_load_shedding_percentage: register_int_gauge_with_registry!(
+                "authority_quorum_load_shedding_percentage",
+                "Stake-weighted 2f+1 percentile load-shedding percentage applied to the most recent consensus commit.",
+                registry)
+                .unwrap(),
+            post_consensus_load_shedding_dropped_transactions_total: register_int_counter_with_registry!(
+                "post_consensus_load_shedding_dropped_transactions_total",
+                "Number of user transactions dropped post-consensus by the load-shedding mechanism.",
+                registry)
+                .unwrap(),
+            overload_signal_txn_ready_rate_tps: register_int_gauge_with_registry!(
+                "overload_signal_txn_ready_rate_tps",
+                "Latest transaction-ready rate (tx/s) read by the overload monitor; latency-signal input.",
+                registry)
+                .unwrap(),
+            overload_signal_execution_rate_tps: register_int_gauge_with_registry!(
+                "overload_signal_execution_rate_tps",
+                "Latest execution rate (tx/s) read by the overload monitor; latency-signal input.",
+                registry)
+                .unwrap(),
+            overload_signal_cache_pending_count: register_int_gauge_with_registry!(
+                "overload_signal_cache_pending_count",
+                "Latest writeback-cache pending transaction count read by the overload monitor; cache-backpressure-signal input.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(

@@ -1290,6 +1290,13 @@ pub struct AuthorityOverloadConfig {
     /// via the same-named accessor, which clamps the value to <=100.
     #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
     pub max_transaction_manager_queue_length_soft_limit_pct: u32,
+
+    /// Test-only: artificial sleep applied to every transaction immediately
+    /// before execution. Used by the post-consensus load-shedding stress
+    /// harness to manufacture queueing latency on demand. `None` (default)
+    /// is a no-op.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_delay_ms: Option<u64>,
 }
 
 impl AuthorityOverloadConfig {
@@ -1363,6 +1370,7 @@ impl Default for AuthorityOverloadConfig {
                 default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
+            execution_delay_ms: None,
         }
     }
 }

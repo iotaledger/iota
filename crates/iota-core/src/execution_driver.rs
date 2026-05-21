@@ -115,6 +115,12 @@ pub async fn execution_process(
                 return;
             }
 
+            // Test-only artificial execution delay used by the post-consensus
+            // load-shedding stress harness to manufacture queueing latency.
+            if let Some(ms) = authority.config.authority_overload_config.execution_delay_ms {
+                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+            }
+
             fail_point_async!("transaction_execution_delay");
 
             match authority.try_execute_immediately(

@@ -1,0 +1,73 @@
+=== Per-host summary ===
+
+-- local_pct --
+       fullnode-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-2  peak=   0.000  avg=   0.000  final=   0.000
+      validator-3  peak=   0.000  avg=   0.000  final=   0.000
+      validator-4  peak=   0.000  avg=   0.000  final=   0.000
+
+-- quorum_pct --
+       fullnode-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-2  peak=   0.000  avg=   0.000  final=   0.000
+      validator-3  peak=   0.000  avg=   0.000  final=   0.000
+      validator-4  peak=   0.000  avg=   0.000  final=   0.000
+
+-- useful_tps --
+       fullnode-1  peak= 597.933  avg=  97.244  final=   0.000
+      validator-1  peak= 878.042  avg= 123.509  final=   0.641
+      validator-2  peak= 721.533  avg= 129.356  final=   0.954
+      validator-3  peak= 725.837  avg= 129.334  final=   1.075
+      validator-4  peak= 780.208  avg= 124.334  final=   1.115
+
+-- sent_rate --
+       fullnode-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-2  peak=   0.000  avg=   0.000  final=   0.000
+      validator-3  peak=   0.000  avg=   0.000  final=   0.000
+      validator-4  peak=   0.000  avg=   0.000  final=   0.000
+
+-- dropped_rate --
+       fullnode-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-1  peak=   0.000  avg=   0.000  final=   0.000
+      validator-2  peak=   0.000  avg=   0.000  final=   0.000
+      validator-3  peak=   0.000  avg=   0.000  final=   0.000
+      validator-4  peak=   0.000  avg=   0.000  final=   0.000
+
+-- queue_p99 --
+       fullnode-1  peak=   2.940  avg=   0.518  final=     nan
+      validator-1  peak=   0.988  avg=   0.082  final=   0.050
+      validator-2  peak=   0.495  avg=   0.056  final=   0.050
+      validator-3  peak=   0.487  avg=   0.086  final=   0.050
+      validator-4  peak=   0.489  avg=   0.052  final=     nan
+
+=== Counter totals over run window ===
+
+-- sent_total --
+       fullnode-1  total=0
+      validator-1  total=70.00271190445034
+      validator-2  total=151.00176619169258
+      validator-3  total=106.00416297162754
+      validator-4  total=208.0025459905806
+
+-- dropped_total --
+       fullnode-1  total=0
+      validator-1  total=96662.74471388951
+      validator-2  total=4803.056178931785
+      validator-3  total=26933.057708979934
+      validator-4  total=4803.058790349801
+
+=== Source breakdown (final percentage per host x source) ===
+      validator-1  cache_backpressure     final=0.0
+      validator-1  latency                final=0.0
+      validator-1  queue_length           final=0.0
+      validator-2  cache_backpressure     final=0.0
+      validator-2  latency                final=0.0
+      validator-2  queue_length           final=0.0
+      validator-3  cache_backpressure     final=0.0
+      validator-3  latency                final=0.0
+      validator-3  queue_length           final=0.0
+      validator-4  cache_backpressure     final=0.0
+      validator-4  latency                final=0.0
+      validator-4  queue_length           final=0.0

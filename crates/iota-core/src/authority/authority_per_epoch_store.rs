@@ -3184,6 +3184,17 @@ impl AuthorityPerEpochStore {
         } else {
             0
         };
+        authority_metrics
+            .authority_quorum_load_shedding_percentage
+            .set(drop_percentage as i64);
+        // DEBUG (TEMPORARY): force the applied drop_percentage to 0, regardless
+        // of what the quorum calculation produced. The metric above still
+        // reports the calculated value so the dashboard remains informative.
+        // Goal of this override: A/B test whether the checkpoint-divergence
+        // bug exists independently of the post-consensus drop path. If the
+        // divergence still occurs with zero drops, the bug is elsewhere.
+        // Revert this shadowing when the experiment is done.
+        let drop_percentage: u32 = 0;
         let drop_seed = consensus_commit_info.round;
 
         for tx in verified_transactions {
@@ -3199,6 +3210,9 @@ impl AuthorityPerEpochStore {
                 if drop_percentage > 0 {
                     if let Some(digest) = tx.0.transaction.user_transaction_digest() {
                         if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .post_consensus_load_shedding_dropped_transactions_total
+                                .inc();
                             continue;
                         }
                     }
@@ -4614,6 +4628,10 @@ impl AuthorityPerEpochStore {
                         percentage
                     );
                     output.record_overload_notification(*authority, *percentage);
+                    authority_metrics
+                        .authority_overload_notifications_received_total
+                        .with_label_values(&[&authority.concise().to_string()])
+                        .inc();
                 } else {
                     debug!(
                         "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
