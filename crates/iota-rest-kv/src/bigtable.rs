@@ -407,7 +407,7 @@ impl KvStoreClient {
         // proportionally increase the number of concurrent BigTable calls per request.
         let max_buffered_concurrent_futures = req.len().clamp(1, MAX_CONCURRENT_FUTURES);
 
-        stream::iter(req.into_iter())
+        stream::iter(req)
             .map(|range| self.object_before_version(range))
             .buffered(max_buffered_concurrent_futures)
             .try_collect::<Vec<Option<Bytes>>>()

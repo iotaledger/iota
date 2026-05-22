@@ -457,11 +457,11 @@ impl CommitObserver {
 
         let num_commits = unprocessed_commits.len();
         let mut committed_subdags = Vec::new();
-        let mut expected_commit_index = self.last_sent_commit_index + 1;
-        for (index, commit) in unprocessed_commits.into_iter().enumerate() {
+        for (expected_commit_index, (index, commit)) in
+            (self.last_sent_commit_index + 1..).zip(unprocessed_commits.into_iter().enumerate())
+        {
             let commit_index = commit.index();
             assert_eq!(commit_index, expected_commit_index);
-            expected_commit_index += 1;
 
             // Only the last commit carries scores for leader schedule consumers.
             let reputation_scores = if index == num_commits - 1 {

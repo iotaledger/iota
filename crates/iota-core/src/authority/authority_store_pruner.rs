@@ -476,14 +476,11 @@ impl AuthorityStorePruner {
 
         let mut pruning_start = Instant::now();
 
-        loop {
-            let Some(ckpt) = checkpoint_store
-                .tables
-                .certified_checkpoints
-                .get(&(checkpoint_number + 1))?
-            else {
-                break;
-            };
+        while let Some(ckpt) = checkpoint_store
+            .tables
+            .certified_checkpoints
+            .get(&(checkpoint_number + 1))?
+        {
             let checkpoint = ckpt.into_inner();
             // Skipping because checkpoint's epoch or checkpoint number is too new.
             // We have to respect the highest executed checkpoint watermark (including the
