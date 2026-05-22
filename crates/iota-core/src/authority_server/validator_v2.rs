@@ -225,10 +225,19 @@ impl ValidatorService {
         // object loading, input validation, coin deny list, and a full dry-run
         // in a single call, so it replaces `handle_transaction_validation_checks`
         // entirely. The legacy path calls the validation-only function.
-        let (attestation_data, owned_objects) =
+        let (attestation_data, owned_objects, verified_tx) =
             if epoch_store.protocol_config().enable_validator_attestation() {
-                match state.attest_transaction(&verified_tx, epoch_store) {
-                    Ok((data, objs)) => (Some(data), objs),
+                let state_for_attest = state.clone();
+                let epoch_store_for_attest = epoch_store.clone();
+                let (result, verified_tx) = tokio::task::spawn_blocking(move || {
+                    let result = state_for_attest
+                        .attest_transaction(&verified_tx, &epoch_store_for_attest);
+                    (result, verified_tx)
+                })
+                .await
+                .expect("attest_transaction blocking task panicked");
+                match result {
+                    Ok((data, objs)) => (Some(data), objs, verified_tx),
                     Err(e) => {
                         let weight = normalize(&e);
                         return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -239,7 +248,7 @@ impl ValidatorService {
                     .handle_transaction_validation_checks(&verified_tx, epoch_store)
                     .await
                 {
-                    Ok(objs) => (None, objs),
+                    Ok(objs) => (None, objs, verified_tx),
                     Err(e) => {
                         let weight = normalize(&e);
                         return (TxStatusUpdate::Rejected { error: e }, weight);
