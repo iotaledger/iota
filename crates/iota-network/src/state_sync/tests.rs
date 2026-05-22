@@ -295,40 +295,45 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     telemetry_subscribers::init_for_testing();
     let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
     // build mock data
-    let (ordered_checkpoints, _ordered_contents, sequence_number_to_digest, checkpoints) =
+    let (ordered_checkpoints, ordered_contents, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
     let temp_dir = iota_common::tempdir().keep();
     // We will delete all checkpoints older than this checkpoint on Node 2
     let oldest_checkpoint_to_keep: u64 = 10;
 
-    // Populate the local directory with checkpoint files
+    // Create archive files for the first `oldest_checkpoint_to_keep` checkpoints
+    {
+        use bytes::Bytes;
+        use iota_data_ingestion_core::history::{
+            CHECKPOINT_FILE_MAGIC,
+            manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+        };
+        use iota_storage::{StorageFormat, blob::{Blob, BlobEncoding}};
+        use iota_types::full_checkpoint_content::CheckpointData;
 
-    // It will be used as a checkpoint bucket
-    for (_idx, summary) in ordered_checkpoints.iter().enumerate() {
-        // TODO: adapt test data
-        // let chk = CheckpointData {
-        //     checkpoint_summary: summary.clone().into(),
-        //     checkpoint_contents:
-        // ordered_contents[idx].clone().into_checkpoint_contents(),
-        //     transactions: vec![],
-        // };
-        // let checkpoint: sui_types::full_checkpoint_content::Checkpoint = chk.into();
-        // let mask = FieldMask::from_paths([
-        //     rpc::v2::Checkpoint::path_builder().sequence_number(),
-        //     rpc::v2::Checkpoint::path_builder().summary().bcs().value(),
-        //     rpc::v2::Checkpoint::path_builder().signature().finish(),
-        //     rpc::v2::Checkpoint::path_builder().contents().bcs().value(),
-        // ]);
-        // let proto_checkpoint = rpc::v2::Checkpoint::merge_from(&checkpoint,
-        // &mask.into()); let proto_bytes = proto_checkpoint.encode_to_vec();
-        let proto_bytes = vec![0_u8; 1];
-        // let compressed = zstd::encode_all(&proto_bytes[..], 3)?;
-        let file_path = temp_dir.join(format!("{}.binpb.zst", summary.sequence_number));
-        // std::fs::write(file_path, compressed)?;
-        FileCompression::zstd_compress(
-            &mut &proto_bytes[..],
-            &mut std::fs::File::create(file_path)?,
-        )?;
+        let mut chk_buf: Vec<u8> = Vec::new();
+        chk_buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
+        chk_buf.push(StorageFormat::Blob as u8);
+        chk_buf.push(FileCompression::None as u8);
+
+        for i in 0..(oldest_checkpoint_to_keep as usize) {
+            let checkpoint_data = CheckpointData {
+                checkpoint_summary: ordered_checkpoints[i].clone().into_inner(),
+                checkpoint_contents: ordered_contents[i].clone().into_checkpoint_contents(),
+                transactions: vec![],
+            };
+            Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?.write(&mut chk_buf)?;
+        }
+
+        let chk_bytes = Bytes::from(chk_buf.clone());
+        let file_metadata =
+            create_file_metadata_from_bytes(chk_bytes, 0..oldest_checkpoint_to_keep)?;
+        std::fs::write(temp_dir.join("0.chk"), &chk_buf)?;
+
+        let mut manifest = Manifest::new(0);
+        manifest.update(oldest_checkpoint_to_keep, file_metadata);
+        let manifest_bytes = finalize_manifest(manifest)?;
+        std::fs::write(temp_dir.join("MANIFEST"), &manifest_bytes[..])?;
     }
     let archive_reader_config = ArchiveReaderConfig {
         remote_store_config: ObjectStoreConfig::default(),
@@ -445,7 +450,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
                 }
             }
         }
-        if total_time.elapsed() > Duration::from_secs(120) {
+        if total_time.elapsed() > Duration::from_secs(20) {
             return Err(anyhow!("Test timed out"));
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
