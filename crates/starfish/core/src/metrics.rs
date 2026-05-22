@@ -252,6 +252,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
+    pub(crate) strong_vote_missing_authorities: Histogram,
+    pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1141,6 +1143,18 @@ impl NodeMetrics {
                 "strong_vote_extra_wait_seconds",
                 "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            strong_vote_missing_authorities: register_histogram_with_registry!(
+                "strong_vote_missing_authorities",
+                "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            strong_blames_emitted_for_leader: register_int_counter_vec_with_registry!(
+                "strong_blames_emitted_for_leader",
+                "Number of proposed blocks that strong-blame the leader (non-empty `missing` set), labeled by leader authority.",
+                &["leader"],
                 registry,
             ).unwrap(),
         }
