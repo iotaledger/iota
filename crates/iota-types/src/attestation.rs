@@ -23,7 +23,6 @@ use crate::{
 ///   signature is needed.
 /// - [`Attestation::Explicit`]: produced by a registered third-party attestor.
 ///   Requires a signature binding the attestation to the transaction.
-#[non_exhaustive]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Attestation {
     Validator {

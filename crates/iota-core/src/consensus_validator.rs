@@ -163,11 +163,6 @@ impl IotaTxValidator {
                                 error: "Explicit attestation not yet supported".into(),
                             });
                         }
-                        _ => {
-                            return Err(IotaError::UnsupportedFeature {
-                                error: "Unknown attestation variant".into(),
-                            });
-                        }
                     }
                 }
 
