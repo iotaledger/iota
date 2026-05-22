@@ -218,3 +218,27 @@ public fun create_package_metadata_v1_for_testing_one_authenticator(
         vector[type_name],
     )
 }
+
+/// Creates a `PackageMetadataV1` instance for testing with package view
+/// function metadata attached as a dynamic field, skipping validation.
+#[test_only]
+public fun create_package_metadata_v1_for_testing_with_view_functions(
+    storage_id: ID,
+    module_name: ascii::String,
+    view_functions: vector<ascii::String>,
+): PackageMetadataV1 {
+    let mut metadata = create_package_metadata_v1_for_testing(
+        storage_id,
+        vector[],
+        vector[],
+        vector[],
+    );
+    let mut package_view_functions = iota::vec_map::empty<ascii::String, vector<ascii::String>>();
+    package_view_functions.insert(module_name, view_functions);
+    dynamic_field::add(
+        &mut metadata.id,
+        PackageViewFunctionsMetadataKey {},
+        PackageViewFunctionsMetadata { package_view_functions },
+    );
+    metadata
+}

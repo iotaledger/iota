@@ -1,0 +1,92 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 6-28:
+//# publish --sender A
+created: object(1,0), object(1,1), object(1,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 13482400, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 30:
+//# run test::view_metadata::assert_view_metadata --sender A --args object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 32:
+//# view-object 1,0
+Owner: Object(fake(1,1))
+Version: 2
+Contents: iota::dynamic_field::Field<iota::package_metadata::PackageViewFunctionsMetadataKey, iota::package_metadata::PackageViewFunctionsMetadata> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    name: iota::package_metadata::PackageViewFunctionsMetadataKey {
+        dummy_field: false,
+    },
+    value: iota::package_metadata::PackageViewFunctionsMetadata {
+        package_view_functions: iota::vec_map::VecMap<std::ascii::String, vector<std::ascii::String>> {
+            contents: vector[
+                iota::vec_map::Entry<std::ascii::String, vector<std::ascii::String>> {
+                    key: std::ascii::String {
+                        bytes: vector[
+                            118u8,
+                            105u8,
+                            101u8,
+                            119u8,
+                            95u8,
+                            109u8,
+                            101u8,
+                            116u8,
+                            97u8,
+                            100u8,
+                            97u8,
+                            116u8,
+                            97u8,
+                        ],
+                    },
+                    value: vector[
+                        std::ascii::String {
+                            bytes: vector[
+                                97u8,
+                                110u8,
+                                115u8,
+                                119u8,
+                                101u8,
+                                114u8,
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+}
+
+task 4, line 34:
+//# view-object 1,1
+Owner: Immutable
+Version: 2
+Contents: iota::package_metadata::PackageMetadataV1 {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,1),
+        },
+    },
+    storage_id: iota::object::ID {
+        bytes: test,
+    },
+    runtime_id: iota::object::ID {
+        bytes: test,
+    },
+    package_version: 1u64,
+    modules_metadata: iota::vec_map::VecMap<std::ascii::String, iota::package_metadata::ModuleMetadataV1> {
+        contents: vector[],
+    },
+}
