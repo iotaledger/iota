@@ -255,6 +255,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
     pub(crate) strong_blames_received_from_voter: IntCounterVec,
+    pub(crate) adaptive_ack_excluded_authorities: IntGauge,
+    pub(crate) adaptive_ack_acks_dropped: IntCounter,
 }
 
 impl NodeMetrics {
@@ -1162,6 +1164,16 @@ impl NodeMetrics {
                 "strong_blames_received_from_voter",
                 "Number of strong blames received against this node (when acting as leader), labeled by the voter authority that emitted the blame.",
                 &["voter"],
+                registry,
+            ).unwrap(),
+            adaptive_ack_excluded_authorities: register_int_gauge_with_registry!(
+                "adaptive_ack_excluded_authorities",
+                "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal. Empty when consensus_starfish_speed or enable_starfish_speed_adaptive_acknowledgments is off.",
+                registry,
+            ).unwrap(),
+            adaptive_ack_acks_dropped: register_int_counter_with_registry!(
+                "adaptive_ack_acks_dropped",
+                "Total pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at proposal time. Skipped refs remain pending and may be included later if the author leaves the exclusion set.",
                 registry,
             ).unwrap(),
         }
