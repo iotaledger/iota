@@ -1598,6 +1598,13 @@ impl Core {
             let Some(strong_vote) = block.strong_vote() else {
                 continue;
             };
+            let voter = &self.context.committee.authority(block.author()).hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[voter])
+                .inc();
             dag_state.record_strong_vote_complaint(
                 block.author(),
                 leader_round,

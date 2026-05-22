@@ -254,6 +254,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
+    pub(crate) strong_blames_received_from_voter: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1155,6 +1156,12 @@ impl NodeMetrics {
                 "strong_blames_emitted_for_leader",
                 "Number of proposed blocks that strong-blame the leader (non-empty `missing` set), labeled by leader authority.",
                 &["leader"],
+                registry,
+            ).unwrap(),
+            strong_blames_received_from_voter: register_int_counter_vec_with_registry!(
+                "strong_blames_received_from_voter",
+                "Number of strong blames received against this node (when acting as leader), labeled by the voter authority that emitted the blame.",
+                &["voter"],
                 registry,
             ).unwrap(),
         }
