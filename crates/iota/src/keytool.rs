@@ -1088,10 +1088,7 @@ impl Display for CommandOutput {
                             ]);
                     }
                     DecodedSigOutput::Passkey(p) => {
-                        let address = p
-                            .get_pk()
-                            .map(|pk| IotaAddress::from(&pk).to_string())
-                            .unwrap_or_else(|_| "unknown".to_string());
+                        let address = IotaAddress::from(p.public_key()).to_string();
                         let client_data_json = p.client_data_json();
                         let authenticator_data_hex =
                             format!("0x{}", Hex::encode(p.authenticator_data()));

@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 
 use fastcrypto::{
     error::FastCryptoError,
-    hash::HashFunction,
+    hash::{HashFunction, Sha256},
     rsa::{Base64UrlUnpadded, Encoding},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::ToFromBytes,
@@ -14,16 +14,10 @@ use fastcrypto::{
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
 use iota_sdk_types::crypto::IntentMessage;
 pub use iota_sdk_types::crypto::PasskeyAuthenticator;
-use once_cell::sync::OnceCell;
-use passkey_types::webauthn::{ClientDataType, CollectedClientData};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Serialize;
 
 use crate::{
     base_types::IotaAddress,
-    crypto::{
-        DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
-        Signature, SignatureScheme,
-    },
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
@@ -169,13 +163,6 @@ mod passkey_authenticator_test;
 // /// Necessary trait for [struct SenderSignedData].
 // impl Eq for PasskeyAuthenticator {}
 
-// /// Necessary trait for [struct SenderSignedData].
-// impl Hash for PasskeyAuthenticator {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.as_ref().hash(state);
-//     }
-// }
-
 impl AuthenticatorTrait for PasskeyAuthenticator {
     /// Verify an intent message of a transaction with an passkey authenticator.
     fn verify_claims<T>(
@@ -209,19 +196,5 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
 //         let passkey: PasskeyAuthenticator =
 //             bcs::from_bytes(&bytes[1..]).map_err(|_|
 // FastCryptoError::InvalidSignature)?;         Ok(passkey)
-//     }
-// }
-
-// impl AsRef<[u8]> for PasskeyAuthenticator {
-//     fn as_ref(&self) -> &[u8] {
-//         self.bytes
-//             .get_or_try_init::<_, eyre::Report>(|| {
-//                 let as_bytes = bcs::to_bytes(self).expect("BCS serialization
-// should not fail");                 let mut bytes = Vec::with_capacity(1 +
-// as_bytes.len());
-// bytes.push(SignatureScheme::PasskeyAuthenticator.flag());
-// bytes.extend_from_slice(as_bytes.as_slice());                 Ok(bytes)
-//             })
-//             .expect("OnceCell invariant violated")
 //     }
 // }
