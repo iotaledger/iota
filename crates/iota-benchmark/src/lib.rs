@@ -31,9 +31,7 @@ use iota_core::{
         QuorumDriver, QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::ReconfigObserver,
     },
-    transaction_driver::{
-        SubmitTransactionOptions, TransactionDriver, TransactionDriverMetrics,
-    },
+    transaction_driver::{SubmitTransactionOptions, TransactionDriver, TransactionDriverMetrics},
     validator_client_monitor::ValidatorClientMetrics,
 };
 use iota_json_rpc_types::{
@@ -463,9 +461,12 @@ impl LocalValidatorAggregatorProxy {
         registry: &Registry,
         reconfig_fullnode_rpc_url: Option<&str>,
     ) -> SubmitDriver {
-        use crate::td_embedded_reconfig_observer::TdEmbeddedReconfigObserver;
-        use crate::td_fullnode_reconfig_observer::TdFullNodeReconfigObserver;
         use iota_core::transaction_driver::reconfig_observer::ReconfigObserver as TdReconfigObserver;
+
+        use crate::{
+            td_embedded_reconfig_observer::TdEmbeddedReconfigObserver,
+            td_fullnode_reconfig_observer::TdFullNodeReconfigObserver,
+        };
 
         let (aggregator, reconfig_observer): (
             Arc<_>,
@@ -631,7 +632,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                 if std::env::var("STRESS_FIRE_AND_FORGET").as_deref() == Ok("1") {
                     let td = td.clone();
                     let tx_clone = tx.clone();
-                    let opts = submit_opts.clone();
+                    let opts = submit_opts;
                     tokio::spawn(async move {
                         let _ = td
                             .drive_transaction(
@@ -688,9 +689,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     fn get_current_epoch(&self) -> EpochId {
         match &self.driver {
             SubmitDriver::Quorum { qd, .. } => qd.current_epoch(),
-            SubmitDriver::Transaction { td } => {
-                td.authority_aggregator().load().committee.epoch
-            }
+            SubmitDriver::Transaction { td } => td.authority_aggregator().load().committee.epoch,
         }
     }
 
@@ -700,10 +699,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                 let qdh = _handler.clone_new();
                 let qd = qdh.clone_quorum_driver();
                 Box::new(Self {
-                    driver: SubmitDriver::Quorum {
-                        _handler: qdh,
-                        qd,
-                    },
+                    driver: SubmitDriver::Quorum { _handler: qdh, qd },
                     clients: self.clients.clone(),
                     committee: self.committee.clone(),
                     allowed_validators: self.allowed_validators.clone(),

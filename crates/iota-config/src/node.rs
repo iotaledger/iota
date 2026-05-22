@@ -859,6 +859,14 @@ pub struct ConsensusConfig {
     /// white-flag) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graduated_load_shedding_soft_limit_pct: Option<u32>,
+
+    /// Cap on the number of in-flight submissions actively being sent to
+    /// consensus (the `submit_semaphore` permit count). Bounds concurrent
+    /// `submit_inner` calls per validator. Defaults to
+    /// `max_pending_transactions / 50` to match the previous hardcoded
+    /// formula in iota-node.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_pending_local_submissions: Option<usize>,
 }
 
 impl ConsensusConfig {
@@ -871,6 +879,15 @@ impl ConsensusConfig {
     /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
+    }
+
+    /// Returns the cap on the number of in-flight local submissions to
+    /// consensus (the `submit_semaphore` permit count in `ConsensusAdapter`).
+    /// Defaults to `max_pending_transactions / 50` to preserve the previously
+    /// hardcoded ratio in `iota-node`.
+    pub fn max_pending_local_submissions(&self) -> usize {
+        self.max_pending_local_submissions
+            .unwrap_or_else(|| self.max_pending_transactions() / 50)
     }
 
     /// Returns the percentage of `max_pending_transactions` (hard limit)

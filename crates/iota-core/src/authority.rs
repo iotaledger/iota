@@ -1142,25 +1142,6 @@ impl AuthorityState {
         do_authority_overload_check: bool,
         white_flag_flow_enabled: bool,
     ) -> IotaResult {
-        // if white_flag_flow_enabled {
-        //     // Graduated shedding: 0% to 100% as consensus queue fills from soft
-        //     // to hard limit.
-        //     self.check_consensus_queue_overload(consensus_adapter, tx_data)
-        //         .tap_err(|_| {
-        //             self.update_overload_metrics("consensus_graduated");
-        //         })?;
-        //
-        //     // NOTE: graduated shedding at 100% already rejects everything at or above
-        //     // `max_pending_transactions`, so the queue-length part of the check below
-        //     // is redundant but harmless. But the binary check is kept here because
-        //     // it also verifies that `submit_semaphore` has permits (see
-        //     // `check_consensus_limits` in consensus_adapter.rs), which is a separate
-        //     // concurrency limit not covered by the graduated shedding.
-        //     if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
-        //         self.update_overload_metrics(reason.metric_label());
-        //         return Err(IotaError::TooManyTransactionsPendingConsensus);
-        //     }
-        // } else {
         if do_authority_overload_check {
             self.check_authority_overload(tx_data).tap_err(|_| {
                 self.update_overload_metrics("execution_queue");
@@ -1172,13 +1153,9 @@ impl AuthorityState {
                 self.update_overload_metrics("execution_pending");
             })?;
 
-        if white_flag_flow_enabled
-            && self
-                .check_consensus_queue_overload(consensus_adapter, tx_data)
-                .is_err()
-        {
+        if white_flag_flow_enabled {
             // no more .tap_err() here — the function labels its own rejection
-            return Err(IotaError::TooManyTransactionsPendingConsensus);
+            self.check_consensus_queue_overload(consensus_adapter, tx_data)?;
         }
         if let Some(reason) = consensus_adapter.check_consensus_limits_reason() {
             self.update_overload_metrics(reason.metric_label());
@@ -1231,16 +1208,18 @@ impl AuthorityState {
             return Ok(());
         }
 
+        if num_inflight_txs >= max_pending_txs {
+            // 100% shedding at the cap — equivalent to old binary check.
+            // Counts as reactive.
+            self.update_overload_metrics("consensus_graduated_reactive");
+
+            return Err(IotaError::TooManyTransactionsPendingConsensus);
+        }
+
         let result = overload_monitor_accept_tx(shedding_pct, tx_data.digest());
         if result.is_err() {
-            if num_inflight_txs >= max_pending_txs {
-                // 100% shedding at the cap — equivalent to old binary check.
-                // Counts as reactive.
-                self.update_overload_metrics("consensus_graduated_reactive");
-            } else {
-                // Probabilistic drop below the cap — preventive.
-                self.update_overload_metrics("consensus_graduated_preventive");
-            }
+            // Probabilistic drop below the cap — preventive.
+            self.update_overload_metrics("consensus_graduated_preventive");
         }
 
         result

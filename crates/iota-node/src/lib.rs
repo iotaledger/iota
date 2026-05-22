@@ -1366,7 +1366,7 @@ impl IotaNode {
     }
 
     fn construct_consensus_adapter(
-        committee: &Committee,
+        _committee: &Committee,
         consensus_config: &ConsensusConfig,
         authority: AuthorityName,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
@@ -1384,8 +1384,7 @@ impl IotaNode {
             authority,
             connection_monitor_status,
             consensus_config.max_pending_transactions(),
-            // consensus_config.max_pending_transactions() * 2 / committee.num_members(),
-            consensus_config.max_pending_transactions() / 50,
+            consensus_config.max_pending_local_submissions(),
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,

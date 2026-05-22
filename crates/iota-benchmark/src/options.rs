@@ -69,9 +69,10 @@ pub struct Opts {
     /// How many validators to spam (TD path only). 0 = all (default).
     /// 1 = pin all spam to one validator (concentrates 4× per-validator
     /// pressure on the load-shedding gate). Values between 1 and the
-    /// committee size restrict TD's `SubmitTransactionOptions.allowed_validators`
-    /// to the first N validators by display name (sorted). Values > committee
-    /// size behave like 0 (all validators).
+    /// committee size restrict TD's
+    /// `SubmitTransactionOptions.allowed_validators` to the first N
+    /// validators by display name (sorted). Values > committee size behave
+    /// like 0 (all validators).
     #[arg(long, default_value = "0", global = true)]
     pub num_validators_to_target: usize,
     /// Default workload is 100% transfer object

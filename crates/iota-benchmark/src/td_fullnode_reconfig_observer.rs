@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! TD-side port of [`crate::fullnode_reconfig_observer::FullNodeReconfigObserver`].
+//! TD-side port of
+//! [`crate::fullnode_reconfig_observer::FullNodeReconfigObserver`].
 //!
 //! Same poll-the-fullnode-every-3s logic; just adapted to the TD trait that
 //! drives an `AuthorityAggregatorUpdatable` rather than a `QuorumDriver`.

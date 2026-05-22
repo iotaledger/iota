@@ -253,7 +253,8 @@ pub struct BenchDriver {
     /// How many transactions each worker releases per tick. Default 1.
     /// > 1 produces concentrated bursts at the validator gate.
     pub burst_size: u64,
-    /// When set, all workers align bursts to `barrier_t_zero + k × barrier_period`.
+    /// When set, all workers align bursts to `barrier_t_zero + k ×
+    /// barrier_period`.
     pub barrier_t_zero: Option<Instant>,
     pub barrier_period: Option<Duration>,
 }
@@ -792,9 +793,9 @@ async fn run_bench_worker(
     let group_benchmark_start_time = Instant::now();
 
     // Rate-paced: interval = 1s / target_qps, release 1 tx per tick.
-    // Burst-mode: interval = burst_size / target_qps, release burst_size tx per tick.
-    // Barrier-mode (barrier_period set): fire each burst at t_zero + k×period
-    //   regardless of target_qps. Effective per-worker QPS becomes
+    // Burst-mode: interval = burst_size / target_qps, release burst_size tx per
+    // tick. Barrier-mode (barrier_period set): fire each burst at t_zero +
+    // k×period   regardless of target_qps. Effective per-worker QPS becomes
     //   burst_size × 1000 / barrier_period_ms.
     // Average rate stays at target_qps; bursts concentrate admissions at the gate.
     let burst_size = worker.burst_size.max(1);

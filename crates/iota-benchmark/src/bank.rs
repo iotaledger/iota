@@ -14,8 +14,7 @@ use iota_types::{base_types::IotaAddress, crypto::AccountKeyPair};
 use tracing::{info, warn};
 
 use crate::{
-    ValidatorProxy,
-    bank_cache,
+    ValidatorProxy, bank_cache,
     util::UpdatedAndNewlyMintedGasCoins,
     workloads::{
         Gas, GasCoinConfig,
@@ -62,7 +61,10 @@ impl BenchmarkBank {
         proxies: Vec<Arc<dyn ValidatorProxy + Send + Sync>>,
         primary_coin: Gas,
     ) -> Self {
-        assert!(!proxies.is_empty(), "BenchmarkBank requires at least one proxy");
+        assert!(
+            !proxies.is_empty(),
+            "BenchmarkBank requires at least one proxy"
+        );
         BenchmarkBank {
             proxy: proxies[0].clone(),
             proxies,
@@ -73,10 +75,7 @@ impl BenchmarkBank {
 
     /// Set a fullnode proxy used only for cache verification (object-by-owner
     /// reads). See `read_proxy` field doc for why.
-    pub fn with_read_proxy(
-        mut self,
-        read_proxy: Arc<dyn ValidatorProxy + Send + Sync>,
-    ) -> Self {
+    pub fn with_read_proxy(mut self, read_proxy: Arc<dyn ValidatorProxy + Send + Sync>) -> Self {
         self.read_proxy = Some(read_proxy);
         self
     }
@@ -133,17 +132,10 @@ impl BenchmarkBank {
         // into the gas object via IOTA's gas-smashing, then TransferObjects
         // transfers the gas coin back to `owner`. Net: one merged coin.
         let tx_data = iota_types::transaction::TransactionData::new_pay_all_iota(
-            owner,
-            extras,
-            owner,
-            target_obj,
-            MAX_BUDGET,
-            gas_price,
+            owner, extras, owner, target_obj, MAX_BUDGET, gas_price,
         );
-        let signed = iota_types::utils::to_sender_signed_transaction(
-            tx_data,
-            self.primary_coin.2.as_ref(),
-        );
+        let signed =
+            iota_types::utils::to_sender_signed_transaction(tx_data, self.primary_coin.2.as_ref());
         let effects = self.setup_proxy().execute_transaction_block(signed).await?;
         if !effects.is_ok() {
             warn!(
@@ -258,8 +250,7 @@ impl BenchmarkBank {
         // Split off the initlization coin for this workload, to reduce contention
         // of main gas coin used by other instances of this tool.
         let total_gas_needed: u64 = all_coin_configs.iter().map(|c| c.amount).sum();
-        let chunks: Vec<Vec<GasCoinConfig>> =
-            chunked_coin_configs.map(|c| c.to_vec()).collect();
+        let chunks: Vec<Vec<GasCoinConfig>> = chunked_coin_configs.map(|c| c.to_vec()).collect();
         let num_chunks = chunks.len();
         info!("Number of gas requests = {}", num_chunks);
 
@@ -294,7 +285,7 @@ impl BenchmarkBank {
         // branch needing N chunks could end up with a sub-coin sized for N-1
         // and run out of money mid-stream.
         let chunks_per_branch = if parallel_branches > 1 {
-            (num_chunks + parallel_branches - 1) / parallel_branches
+            1 + (num_chunks - 1) / parallel_branches
         } else {
             num_chunks
         };
@@ -336,8 +327,7 @@ impl BenchmarkBank {
             info!(
                 "Parallel gas setup: splitting init coin into {} sub-init branches \
                  (~{} chunks each)",
-                parallel_branches,
-                chunks_per_branch,
+                parallel_branches, chunks_per_branch,
             );
             // Step 1 split runs on the primary proxy (single tx).
             let primary_proxy = self.setup_proxy().clone();
@@ -356,10 +346,9 @@ impl BenchmarkBank {
                 parallel_branches,
             );
             let mut handles = vec![];
-            for (_branch_idx, (sub_init, branch_chunks)) in sub_inits
+            for (sub_init, branch_chunks) in sub_inits
                 .into_iter()
                 .zip(chunks.chunks(chunks_per_branch).map(|c| c.to_vec()))
-                .enumerate()
             {
                 let bank_clone = self.clone();
                 let branch_proxy = warmup_proxy.clone();
@@ -399,8 +388,7 @@ impl BenchmarkBank {
         // IFR=50 and ~750K configs that's ~5.6e11 shifts, several minutes of
         // pure CPU after consensus is already done. With a HashMap of
         // per-address VecDeques, each pop is O(1).
-        let mut by_owner: HashMap<IotaAddress, std::collections::VecDeque<Gas>> =
-            HashMap::new();
+        let mut by_owner: HashMap<IotaAddress, std::collections::VecDeque<Gas>> = HashMap::new();
         for gas in new_gas_coins.drain(..) {
             by_owner.entry(gas.1).or_default().push_back(gas);
         }

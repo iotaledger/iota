@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! TD-side port of [`crate::embedded_reconfig_observer::EmbeddedReconfigObserver`].
+//! TD-side port of
+//! [`crate::embedded_reconfig_observer::EmbeddedReconfigObserver`].
 //!
 //! TransactionDriver uses its own `ReconfigObserver` trait
 //! (`iota_core::transaction_driver::reconfig_observer::ReconfigObserver`) which

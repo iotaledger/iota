@@ -7,11 +7,7 @@
 // second run reuse the coins from a previous run, skipping the slow
 // generation step.
 
-use std::{
-    path::Path,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{path::Path, str::FromStr, sync::Arc};
 
 use anyhow::{Context, Result, anyhow};
 use fastcrypto::traits::{EncodeDecodeBase64, KeyPair};
@@ -96,7 +92,11 @@ fn from_cached(c: &CachedGas) -> Result<Gas> {
         IotaKeyPair::Ed25519(kp) => kp,
         other => return Err(anyhow!("expected Ed25519 keypair, got {:?}", other)),
     };
-    Ok((ObjectRef::new(object_id, version, digest), addr, Arc::new(kp)))
+    Ok((
+        ObjectRef::new(object_id, version, digest),
+        addr,
+        Arc::new(kp),
+    ))
 }
 
 pub fn save(path: &Path, pool: &CachedPool) -> Result<()> {
@@ -110,10 +110,9 @@ pub fn save(path: &Path, pool: &CachedPool) -> Result<()> {
 }
 
 pub fn load(path: &Path) -> Result<CachedPool> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
-    let pool: CachedPool = serde_json::from_str(&raw)
-        .with_context(|| format!("parse {}", path.display()))?;
+    let raw = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let pool: CachedPool =
+        serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     Ok(pool)
 }
 
@@ -167,8 +166,16 @@ pub fn restore(pool: &CachedPool) -> Result<Vec<(Vec<Gas>, Vec<Gas>)>> {
     pool.workloads
         .iter()
         .map(|w| {
-            let init = w.init_gas.iter().map(from_cached).collect::<Result<Vec<_>>>()?;
-            let payload = w.payload_gas.iter().map(from_cached).collect::<Result<Vec<_>>>()?;
+            let init = w
+                .init_gas
+                .iter()
+                .map(from_cached)
+                .collect::<Result<Vec<_>>>()?;
+            let payload = w
+                .payload_gas
+                .iter()
+                .map(from_cached)
+                .collect::<Result<Vec<_>>>()?;
             Ok((init, payload))
         })
         .collect()

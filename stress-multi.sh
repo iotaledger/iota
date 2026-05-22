@@ -34,7 +34,29 @@ IFS=',' read -ra FN_ARR <<< "$FULLNODES"
 # which preserves client-side concurrency (more independent RPC clients, more
 # burst races at the gate) even with a slimmer validator network.
 N="${NUM_PROCS:-${#FN_ARR[@]}}"
-QPS_PER=$((QPS_TOTAL / N))
+
+# Honest pool (Option B for the anti-spam fairness experiment described in
+# graduated-benefits.md). When HONEST_PROC_COUNT > 0, the LAST
+# HONEST_PROC_COUNT procs in this invocation use the honest configuration
+# (low QPS, no burst), and the first (N - HONEST_PROC_COUNT) procs use the
+# existing spammer-style config (QPS_TOTAL, BURST_SIZE, BARRIER_PERIOD_MS,
+# IN_FLIGHT_RATIO, WORKERS). Default 0 keeps single-pool behavior so
+# burst-sweep.sh and other callers are unaffected.
+HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-0}"
+HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-50}"
+HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
+HONEST_BARRIER_PERIOD_MS="${HONEST_BARRIER_PERIOD_MS:-0}"
+HONEST_IFR="${HONEST_IFR:-4}"
+HONEST_WORKERS="${HONEST_WORKERS:-4}"
+
+N_SPAMMER=$((N - HONEST_PROC_COUNT))
+if [ "$N_SPAMMER" -le 0 ]; then
+  echo "Error: HONEST_PROC_COUNT=$HONEST_PROC_COUNT >= NUM_PROCS=$N (no spammer procs left)" >&2
+  exit 1
+fi
+# QPS_PER is the per-spammer-proc QPS. With HONEST_PROC_COUNT=0 this
+# collapses to the original QPS_TOTAL / N.
+QPS_PER=$((QPS_TOTAL / N_SPAMMER))
 
 # Offset into the GAS_OWNERS array. Set GAS_OWNERS_OFFSET=4 on the second
 # machine in a 2-machine setup so it uses gas owners 4-7 (avoiding contention
@@ -95,7 +117,15 @@ BARRIER_DIR="$PARENT_DIR/barrier"
 mkdir -p "$BARRIER_DIR"
 START_FILE="$BARRIER_DIR/go"
 
-echo "=> Launching $N stress.rs processes, each at QPS=$QPS_PER (total=$QPS_TOTAL)"
+if [ "$HONEST_PROC_COUNT" -gt 0 ]; then
+  echo "=> Launching $N stress.rs processes in two pools:"
+  echo "     spammer pool: $N_SPAMMER procs @ QPS=$QPS_PER each (total=$QPS_TOTAL)"
+  echo "                   BURST_SIZE=$BURST_SIZE BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS"
+  echo "     honest pool:  $HONEST_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each"
+  echo "                   BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+else
+  echo "=> Launching $N stress.rs processes, each at QPS=$QPS_PER (total=$QPS_TOTAL)"
+fi
 echo "=> Parent dir: $PARENT_DIR"
 echo "=> Barrier: $BARRIER_DIR (start file: $START_FILE)"
 
@@ -103,6 +133,7 @@ pids=()
 logs=()
 runs_dirs=()
 ready_files=()
+pool_labels=()
 
 # If this script is killed (Ctrl-C, SIGTERM, hangup), reap all subprocess
 # groups so we don't leak orphan stress binaries holding their metrics ports.
@@ -131,13 +162,33 @@ for ((i=0; i<N; i++)); do
     mkdir -p "$GAS_POOL_CACHE_DIR" 2>/dev/null
     proc_cache="$GAS_POOL_CACHE_DIR/owner-$cache_idx.json"
   fi
-  echo "   process $i → $fn  (log: $log, runs: $proc_runs/, cache: ${proc_cache:-disabled})"
-  QPS="$QPS_PER" \
+  # Pool dispatch: procs [N_SPAMMER..N-1] use the honest config when
+  # HONEST_PROC_COUNT > 0. Procs [0..N_SPAMMER-1] always use the existing
+  # spammer config. The two pools share the same barrier and fire their
+  # first activity at the same instant once all N procs are ready.
+  if [ "$HONEST_PROC_COUNT" -gt 0 ] && [ "$i" -ge "$N_SPAMMER" ]; then
+    pool="honest"
+    proc_qps=$HONEST_QPS_PER_PROC
+    proc_burst=$HONEST_BURST_SIZE
+    proc_barrier=$HONEST_BARRIER_PERIOD_MS
+    proc_ifr=$HONEST_IFR
+    proc_workers=$HONEST_WORKERS
+  else
+    pool="spammer"
+    proc_qps=$QPS_PER
+    proc_burst=$BURST_SIZE
+    proc_barrier=$BARRIER_PERIOD_MS
+    proc_ifr=$IN_FLIGHT_RATIO
+    proc_workers=$WORKERS
+  fi
+  pool_labels+=("$pool")
+  echo "   process $i [$pool] → $fn  (qps=$proc_qps burst=$proc_burst, log: $log, cache: ${proc_cache:-disabled})"
+  QPS="$proc_qps" \
   DURATION="$DURATION" \
-  WORKERS="$WORKERS" \
-  IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" \
-  BURST_SIZE="$BURST_SIZE" \
-  BARRIER_PERIOD_MS="$BARRIER_PERIOD_MS" \
+  WORKERS="$proc_workers" \
+  IN_FLIGHT_RATIO="$proc_ifr" \
+  BURST_SIZE="$proc_burst" \
+  BARRIER_PERIOD_MS="$proc_barrier" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   GAS_POOL_CACHE_PATH="$proc_cache" \
   NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
@@ -353,6 +404,44 @@ else
   echo "   (couldn't compute — no process captured both metrics)"
 fi
 
+# Window: spam start → end + a small grace to capture the last scrape.
+WINDOW=$(( SPAM_END_EPOCH - SPAM_START_EPOCH + 5 ))
+if [ "$WINDOW" -lt 10 ]; then WINDOW=10; fi
+
+# Helper: run an instant PromQL query and print the first sample's value
+# as a float, or empty string on error / no result.
+prom_scalar() {
+  local query="$1"
+  if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    return
+  fi
+  curl -sfG --max-time 5 "$PROM_URL/api/v1/query" \
+    --data-urlencode "query=$query" 2>/dev/null | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    rs = d.get('data', {}).get('result', [])
+    if rs:
+        v = float(rs[0]['value'][1])
+        print(f'{v:.4f}')
+except Exception:
+    pass
+" 2>/dev/null
+}
+
+# Helper: save a query_range time series to a JSON file for later
+# cliff-vs-ramp analysis. Step 1s gives second-resolution detail.
+prom_range() {
+  local query="$1" outfile="$2"
+  if ! command -v curl >/dev/null 2>&1; then return; fi
+  curl -sfG --max-time 10 "$PROM_URL/api/v1/query_range" \
+    --data-urlencode "query=$query" \
+    --data-urlencode "start=$SPAM_START_EPOCH" \
+    --data-urlencode "end=$SPAM_END_EPOCH" \
+    --data-urlencode "step=1s" \
+    >"$outfile" 2>/dev/null || rm -f "$outfile"
+}
+
 # Pull rejection counts per source from Prometheus over the spam window.
 # The graduated check writes 4 distinct labels after the authority.rs split:
 #   consensus_graduated_preventive  — num_inflight < max_pending, probabilistic drop
@@ -365,10 +454,6 @@ REJECT[consensus_graduated_preventive]=0
 REJECT[consensus_graduated_reactive]=0
 REJECT[consensus_max_pending_exceeded]=0
 REJECT[consensus_semaphore_no_permits]=0
-
-# Window: spam start → end + a small grace to capture the last scrape.
-WINDOW=$(( SPAM_END_EPOCH - SPAM_START_EPOCH + 5 ))
-if [ "$WINDOW" -lt 10 ]; then WINDOW=10; fi
 
 if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
   prom_query="sum by (source) (increase(transaction_overload_sources{host=~\"validator.*\"}[${WINDOW}s]))"
@@ -392,6 +477,99 @@ except Exception:
   fi
 fi
 
+# Throughput, queue distribution, latency, rejection-rate metrics over the
+# spam window. We aggregate across the whole committee rather than hardcode
+# one host because `NUM_VALIDATORS_TO_TARGET=1` picks the target validator
+# randomly per stress.rs run — it's not deterministically validator-1. For
+# spam-attack metrics (queue depth, rejection rate), `max()` across hosts
+# picks the targeted validator's value because the other validators see no
+# spam and stay at 0. For network-wide metrics (TPS, latency) we aggregate
+# similarly across hosts.
+
+# Useful TPS: total executed transactions (= effects produced) per second.
+# Max across validators — each validator executes the same finalised set
+# (it's replicated state), so max() picks the one most up-to-date.
+USEFUL_TPS=$(prom_scalar "max(increase(total_transaction_effects{host=~\"validator.*\"}[${WINDOW}s])) / ${WINDOW}")
+[ -z "$USEFUL_TPS" ] && USEFUL_TPS=0
+
+# Queue depth distribution during the spam window. `sequencing_certificate_inflight`
+# is an IntGaugeVec with a `tx_type` label — sum across types per host
+# first, then take max across hosts to surface the targeted validator's
+# queue depth. Quantiles are then taken over time via a subquery.
+QUEUE_P50=$(prom_scalar "quantile_over_time(0.50, max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"}))[${WINDOW}s:1s])")
+QUEUE_P75=$(prom_scalar "quantile_over_time(0.75, max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"}))[${WINDOW}s:1s])")
+QUEUE_P99=$(prom_scalar "quantile_over_time(0.99, max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"}))[${WINDOW}s:1s])")
+[ -z "$QUEUE_P50" ] && QUEUE_P50=0
+[ -z "$QUEUE_P75" ] && QUEUE_P75=0
+[ -z "$QUEUE_P99" ] && QUEUE_P99=0
+
+# Rejection rate distribution. `sum(rate(...))` aggregates across all
+# `source` labels AND across hosts (the targeted validator's series
+# dominates; other validators stay at 0). max_rate (rejs/sec peak across
+# 5-sec windows) vs mean_rate characterises cliff vs ramp.
+REJECT_RATE_MAX=$(prom_scalar "max_over_time((sum(rate(transaction_overload_sources{host=~\"validator.*\"}[5s])))[${WINDOW}s:5s])")
+[ -z "$REJECT_RATE_MAX" ] && REJECT_RATE_MAX=0
+TOTAL_REJ=$(( REJECT[consensus_graduated_preventive] + REJECT[consensus_graduated_reactive] + REJECT[consensus_max_pending_exceeded] + REJECT[consensus_semaphore_no_permits] ))
+REJECT_RATE_MEAN=$(awk -v t="$TOTAL_REJ" -v w="$WINDOW" 'BEGIN{printf "%.2f", t/w}')
+
+# Admission latency. The validator does not yet expose a full submit_tx
+# RPC histogram; tx_verification_latency is the closest existing proxy
+# (signature-verification step inside submit_tx_impl). Adding a proper
+# end-to-end submit_tx histogram in authority_server/metrics.rs is a small
+# follow-up that would give a more accurate number here.
+ADMIT_LAT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(validator_service_tx_verification_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+[ -z "$ADMIT_LAT_P99" ] && ADMIT_LAT_P99=0
+
+# Time-series captures for post-hoc analysis (e.g. plotting cliff vs ramp,
+# inspecting queue-depth shape during a burst). One JSON per metric, saved
+# alongside summary.txt under the run directory. We aggregate across hosts
+# so the dumps capture the targeted validator's behaviour without us
+# having to know which one was picked.
+prom_range "sum by (source) (rate(transaction_overload_sources{host=~\"validator.*\"}[5s]))" \
+  "$PARENT_DIR/rejection_rate_by_source.json"
+prom_range "max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"}))" \
+  "$PARENT_DIR/queue_depth.json"
+
+# Per-pool aggregation. Reads each per-process benchmark_stats.json (written
+# by stress.rs to RUNS_DIR/<inner-ts>/benchmark_stats.json via the
+# --benchmark-stats-path flag in stress-load-shedding.sh) and sums
+# num_success_txes / num_error_txes grouped by pool. With HONEST_PROC_COUNT=0
+# the honest pool is empty and the spammer pool equals the whole run.
+SPAMMER_SUCCESS=0
+SPAMMER_ERROR=0
+HONEST_SUCCESS=0
+HONEST_ERROR=0
+for ((i=0; i<N; i++)); do
+  stats_file=$(ls "${runs_dirs[$i]}"/*/benchmark_stats.json 2>/dev/null | head -1)
+  if [ -z "$stats_file" ] || [ ! -f "$stats_file" ]; then continue; fi
+  read -r succ err < <(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$stats_file'))
+    print(d.get('num_success_txes', 0), d.get('num_error_txes', 0))
+except Exception:
+    print(0, 0)
+" 2>/dev/null)
+  succ=${succ:-0}
+  err=${err:-0}
+  if [ "${pool_labels[$i]}" = "honest" ]; then
+    HONEST_SUCCESS=$((HONEST_SUCCESS + succ))
+    HONEST_ERROR=$((HONEST_ERROR + err))
+  else
+    SPAMMER_SUCCESS=$((SPAMMER_SUCCESS + succ))
+    SPAMMER_ERROR=$((SPAMMER_ERROR + err))
+  fi
+done
+# Derive per-pool TPS and accept-rate. Uses DURATION-seconds field from the
+# stats file via Prometheus WINDOW (close enough; the stress.rs duration
+# field is the same span).
+SPAMMER_TPS=$(awk -v s=$SPAMMER_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+HONEST_TPS=$(awk -v s=$HONEST_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+SPAMMER_TOTAL=$((SPAMMER_SUCCESS + SPAMMER_ERROR))
+HONEST_TOTAL=$((HONEST_SUCCESS + HONEST_ERROR))
+SPAMMER_ACCEPT_PCT=$(awk -v s=$SPAMMER_SUCCESS -v t=$SPAMMER_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
+HONEST_ACCEPT_PCT=$(awk -v s=$HONEST_SUCCESS -v t=$HONEST_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
+
 # Save a top-level summary so this run is self-contained
 {
   echo "ts:           $MASTER_TS"
@@ -408,6 +586,23 @@ fi
   echo "reject_grad_reactive:   ${REJECT[consensus_graduated_reactive]}"
   echo "reject_max_pending:     ${REJECT[consensus_max_pending_exceeded]}"
   echo "reject_semaphore:       ${REJECT[consensus_semaphore_no_permits]}"
+  echo "useful_tps:             $USEFUL_TPS"
+  echo "queue_depth_p50:        $QUEUE_P50"
+  echo "queue_depth_p75:        $QUEUE_P75"
+  echo "queue_depth_p99:        $QUEUE_P99"
+  echo "reject_rate_max:        $REJECT_RATE_MAX"
+  echo "reject_rate_mean:       $REJECT_RATE_MEAN"
+  echo "admit_lat_p99:          $ADMIT_LAT_P99"
+  echo "spammer_proc_count:     $N_SPAMMER"
+  echo "honest_proc_count:      $HONEST_PROC_COUNT"
+  echo "spammer_success:        $SPAMMER_SUCCESS"
+  echo "spammer_error:          $SPAMMER_ERROR"
+  echo "spammer_tps:            $SPAMMER_TPS"
+  echo "spammer_accept_pct:     $SPAMMER_ACCEPT_PCT"
+  echo "honest_success:         $HONEST_SUCCESS"
+  echo "honest_error:           $HONEST_ERROR"
+  echo "honest_tps:             $HONEST_TPS"
+  echo "honest_accept_pct:      $HONEST_ACCEPT_PCT"
 } > "$PARENT_DIR/summary.txt"
 echo
 echo "=> Top-level summary: $PARENT_DIR/summary.txt"

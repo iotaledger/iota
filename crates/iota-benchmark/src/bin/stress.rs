@@ -182,8 +182,9 @@ async fn main() -> Result<()> {
                 }
                 _ => 1,
             };
-            let mut driver = BenchDriver::new(opts.stat_collection_interval, stress_stat_collection)
-                .with_burst_size(burst_size);
+            let mut driver =
+                BenchDriver::new(opts.stat_collection_interval, stress_stat_collection)
+                    .with_burst_size(burst_size);
 
             // Intra-spam barrier: every worker fires its burst at
             // `t_zero + k × period`. Anchor `t_zero` to the wall-clock epoch
