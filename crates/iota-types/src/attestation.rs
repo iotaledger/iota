@@ -66,14 +66,14 @@ pub enum AttestationData {
 /// of `ConsensusTransactionKind::UserTransactionV2`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AttestedTransaction {
-    pub transaction: Box<Transaction>,
+    pub transaction: Transaction,
     pub attestation: Attestation,
 }
 
 impl AttestedTransaction {
     pub fn new(transaction: Transaction, attestation: Attestation) -> Self {
         Self {
-            transaction: Box::new(transaction),
+            transaction,
             attestation,
         }
     }

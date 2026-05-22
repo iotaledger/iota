@@ -126,7 +126,7 @@ pub async fn validate_and_resolve_conflicts(
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => (t, None),
+            }) => (t.as_ref(), None),
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV2(a),
                 ..
@@ -305,7 +305,7 @@ pub async fn validate_and_resolve_conflicts(
         //     execution pipeline (`check_certificate_input` and
         //     `authenticate_then_execute_transaction_to_effects`).
         if attestation.is_none() {
-            let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+            let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             if let Err(e) = authority_state
                 .handle_transaction_validation_checks(&verified_tx, epoch_store)
                 .await
