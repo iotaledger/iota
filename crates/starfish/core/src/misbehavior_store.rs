@@ -163,23 +163,43 @@ impl MisbehaviorStore {
         true
     }
 
-    /// Returns an absolute per-authority snapshot of `persisted + in_memory`
-    /// counts for emission with `CommittedSubDag`. Locks the two buckets
-    /// independently per authority; callers must hold `dag_state.read()` so
-    /// concurrent flush (which writes both buckets under `dag_state.write()`)
-    /// is excluded.
+    /// Returns the per-authority snapshot for emission with `CommittedSubDag`.
+    ///
+    /// Most fields sum `persisted + in_memory`, but `missing_proposals`
+    /// reports `persisted` only. Rationale, field by field:
+    ///
+    /// - `faulty_blocks_provable` / `faulty_blocks_unprovable`: additive in
+    ///   `in_memory` (drained to `persisted` on every flush, never recomputed
+    ///   downward). Safe to sum.
+    /// - `equivocations`: recomputed in `in_memory` from cached refs, but the
+    ///   recompute can only INCREASE — a non-zero count requires two distinct
+    ///   block refs at the same `(author, round)` in `recent_refs`, and refs
+    ///   never leave `recent_refs` except via eviction (which advances
+    ///   `persisted` accordingly). Safe to sum.
+    /// - `missing_proposals`: recomputed in `in_memory` from cached refs and
+    ///   CAN DECREASE — a previously-missing round becomes "proposed" the
+    ///   moment a late block arrives. Including the `in_memory` value here
+    ///   would propagate a potentially-transient over-count into
+    ///   `MisbehaviorMonitor::update_from_consensus_output`, whose `merge_max`
+    ///   defense would permanently latch it for the rest of the epoch. Emit
+    ///   `persisted` only so the reported value is a settled fact that cannot
+    ///   be revised downward later.
+    ///
+    /// Locks both buckets per authority. Callers must hold
+    /// `dag_state.read()` so concurrent flush (which writes both buckets
+    /// under `dag_state.write()`) is excluded.
     pub(crate) fn snapshot_totals(&self) -> Vec<MisbehaviorCounts> {
-        (0..self.in_memory.authorities.len())
+        (0..self.persisted.authorities.len())
             .map(|i| {
-                let persisted = self.persisted.snapshot(i);
-                let in_memory = self.in_memory.snapshot(i);
+                let p = self.persisted.snapshot(i);
+                let m = self.in_memory.snapshot(i);
                 MisbehaviorCounts::V1(MisbehaviorCountsV1 {
-                    faulty_blocks_provable: persisted.faulty_blocks_provable
-                        + in_memory.faulty_blocks_provable,
-                    faulty_blocks_unprovable: persisted.faulty_blocks_unprovable
-                        + in_memory.faulty_blocks_unprovable,
-                    missing_proposals: persisted.missing_proposals + in_memory.missing_proposals,
-                    equivocations: persisted.equivocations + in_memory.equivocations,
+                    faulty_blocks_provable: p.faulty_blocks_provable + m.faulty_blocks_provable,
+                    faulty_blocks_unprovable: p.faulty_blocks_unprovable
+                        + m.faulty_blocks_unprovable,
+                    // Persisted only — see method docs.
+                    missing_proposals: p.missing_proposals,
+                    equivocations: p.equivocations + m.equivocations,
                 })
             })
             .collect()
@@ -881,41 +901,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_snapshot_totals_sums_persisted_and_in_memory() {
+    async fn test_snapshot_totals_excludes_in_memory_missing_only() {
+        // Snapshot semantics:
+        // - faulty_blocks_* and equivocations: sum persisted + in_memory.
+        // - missing_proposals: persisted only (in_memory excluded because it can be
+        //   revised downward by late block arrival).
         let committee_size = 4;
         let context = Arc::new(Context::new_for_test(committee_size).0);
         let store = MisbehaviorStore::new(&context);
         let a0 = AuthorityIndex::new_for_test(0);
-        let a1 = AuthorityIndex::new_for_test(1);
+
+        // Seed persisted directly with non-zero values for all four fields.
+        store.persisted.set_block_faults(0, 7, 3);
+        store.persisted.set_dag_faults(0, 11, 4);
+
+        // Seed in_memory with non-zero values for all four fields.
         let provable = ConsensusError::TooManyAncestors(10, 5);
-
-        // Seed in_memory provable counts for authority 0 (2) and 1 (1).
+        let unprovable = ConsensusError::WrongEpoch {
+            expected: 1,
+            actual: 2,
+        };
         store.record_faulty_block_header(a0, a0, &provable);
         store.record_faulty_block_header(a0, a0, &provable);
-        store.record_faulty_block_header(a1, a1, &provable);
-
-        // Flush faulty buffer for authority 0 into persisted; leave authority 1
-        // unflushed so the snapshot must sum across both buckets.
-        let _ =
-            store.update_misbehavior_counts_on_eviction(a0, &BTreeSet::new(), 0, 0, 1, &context);
-
-        // Record 3 more provable faults on authority 0 — these stay in_memory.
-        for _ in 0..3 {
-            store.record_faulty_block_header(a0, a0, &provable);
-        }
+        // Charge a0 as the sending peer for an unprovable fault.
+        store.record_faulty_block_header(a0, a0, &unprovable);
+        store.in_memory.set_dag_faults(0, 9, 2);
 
         let snapshot = store.snapshot_totals();
-        assert_eq!(snapshot.len(), committee_size);
-        // Authority 0: 2 flushed into persisted + 3 still in_memory = 5 total.
-        // Authority 1: 1 still in_memory (never flushed) = 1 total.
-        // Untouched authorities are zero across both buckets.
-        let provable_totals: Vec<u64> = snapshot
-            .iter()
-            .map(|c| match c {
-                MisbehaviorCounts::V1(v1) => v1.faulty_blocks_provable,
-            })
-            .collect();
-        assert_eq!(provable_totals, vec![5, 1, 0, 0]);
+        let MisbehaviorCounts::V1(c) = &snapshot[0];
+
+        // faulty_blocks_*: persisted + in_memory.
+        assert_eq!(c.faulty_blocks_provable, 7 + 2, "provable should sum");
+        assert_eq!(c.faulty_blocks_unprovable, 3 + 1, "unprovable should sum");
+        // equivocations: persisted + in_memory.
+        assert_eq!(c.equivocations, 4 + 2, "equivocations should sum");
+        // missing_proposals: persisted only (the 9 from in_memory is excluded).
+        assert_eq!(
+            c.missing_proposals, 11,
+            "missing_proposals must be persisted-only"
+        );
     }
 
     #[tokio::test]
