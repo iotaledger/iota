@@ -2042,6 +2042,7 @@ pub struct AuthorityAggregatorBuilder<'a> {
     committee_store: Option<Arc<CommitteeStore>>,
     registry: Option<&'a Registry>,
     timeouts_config: Option<TimeoutConfig>,
+    validator_display_names: Option<Arc<HashMap<AuthorityName, String>>>,
 }
 
 impl<'a> AuthorityAggregatorBuilder<'a> {
@@ -2092,6 +2093,21 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
     /// Sets the timeouts configuration.
     pub fn with_timeouts_config(mut self, timeouts_config: TimeoutConfig) -> Self {
         self.timeouts_config = Some(timeouts_config);
+        self
+    }
+
+    /// Sets the validator display names map (`AuthorityName` → human-readable
+    /// hostname like `validator-1`). When unset, names fall back to
+    /// `AuthorityName::concise()`, which is bootstrap-key-dependent and
+    /// therefore non-stable across genesis rebuilds. Benchmark callers
+    /// should pass a stable map (e.g. built from genesis hostnames) so that
+    /// any downstream selection logic that sorts by display name produces
+    /// reproducible results across runs.
+    pub fn with_validator_display_names(
+        mut self,
+        names: Arc<HashMap<AuthorityName, String>>,
+    ) -> Self {
+        self.validator_display_names = Some(names);
         self
     }
 
@@ -2165,13 +2181,17 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
 
         let timeouts_config = self.timeouts_config.unwrap_or_default();
 
+        let validator_display_names = self
+            .validator_display_names
+            .unwrap_or_else(|| Arc::new(HashMap::new()));
+
         AuthorityAggregator::new(
             committee,
             committee_store,
             authority_clients,
             safe_client_metrics_base,
             auth_agg_metrics,
-            Arc::new(HashMap::new()),
+            validator_display_names,
             timeouts_config,
         )
     }

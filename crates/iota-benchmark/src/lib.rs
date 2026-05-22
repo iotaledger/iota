@@ -16,7 +16,11 @@ pub mod td_fullnode_reconfig_observer;
 pub mod util;
 pub mod workloads;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::bail;
 use async_trait::async_trait;
@@ -330,8 +334,24 @@ impl LocalValidatorAggregatorProxy {
         reconfig_fullnode_rpc_url: Option<&str>,
         num_validators_to_target: usize,
     ) -> Self {
+        // Build a stable `AuthorityName -> hostname` map from genesis so that
+        // the `num_validators_to_target` selection below (which sorts by
+        // display name) is reproducible across genesis rebuilds. Without
+        // this, display names fall back to `AuthorityName::concise()`, which
+        // is derived from bootstrap-randomised authority keys — so the
+        // "alphabetically first" validator changes every bootstrap and all
+        // stress subprocesses converge on a different validator each iter.
+        let display_names: HashMap<AuthorityName, String> = genesis
+            .validator_set_for_tooling()
+            .iter()
+            .map(|v| {
+                let meta = v.verified_metadata();
+                ((&meta.authority_pubkey).into(), meta.name.clone())
+            })
+            .collect();
         let (aggregator, clients) = AuthorityAggregatorBuilder::from_genesis(genesis)
             .with_registry(registry)
+            .with_validator_display_names(Arc::new(display_names))
             .build_network_clients();
         let committee = genesis.committee().unwrap();
 
