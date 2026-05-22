@@ -61,6 +61,12 @@ impl IotaTxValidator {
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                    if self.epoch_store.protocol_config().enable_white_flag_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "CertifiedTransaction not allowed when white-flag flow is enabled"
+                                .into(),
+                        });
+                    }
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -107,6 +113,17 @@ impl IotaTxValidator {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV1 not supported at current protocol version"
                                 .into(),
+                        });
+                    }
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "UserTransactionV1 not allowed when validator attestation is enabled"
+                                    .into(),
                         });
                     }
                     // TODO: Batch signature verification for UserTransactionV1.
@@ -429,18 +446,29 @@ mod tests {
         ) -> Option<bool> {
             match kind {
                 // Always allowed (no feature flag gating).
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                | ConsensusTransactionKind::CheckpointSignature(_)
+                ConsensusTransactionKind::CheckpointSignature(_)
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
-                // Gated behind `enable_white_flag_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_)
-                | ConsensusTransactionKind::UserTransactionV2(_) => {
-                    Some(config.enable_white_flag_flow())
+                // Rejected once the white-flag flow is enabled (certificate-less
+                // path replaces them).
+                ConsensusTransactionKind::CertifiedTransaction(_) => {
+                    Some(!config.enable_white_flag_flow())
+                }
+
+                // Gated behind `enable_white_flag_flow`, and additionally
+                // rejected once `enable_validator_attestation` is on (V2 takes
+                // over).
+                ConsensusTransactionKind::UserTransactionV1(_) => Some(
+                    config.enable_white_flag_flow() && !config.enable_validator_attestation(),
+                ),
+
+                // Gated behind `enable_validator_attestation`.
+                ConsensusTransactionKind::UserTransactionV2(_) => {
+                    Some(config.enable_validator_attestation())
                 }
 
                 // Gated behind `calculate_validator_scores`.
