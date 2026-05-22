@@ -9,7 +9,6 @@ module iota::package_metadata;
 use iota::dynamic_field;
 use iota::vec_map::VecMap;
 use std::ascii;
-use std::string;
 use std::type_name::TypeName;
 
 // === Errors ===
@@ -22,8 +21,7 @@ const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
 
 // === Dynamic field keys ===
-
-const PACKAGE_VIEW_FUNCTIONS_METADATA_FIELD_NAME: vector<u8> = b"view_functions";
+public struct PackageViewFunctionsMetadataKey has copy, drop, store {}
 
 // === Structs ===
 
@@ -50,12 +48,7 @@ public struct PackageMetadataV1 has key {
 
 /// Represents view function metadata for a package.
 public struct PackageViewFunctionsMetadata has copy, drop, store {
-    view_functions: VecMap<ascii::String, ModuleViewFunctionsMetadata>,
-}
-
-/// Represents view functions contained in a module.
-public struct ModuleViewFunctionsMetadata has copy, drop, store {
-    view_functions: vector<ascii::String>,
+    package_view_functions: VecMap<ascii::String, vector<ascii::String>>,
 }
 
 /// Represents metadata associated with a module in the package.
@@ -108,11 +101,26 @@ public fun modules_metadata_v1(
 }
 
 /// Borrow the view function metadata dynamic field of the package represented by this metadata.
-public fun view_functions_metadata(self: &PackageMetadataV1): &PackageViewFunctionsMetadata {
-    dynamic_field::borrow<string::String, PackageViewFunctionsMetadata>(
+public fun borrow_package_view_functions_metadata(
+    self: &PackageMetadataV1,
+): &PackageViewFunctionsMetadata {
+    dynamic_field::borrow(
         &self.id,
-        string::utf8(PACKAGE_VIEW_FUNCTIONS_METADATA_FIELD_NAME),
+        PackageViewFunctionsMetadataKey {},
     )
+}
+
+public fun view_functions(
+    self: &PackageViewFunctionsMetadata,
+): VecMap<ascii::String, vector<ascii::String>> {
+    self.package_view_functions
+}
+
+public fun module_view_functions(
+    self: &PackageViewFunctionsMetadata,
+    module_name: &ascii::String,
+): &vector<ascii::String> {
+    self.package_view_functions.get(module_name)
 }
 
 /// Safely get the `AuthenticatorMetadataV1` associated with the specified

@@ -34,9 +34,9 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, ModuleViewFunctions, MovePackageExt, PackageMetadata,
-            PackageViewFunctions, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap,
-            UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            IotaAttribute, MovePackageExt, PackageMetadata, PackageViewFunctions,
+            PackageViewFunctionsMetadataKey, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
@@ -1008,7 +1008,7 @@ mod checked {
                 //    - Authenticator attributes, if present, are extracted to create
                 //      AuthenticatorMetadata to insert into the PackageMetadata
                 let mut module_metadata_map = BTreeMap::new();
-                let mut module_view_functions = ModuleViewFunctions::new();
+                let mut module_view_functions = Vec::new();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
@@ -1024,9 +1024,7 @@ mod checked {
                                 );
                             }
                             IotaAttribute::View => {
-                                module_view_functions
-                                    .view_functions
-                                    .push(fn_name.to_string());
+                                module_view_functions.push(fn_name.to_string());
                             }
                             _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
                         }
@@ -1038,9 +1036,9 @@ mod checked {
                 if !module_metadata_map.is_empty() {
                     modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
                 }
-                if !module_view_functions.view_functions.is_empty() {
+                if !module_view_functions.is_empty() {
                     package_view_functions_map
-                        .view_functions
+                        .package_view_functions
                         .contents
                         .push(Entry {
                             key: module.name().to_string(),
@@ -1055,7 +1053,7 @@ mod checked {
         // relevant metadata
         if !modules_metadata_map.is_empty()
             || !package_view_functions_map
-                .view_functions
+                .package_view_functions
                 .contents
                 .is_empty()
         {
@@ -1078,7 +1076,7 @@ mod checked {
             )?;
             context.attach_dynamic_field_to_object(
                 metadata_uid,
-                String::from("view_functions"),
+                PackageViewFunctionsMetadataKey::default(),
                 package_view_functions_map,
             )?;
             // Freeze the package metadata object

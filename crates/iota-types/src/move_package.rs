@@ -70,10 +70,10 @@ pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataV1");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
+pub const PACKAGE_VIEW_FUNCTIONS_METADATA_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageViewFunctionsMetadataKey");
 pub const PACKAGE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageViewFunctionsMetadata");
-pub const MODULE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME: Identifier =
-    Identifier::from_static("ModuleViewFunctionsMetadata");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -1116,13 +1116,13 @@ pub struct AuthenticatorMetadataV1 {
 pub struct PackageViewFunctions {
     // Map of view functions contained in a package, where the key is the
     // module name and the value is the list of view function names in that module.
-    pub view_functions: VecMap<String, ModuleViewFunctions>,
+    pub package_view_functions: VecMap<String, Vec<String>>,
 }
 
 impl PackageViewFunctions {
     pub fn new() -> Self {
         Self {
-            view_functions: VecMap { contents: vec![] },
+            package_view_functions: VecMap { contents: vec![] },
         }
     }
 
@@ -1143,32 +1143,27 @@ impl MoveTypeTagTrait for PackageViewFunctions {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModuleViewFunctions {
-    // List of view functions contained in a module.
-    pub view_functions: Vec<String>,
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageViewFunctionsMetadataKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
 }
 
-impl ModuleViewFunctions {
-    pub fn new() -> Self {
-        Self {
-            view_functions: Vec::new(),
-        }
-    }
-
-    pub fn type_() -> StructTag {
+impl PackageViewFunctionsMetadataKey {
+    pub fn tag() -> StructTag {
         StructTag::new(
             IotaAddress::FRAMEWORK,
             PACKAGE_METADATA_MODULE_NAME,
-            MODULE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME,
+            PACKAGE_VIEW_FUNCTIONS_METADATA_KEY_STRUCT_NAME,
             vec![],
         )
     }
 }
 
-// Trait needed for this Type to be used as a dynamic field
-impl MoveTypeTagTrait for ModuleViewFunctions {
+impl MoveTypeTagTrait for PackageViewFunctionsMetadataKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(Self::tag()))
     }
 }
