@@ -156,21 +156,30 @@ impl TypingAnalysisContext<'_> {
             return;
         };
         // insert use of the const's module
+        //
+        // Only add a use-def for the module name when it was written at the use
+        // site (same file as the constant name). For implicit references, where
+        // `mod_name.loc()` is synthesized to the module's declaration site in a
+        // different file, inserting that position into the current module's
+        // UseDefMap would mis-associate it with an unrelated location in the
+        // current file.
         let mod_name = module_ident.module;
-        if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
-            // a module will not be present if a constant belongs to an implicit module
-            self.use_defs.insert(
-                mod_name_start.line,
-                UseDef::new(
-                    self.references,
-                    self.alias_lengths,
-                    mod_name.loc().file_hash(),
-                    mod_name_start,
-                    mod_defs.name_loc,
-                    &mod_name.value(),
-                    None,
-                ),
-            );
+        if mod_name.loc().file_hash() == use_pos.file_hash() {
+            if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
+                // a module will not be present if a constant belongs to an implicit module
+                self.use_defs.insert(
+                    mod_name_start.line,
+                    UseDef::new(
+                        self.references,
+                        self.alias_lengths,
+                        mod_name.loc().file_hash(),
+                        mod_name_start,
+                        mod_defs.name_loc,
+                        &mod_name.value(),
+                        None,
+                    ),
+                );
+            }
         }
 
         let Some(name_start) = self.file_start_position_opt(&use_pos) else {
@@ -298,20 +307,29 @@ impl TypingAnalysisContext<'_> {
             return None;
         };
         // insert use of the functions's module
-        if let Some(mod_name_start) = mod_name_start_opt {
-            // a module will not be present if a function belongs to an implicit module
-            self.use_defs.insert(
-                mod_name_start.line,
-                UseDef::new(
-                    self.references,
-                    self.alias_lengths,
-                    mod_name.loc().file_hash(),
-                    mod_name_start,
-                    mod_defs.name_loc,
-                    &mod_name.value(),
-                    None,
-                ),
-            );
+        //
+        // Only add a use-def for the module name when it was written at the use
+        // site (same file as the function name). For implicit references (e.g.,
+        // built-in types like `vector` resolved via dot-calls), `mod_name.loc()`
+        // is synthesized to the module's declaration site in a different file,
+        // and inserting that position into the current module's UseDefMap would
+        // mis-associate it with an unrelated location in the current file.
+        if mod_name.loc().file_hash() == use_pos.file_hash() {
+            if let Some(mod_name_start) = mod_name_start_opt {
+                // a module will not be present if a function belongs to an implicit module
+                self.use_defs.insert(
+                    mod_name_start.line,
+                    UseDef::new(
+                        self.references,
+                        self.alias_lengths,
+                        mod_name.loc().file_hash(),
+                        mod_name_start,
+                        mod_defs.name_loc,
+                        &mod_name.value(),
+                        None,
+                    ),
+                );
+            }
         }
 
         let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::new());
@@ -347,20 +365,28 @@ impl TypingAnalysisContext<'_> {
         };
         // insert use of the struct's module
         let mod_name = mident.value.module;
-        if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
-            // a module will not be present if a struct belongs to an implicit module
-            self.use_defs.insert(
-                mod_name_start.line,
-                UseDef::new(
-                    self.references,
-                    self.alias_lengths,
-                    mod_name.loc().file_hash(),
-                    mod_name_start,
-                    mod_defs.name_loc,
-                    &mod_name.value(),
-                    None,
-                ),
-            );
+        // Only add a use-def for the module name when it was written at the use
+        // site (same file as the datatype name). For implicit references (e.g.,
+        // built-in types like `vector` resolved via dot-calls), `mod_name.loc()`
+        // is synthesized to the module's declaration site in a different file,
+        // and inserting that position into the current module's UseDefMap would
+        // mis-associate it with an unrelated location in the current file.
+        if mod_name.loc().file_hash() == use_name.loc().file_hash() {
+            if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
+                // a module will not be present if a struct belongs to an implicit module
+                self.use_defs.insert(
+                    mod_name_start.line,
+                    UseDef::new(
+                        self.references,
+                        self.alias_lengths,
+                        mod_name.loc().file_hash(),
+                        mod_name_start,
+                        mod_defs.name_loc,
+                        &mod_name.value(),
+                        None,
+                    ),
+                );
+            }
         }
 
         let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::new());
