@@ -81,3 +81,4 @@ tasks:
       #   - transactions
       #   - transactions-by-address
       #   - checkpoints
+      #   - checkpoints-by-digest

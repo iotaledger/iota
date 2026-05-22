@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, env, path::PathBuf, time::Duration};
+use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
 use iota_data_ingestion::{
@@ -15,7 +15,7 @@ use iota_data_ingestion_core::{
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_grpc_client::Client;
-use iota_kvstore::{BigTableClient, BigtableTable, KvWorker};
+use iota_kvstore::{BigTableClient, KvWorker, Table};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ struct BigTableTaskConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     emulator_host: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tables: Option<HashSet<BigtableTable>>,
+    tables: Option<BTreeSet<Table>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -227,8 +227,14 @@ async fn main() -> Result<()> {
                     )
                     .await?
                 };
+
+                let kv_worker = match kv_config.tables.filter(|s| !s.is_empty()) {
+                    Some(tables) => KvWorker::new_selective(client, tables),
+                    None => KvWorker::new(client),
+                };
+
                 let worker_pool = WorkerPool::new(
-                    KvWorker::new(client, kv_config.tables),
+                    kv_worker,
                     task_config.name,
                     task_config.concurrency,
                     Default::default(),
