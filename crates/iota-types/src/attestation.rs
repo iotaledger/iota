@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 // TODO: change the import once the AuthorityIndex refactor is ready
+// See https://github.com/iotaledger/iota-private/issues/404
 use starfish_config::AuthorityIndex;
 
 use crate::{
