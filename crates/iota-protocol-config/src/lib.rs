@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 26;
+pub const MAX_PROTOCOL_VERSION: u64 = 25;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -141,7 +141,6 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable additional borrow checks.
 // Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
 //             supported.
-// Version 26: Enable white flag flow and validator attestation in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2787,14 +2786,6 @@ impl ProtocolConfig {
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
                 }
-                26 => {
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable white flag flow and validator attestation in devnet.
-                        cfg.feature_flags.enable_white_flag_flow = true;
-                        cfg.feature_flags.enable_validator_attestation = true;
-                    }
-                }
-
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
