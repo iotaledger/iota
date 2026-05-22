@@ -2424,18 +2424,31 @@ impl AuthorityPerEpochStore {
                 .map(|(i, reg)| async move { (i, reg.await) })
                 .collect();
 
+            // Drain notifications until either every pending registration has
+            // resolved or the deadline expires.
+            //
+            // `biased;` polls branches in source order, so a notification that
+            // is already ready always wins over a deadline that fires in the
+            // same poll — we'd rather report inclusion than time out at the
+            // boundary.
+            //
+            // We match `Some`/`None` explicitly instead of using `else => break`
+            // because `else` only fires when *all* named branches are disabled.
+            // With `Some(...) = in_flight.next()` and a still-pending `deadline`,
+            // a `Ready(None)` from an empty `in_flight` disables only that one
+            // branch — the loop would then park on `deadline` and wait the full
+            // timeout even though every notification had already resolved.
             loop {
                 tokio::select! {
-                    Some((i, seq_and_ts)) = in_flight.next() => {
-                        results[i] = Some(seq_and_ts);
+                    biased;
+                    next_result = in_flight.next() => {
+                        match next_result {
+                            Some((i, seq_and_ts)) => results[i] = Some(seq_and_ts),
+                            // All pending registrations resolved before the deadline.
+                            None => break,
+                        }
                     }
-                    () = &mut deadline => {
-                        break;
-                    }
-                    else => {
-                        // All futures completed before the deadline.
-                        break;
-                    }
+                    () = &mut deadline => break,
                 }
             }
         }
