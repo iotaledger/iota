@@ -58,9 +58,10 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
     },
+    auth_context::AuthContextData,
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
         SequenceNumber, StructTag, TypeTag, VersionNumber,
@@ -943,6 +944,19 @@ impl AuthorityState {
             &self.get_object_store(),
         )?;
 
+        let (kind, signer, gas_data) = tx_data.execution_parts();
+
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| {
+                        move_authenticator.address().ok().as_ref() == Some(&address)
+                    })
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+
         // Filter the authenticators and their checked inputs down to those that must
         // be executed pre-consensus. This is done *after* the deny-list check so
         // that all MoveAuthenticator input objects are covered by that check regardless
@@ -1001,7 +1015,13 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            let (kind, signer, gas_data) = tx_data.execution_parts();
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
 
             // Execute the Move authenticators.
             let validation_result = epoch_store.executor().authenticate_transaction(
@@ -1020,9 +1040,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
-                tx_data_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
+                auth_context_data,
                 &mut None,
             );
 
@@ -1798,6 +1816,22 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -1817,9 +1851,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    tx_data_bytes,
-                    sender_auth_digest,
-                    sponsor_auth_digest,
+                    auth_context_data,
                     &mut None,
                 )
         };

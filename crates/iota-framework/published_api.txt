@@ -1804,6 +1804,12 @@ sender_auth_digest
 sponsor_auth_digest
 	public fun
 	0x2::auth_context
+sender_authenticator_function_ref_v1
+	public fun
+	0x2::auth_context
+sponsor_authenticator_function_ref_v1
+	public fun
+	0x2::auth_context
 tx_inputs
 	public fun
 	0x2::auth_context
@@ -1826,6 +1832,12 @@ native_sender_auth_digest
 	fun
 	0x2::auth_context
 native_sponsor_auth_digest
+	fun
+	0x2::auth_context
+native_sender_authenticator_function_ref_v1
+	fun
+	0x2::auth_context
+native_sponsor_authenticator_function_ref_v1
 	fun
 	0x2::auth_context
 native_tx_data_bytes

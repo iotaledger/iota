@@ -1350,6 +1350,12 @@ pub struct ProtocolConfig {
     // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
+    // Cost params for the Move native functions
+    // `fun native_sender_authenticator_function_ref_v1<Account: key>():
+    // &Option<AuthenticatorFunctionRefV1<Account>>`
+    // `fun native_sponsor_authenticator_function_ref_v1<Account: key>():
+    // &Option<AuthenticatorFunctionRefV1<Account>>`
+    auth_context_authenticator_function_ref_v1_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2313,6 +2319,7 @@ impl ProtocolConfig {
             auth_context_tx_inputs_cost_per_byte: None,
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
+            auth_context_authenticator_function_ref_v1_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2814,6 +2821,12 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
+
+                    // AuthenticatorFunctionRefV1 max BCS size:
+                    // package (32) + module_name (128) + function_name (128) = 288 bytes = 9 ×
+                    // digest. auth_context_digest_cost_base = 30 for 32 bytes →
+                    // 9 × 30 = 270.
+                    cfg.auth_context_authenticator_function_ref_v1_cost_base = Some(270);
                 }
                 // Use this template when making changes:
                 //

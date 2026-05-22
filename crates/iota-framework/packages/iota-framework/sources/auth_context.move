@@ -3,6 +3,7 @@
 
 module iota::auth_context;
 
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::hash;
 use iota::intent;
 use iota::ptb_call_arg::CallArg;
@@ -55,10 +56,29 @@ public fun sponsor_auth_digest(_ctx: &AuthContext): &Option<vector<u8>> {
     native_sponsor_auth_digest()
 }
 
+/// Returns the sender's `AuthenticatorFunctionRefV1` if the sender uses a
+/// `MoveAuthenticator` signature, `none` otherwise.
+public fun sender_authenticator_function_ref_v1<Account: key>(
+    _ctx: &AuthContext,
+): &Option<AuthenticatorFunctionRefV1<Account>> {
+    native_sender_authenticator_function_ref_v1()
+}
+
+/// Returns the sponsor's `AuthenticatorFunctionRefV1` if the transaction is
+/// sponsored and the sponsor uses a `MoveAuthenticator` signature, `none`
+/// otherwise.
+public fun sponsor_authenticator_function_ref_v1<Account: key>(
+    _ctx: &AuthContext,
+): &Option<AuthenticatorFunctionRefV1<Account>> {
+    native_sponsor_authenticator_function_ref_v1()
+}
+
+/// Returns the transaction input objects or primitive values.
 public fun tx_inputs(_ctx: &AuthContext): &vector<CallArg> {
     native_tx_inputs()
 }
 
+/// Returns the transaction commands to be executed sequentially.
 public fun tx_commands(_ctx: &AuthContext): &vector<Command> {
     native_tx_commands()
 }
@@ -91,6 +111,10 @@ native fun native_sender_auth_digest(): &vector<u8>;
 
 native fun native_sponsor_auth_digest(): &Option<vector<u8>>;
 
+native fun native_sender_authenticator_function_ref_v1<F>(): &Option<F>;
+
+native fun native_sponsor_authenticator_function_ref_v1<F>(): &Option<F>;
+
 native fun native_tx_data_bytes(): &vector<u8>;
 
 native fun native_tx_inputs<I>(): &vector<I>;
@@ -99,6 +123,9 @@ native fun native_tx_commands<C>(): &vector<C>;
 
 // === Test-only functions ===
 
+/// Creates a new `AuthContext` for testing. The authenticator function refs
+/// (`sender_authenticator_function_ref_v1` and
+/// `sponsor_authenticator_function_ref_v1`) are initialized to `none`.
 #[test_only]
 public fun new_for_testing(
     auth_digest: vector<u8>,
@@ -132,6 +159,18 @@ public fun new_for_testing(
     }
 }
 
+/// Replaces the sender and sponsor authenticator function refs for testing.
+#[test_only]
+public fun replace_authenticator_function_refs_for_testing<Account: key>(
+    sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1<Account>>,
+    sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1<Account>>,
+) {
+    native_authenticator_function_refs_replace(
+        sender_authenticator_function_ref_v1,
+        sponsor_authenticator_function_ref_v1,
+    );
+}
+
 #[test_only]
 native fun native_replace<I, C>(
     auth_digest: vector<u8>,
@@ -140,4 +179,10 @@ native fun native_replace<I, C>(
     tx_data_bytes: vector<u8>,
     sender_auth_digest: vector<u8>,
     sponsor_auth_digest: Option<vector<u8>>,
+);
+
+#[test_only]
+native fun native_authenticator_function_refs_replace<F>(
+    sender_authenticator_function_ref_v1: Option<F>,
+    sponsor_authenticator_function_ref_v1: Option<F>,
 );
