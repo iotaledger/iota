@@ -79,7 +79,7 @@ use iota_types::{
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
-    executable_transaction::VerifiedExecutableTransaction,
+    executable_transaction::{VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction},
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
     fp_ensure,
@@ -1430,7 +1430,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest()))]
     pub fn try_execute_immediately(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        certificate: &VerifiedExecutableAttestedTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
@@ -1517,11 +1517,10 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
-        let (effects, execution_error_opt) = self.try_execute_immediately(
-            &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
-            None,
-            &epoch_store,
-        )?;
+        let executable: VerifiedExecutableAttestedTransaction =
+            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into();
+        let (effects, execution_error_opt) =
+            self.try_execute_immediately(&executable, None, &epoch_store)?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
         Ok((signed_effects, execution_error_opt))
     }
@@ -1590,7 +1589,7 @@ impl AuthorityState {
     pub(crate) fn process_certificate(
         &self,
         tx_guard: CertTxGuard,
-        certificate: &VerifiedExecutableTransaction,
+        certificate: &VerifiedExecutableAttestedTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -1828,7 +1827,7 @@ impl AuthorityState {
     fn prepare_certificate(
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
-        certificate: &VerifiedExecutableTransaction,
+        certificate: &VerifiedExecutableAttestedTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1879,6 +1878,18 @@ impl AuthorityState {
                     protocol_config,
                     reference_gas_price,
                 )?;
+
+            // Re-run the sender-side coin deny list check from signing time
+            // for attested transactions only.
+            if certificate.attestation.is_some() {
+                check_coin_deny_list_v1(
+                    tx_data.sender(),
+                    &tx_checked_input_objects,
+                    &ReceivingObjects { objects: vec![] },
+                    &vec![],
+                    &self.get_object_store(),
+                )?;
+            }
 
             let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
@@ -1972,6 +1983,18 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
+            // Re-run the sender-side coin deny list check from signing time
+            // for attested transactions only.
+            if certificate.attestation.is_some() {
+                check_coin_deny_list_v1(
+                    tx_data.sender(),
+                    &authenticator_and_tx_checked_input_objects,
+                    &ReceivingObjects { objects: vec![] },
+                    &vec![],
+                    &self.get_object_store(),
+                )?;
+            }
+
             debug_assert_eq!(
                 move_authenticators.len(),
                 per_authenticator_checked_input_objects.len(),
@@ -2052,10 +2075,11 @@ impl AuthorityState {
     )> {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
+        let attested: VerifiedExecutableAttestedTransaction = certificate.clone().into();
 
         self.prepare_certificate(
             &execution_guard,
-            certificate,
+            &attested,
             input_objects,
             vec![],
             epoch_store,
@@ -5467,9 +5491,10 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
+        let attested_tx: VerifiedExecutableAttestedTransaction = executable_tx.clone().into();
         let (temporary_store, effects, _execution_error_opt) = self.prepare_certificate(
             &execution_guard,
-            &executable_tx,
+            &attested_tx,
             input_objects,
             vec![],
             epoch_store,
