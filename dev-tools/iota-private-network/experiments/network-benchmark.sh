@@ -23,9 +23,10 @@ RESTART_TIMEOUT=60      # Seconds to wait before restarting (timeout duration)
 RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
+LATENCY_FILE=""  # Optional TSV with deterministic per-edge latencies
 
 # --- Command-line arguments ---
-while getopts "g:n:s:b:l:r:d:w:M:o:" opt; do
+while getopts "g:n:s:b:l:r:d:w:M:o:L:" opt; do
   case "$opt" in
     g) GEODISTRIBUTED="$OPTARG" ;;
     n) NUMBER_VALIDATORS="$OPTARG" ;;
@@ -37,7 +38,8 @@ while getopts "g:n:s:b:l:r:d:w:M:o:" opt; do
     w) RESTART_TIMEOUT="$OPTARG" ;;
     M) RESTART_MODE="$OPTARG" ;;
     o) LOG_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool]"; exit 1 ;;
+    L) LATENCY_FILE="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-L latency_matrix.tsv]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -48,6 +50,17 @@ shift $((OPTIND-1))
 log() {
     echo "$(date -Iseconds) $1" >> "$LOG_FILE"
 }
+
+
+# --- Per-run lock directory ---
+# apply_and_mark serializes the edges sharing one source container's tc root via
+# a per-source lockfile. These live in a self-owned directory next to the log
+# file (not the shared, sticky /var/lock), and we sweep it at startup so stale
+# files from a previous run — including one killed with SIGKILL, which bypasses
+# any trap — can never make `exec 200>` fail and silently skip latency setup.
+LOCK_DIR="$(dirname "$LOG_FILE")/network-benchmark-locks"
+rm -rf "$LOCK_DIR"
+mkdir -p "$LOCK_DIR"
 
 
 # --- Prepare validator list ---
@@ -98,17 +111,86 @@ latency_from_table() {
   echo "$res"
 }
 
+# --- Optional latency matrix loaded from -L <file> ---
+# TSV with one row per directed edge: `src \t dst \t rtt_ms \t jitter_ms`
+# and an optional 5th column `loss_pct` (float, percent). Indices are 1-based
+# (validator-1 = 1). Comment lines starting with `#` and blank lines are
+# ignored. When a (src,dst) lookup misses the matrix the script transparently
+# falls back to the legacy latency_from_table above; loss falls back to 0.
+declare -A LATENCY_MATRIX
+declare -A JITTER_MATRIX
+declare -A LOSS_MATRIX
+
+load_latency_matrix() {
+  local file=$1
+  if [ ! -f "$file" ]; then
+    log "Latency matrix file not found: $file (falling back to built-in table)"
+    return 1
+  fi
+  local count=0
+  local src dst rtt jit loss
+  while IFS=$' \t' read -r src dst rtt jit loss _rest; do
+    [[ -z "${src:-}" || "${src:0:1}" == "#" ]] && continue
+    LATENCY_MATRIX[$src,$dst]=$rtt
+    JITTER_MATRIX[$src,$dst]=$jit
+    # Optional column: older TSVs (no loss column) get 0 here, so existing
+    # callers see no behavior change.
+    LOSS_MATRIX[$src,$dst]=${loss:-0}
+    count=$(( count + 1 ))
+  done < "$file"
+  log "Loaded $count edges from latency matrix $file"
+  return 0
+}
+
+# latency_for / jitter_for / loss_for take validator NAMES
+# (validator-1, validator-2, ...) and return ms / ms / percent. They consult
+# the loaded matrix first and fall back to safe defaults so older invocations
+# without -L keep working.
+latency_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  if [ -n "${LATENCY_MATRIX[$src,$dst]:-}" ]; then
+    echo "${LATENCY_MATRIX[$src,$dst]}"
+  else
+    latency_from_table "$(( src - 1 ))" "$(( dst - 1 ))"
+  fi
+}
+
+jitter_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  if [ -n "${JITTER_MATRIX[$src,$dst]:-}" ]; then
+    echo "${JITTER_MATRIX[$src,$dst]}"
+  else
+    echo $(( RANDOM % 3 ))
+  fi
+}
+
+loss_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  if [ -n "${LOSS_MATRIX[$src,$dst]:-}" ]; then
+    echo "${LOSS_MATRIX[$src,$dst]}"
+  else
+    echo "0"
+  fi
+}
+
 
 # container_pid(container)
 # Returns host PID of Docker container
 container_pid() { docker inspect -f '{{.State.Pid}}' "$1"; }
 
-# Apply latency and mark packets from container A → B
+# Apply latency and mark packets from container A → B.
+# Args: A B delay_ms jitter_ms [loss_pct]. loss_pct defaults to 0 — when it's
+# 0 the `loss` netem keyword is omitted entirely (some kernels treat `loss 0%`
+# as enabling the loss accounting machinery even with zero drop rate).
 apply_and_mark() {
   local A=$1 B=$2
   local D=$3 J=$4
+  local L=${5:-0}
   local IPB pid
-  local lockfile="/var/lock/apply_and_mark_${A}.lock"
+  local lockfile="$LOCK_DIR/apply_and_mark_${A}.lock"
 
   # Acquire exclusive lock for this container pair
   exec 200>"$lockfile"
@@ -145,21 +227,37 @@ apply_and_mark() {
     nsenter -t "$pid" -n tc class add dev eth0 parent 1: classid 1:1 htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
   fi
 
-  # Mark packets A → B inside the container namespace (idempotent)
-  if ! nsenter -t "$pid" -n iptables -t mangle -C OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>/dev/null; then
-    nsenter -t "$pid" -n iptables -t mangle -A OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>/dev/null || \
-      log "Warning: failed to mark traffic from $A → $B"
+  # Mark packets A → B inside the container namespace (idempotent).
+  # `-w 5` makes iptables wait up to 5s for the host-shared /run/xtables.lock
+  # instead of returning EAGAIN — needed because nsenter + iptables across
+  # 20 netns still contends a single host-level xtables lock file.
+  local ipt_err
+  if ! ipt_err=$(nsenter -t "$pid" -n iptables -w 5 -t mangle -C OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>&1); then
+    if ! ipt_err=$(nsenter -t "$pid" -n iptables -w 5 -t mangle -A OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>&1); then
+      log "Warning: failed to mark traffic from $A → $B: $ipt_err"
+    fi
   fi
 
-  # Create/update a dedicated class and netem qdisc for this destination
+  # Create/update a dedicated class and netem qdisc for this destination.
+  # Loss is appended only when non-zero — see header comment on apply_and_mark.
   nsenter -t "$pid" -n tc class replace dev eth0 parent 1: classid "$classid" htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
-  nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" 2>/dev/null || \
-    log "Warning: failed to apply latency to $A → $B"
+  local tc_err
+  if [ "$L" = "0" ] || [ "$L" = "0.0" ] || [ "$L" = "0.00" ]; then
+    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" 2>&1) || \
+      log "Warning: failed to apply latency to $A → $B: $tc_err"
+  else
+    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" loss "${L}%" 2>&1) || \
+      log "Warning: failed to apply latency+loss to $A → $B: $tc_err"
+  fi
 
-  # Attach a filter that routes marked packets into the class
-  if ! nsenter -t "$pid" -n tc filter show dev eth0 parent 1: 2>/dev/null | grep -q "fh $mark .* flowid $classid"; then
-    nsenter -t "$pid" -n tc filter add dev eth0 parent 1: protocol ip handle "$mark" fw flowid "$classid" 2>/dev/null || \
-      log "Warning: failed to attach tc filter for $A → $B"
+  # Attach a filter that routes marked packets into the class. `tc filter show`
+  # prints `handle 0x<hex>` so match on the hex-formatted mark; otherwise the
+  # grep never matches and we re-add the filter every call.
+  local mark_hex
+  printf -v mark_hex '%x' "$mark"
+  if ! nsenter -t "$pid" -n tc filter show dev eth0 parent 1: 2>/dev/null | grep -q "handle 0x${mark_hex} .* flowid ${classid}"; then
+    tc_err=$(nsenter -t "$pid" -n tc filter add dev eth0 parent 1: protocol ip handle "$mark" fw flowid "$classid" 2>&1) || \
+      log "Warning: failed to attach tc filter for $A → $B: $tc_err"
   fi
 
   # Release lock automatically when function exits
@@ -181,7 +279,7 @@ block_connection() {
   local pid ipB
   ipB=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$B")
   pid=$(container_pid "$A")
-  nsenter -t "$pid" -n iptables -A OUTPUT -d "$ipB" -j DROP
+  nsenter -t "$pid" -n iptables -w 5 -A OUTPUT -d "$ipB" -j DROP
   log "Blocked traffic $A → $B"
 }
 
@@ -315,19 +413,27 @@ restart_loop() {
 
 
 initially_apply_latency() {
-  # --- Apply latencies for all pairs ---
+  # One background worker per SOURCE validator; each worker applies all 19
+  # outbound rules sequentially against its own netns. Caps live concurrency
+  # to NUMBER_VALIDATORS instead of NUMBER_VALIDATORS*(NUMBER_VALIDATORS-1),
+  # which previously caused silent /run/xtables.lock contention and left a
+  # random ~30% of (src,dst) pairs without their netem qdisc.
   for ((i=0; i<${#validators[@]}; i++)); do
-    for ((j=i+1; j<${#validators[@]}; j++)); do
-      A=${validators[i]} B=${validators[j]}
-      D1=$(latency_from_table $i $j)
-      D2=$(latency_from_table $j $i)
-      J1=$((RANDOM % 3)) J2=$((RANDOM % 3))
-      log "Injecting ${D1}ms±${J1}ms latency $A → $B"
-      log "Injecting ${D2}ms±${J2}ms latency $B → $A"
-      apply_and_mark "$A" "$B" "$D1" "$J1" &
-      apply_and_mark "$B" "$A" "$D2" "$J2" &
-    done
+    A=${validators[i]}
+    (
+      for ((j=0; j<${#validators[@]}; j++)); do
+        [ "$i" -eq "$j" ] && continue
+        B=${validators[j]}
+        D=$(latency_for "$A" "$B")
+        J=$(jitter_for "$A" "$B")
+        L=$(loss_for "$A" "$B")
+        log "Injecting ${D}ms±${J}ms latency loss=${L}% $A → $B"
+        apply_and_mark "$A" "$B" "$D" "$J" "$L"
+      done
+    ) &
   done
+  wait
+  log "Initial latency application complete"
 }
 # --- State for fuzz ---
 declare -A fuzz_block_targets  # validator -> list of blocked validators
@@ -383,11 +489,10 @@ reapply_latencies_and_fuzz_loop() {
                 # --- Reapply latency ---
                 for u in "${validators[@]}"; do
                     [ "$v" = "$u" ] && continue
-                    v_idx=${v#validator-}
-                    u_idx=${u#validator-}
-                    D=$(latency_from_table "$((v_idx - 1))" "$((u_idx - 1))")
-                    J=$((RANDOM % 3))
-                    apply_and_mark "$v" "$u" "$D" "$J" &
+                    D=$(latency_for "$v" "$u")
+                    J=$(jitter_for "$v" "$u")
+                    L=$(loss_for "$v" "$u")
+                    apply_and_mark "$v" "$u" "$D" "$J" "$L" &
                 done
 
                 # --- Reapply fuzz (blocking) ---
@@ -407,6 +512,11 @@ reapply_latencies_and_fuzz_loop() {
 # === Main ===
 log "Starting fuzz manager"
 RANDOM=$SEED
+
+# Load latency matrix if provided; otherwise legacy table is used via fallback.
+if [ -n "$LATENCY_FILE" ]; then
+  load_latency_matrix "$LATENCY_FILE" || true
+fi
 
 # Initially set latencies
 initially_apply_latency

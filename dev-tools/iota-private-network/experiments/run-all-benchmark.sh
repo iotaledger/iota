@@ -307,6 +307,14 @@ log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
+LATENCY_MATRIX="$LOG_DIR/latency-matrix.tsv"
+log "Generating deterministic latency matrix: $LATENCY_MATRIX"
+python3 "$SCRIPT_DIR/latency_model.py" \
+    -n "$NUM_VALIDATORS" \
+    -s "$SEED" \
+    -o "$LATENCY_MATRIX" \
+    | while IFS= read -r line; do log "$line"; done
+
 ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
@@ -317,7 +325,8 @@ cd - >/dev/null
     -w "$RESTART_TIMEOUT" \
     -M "$RESTART_MODE" \
     -g "$GEODISTRIBUTED" \
-    -o "$LOG_FILE" &
+    -o "$LOG_FILE" \
+    -L "$LATENCY_MATRIX" &
 
 # --- 6) Launch spammer if enabled ---
 if [ "$SPAMMER_ENABLE" = true ]; then

@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+import latency_model
+
 
 # ========================= Configuration =========================
 
@@ -40,12 +42,13 @@ class Config:
     """All parameters for the migration test."""
 
     # --- Hardcoded (fixed for every run) ---
-    num_validators: int = 20
-    epoch_duration_ms: int = 900_000  # 15 minutes
+    num_validators: int = 10
+    epoch_duration_ms: int = 600_000  # 10 minutes
     seed: int = 42
     geodistributed: bool = True
     log_interval: int = 60  # save logs every N seconds
     final_epoch_settle_wait: int = 10  # seconds after the second post-start epoch
+    pre_rolling_wait: int = 180  # simple mode: wait into epoch 0 before rolling
 
     # Derived from epoch_duration_ms (set in __post_init__)
     mid_epoch_wait: int = field(init=False)
@@ -69,7 +72,10 @@ class Config:
     grafana_override_file: str = "docker-compose.migration-override.yaml"
 
     # --- CLI tunables ---
-    release_network: str = "devnet"
+    release_network: str = "testnet"
+    # "simple": fast rolling upgrade, no mid-epoch wait, no post-upgrade restarts.
+    # "advanced": full schedule with rolling offline windows + keep/wipe-DB restarts.
+    mode: str = "simple"
     build: bool = True
     chain_override: str = ""  # empty = Chain::Unknown (devnet-like)
     load_qps: int = 0
@@ -90,6 +96,8 @@ class Config:
     log_file: Path = field(init=False)
 
     def __post_init__(self) -> None:
+        if self.mode not in ("simple", "advanced"):
+            raise ValueError(f"mode must be 'simple' or 'advanced', got {self.mode!r}")
         if self.load_qps < 0:
             raise ValueError("load qps must be >= 0")
         if self.load_in_flight_ratio <= 0:
@@ -139,16 +147,20 @@ class Config:
             - self.timeline_safety_margin
         )
         if self.mid_epoch_wait < 0:
-            required = (
-                self.phase8_worst_case
-                + self.phase9_epoch0_worst_case
-                + self.timeline_safety_margin
-            )
-            raise ValueError(
-                "epoch duration is too short for the derived migration schedule: "
-                f"need at least {required}s for {self.num_validators} validators, "
-                f"got {epoch_s}s"
-            )
+            # Simple mode skips phases 7 and 9, so the rolling schedule need not
+            # fit inside one epoch — only advanced mode requires it.
+            if self.mode == "advanced":
+                required = (
+                    self.phase8_worst_case
+                    + self.phase9_epoch0_worst_case
+                    + self.timeline_safety_margin
+                )
+                raise ValueError(
+                    "epoch duration is too short for the derived migration schedule: "
+                    f"need at least {required}s for {self.num_validators} validators, "
+                    f"got {epoch_s}s"
+                )
+            self.mid_epoch_wait = 0
 
         self.network_dir = self.script_dir.parent
         self.repo_root = _find_repo_root(self.script_dir)
@@ -1019,8 +1031,6 @@ def cleanup() -> None:
     if data_dir.exists():
         subprocess.run(["sudo", "rm", "-rf", str(data_dir)], check=False)
 
-    lock_dir = cfg.script_dir / "logs" / "network-benchmark-locks"
-    shutil.rmtree(lock_dir, ignore_errors=True)
     shutil.rmtree(cfg.log_dir / "load-generator-keystore", ignore_errors=True)
 
     log("Cleanup complete.")
@@ -1353,6 +1363,27 @@ def phase5_start_monitoring(cfg: Config) -> None:
 # ========================= Phase 6: Apply Latency =========================
 
 
+def _generate_latency_matrix(cfg: Config) -> Path:
+    """Generate a deterministic, region-based latency matrix and write it to
+    ``logs/latency-matrix.tsv``. Returns the file path. Logs a short summary.
+
+    Run with the same ``(seed, num_validators)`` this always emits the same
+    matrix, so behavior is reproducible across migration test runs.
+    """
+    lm_cfg = latency_model.LatencyConfig(
+        num_validators=cfg.num_validators,
+        seed=cfg.seed,
+    )
+    matrix = latency_model.generate(lm_cfg)
+    matrix_path = cfg.log_dir / "latency-matrix.tsv"
+    latency_model.write_tsv(matrix, matrix_path)
+
+    log(f"  {_C.BOLD}Latency matrix{_C.RESET}    : {matrix_path}")
+    for line in latency_model.summarize(matrix):
+        log(line)
+    return matrix_path
+
+
 def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     global _latency_proc
     geo_label = "geo-high" if cfg.geodistributed else "geo-low"
@@ -1363,13 +1394,18 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
         )
     )
 
-    # Kill stale network-benchmark.sh from a previous run (may be owned by root)
+    # Kill stale network-benchmark.sh from a previous run (may be owned by root).
+    # The script sweeps its own lock directory at startup, so no extra cleanup here.
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
 
     # Avoid confusion from a stale default benchmark log; this migration run writes
     # all latency-script output into the main migration log instead.
     stale_fuzz_log = cfg.script_dir / "logs" / "fuzz_script.log"
     stale_fuzz_log.unlink(missing_ok=True)
+
+    # Generate the deterministic latency matrix (region-based, with heavy-tail
+    # validators + log-normal per-edge noise) and pass it to the bash injector.
+    matrix_path = _generate_latency_matrix(cfg)
 
     latency_output = cfg.log_file.open("a")
 
@@ -1391,6 +1427,8 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
             str(cfg.geodistributed).lower(),
             "-o",
             str(cfg.log_file.resolve()),
+            "-L",
+            str(matrix_path.resolve()),
         ],
         cwd=cfg.script_dir,
         stdout=latency_output,
@@ -1454,6 +1492,33 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     log(_phase_complete("Phase 7", time.time() - phase_start))
 
 
+def phase7_wait_fixed(cfg: Config, epoch_0_start: float) -> None:
+    """Simple mode: wait a short fixed offset into epoch 0 before rolling.
+
+    Unlike the advanced schedule, simple mode does not reserve epoch time for
+    post-upgrade restarts, so it just gives the network a brief warm-up before
+    the upgrade rather than aiming for mid-epoch.
+    """
+    phase_start = time.time()
+    elapsed = int(time.time() - epoch_0_start)
+    wait_s = max(0, cfg.pre_rolling_wait - elapsed)
+    log(_phase_banner(f"Waiting {wait_s}s before rolling upgrade", "PHASE 7"))
+
+    start = time.time()
+    last_log_save = start
+    while time.time() < start + wait_s:
+        e = int(time.time() - start)
+        bar = _progress_bar(e, wait_s)
+        log_status(f"  {bar} {e}s / {wait_s}s")
+        if time.time() - last_log_save >= cfg.log_interval:
+            save_validator_logs(cfg, cfg.num_validators)
+            last_log_save = time.time()
+        time.sleep(1)
+
+    print()  # finish status line
+    log(_phase_complete("Phase 7", time.time() - phase_start))
+
+
 # ========================= Phase 8: Rolling Upgrade =========================
 
 
@@ -1490,17 +1555,22 @@ def phase8_rolling_upgrade(
         with env_path.open("a") as f:
             f.write(f"VALIDATOR_{i}_IMAGE={cfg.image_upgrade}\n")
 
-        # Stop old container, pause (simulating real-world upgrade delay), start new
+        # Stop old container, start it back on the upgrade image. Advanced mode
+        # keeps each validator offline for a randomized rolling window (and paces
+        # between validators); simple mode swaps back-to-back with no pause so
+        # the network never loses quorum and the upgrade finishes fast.
         docker_compose(cfg, ["stop", v], quiet=True)
-        restart_pause = rng.randint(
-            cfg.rolling_restart_pause_min,
-            cfg.rolling_restart_pause_max,
-        )
-        log_status(f"  {bar} {v} stopped — restarting in {restart_pause}s...")
-        time.sleep(restart_pause)
+        if cfg.mode == "advanced":
+            restart_pause = rng.randint(
+                cfg.rolling_restart_pause_min,
+                cfg.rolling_restart_pause_max,
+            )
+            log_status(f"  {bar} {v} stopped — restarting in {restart_pause}s...")
+            time.sleep(restart_pause)
         docker_compose(cfg, ["up", "-d", "--no-deps", v], quiet=True)
 
-        time.sleep(cfg.upgrade_delay)
+        if cfg.mode == "advanced":
+            time.sleep(cfg.upgrade_delay)
 
         result = run(
             ["docker", "ps", "--format", "{{.Names}}"],
@@ -1774,16 +1844,28 @@ def parse_args() -> argparse.Namespace:
         description="Rolling migration test for IOTA validators.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Defaults: 20 validators (-n to change), 15min epoch (-e to change), "
-            "geodistributed latency, mid-epoch rolling upgrade."
+            "Defaults: simple mode (--mode advanced for the full restart "
+            "schedule), testnet release image, 10 validators (-n to change), "
+            "10min epoch (-e to change), geodistributed latency, rolling "
+            "upgrade 3min into the epoch."
         ),
     )
     parser.add_argument(
         "-r",
         "--release-network",
-        default="devnet",
+        default="testnet",
         choices=("devnet", "testnet", "mainnet", "alphanet"),
-        help="Release network to pull the old image from Docker Hub (default: devnet)",
+        help="Release network to pull the old image from Docker Hub (default: testnet)",
+    )
+    parser.add_argument(
+        "--mode",
+        default="simple",
+        choices=("simple", "advanced"),
+        help=(
+            "simple: fast rolling upgrade, no mid-epoch wait, no post-upgrade "
+            "restarts (default). advanced: full schedule with rolling offline "
+            "windows and keep-DB/wipe-DB restart torture across two epochs."
+        ),
     )
     parser.add_argument(
         "-b",
@@ -1795,11 +1877,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-n",
         "--num-validators",
-        default=20,
+        default=10,
         type=int,
         choices=range(2, 101),
         metavar="N",
-        help="Number of validators to run (2-100, default: 20)",
+        help="Number of validators to run (2-100, default: 10)",
     )
     parser.add_argument(
         "-c",
@@ -1814,10 +1896,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-e",
         "--epoch-duration",
-        default=15,
+        default=10,
         type=int,
         metavar="MINUTES",
-        help="Epoch duration in minutes (default: 15)",
+        help="Epoch duration in minutes (default: 10)",
     )
     parser.add_argument(
         "--geodistributed",
@@ -1877,6 +1959,7 @@ def main() -> None:
     try:
         cfg = Config(
             release_network=args.release_network,
+            mode=args.mode,
             build=args.build,
             chain_override=args.chain_override,
             num_validators=args.num_validators,
@@ -1898,9 +1981,14 @@ def main() -> None:
         log("Error: run from experiments/")
         sys.exit(1)
 
-    # Setup logging
+    # Setup logging. Truncate, then re-open with O_APPEND so writes coming from
+    # both Python and from sudo'd subprocesses (whose stdout/stderr is redirected
+    # into the same file via "a") always land at end-of-file. Without O_APPEND,
+    # Python's tracked offset lags behind the subprocess's appended bytes and
+    # silently overwrites them.
     cfg.log_dir.mkdir(parents=True, exist_ok=True)
-    _log_fh = cfg.log_file.open("w")
+    cfg.log_file.write_text("")
+    _log_fh = cfg.log_file.open("a")
 
     # Register cleanup
     atexit.register(cleanup)
@@ -1909,6 +1997,7 @@ def main() -> None:
 
     # Summary
     log(_phase_banner("Migration Test Configuration"))
+    log(f"  {_C.BOLD}Mode{_C.RESET}                 : {cfg.mode}")
     log(f"  {_C.BOLD}Validators{_C.RESET}           : {cfg.num_validators}")
     log(f"  {_C.BOLD}Consensus protocol{_C.RESET}   : auto-detected from protocol config")
     log(f"  {_C.BOLD}Epoch duration{_C.RESET}       : {cfg.epoch_duration_ms}ms ({cfg.epoch_duration_ms // 60_000} min)")
@@ -1924,35 +2013,46 @@ def main() -> None:
         )
     else:
         log(f"  {_C.BOLD}Load generator{_C.RESET}      : disabled")
-    log(f"  {_C.BOLD}Rolling start offset{_C.RESET}: <= {cfg.mid_epoch_wait}s from epoch start")
-    log(f"  {_C.BOLD}Next-validator pause{_C.RESET} : {cfg.upgrade_delay}s")
     log(f"  {_C.BOLD}Protocol probe wait{_C.RESET}  : {cfg.protocol_probe_wait}s")
-    log(
-        f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
-        f"phase8 <= {cfg.phase8_worst_case}s, "
-        f"phase9a/9b <= {cfg.phase9_epoch0_worst_case}s, "
-        f"safety {cfg.timeline_safety_margin}s"
-    )
-    log(
-        f"  {_C.BOLD}Rolling offline pause{_C.RESET}: "
-        f"{cfg.rolling_restart_pause_min}-{cfg.rolling_restart_pause_max}s per validator"
-    )
-    log(
-        f"  {_C.BOLD}Restart validators{_C.RESET}   : "
-        f"{_restart_validator_count(cfg.num_validators)} per epoch "
-        f"(ceil(n/3)-1, deterministic by epoch)"
-    )
-    log(f"    keep-DB after {cfg.restart_pause_keep_db}s, wipe-DB after {cfg.restart_pause_wipe_db}s")
-    log(f"    restart settle wait {cfg.restart_settle_wait}s")
-    log(
-        f"    fresh DB follow-up restart pause "
-        f"{cfg.fresh_db_restart_pause_min}-{cfg.fresh_db_restart_pause_max}s"
-    )
-    log(f"    epoch 1 wipe-DB aligned to same offset as epoch 0")
-    log(
-        f"  {_C.BOLD}Stop condition{_C.RESET}       : "
-        f"second epoch observed + {cfg.final_epoch_settle_wait}s"
-    )
+    if cfg.mode == "advanced":
+        log(f"  {_C.BOLD}Rolling start offset{_C.RESET}: <= {cfg.mid_epoch_wait}s from epoch start")
+        log(f"  {_C.BOLD}Next-validator pause{_C.RESET} : {cfg.upgrade_delay}s")
+        log(
+            f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
+            f"phase8 <= {cfg.phase8_worst_case}s, "
+            f"phase9a/9b <= {cfg.phase9_epoch0_worst_case}s, "
+            f"safety {cfg.timeline_safety_margin}s"
+        )
+        log(
+            f"  {_C.BOLD}Rolling offline pause{_C.RESET}: "
+            f"{cfg.rolling_restart_pause_min}-{cfg.rolling_restart_pause_max}s per validator"
+        )
+        log(
+            f"  {_C.BOLD}Restart validators{_C.RESET}   : "
+            f"{_restart_validator_count(cfg.num_validators)} per epoch "
+            f"(ceil(n/3)-1, deterministic by epoch)"
+        )
+        log(f"    keep-DB after {cfg.restart_pause_keep_db}s, wipe-DB after {cfg.restart_pause_wipe_db}s")
+        log(f"    restart settle wait {cfg.restart_settle_wait}s")
+        log(
+            f"    fresh DB follow-up restart pause "
+            f"{cfg.fresh_db_restart_pause_min}-{cfg.fresh_db_restart_pause_max}s"
+        )
+        log(f"    epoch 1 wipe-DB aligned to same offset as epoch 0")
+        log(
+            f"  {_C.BOLD}Stop condition{_C.RESET}       : "
+            f"second epoch observed + {cfg.final_epoch_settle_wait}s"
+        )
+    else:
+        log(
+            f"  {_C.BOLD}Rolling upgrade{_C.RESET}      : "
+            f"back-to-back, no offline pause, no post-upgrade restarts"
+        )
+        log(f"  {_C.BOLD}Pre-rolling wait{_C.RESET}     : {cfg.pre_rolling_wait}s from epoch start")
+        log(
+            f"  {_C.BOLD}Stop condition{_C.RESET}       : "
+            f"one epoch boundary after upgrade + {cfg.final_epoch_settle_wait}s"
+        )
 
     # Run all phases
     local_branch, local_commit = phase1_docker_images(cfg)
@@ -1965,19 +2065,28 @@ def main() -> None:
     latency_proc = phase6_apply_latency(cfg)
     start_load_generator(cfg)
 
-    phase7_wait_mid_epoch(cfg, epoch_0_start)
+    if cfg.mode == "advanced":
+        phase7_wait_mid_epoch(cfg, epoch_0_start)
+    else:
+        phase7_wait_fixed(cfg, epoch_0_start)
     upgrade_proto, upgrade_consensus = phase8_rolling_upgrade(
         cfg, old_max_proto, old_consensus, local_branch, local_commit
     )
-    epoch_1 = phase9_post_upgrade_restarts(
-        cfg,
-        epoch_0_start,
-        old_max_proto,
-        old_consensus,
-        f"{local_branch}@{local_commit}",
-        upgrade_proto,
-        upgrade_consensus,
-    )
+    if cfg.mode == "advanced":
+        epoch_1 = phase9_post_upgrade_restarts(
+            cfg,
+            epoch_0_start,
+            old_max_proto,
+            old_consensus,
+            f"{local_branch}@{local_commit}",
+            upgrade_proto,
+            upgrade_consensus,
+        )
+    else:
+        # Simple mode: no post-upgrade restarts. Use the current epoch as the
+        # baseline so phase 10 still verifies the migrated network crosses an
+        # epoch boundary under the new protocol.
+        epoch_1 = get_current_epoch()
     phase10_observation(cfg, epoch_1)
     stop_load_generator(cfg)
 
