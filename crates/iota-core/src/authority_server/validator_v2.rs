@@ -306,7 +306,7 @@ impl ValidatorService {
                 .map(|i| starfish_config::AuthorityIndex::from(i as u8))
                 .expect("validator must be present in its own consensus committee");
 
-            ConsensusTransaction::new_attested_transaction(AttestedTransaction::new(
+            ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
                 verified_tx.into_inner(),
                 Attestation::Validator {
                     payload: attestation_data,
@@ -314,7 +314,7 @@ impl ValidatorService {
                 },
             ))
         } else {
-            ConsensusTransaction::new_user_transaction(verified_tx.into_inner())
+            ConsensusTransaction::new_user_transaction_v1(verified_tx.into_inner())
         };
 
         // Submit to consensus.

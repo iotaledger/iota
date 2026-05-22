@@ -585,7 +585,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction_v1(transaction: Transaction) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);
@@ -596,14 +596,14 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_attested_transaction(attested: AttestedTransaction) -> Self {
+    pub fn new_user_transaction_v2(attested_tx: AttestedTransaction) -> Self {
         let mut hasher = DefaultHasher::new();
-        let tx_digest = attested.transaction.digest();
+        let tx_digest = attested_tx.transaction.digest();
         tx_digest.hash(&mut hasher);
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested)),
+            kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested_tx)),
         }
     }
 
