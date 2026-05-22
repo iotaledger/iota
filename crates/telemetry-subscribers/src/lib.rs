@@ -512,18 +512,6 @@ impl TelemetryConfig {
 
         let mut layers = Vec::new();
 
-        // Global filter rejects trace/debug callsites at registration time,
-        // so per-call `enabled()` walks across per-layer filters do not pay
-        // the cost of allocating and immediately discarding low-priority
-        // spans/events.
-        layers.push(
-            GlobalLevelFilter {
-                max_span_level: span_level,
-                max_event_level,
-            }
-            .boxed(),
-        );
-
         // tokio-console layer
         // Please see https://docs.rs/console-subscriber/latest/console_subscriber/struct.Builder.html#configuration
         // for environment vars/config options
@@ -650,7 +638,24 @@ impl TelemetryConfig {
             layers.push(flamesub.boxed());
         }
 
-        let subscriber = tracing_subscriber::registry().with(layers);
+        // Global level filter: rejects span callsites above `span_level` and
+        // event callsites above the env filter's max level at registration
+        // time, preventing the Registry from dispatching callsites that every
+        // per-layer filter would immediately discard.
+        //
+        // Must be stacked on top of `layers` via `.with()` rather than pushed
+        // into the Vec. `Vec<Layer>::register_callsite` aggregates child
+        // interests as "most permissive wins", so a `never()` from this filter
+        // would be overridden by any layer (e.g. fmt+EnvFilter) returning
+        // `sometimes()`. As an outer `Layered`, the `Interest::and` combiner
+        // gives `never()` priority and the inner stack is short-circuited.
+        let global_filter = GlobalLevelFilter {
+            max_span_level: span_level,
+            max_event_level,
+        };
+        let subscriber = tracing_subscriber::registry()
+            .with(layers)
+            .with(global_filter);
         ::tracing::subscriber::set_global_default(subscriber)
             .expect("unable to initialize tracing subscriber");
 
