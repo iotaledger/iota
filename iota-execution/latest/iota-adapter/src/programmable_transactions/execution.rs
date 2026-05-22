@@ -1049,14 +1049,14 @@ mod checked {
             }
         }
 
+        let has_package_view_functions = !package_view_functions_map
+            .package_view_functions
+            .contents
+            .is_empty();
+
         // Only publish package metadata if there is at least one module with
         // relevant metadata
-        if !modules_metadata_map.is_empty()
-            || !package_view_functions_map
-                .package_view_functions
-                .contents
-                .is_empty()
-        {
+        if !modules_metadata_map.is_empty() || has_package_view_functions {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
             // Create the package metadata object content
@@ -1074,11 +1074,13 @@ mod checked {
                 false,
                 &metadata.to_bcs_bytes(),
             )?;
-            context.attach_dynamic_field_to_object(
-                metadata_uid,
-                PackageViewFunctionsMetadataKey::default(),
-                package_view_functions_map,
-            )?;
+            if has_package_view_functions {
+                context.attach_dynamic_field_to_object(
+                    metadata_uid,
+                    PackageViewFunctionsMetadataKey::default(),
+                    package_view_functions_map,
+                )?;
+            }
             // Freeze the package metadata object
             context.freeze_object(package_metadata)?
         }
