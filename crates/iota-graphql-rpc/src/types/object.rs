@@ -113,7 +113,7 @@ pub enum ObjectStatus {
     /// The object is deleted or wrapped and only partial information can be
     /// loaded from the indexer.
     #[graphql(
-        deprecation = "will be removed with v1.26, as such objects can be construed as non-existent"
+        deprecation = "will be removed with v1.26, as such objects can be considered non-existent"
     )]
     WrappedOrDeleted,
 }
