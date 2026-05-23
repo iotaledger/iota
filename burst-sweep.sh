@@ -205,11 +205,20 @@ for burst in "${BURSTS[@]}"; do
 
     # Run
     cd "$REPO"
-    # IFR=20: per-worker pool = (40000/24) × 20 / 16 = 2082 payloads.
-    # BURST ≤ 2080 fits without truncation; BURST=2050 leaves only ~32
-    # payloads of margin per worker (intentional — we want the burst to
-    # nearly drain the pool to maximize racing arrivals at the gate).
-    NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
+    # IFR=20: per-worker pool = (QPS_TOTAL/NUM_PROCS) × 20 / 16 payloads.
+    # At the defaults (NUM_PROCS=24, QPS_TOTAL=40000) the pool is 2082
+    # payloads per worker; BURST=1800 leaves headroom; BURST=2050 nearly
+    # drains the pool to maximize racing arrivals at the gate.
+    #
+    # NUM_PROCS / QPS_TOTAL overridable so we can scale concurrent
+    # validator-gate pressure. Keep per-proc QPS ≈ 1666 (validated init-coin
+    # sizing): QPS_TOTAL = NUM_PROCS × 1666, e.g.
+    #   NUM_PROCS=32 QPS_TOTAL=52000
+    #   NUM_PROCS=48 QPS_TOTAL=78000
+    #   NUM_PROCS=72 QPS_TOTAL=118000
+    NUM_VALIDATORS_TO_TARGET=1 \
+      NUM_PROCS="${NUM_PROCS:-24}" QPS_TOTAL="${QPS_TOTAL:-40000}" \
+      DURATION=15s \
       WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
       OPEN_LOOP="$OPEN_LOOP" \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
