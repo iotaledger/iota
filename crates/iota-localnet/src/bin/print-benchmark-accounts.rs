@@ -7,10 +7,11 @@
 //! from the same seeded RNG).
 //!
 //! Example:
-//!   cargo run --release -p iota-localnet --bin print-benchmark-accounts -- \
+//!   cargo run --release -p iota-localnet \
+//!     --bin print-benchmark-accounts -- \
 //!     --count 96 \
 //!     --gas-per-account 140000000000000000 \
-//!     --keystore-path dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
+//!     --keystore-path <path/to/benchmark.keystore> \
 //!     > /tmp/accounts.yaml
 
 use std::path::PathBuf;
@@ -47,11 +48,18 @@ fn main() -> Result<()> {
     let mut keystore = FileBasedKeystore::new(&cli.keystore_path)?;
     let keys = GenesisConfig::benchmark_gas_keys(cli.count);
 
-    for gas_key in keys.into_iter() {
+    // Use a stable per-position alias (`benchmark-<i>`) instead of the
+    // randomized word-pair alias that `add_key(None, ...)` would assign.
+    // Both keys and addresses are already deterministic from the seeded
+    // RNG, so stable aliases make the resulting keystore file
+    // byte-identical across regenerations — no spurious git diffs when
+    // the helper re-runs.
+    for (i, gas_key) in keys.into_iter().enumerate() {
         let addr = IotaAddress::from(&gas_key.public());
         println!("  - address: \"{}\"", addr);
         println!("    gas_amounts: [{}]", cli.gas_per_account);
-        keystore.add_key(None, gas_key)?;
+        let alias = format!("benchmark-{}", i);
+        keystore.add_key(Some(alias), gas_key)?;
     }
     keystore.save()?;
 

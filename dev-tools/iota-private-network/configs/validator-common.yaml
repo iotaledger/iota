@@ -9,7 +9,7 @@ validator:
   consensus-config:
     db-path: /opt/iota/db/consensus_db
     max-pending-transactions: 1000
-    max-pending-local-submissions: 200
+    max-pending-local-submissions: 50
     graduated-load-shedding-soft-limit-pct: 100
   expensive-safety-check-config:
     enable-epoch-iota-conservation-check: false

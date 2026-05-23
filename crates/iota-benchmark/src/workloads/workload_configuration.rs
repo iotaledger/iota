@@ -91,6 +91,7 @@ impl WorkloadConfiguration {
                 num_workers,
                 in_flight_ratio,
                 burst_size: _, // consumed by BenchDriver::with_burst_size in stress.rs
+                open_loop: _,  // consumed by BenchDriver::with_open_loop in stress.rs
                 duration,
             } => {
                 info!(

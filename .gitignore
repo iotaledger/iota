@@ -117,5 +117,4 @@ apps/explorer/public/*.wasm
 
 runs/
 burst-sweep.log
-burst-sweep.csv.*
-burst-sweep.log.*
+fairness-sweep.log

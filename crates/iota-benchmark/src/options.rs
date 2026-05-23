@@ -293,6 +293,27 @@ pub enum RunSpec {
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [1])]
         burst_size: Vec<u64>,
 
+        // Open-loop submission mode. When set, the worker recycles a
+        // payload back into its free pool immediately after submitting
+        // (instead of waiting for the response). The same payload digest
+        // is re-used for multiple concurrent submissions, so duplicates
+        // are likely — but the validator's load-shedding gate runs
+        // BEFORE deduplication, so this still drives real arrival
+        // pressure for cap-safety and goodput experiments.
+        //
+        // In closed-loop (default) mode, each worker's actual submission
+        // rate is capped by `concurrency / per_tx_latency`, which is
+        // well below nominal `target_qps` under heavy contention. In
+        // open-loop mode the worker fires at the full `target_qps`
+        // regardless of how slowly responses come back.
+        //
+        // Use only when the workload's logical correctness doesn't
+        // matter (i.e. load-shedding stress tests). Do NOT use for
+        // benchmark correctness measurements — duplicates and stale
+        // gas-object refs will inflate error counters.
+        #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [false])]
+        open_loop: Vec<bool>,
+
         // Setting the duration of each benchmark. Benchmarks will run in sequence.
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [Interval::from_str("unbounded").unwrap()])]
         duration: Vec<Interval>,

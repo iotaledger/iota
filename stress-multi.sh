@@ -162,6 +162,8 @@ for ((i=0; i<N; i++)); do
     proc_barrier=$HONEST_BARRIER_PERIOD_MS
     proc_ifr=$HONEST_IFR
     proc_workers=$HONEST_WORKERS
+    # Honest pool stays closed-loop — we want it to model a real client.
+    proc_open_loop="false"
   else
     pool="spammer"
     proc_qps=$QPS_PER
@@ -169,14 +171,21 @@ for ((i=0; i<N; i++)); do
     proc_barrier=$BARRIER_PERIOD_MS
     proc_ifr=$IN_FLIGHT_RATIO
     proc_workers=$WORKERS
+    # Spammer pool may opt into open-loop via the OPEN_LOOP env var so
+    # the validator gate sees sustained pressure even when per-tx
+    # round-trip latency is high. Default is closed-loop (matches
+    # historical behaviour).
+    proc_open_loop="${OPEN_LOOP:-false}"
   fi
   pool_labels+=("$pool")
-  echo "   process $i [$pool] → $fn  (qps=$proc_qps burst=$proc_burst, log: $log, cache: ${proc_cache:-disabled})"
+  echo "   process $i [$pool] → $fn  (qps=$proc_qps burst=$proc_burst open_loop=$proc_open_loop, log: $log, cache: ${proc_cache:-disabled})"
   QPS="$proc_qps" \
   DURATION="$DURATION" \
   WORKERS="$proc_workers" \
   IN_FLIGHT_RATIO="$proc_ifr" \
   BURST_SIZE="$proc_burst" \
+  OPEN_LOOP="$proc_open_loop" \
+  OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
   BARRIER_PERIOD_MS="$proc_barrier" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   GAS_POOL_CACHE_PATH="$proc_cache" \

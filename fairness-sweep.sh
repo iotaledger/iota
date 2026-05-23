@@ -37,7 +37,12 @@ START_PCT="${START_PCT:-}"
 # Pool config. Honest defaults: 1 process at 50 QPS, no burst, no
 # periodic barrier — a low-rate steady-state submitter that should be
 # the "victim" under binary FCFS unfairness.
-NUM_PROCS="${NUM_PROCS:-24}"
+#
+# Default NUM_PROCS=25 = 24 spammer + 1 honest. This matches
+# burst-sweep.sh's 24-spammer baseline so spam pressure is identical
+# across the two experiments (otherwise the honest pool would steal
+# one spam slot and we'd be comparing apples to oranges).
+NUM_PROCS="${NUM_PROCS:-25}"
 HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-1}"
 HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-50}"
 HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
@@ -51,6 +56,13 @@ DURATION="${DURATION:-15s}"
 WORKERS="${WORKERS:-16}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-20}"
 BURST_SIZE="${BURST_SIZE:-1800}"
+# OPEN_LOOP=true makes the spammer pool fire submissions at target_qps
+# regardless of in-flight count. Removes the closed-loop per-worker
+# round-trip ceiling that pins per-proc submission rate well below
+# nominal QPS under heavy validator contention. Use for cap-safety and
+# goodput experiments where sustained validator-gate pressure matters
+# more than per-tx correctness. Honest pool is always closed-loop.
+OPEN_LOOP="${OPEN_LOOP:-false}"
 BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-500}"
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-1}"
@@ -193,12 +205,42 @@ for i in $(seq 1 $ITERS); do
   echo "[fairness iter=$i/$ITERS  pct=${START_PCT:-(current yaml)}]  $(date -u +%H:%M:%S)"
   echo "=================================================="
 
-  # Reset network for clean state per iter (matches burst-sweep.sh).
+  # Kill any leftover stress.rs processes from a previous iter that may
+  # still be holding metric ports (8081 + i). The metric server panics
+  # with "Address already in use" if a stale binary hasn't released its
+  # port yet — stress-multi.sh waits on the bash wrapper PID, but
+  # setsid puts the stress.rs grandchild in its own process group, so
+  # `wait` may return before the grandchild fully cleans up.
+  pkill -9 -f "target/release/stress " 2>/dev/null || true
+  sleep 1
+
+  # Reset both stacks per iter. Grafana must come down BEFORE the iota
+  # network: grafana-local containers attach to `iota-network` (for
+  # validator scraping), so the network can't be removed cleanly while
+  # they're up. All Prometheus queries happen at the end of each iter
+  # window inside stress-multi.sh — there is no cross-iter analysis,
+  # so bouncing the grafana stack per iter costs nothing and gives
+  # each iter a fresh Prometheus DB.
+  (cd "$REPO/dev-tools/grafana-local" && docker compose down 2>&1 | tail -1) || true
+  # `docker compose down` returns before the OS fully releases host
+  # ports bound by the removed containers (e.g. tempo's 3200, grafana's
+  # 3000, prom's 9090). The next `compose up` then races and panics
+  # with "address already in use". 2s is enough on every test we've
+  # seen so far.
+  sleep 2
   cd "$PRIVNET"
   docker compose down -v 2>&1 | tail -1 || true
   sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
   ./run.sh -n 4 faucet 2>&1 | tail -1
   rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
+  (cd "$REPO/dev-tools/grafana-local" && docker compose up -d 2>&1 | tail -1)
+  # Wait for Prometheus to be ready before the spam window starts.
+  for attempt in $(seq 1 30); do
+    if curl -sf --max-time 2 'http://localhost:9090/api/v1/query?query=up' >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
   sleep 20
 
   cd "$REPO"
@@ -217,6 +259,7 @@ for i in $(seq 1 $ITERS); do
   WORKERS="$WORKERS" \
   IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" \
   BURST_SIZE="$BURST_SIZE" \
+  OPEN_LOOP="$OPEN_LOOP" \
   BARRIER_PERIOD_MS="$BARRIER_PERIOD_MS" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   ./stress-multi.sh 2>&1 | tail -50 | tee "$REPO/runs/fairness-iter.log"

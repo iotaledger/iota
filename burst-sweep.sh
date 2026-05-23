@@ -40,6 +40,15 @@ PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 
 START_PCT="${START_PCT:-}"
+# OPEN_LOOP=true makes the spammer pool fire submissions at target_qps
+# regardless of in-flight count (recycles payloads immediately after
+# submission). Removes the per-worker closed-loop ceiling that pins
+# actual submission rate below nominal QPS under heavy validator
+# contention. Use for cap-safety / goodput experiments where sustained
+# validator-gate pressure matters more than per-tx correctness;
+# duplicate submissions are likely, but the load-shedding gate runs
+# before deduplication so they still count toward queue depth.
+OPEN_LOOP="${OPEN_LOOP:-false}"
 YAML_CFG="$PRIVNET/configs/validator-common.yaml"
 
 # CSV header (only if new file). `start_pct` is graduated-load-shedding-soft-limit-pct
@@ -202,6 +211,7 @@ for burst in "${BURSTS[@]}"; do
     # nearly drain the pool to maximize racing arrivals at the gate).
     NUM_VALIDATORS_TO_TARGET=1 NUM_PROCS=24 QPS_TOTAL=40000 DURATION=15s \
       WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
+      OPEN_LOOP="$OPEN_LOOP" \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
       | tee "$REPO/runs/burst-sweep-iter.log"
 

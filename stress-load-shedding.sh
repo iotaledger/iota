@@ -23,6 +23,14 @@ DURATION="${DURATION:-120s}"
 WORKERS="${WORKERS:-12}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-5}"
 BURST_SIZE="${BURST_SIZE:-1}"
+# OPEN_LOOP=true makes stress.rs recycle each payload back into its free
+# pool immediately after submission, instead of waiting for the response.
+# Per-worker fire rate then matches `target_qps` even when validator
+# round-trip latency is high. Used for cap-safety / goodput stress tests
+# where sustained validator-gate pressure matters more than per-tx
+# correctness (duplicate digests will appear but the load-shedding gate
+# runs before deduplication).
+OPEN_LOOP="${OPEN_LOOP:-false}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-10}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-4}"
 # 0 = TD spams all validators (default amplification factor).
@@ -166,6 +174,7 @@ stress_args+=(
     --in-flight-ratio "$IN_FLIGHT_RATIO"
     --num-workers "$WORKERS"
     --burst-size "$BURST_SIZE"
+    --open-loop "$OPEN_LOOP"
     --transfer-object "$TRANSFER_OBJECT_PCT"
     --shared-counter "$SHARED_COUNTER_PCT"
 )

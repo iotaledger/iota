@@ -38,7 +38,7 @@ use rand::seq::SliceRandom;
 use sysinfo::System;
 use tokio::{
     sync::{
-        Barrier, OnceCell,
+        Barrier, OnceCell, Semaphore,
         mpsc::{Sender, channel},
     },
     task::{JoinHandle, JoinSet},
@@ -46,6 +46,32 @@ use tokio::{
     time::Instant,
 };
 use tokio_util::sync::CancellationToken;
+
+/// Default maximum number of in-flight detached open-loop submissions per
+/// worker. Used as a soft backpressure cap: when the worker tries to fire
+/// a new submission and this many are already pending, it drops that
+/// submission (counts as `num_open_loop_dropped`) instead of blocking
+/// the tick.
+///
+/// Network-wide memory budget at the default: ~200 in-flight × ~4 KB
+/// per task × 16 workers/proc × 24 procs ≈ 300 MB. Safe for both
+/// workstation (16+ GB RAM) and EPYC (251 GB RAM). Override per run
+/// with the `OPEN_LOOP_MAX_INFLIGHT_PER_WORKER` env var if you want
+/// more pressure (and have headroom).
+const DEFAULT_OPEN_LOOP_MAX_INFLIGHT_PER_WORKER: usize = 200;
+
+/// Per-task timeout for open-loop submissions. Each spawned task drops
+/// its in-flight semaphore permit after at most this long, regardless
+/// of whether the validator has returned a response. This decouples
+/// the per-worker fire rate from validator response latency: effective
+/// rate = `OPEN_LOOP_MAX_INFLIGHT_PER_WORKER / OPEN_LOOP_TASK_TIMEOUT`.
+///
+/// 2s is a balance: long enough that fast successful submissions return
+/// before the timeout (so we count them as "completed" rather than
+/// timed-out), short enough that slow / overloaded validators don't
+/// tie up the cap indefinitely. We don't read the response anyway, so
+/// the "loss" of waiting longer is purely client-side state holding.
+const OPEN_LOOP_TASK_TIMEOUT: Duration = Duration::from_secs(2);
 use tracing::{debug, error, info, warn};
 
 use super::{BenchmarkStats, Interval, StressStats};
@@ -217,6 +243,14 @@ pub struct BenchWorker {
     /// Burst size: how many requests this worker releases per tick.
     /// Default 1 = rate-paced; higher = bursty admission pattern.
     pub burst_size: u64,
+    /// Open-loop submission. When true, the worker recycles a payload
+    /// back into its free pool immediately after submission (instead of
+    /// waiting for the response), so the per-tick fire rate is no longer
+    /// throttled by per-tx round-trip latency. Used for load-shedding
+    /// stress tests where sustained validator-gate pressure matters more
+    /// than per-tx correctness (the gate runs before deduplication, so
+    /// duplicate submissions still count toward queue depth).
+    pub open_loop: bool,
     /// Pre-computed FIRST barrier deadline shared across all workers in this
     /// driver. Set when barrier mode is active so all workers fire their
     /// first burst at the SAME tick boundary, even if they start in
@@ -253,6 +287,9 @@ pub struct BenchDriver {
     /// How many transactions each worker releases per tick. Default 1.
     /// > 1 produces concentrated bursts at the validator gate.
     pub burst_size: u64,
+    /// Open-loop submission. See [`BenchWorker::open_loop`] for details.
+    /// Default false.
+    pub open_loop: bool,
     /// When set, all workers align bursts to `barrier_t_zero + k ×
     /// barrier_period`.
     pub barrier_t_zero: Option<Instant>,
@@ -267,6 +304,7 @@ impl BenchDriver {
             start_time: Instant::now(),
             token: CancellationToken::new(),
             burst_size: 1,
+            open_loop: false,
             barrier_t_zero: None,
             barrier_period: None,
         }
@@ -274,6 +312,11 @@ impl BenchDriver {
 
     pub fn with_burst_size(mut self, burst_size: u64) -> Self {
         self.burst_size = burst_size.max(1);
+        self
+    }
+
+    pub fn with_open_loop(mut self, open_loop: bool) -> Self {
+        self.open_loop = open_loop;
         self
     }
 
@@ -359,6 +402,7 @@ impl BenchDriver {
                     group: workload_info.workload_params.group,
                     duration: workload_info.workload_params.duration,
                     burst_size: self.burst_size,
+                    open_loop: self.open_loop,
                     barrier_first_deadline,
                     barrier_t_zero: self.barrier_t_zero,
                     barrier_period: self.barrier_period,
@@ -826,6 +870,24 @@ async fn run_bench_worker(
     let group_benchmark_run_interval = worker.duration;
     let mut free_pool: VecDeque<_> = worker.payload.into_iter().collect();
 
+    // Bounded fire-and-forget pool for open-loop submission. The
+    // semaphore caps the number of detached tokio tasks this worker
+    // can have in flight at once — without it, the tokio runtime
+    // accumulates millions of pending request futures (each holding
+    // tx data + gRPC state) under burst load and OOM-kills the
+    // process. Backpressure: failed `try_acquire` skips that
+    // submission rather than blocking the worker tick.
+    //
+    // The cap is read from the `OPEN_LOOP_MAX_INFLIGHT_PER_WORKER`
+    // env var at runtime (default 200). Higher = more validator-gate
+    // pressure but more memory; lower = safer but less effective.
+    let open_loop_cap = std::env::var("OPEN_LOOP_MAX_INFLIGHT_PER_WORKER")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_OPEN_LOOP_MAX_INFLIGHT_PER_WORKER);
+    let open_loop_inflight = Arc::new(Semaphore::new(open_loop_cap));
+    let mut num_open_loop_dropped: u64 = 0;
+
     let mut stat_start_time: Instant = Instant::now();
 
     // Handles the transaction response when sent to proxy.
@@ -1020,12 +1082,23 @@ async fn run_bench_worker(
                 {
                     debug!("Failed to update stat!");
                 }
+                // Surface open-loop backpressure drops if any happened.
+                // `info!` so it shows up in stress.rs's per-process log
+                // without needing to bump RUST_LOG to debug.
+                if num_open_loop_dropped > 0 {
+                    tracing::info!(
+                        "worker {}: dropped {} open-loop submissions due to in-flight cap",
+                        worker.id,
+                        num_open_loop_dropped
+                    );
+                }
                 num_success_txes = 0;
                 num_error_txes = 0;
                 num_expected_error_txes = 0;
                 num_success_cmds = 0;
                 num_no_gas = 0;
                 num_submitted = 0;
+                num_open_loop_dropped = 0;
                 worker_gas_used = 0;
                 stat_start_time = Instant::now();
                 latency_histogram.reset();
@@ -1092,12 +1165,80 @@ async fn run_bench_worker(
                         let start = Arc::new(Instant::now());
                         // TODO: clone committee for each request is not ideal.
                         let committee = worker.proxy.clone_committee();
-                        let res = worker.proxy
-                            .execute_transaction_block(tx.clone())
-                        .then(|res| async move {
-                            handle_execute_transaction_response(res, start, tx, payload, committee)
-                        });
-                        futures.push(Box::pin(res));
+                        if worker.open_loop {
+                            // Bounded fire-and-forget. Recycle the payload to
+                            // the free pool immediately so the next tick can
+                            // fire again, then spawn the submission as a
+                            // detached tokio task — but ONLY if we still have
+                            // an open-loop in-flight slot. Without the
+                            // semaphore the runtime accumulates millions of
+                            // pending detached tasks under burst load and
+                            // OOM-kills the process.
+                            //
+                            // `try_acquire_owned()` is non-blocking: if no
+                            // slot is available, this submission is dropped
+                            // and counted as backpressure (num_open_loop_dropped).
+                            // The worker tick proceeds without waiting.
+                            //
+                            // The spawned task holds the permit until its
+                            // response (or error) returns; on drop it releases
+                            // back to the per-worker pool.
+                            //
+                            // Side effects: same payload digest is submitted
+                            // multiple times concurrently (validator sees
+                            // duplicates) and we lose per-tx success/error
+                            // counts. Validator-side metrics (queue depth,
+                            // rejection rate via Prometheus) are unaffected
+                            // and remain the ground-truth for cap-safety
+                            // experiments.
+                            free_pool.push_back(payload);
+                            match open_loop_inflight.clone().try_acquire_owned() {
+                                Ok(permit) => {
+                                    let proxy = worker.proxy.clone();
+                                    // Per-task timeout: release the slot
+                                    // after at most OPEN_LOOP_TASK_TIMEOUT
+                                    // regardless of whether the validator
+                                    // has responded. Without this, slow
+                                    // validator responses (5-10s+ during
+                                    // overload) tie up the per-worker
+                                    // semaphore — effectively making this
+                                    // "bounded closed-loop" with throughput
+                                    // = cap / latency, no better than
+                                    // closed-loop. The timeout decouples
+                                    // submission rate from validator
+                                    // response time, giving genuine
+                                    // open-loop firing at cap / timeout.
+                                    tokio::spawn(async move {
+                                        let _ = tokio::time::timeout(
+                                            OPEN_LOOP_TASK_TIMEOUT,
+                                            proxy.execute_transaction_block(tx),
+                                        )
+                                        .await;
+                                        drop(permit);
+                                    });
+                                }
+                                Err(_) => {
+                                    // Semaphore exhausted — drop this
+                                    // submission and roll back the counters
+                                    // we incremented optimistically above.
+                                    num_open_loop_dropped += 1;
+                                    num_submitted = num_submitted.saturating_sub(1);
+                                    num_in_flight = num_in_flight.saturating_sub(1);
+                                }
+                            }
+                            // `start` and `committee` weren't used in this
+                            // branch (the closed-loop branch below consumes
+                            // them); drop explicitly to silence the
+                            // unused-variable warning.
+                            let _ = (start, committee);
+                        } else {
+                            let res = worker.proxy
+                                .execute_transaction_block(tx.clone())
+                            .then(|res| async move {
+                                handle_execute_transaction_response(res, start, tx, payload, committee)
+                            });
+                            futures.push(Box::pin(res));
+                        }
                     }
                 }
             }

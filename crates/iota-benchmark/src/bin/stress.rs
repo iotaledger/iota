@@ -173,18 +173,26 @@ async fn main() -> Result<()> {
             // otherwise summarized benchmark results are
             // published in the end
             let show_progress = interval.is_unbounded();
-            // Extract burst_size from the Bench RunSpec (default 1). When > 1,
-            // each worker releases `burst_size` requests per tick concurrently,
-            // producing bursty admission patterns instead of rate-paced.
-            let burst_size = match &opts.run_spec {
-                iota_benchmark::options::RunSpec::Bench { burst_size, .. } => {
-                    burst_size.first().copied().unwrap_or(1).max(1)
-                }
-                _ => 1,
+            // Extract burst_size and open_loop from the Bench RunSpec.
+            // burst_size > 1 produces bursty admission patterns instead of
+            // rate-paced. open_loop = true recycles payloads immediately
+            // after submission so per-tick fire rate isn't throttled by
+            // per-tx round-trip latency (used for load-shedding stress).
+            let (burst_size, open_loop) = match &opts.run_spec {
+                iota_benchmark::options::RunSpec::Bench {
+                    burst_size,
+                    open_loop,
+                    ..
+                } => (
+                    burst_size.first().copied().unwrap_or(1).max(1),
+                    open_loop.first().copied().unwrap_or(false),
+                ),
+                _ => (1, false),
             };
             let mut driver =
                 BenchDriver::new(opts.stat_collection_interval, stress_stat_collection)
-                    .with_burst_size(burst_size);
+                    .with_burst_size(burst_size)
+                    .with_open_loop(open_loop);
 
             // Intra-spam barrier: every worker fires its burst at
             // `t_zero + k × period`. Anchor `t_zero` to the wall-clock epoch
