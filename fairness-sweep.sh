@@ -100,6 +100,17 @@ if [ -n "$START_PCT" ]; then
   echo "=> Patched $YAML_CFG: graduated-load-shedding-soft-limit-pct = $START_PCT"
 fi
 
+# Bump per-process file descriptor limit to the hard cap. Each stress
+# subprocess opens many gRPC connections; the default soft limit of 1024
+# is too tight at NUM_PROCS=96. Hard limit is whatever the system permits;
+# raising the soft up to it doesn't require root.
+HARD_NOFILE=$(ulimit -Hn)
+if [ "$(ulimit -n)" -lt "$HARD_NOFILE" ]; then
+  ulimit -n "$HARD_NOFILE" 2>/dev/null \
+    || echo "  (warning: could not raise file descriptor soft limit to $HARD_NOFILE)"
+fi
+echo "  ulimit -n  ✓ soft=$(ulimit -n) hard=$HARD_NOFILE"
+
 # -------- Pre-flight (matches burst-sweep.sh) ---------
 PREFLIGHT_OK=1
 echo "=== pre-flight checks ==="
