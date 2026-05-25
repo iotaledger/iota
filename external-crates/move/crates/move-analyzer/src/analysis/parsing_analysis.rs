@@ -675,7 +675,6 @@ impl<'a> ParsingAnalysisContext<'a> {
             return;
         };
         self.use_defs.insert(
-            mod_name_start.line,
             UseDef::new(
                 self.references,
                 &BTreeMap::new(),
@@ -739,7 +738,7 @@ impl<'a> ParsingAnalysisContext<'a> {
                     alias_start,
                     alias.loc.file_hash(),
                 );
-                self.use_defs.insert(alias_start.line, ud);
+                self.use_defs.insert(ud);
             }
             return;
         }
@@ -767,7 +766,7 @@ impl<'a> ParsingAnalysisContext<'a> {
                     alias_start,
                     alias.loc.file_hash(),
                 );
-                self.use_defs.insert(alias_start.line, ud);
+                self.use_defs.insert(ud);
             }
         }
     }

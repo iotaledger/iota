@@ -381,10 +381,19 @@ pub enum DefInfo {
     ),
 }
 
-/// Information about both the use identifier (source file is specified wherever
-/// an instance of this struct is used) and the definition identifier
+/// Information about both the use identifier and the definition identifier.
+///
+/// A `UseDef` is self-describing about *where* the use is: the `use_fhash`
+/// and `use_line` fields identify the file and line of the use position.
+/// This invariant is enforced by [`UseDefMap::insert`] (debug-only assertion)
+/// so the use coordinates of a `UseDef` always match the file the containing
+/// map is for. Violating it was the root cause of issue #2421.
 #[derive(Debug, Clone, Eq)]
 pub struct UseDef {
+    /// File hash of the use position
+    use_fhash: FileHash,
+    /// Line where the (use) identifier location starts (0-indexed)
+    use_line: u32,
     /// Column where the (use) identifier location starts on a given line (use
     /// this field for sorting uses on the line)
     col_start: u32,
@@ -698,9 +707,18 @@ pub enum CursorDefinition {
 type LineOffset = u32;
 
 /// Maps a line number to a list of use-def-s on a given line (use-def set is
-/// sorted by col_start)
+/// sorted by col_start).
+///
+/// The map carries the `FileHash` of the file it describes. Every `UseDef`
+/// inserted must have `use_fhash` matching `file_hash`; this is enforced by
+/// a debug-only assertion in [`UseDefMap::insert`] / [`UseDefMap::extend`].
+/// Use [`UseDefMap::empty`] to obtain a placeholder for short-lived swaps
+/// (e.g. `std::mem::replace`) where the map is never inserted into.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UseDefMap(BTreeMap<LineOffset, BTreeSet<UseDef>>);
+pub struct UseDefMap {
+    file_hash: FileHash,
+    map: BTreeMap<LineOffset, BTreeSet<UseDef>>,
+}
 
 pub type References = BTreeMap<Loc, BTreeSet<UseLoc>>;
 pub type DefMap = BTreeMap<Loc, DefInfo>;
@@ -1701,6 +1719,8 @@ impl UseDef {
 
         references.entry(def_loc).or_default().insert(use_loc);
         Self {
+            use_fhash,
+            use_line: use_start.line,
             col_start: use_start.character,
             col_end,
             def_loc,
@@ -1717,6 +1737,8 @@ impl UseDef {
         new_start: Position,
         new_fhash: FileHash,
     ) {
+        self.use_fhash = new_fhash;
+        self.use_line = new_start.line;
         self.col_start = new_start.character;
         self.col_end = new_start.character + new_name.len() as u32;
         let new_use_loc = UseLoc {
@@ -1729,6 +1751,14 @@ impl UseDef {
             .entry(self.def_loc)
             .or_default()
             .insert(new_use_loc);
+    }
+
+    pub fn use_fhash(&self) -> FileHash {
+        self.use_fhash
+    }
+
+    pub fn use_line(&self) -> u32 {
+        self.use_line
     }
 
     pub fn col_start(&self) -> u32 {
@@ -1753,6 +1783,8 @@ impl UseDef {
         def_file_content: &str,
     ) -> std::io::Result<()> {
         let UseDef {
+            use_fhash: _,
+            use_line: _,
             col_start,
             col_end,
             def_loc,
@@ -1826,37 +1858,88 @@ impl PartialEq for UseDef {
     }
 }
 
-impl Default for UseDefMap {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl UseDefMap {
-    pub fn new() -> Self {
-        Self(BTreeMap::new())
+    /// Construct a map for `file_hash`. Every `UseDef` later inserted must
+    /// have `use_fhash == file_hash`.
+    pub fn new(file_hash: FileHash) -> Self {
+        Self {
+            file_hash,
+            map: BTreeMap::new(),
+        }
     }
 
-    pub fn insert(&mut self, key: u32, val: UseDef) {
-        self.0.entry(key).or_default().insert(val);
+    /// Construct a placeholder map with no associated file. Useful for
+    /// short-lived swaps via `std::mem::replace` where the map is replaced
+    /// before any insert happens. Inserts on an empty map will trigger the
+    /// debug assertion in [`UseDefMap::insert`].
+    pub fn empty() -> Self {
+        Self::new(FileHash::empty())
+    }
+
+    pub fn file_hash(&self) -> FileHash {
+        self.file_hash
+    }
+
+    /// Insert a `UseDef`. The map line key is derived from `ud.use_line()`.
+    ///
+    /// If `ud.use_fhash()` does not match this map's `file_hash`, the
+    /// `UseDef` is silently dropped (and, in debug builds, a warning is
+    /// printed). This is the safety net for the class of cross-file
+    /// confusion that issue #2421 exposed — a `UseDef` whose coordinates
+    /// describe a different file getting filed under this one. The
+    /// individual `add_*_use_def` helpers should already guard against
+    /// inserting such `UseDef`s; this catches anything that slips through.
+    pub fn insert(&mut self, ud: UseDef) {
+        if ud.use_fhash() != self.file_hash {
+            log_cross_file_drop(&ud, self.file_hash);
+            return;
+        }
+        self.map.entry(ud.use_line()).or_default().insert(ud);
     }
 
     pub fn get(&self, key: u32) -> Option<BTreeSet<UseDef>> {
-        self.0.get(&key).cloned()
+        self.map.get(&key).cloned()
     }
 
     pub fn elements(self) -> BTreeMap<u32, BTreeSet<UseDef>> {
-        self.0
+        self.map
     }
 
     pub fn count(&self) -> usize {
-        self.0.len()
+        self.map.len()
     }
 
     pub fn extend(&mut self, use_defs: BTreeMap<u32, BTreeSet<UseDef>>) {
         for (k, v) in use_defs {
-            self.0.entry(k).or_default().extend(v);
+            let entry = self.map.entry(k).or_default();
+            for ud in v {
+                if ud.use_fhash() != self.file_hash {
+                    log_cross_file_drop(&ud, self.file_hash);
+                    continue;
+                }
+                entry.insert(ud);
+            }
         }
+    }
+}
+
+/// Log a dropped cross-file `UseDef`. Off by default; enable by setting
+/// `MOVE_ANALYZER_VERBOSE_USEDEF=1` in the environment to surface every
+/// drop (useful when tracking down bugs like issue #2421). In production
+/// the dropped `UseDef` would silently corrupt hover/goto-def results;
+/// dropping it is the safe choice.
+fn log_cross_file_drop(ud: &UseDef, map_file_hash: FileHash) {
+    if std::env::var_os("MOVE_ANALYZER_VERBOSE_USEDEF").is_some() {
+        eprintln!(
+            "move-analyzer: dropping cross-file UseDef \
+             (use_fhash={:?}, map_fhash={:?}, line={}, col {}-{}, def={:?})",
+            ud.use_fhash(),
+            map_file_hash,
+            ud.use_line(),
+            ud.col_start(),
+            ud.col_end(),
+            ud.def_loc(),
+        );
     }
 }
 
@@ -2362,7 +2445,7 @@ fn run_parsing_analysis(
         files: &compiled_pkg_info.mapped_files,
         references: &mut computation_data.references,
         def_info: &mut computation_data.def_info,
-        use_defs: UseDefMap::new(),
+        use_defs: UseDefMap::empty(),
         current_mod_ident_str: None,
         alias_lengths: BTreeMap::new(),
         pkg_addresses: &NamedAddressMap::new(),
@@ -2417,7 +2500,7 @@ fn run_typing_analysis(
         files: mapped_files,
         references: &mut computation_data.references,
         def_info: &mut computation_data.def_info,
-        use_defs: UseDefMap::new(),
+        use_defs: UseDefMap::empty(),
         current_mod_ident_str: None,
         alias_lengths: &BTreeMap::new(),
         traverse_only: false,
@@ -2451,7 +2534,10 @@ fn update_file_use_defs(
             .unwrap();
         let fpath = match mapped_files.file_name_mapping().get(&module_defs.fhash) {
             Some(p) => p.as_path().to_string_lossy().to_string(),
-            None => return,
+            // Skip this module, but keep processing the rest — the original
+            // code used `return` here which silently dropped every module that
+            // happened to iterate after one with a missing file mapping.
+            None => continue,
         };
 
         let fpath_buffer =
@@ -2459,7 +2545,7 @@ fn update_file_use_defs(
 
         file_use_defs
             .entry(fpath_buffer)
-            .or_default()
+            .or_insert_with(|| UseDefMap::new(module_defs.fhash))
             .extend(use_defs.clone().elements());
     }
 }
@@ -2778,7 +2864,7 @@ fn process_typed_modules<'a>(
         typing_symbolicator.alias_lengths = mod_to_alias_lengths.get(&mod_ident_str).unwrap();
         typing_symbolicator.visit_module(module_ident, module_def);
 
-        let use_defs = std::mem::replace(&mut typing_symbolicator.use_defs, UseDefMap::new());
+        let use_defs = std::mem::replace(&mut typing_symbolicator.use_defs, UseDefMap::empty());
         mod_use_defs.insert(mod_ident_str, use_defs);
     }
 }
@@ -3177,7 +3263,7 @@ fn get_mod_outer_defs(
         def_info.insert(name_loc, fun_info);
     }
 
-    let mut use_def_map = UseDefMap::new();
+    let mut use_def_map = UseDefMap::new(fhash);
 
     let ident = mod_ident.value;
     let doc_string = mod_def.doc.comment().map(|d| d.value.to_owned());
@@ -3199,18 +3285,15 @@ fn get_mod_outer_defs(
     // insert use of the module name in the definition itself
     let mod_name = ident.module;
     if let Some(mod_name_start) = loc_start_to_lsp_position_opt(files, &mod_name.loc()) {
-        use_def_map.insert(
-            mod_name_start.line,
-            UseDef::new(
-                references,
-                &BTreeMap::new(),
-                mod_name.loc().file_hash(),
-                mod_name_start,
-                mod_defs.name_loc,
-                &mod_name.value(),
-                None,
-            ),
-        );
+        use_def_map.insert(UseDef::new(
+            references,
+            &BTreeMap::new(),
+            mod_name.loc().file_hash(),
+            mod_name_start,
+            mod_defs.name_loc,
+            &mod_name.value(),
+            None,
+        ));
         def_info.insert(
             mod_defs.name_loc,
             DefInfo::Module(mod_ident_to_ide_string(&ident, None, false), doc_string),
@@ -3263,7 +3346,7 @@ pub fn add_member_use_def(
             use_name,
             ident_type_def_loc,
         );
-        use_defs.insert(name_start.line, ud.clone());
+        use_defs.insert(ud.clone());
         return Some(ud);
     }
     None

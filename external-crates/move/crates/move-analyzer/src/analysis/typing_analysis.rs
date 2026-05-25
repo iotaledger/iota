@@ -127,7 +127,6 @@ impl TypingAnalysisContext<'_> {
         let ident_type_def_loc = def_info_to_type_def_loc(self.mod_outer_defs, &type_def_info);
 
         self.use_defs.insert(
-            start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -168,7 +167,6 @@ impl TypingAnalysisContext<'_> {
             if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
                 // a module will not be present if a constant belongs to an implicit module
                 self.use_defs.insert(
-                    mod_name_start.line,
                     UseDef::new(
                         self.references,
                         self.alias_lengths,
@@ -190,7 +188,6 @@ impl TypingAnalysisContext<'_> {
             let const_info = self.def_info.get(&const_def.name_loc).unwrap();
             let ident_type_def_loc = def_info_to_type_def_loc(self.mod_outer_defs, const_info);
             self.use_defs.insert(
-                name_start.line,
                 UseDef::new(
                     self.references,
                     self.alias_lengths,
@@ -235,7 +232,6 @@ impl TypingAnalysisContext<'_> {
         // enter self-definition for def name
         let ident_type_def_loc = type_def_loc(self.mod_outer_defs, &def_type);
         self.use_defs.insert(
-            name_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -265,7 +261,6 @@ impl TypingAnalysisContext<'_> {
         if let Some(local_def) = self.expression_scope.get(use_name) {
             let ident_type_def_loc = type_def_loc(self.mod_outer_defs, &local_def.def_type);
             self.use_defs.insert(
-                name_start.line,
                 UseDef::new(
                     self.references,
                     self.alias_lengths,
@@ -318,7 +313,6 @@ impl TypingAnalysisContext<'_> {
             if let Some(mod_name_start) = mod_name_start_opt {
                 // a module will not be present if a function belongs to an implicit module
                 self.use_defs.insert(
-                    mod_name_start.line,
                     UseDef::new(
                         self.references,
                         self.alias_lengths,
@@ -332,7 +326,7 @@ impl TypingAnalysisContext<'_> {
             }
         }
 
-        let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::new());
+        let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::empty());
         let mut refs = std::mem::take(self.references);
         let result = add_member_use_def(
             fun_def_name,
@@ -375,7 +369,6 @@ impl TypingAnalysisContext<'_> {
             if let Some(mod_name_start) = self.file_start_position_opt(&mod_name.loc()) {
                 // a module will not be present if a struct belongs to an implicit module
                 self.use_defs.insert(
-                    mod_name_start.line,
                     UseDef::new(
                         self.references,
                         self.alias_lengths,
@@ -389,7 +382,7 @@ impl TypingAnalysisContext<'_> {
             }
         }
 
-        let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::new());
+        let mut use_defs = std::mem::replace(&mut self.use_defs, UseDefMap::empty());
         let mut refs = std::mem::take(self.references);
         add_member_use_def(
             &use_name.value(),
@@ -468,7 +461,6 @@ impl TypingAnalysisContext<'_> {
         };
 
         self.use_defs.insert(
-            name_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -545,7 +537,6 @@ impl TypingAnalysisContext<'_> {
                 let field_info = self.def_info.get(&fdef.loc).unwrap();
                 let ident_type_def_loc = def_info_to_type_def_loc(self.mod_outer_defs, field_info);
                 self.use_defs.insert(
-                    name_start.line,
                     UseDef::new(
                         self.references,
                         self.alias_lengths,
@@ -725,7 +716,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
         let struct_info = self.def_info.get(&struct_name.loc()).unwrap();
         let struct_type_def = def_info_to_type_def_loc(self.mod_outer_defs, struct_info);
         self.use_defs.insert(
-            name_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -754,7 +744,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
                     let ident_type_def_loc =
                         def_info_to_type_def_loc(self.mod_outer_defs, &field_info);
                     self.use_defs.insert(
-                        start.line,
                         UseDef::new(
                             self.references,
                             self.alias_lengths,
@@ -786,7 +775,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
         let enum_info = self.def_info.get(&enum_name.loc()).unwrap();
         let enum_type_def = def_info_to_type_def_loc(self.mod_outer_defs, enum_info);
         self.use_defs.insert(
-            name_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -822,7 +810,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
         let variant_info = self.def_info.get(&variant_name.loc()).unwrap();
         let vtype_def = def_info_to_type_def_loc(self.mod_outer_defs, variant_info);
         self.use_defs.insert(
-            vname_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -845,7 +832,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
                     let ident_type_def_loc =
                         def_info_to_type_def_loc(self.mod_outer_defs, &field_info);
                     self.use_defs.insert(
-                        start.line,
                         UseDef::new(
                             self.references,
                             self.alias_lengths,
@@ -878,7 +864,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
         let const_info = self.def_info.get(&loc).unwrap();
         let ident_type_def_loc = def_info_to_type_def_loc(self.mod_outer_defs, const_info);
         self.use_defs.insert(
-            name_start.line,
             UseDef::new(
                 self.references,
                 self.alias_lengths,
@@ -921,7 +906,7 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
             fun_type_def,
         );
 
-        self.use_defs.insert(name_start.line, use_def);
+        self.use_defs.insert(use_def);
 
         // Get symbols for a function definition
         for tp in &fdef.signature.type_parameters {
@@ -1219,7 +1204,6 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
                 };
                 let ident_type_def_loc = type_def_loc(self.mod_outer_defs, ty);
                 self.use_defs.insert(
-                    name_start.line,
                     UseDef::new(
                         self.references,
                         self.alias_lengths,
@@ -1271,7 +1255,16 @@ impl TypingVisitorContext for TypingAnalysisContext<'_> {
                 let fun_def_name = fun_def.value();
                 let fun_def_loc = fun_def.loc();
                 self.add_fun_use_def(&module_ident, &fun_def_name, use_name, &use_loc);
-                self.add_fun_use_def(&module_ident, &fun_def_name, &fun_def_name, &fun_def_loc);
+                // Self-use-def at the function's definition site. Only emit
+                // when the definition lives in the file we're currently
+                // analysing — otherwise the analyser for the defining module
+                // already produced the same `UseDef`, and inserting a
+                // duplicate here would file coordinates from another file
+                // under the current module's `UseDefMap` (the structural
+                // safety net would drop it, but better not to create it).
+                if fun_def_loc.file_hash() == self.use_defs.file_hash() {
+                    self.add_fun_use_def(&module_ident, &fun_def_name, &fun_def_name, &fun_def_loc);
+                }
             }
         }
     }

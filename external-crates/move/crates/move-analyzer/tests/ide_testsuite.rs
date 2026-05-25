@@ -119,16 +119,17 @@ impl UseDefTest {
         writeln!(output, "use line: {use_line}, use_ndx: {use_ndx}")?;
         let lsp_use_line = use_line - 1; // 0th-based
         let Some(uses) = mod_symbols.get(lsp_use_line) else {
-            writeln!(
-                output,
-                "ERROR: No use_line {use_line} in mod_symbols {mod_symbols:#?} for file {use_file}"
-            )?;
+            // Intentionally terse: the map dump used to be included here, but
+            // it bloats snapshots and changes whenever the map's `Debug` impl
+            // changes. Tests that probe "no entry at line N" should expect
+            // only this single line.
+            writeln!(output, "ERROR: No uses at line {use_line} in {use_file}")?;
             return Ok(());
         };
         let Some(use_def) = uses.iter().nth(*use_ndx) else {
             writeln!(
                 output,
-                "ERROR: No use_line {use_ndx} in uses {uses:#?} for file {use_file}"
+                "ERROR: No use at ndx {use_ndx} on line {use_line} in {use_file}"
             )?;
             return Ok(());
         };
