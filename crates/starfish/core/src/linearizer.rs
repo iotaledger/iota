@@ -527,7 +527,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -605,7 +605,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
         let leader_schedule = Arc::new(
@@ -677,7 +677,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -809,7 +809,7 @@ mod tests {
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -955,7 +955,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -1020,7 +1020,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let ancestors = vec![
             VerifiedBlockHeader::new_for_test(

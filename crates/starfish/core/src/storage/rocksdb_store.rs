@@ -54,10 +54,6 @@ pub(crate) struct RocksDBStore {
     voting_block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
 
     fast_commit_sync_flag: DBMap<(), ()>,
-
-    /// Context to access protocol configuration
-    #[cfg_attr(not(test), allow(dead_code))]
-    context: Arc<Context>,
 }
 
 impl RocksDBStore {
@@ -74,7 +70,7 @@ impl RocksDBStore {
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
 
     /// Creates a new instance of RocksDB storage.
-    pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
+    pub(crate) fn new(path: &str) -> Self {
         // Consensus data has high write throughput (all transactions) and is rarely
         // read (only during recovery and when helping peers catch up).
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
@@ -162,7 +158,6 @@ impl RocksDBStore {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
-            context,
         }
     }
 }
@@ -315,10 +310,14 @@ impl Store for RocksDBStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(
+        &self,
+        refs: &[BlockRef],
+        context: Arc<Context>,
+    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
+        let tx_refs = if context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {
@@ -617,6 +616,7 @@ impl Store for RocksDBStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let mut refs = vec![];
         for kv in self.digests_by_authorities.safe_range_iter((
@@ -626,7 +626,7 @@ impl Store for RocksDBStore {
             let ((author, round, digest), _) = kv?;
             refs.push(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slice())?;
+        let results = self.read_blocks(refs.as_slice(), context)?;
         let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -645,6 +645,7 @@ impl Store for RocksDBStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = std::collections::VecDeque::new();
@@ -663,7 +664,7 @@ impl Store for RocksDBStore {
         // when the VecDeque ring buffer wraps; otherwise trailing entries would
         // be silently dropped.
         let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice)?;
+        let results = self.read_blocks(refs_slice, context)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -859,7 +860,6 @@ impl RocksDBStore {
             db_path
                 .to_str()
                 .expect("consensus DB path should be valid UTF-8"),
-            context,
         );
         store.delete_all_transactions()
     }
