@@ -1150,4 +1150,94 @@ mod tests {
             "expected RejectedByValidators, got {err:?}"
         );
     }
+
+    #[tokio::test]
+    async fn get_effects_without_certification_corroborates_rejection() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test(agg.clone()));
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &initial,
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        for name in &names[1..] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: rejection_iota_error(),
+                },
+            );
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("rejection should propagate");
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    /// Inconclusive corroboration returns the retriable
+    /// `SubmittedButFetchFailed` so the outer driver loop reissues submission
+    /// rather than surfacing a terminal error to the user.
+    #[tokio::test]
+    async fn get_effects_without_certification_returns_fetch_failed_when_inconclusive() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test(agg.clone()));
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &initial,
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        for name in &names[1..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let err = certifier
+            .get_effects_without_certification(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                TxStatusUpdate::Submitted,
+                &options(),
+            )
+            .await
+            .expect_err("fetch should fail");
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
 }
