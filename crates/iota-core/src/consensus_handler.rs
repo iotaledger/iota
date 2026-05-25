@@ -560,7 +560,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::NewJWKFetchedDeprecated => "new_jwk_fetched_deprecated",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
-        ConsensusTransactionKind::OverloadNotificationV1(_, _) => "overload_notification_v1",
+        ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => "overload_notification_v1",
     }
 }
 

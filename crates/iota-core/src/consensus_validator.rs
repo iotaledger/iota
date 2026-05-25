@@ -124,7 +124,7 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
 
-                ConsensusTransactionKind::OverloadNotificationV1(authority_name, percentage) => {
+                ConsensusTransactionKind::OverloadNotificationV1(authority_name, percentage, _) => {
                     if !self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error:
@@ -433,7 +433,7 @@ mod tests {
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
 
                 // Gated behind `enable_white_flag_flow`.
-                ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
+                ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
                     Some(config.enable_white_flag_flow())
                 }
             }
@@ -493,7 +493,7 @@ mod tests {
             ),
             (
                 "OverloadNotificationV1",
-                ConsensusTransactionKind::OverloadNotificationV1(authority, 50),
+                ConsensusTransactionKind::OverloadNotificationV1(authority, 0, 50),
             ),
         ];
 
