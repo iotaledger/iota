@@ -53,6 +53,21 @@ const MAX_WAIT_FOR_EFFECTS_RETRY_DELAY: Duration = Duration::from_secs(2);
 /// the effects.
 const GET_FULL_EFFECTS_FALLBACK_DELAY: Duration = Duration::from_millis(200);
 
+fn build_tx_status_request(
+    tx_digest: Option<TransactionDigest>,
+    include_details: bool,
+) -> GetTxStatusRequest {
+    match tx_digest {
+        Some(transaction_digest) => GetTxStatusRequest {
+            queries: vec![TxStatusQuery {
+                transaction_digest,
+                include_details,
+            }],
+        },
+        None => GetTxStatusRequest { queries: vec![] },
+    }
+}
+
 /// Result type for get_full_effects requests.
 /// The tuple contains (effects_digest, executed_data) where
 type FullEffectsResult =
@@ -231,6 +246,7 @@ impl EffectsCertifier {
     pub(crate) async fn get_effects_without_certification<A>(
         &self,
         authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
         tx_digest: Option<TransactionDigest>,
         current_target: AuthorityName,
         submit_txn_result: TxStatusUpdate,
@@ -254,19 +270,21 @@ impl EffectsCertifier {
                         ),
                     })?
                     .clone();
-                self.get_full_effects(client, tx_digest, options)
-                    .await
-                    .map_err(|e| {
-                        // The tx was already submitted to consensus (we are past
-                        // `submit_transaction` which surfaces Rejected/Expired as
-                        // errors), so the effects-fetch failure does not imply
-                        // the tx won't finalize. Signal this specifically so the
-                        // orchestrator can recover via local checkpoint execution.
-                        TransactionDriverError::SubmittedButFetchFailed {
-                            error: format!(
-                                "failed to get full effects from submitting validator {current_target:?}: {e}"),
-                        }
-                    })?
+                match self.get_full_effects(client, tx_digest, options).await {
+                    Ok(details) => details,
+                    Err(e) => {
+                        return Err(self
+                            .corroborate_single_validator_error(
+                                authority_aggregator,
+                                client_monitor,
+                                tx_digest,
+                                current_target,
+                                e,
+                                options,
+                            )
+                            .await);
+                    }
+                }
             }
             TxStatusUpdate::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
@@ -340,17 +358,7 @@ impl EffectsCertifier {
     where
         A: AuthorityAPI + Send + Sync + 'static,
     {
-        let request = if let Some(digest) = tx_digest {
-            GetTxStatusRequest {
-                queries: vec![TxStatusQuery {
-                    transaction_digest: digest,
-                    include_details: true,
-                }],
-            }
-        } else {
-            // Ping: empty queries vec.
-            GetTxStatusRequest { queries: vec![] }
-        };
+        let request = build_tx_status_request(tx_digest, true);
 
         match timeout(
             WAIT_FOR_EFFECTS_TIMEOUT,
@@ -479,6 +487,159 @@ impl EffectsCertifier {
         }
     }
 
+    /// Corroborate a single-validator effects-fetch error in the
+    /// skip-certification path by querying all other validators for the tx
+    /// status.
+    ///
+    /// Behavior:
+    /// - If f+1 stake (including the initial validator if its error was a
+    ///   non-retriable rejection) report a non-retriable rejection, return
+    ///   [`TransactionDriverError::RejectedByValidators`] so the driver's outer
+    ///   loop surfaces a terminal error to the user.
+    /// - If the f+1 rejection threshold becomes unreachable (or the broadcast
+    ///   ends without reaching it), record bad client-monitor feedback for the
+    ///   initial validator and return
+    ///   [`TransactionDriverError::SubmittedButFetchFailed`]. That error is
+    ///   classified retriable, so the outer `drive_transaction` loop reissues
+    ///   submission; the bad feedback deprioritizes the suspect in the next
+    ///   `RequestRetrier`'s ranking.
+    #[instrument(level = "debug", skip_all, fields(tx_digest = ?tx_digest, initial_validator = ?initial_validator))]
+    async fn corroborate_single_validator_error<A>(
+        &self,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
+        tx_digest: Option<TransactionDigest>,
+        initial_validator: AuthorityName,
+        initial_error: TransactionRequestError,
+        options: &SubmitTransactionOptions,
+    ) -> TransactionDriverError
+    where
+        A: AuthorityAPI + Send + Sync + 'static,
+    {
+        let committee = authority_aggregator.committee.clone();
+        let total_votes = committee.total_votes();
+        let validity_threshold = committee.validity_threshold();
+        let initial_display_name = authority_aggregator.get_display_name(&initial_validator);
+
+        let mut non_retriable_rejected =
+            StatusAggregator::<TransactionRequestError>::new(committee.clone());
+        // Tracks total responded stake (incl. the initial validator) so the
+        // unreachability check has a "validators not yet heard from" tally —
+        // `non_retriable_rejected` only counts rejection votes.
+        let mut responded = StatusAggregator::<()>::new(committee.clone());
+        responded.insert(initial_validator, ());
+
+        // Only count the initial validator's error as a rejection vote if it
+        // actually claimed rejection. Transport/RPC errors do not.
+        let initial_is_rejection = matches!(
+            &initial_error,
+            TransactionRequestError::RejectedAtValidator(_)
+        ) && !initial_error.is_submission_retriable();
+        if initial_is_rejection {
+            non_retriable_rejected.insert(initial_validator, initial_error.clone());
+        }
+
+        // Short-circuit for committees small enough that the seed alone meets
+        // the validity threshold (single-validator tests).
+        if non_retriable_rejected.reached_validity_threshold() {
+            self.metrics.skip_cert_corroborated_rejections.inc();
+            return TransactionDriverError::RejectedByValidators {
+                submission_non_retriable_errors: aggregate_request_errors(
+                    non_retriable_rejected.status_by_authority(),
+                ),
+                submission_retriable_errors: aggregate_request_errors(vec![]),
+            };
+        }
+
+        let request = build_tx_status_request(tx_digest, false);
+
+        let mut futures = FuturesUnordered::new();
+        for (name, client) in authority_aggregator.authority_clients.iter() {
+            let name = *name;
+            if name == initial_validator {
+                continue;
+            }
+            let client = client.clone();
+            let request = request.clone();
+            let display_name = authority_aggregator.get_display_name(&name);
+            let monitor = client_monitor.clone();
+            let fut = async move {
+                let started = Instant::now();
+                let raw = timeout(
+                    WAIT_FOR_EFFECTS_TIMEOUT,
+                    client.get_tx_status(request, options.forwarded_client_addr),
+                )
+                .await;
+
+                let feedback_builder =
+                    OperationFeedback::builder(name, display_name, OperationType::Effects);
+                let mapped = match raw {
+                    Ok(Ok(mut statuses)) => {
+                        let update = statuses.pop().map(|(_, u)| Ok(u)).unwrap_or_else(|| {
+                            Err(TransactionRequestError::ValidatorInternal(
+                                "Empty response from validator".to_string(),
+                            ))
+                        });
+                        monitor
+                            .record_interaction_result(feedback_builder.ok_now(started.elapsed()));
+                        update
+                    }
+                    Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
+                    Err(_) => {
+                        monitor.record_interaction_result(feedback_builder.err_now());
+                        Err(TransactionRequestError::TimedOutGettingFullEffectsAtValidator)
+                    }
+                };
+
+                (name, mapped)
+            };
+            futures.push(fut);
+        }
+
+        while let Some((name, response)) = futures.next().await {
+            responded.insert(name, ());
+
+            if let Ok(TxStatusUpdate::Rejected { error }) = &response {
+                let wrapped = TransactionRequestError::RejectedAtValidator(error.clone());
+                if !wrapped.is_submission_retriable() {
+                    non_retriable_rejected.insert(name, wrapped);
+                }
+            }
+
+            if non_retriable_rejected.reached_validity_threshold() {
+                self.metrics.skip_cert_corroborated_rejections.inc();
+                return TransactionDriverError::RejectedByValidators {
+                    submission_non_retriable_errors: aggregate_request_errors(
+                        non_retriable_rejected.status_by_authority(),
+                    ),
+                    submission_retriable_errors: aggregate_request_errors(vec![]),
+                };
+            }
+            if non_retriable_rejected.total_votes() + (total_votes - responded.total_votes())
+                < validity_threshold
+            {
+                break;
+            }
+        }
+
+        // Record bad feedback for the suspect so the next retry's shuffled
+        // ranking deprioritizes it.
+        client_monitor.record_interaction_result(
+            OperationFeedback::builder(
+                initial_validator,
+                initial_display_name,
+                OperationType::Effects,
+            )
+            .err_now(),
+        );
+        self.metrics.skip_cert_corroboration_unreachable.inc();
+        TransactionDriverError::SubmittedButFetchFailed {
+            error: format!(
+                "failed to get full effects from submitting validator {initial_validator:?}: {initial_error} (corroboration inconclusive)"
+            ),
+        }
+    }
+
     #[instrument(level = "debug", skip_all, err(level = "debug"), ret)]
     async fn wait_for_acknowledgments<A>(
         &self,
@@ -507,16 +668,7 @@ impl EffectsCertifier {
             let name = *name;
             let display_name = authority_aggregator.get_display_name(&name);
 
-            let request = if let Some(digest) = tx_digest {
-                GetTxStatusRequest {
-                    queries: vec![TxStatusQuery {
-                        transaction_digest: digest,
-                        include_details: false,
-                    }],
-                }
-            } else {
-                GetTxStatusRequest { queries: vec![] }
-            };
+            let request = build_tx_status_request(tx_digest, false);
 
             let future = async move {
                 match timeout(
@@ -832,5 +984,170 @@ impl EffectsCertifier {
             },
             auxiliary_data: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::{
+        digests::TransactionDigest,
+        error::{IotaError, UserInputError},
+        messages_grpc::TxStatusUpdate,
+    };
+
+    use super::*;
+    use crate::{
+        authority_aggregator::AuthorityAggregatorBuilder, test_authority_clients::MockAuthorityApi,
+        validator_client_monitor::ValidatorClientMonitor,
+    };
+
+    fn make_aggregator(size: usize) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
+        Arc::new(
+            AuthorityAggregatorBuilder::from_committee_size(size).build_mock_authority_aggregator(),
+        )
+    }
+
+    fn set_validator_status(
+        agg: &AuthorityAggregator<MockAuthorityApi>,
+        name: &AuthorityName,
+        digest: TransactionDigest,
+        update: TxStatusUpdate,
+    ) {
+        let client = agg.authority_clients.get(name).unwrap();
+        client
+            .authority_client()
+            .set_get_tx_status_result(Ok(vec![(digest, update)]));
+    }
+
+    fn options() -> SubmitTransactionOptions {
+        SubmitTransactionOptions::default()
+    }
+
+    fn rejection_iota_error() -> IotaError {
+        IotaError::UserInput {
+            error: UserInputError::EmptyCommandInput,
+        }
+    }
+
+    #[tokio::test]
+    async fn corroborate_returns_rejected_when_threshold_reached() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        // Initial validator (already counted via pre-seed). Other validators
+        // include one that confirms with a non-retriable rejection — that
+        // brings stake to f+1.
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &names[1],
+            digest,
+            TxStatusUpdate::Rejected {
+                error: rejection_iota_error(),
+            },
+        );
+        // Remaining validators return `Submitted` — non-rejection so they
+        // count toward the "responded but not rejection" tally.
+        for name in &names[2..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(rejection_iota_error());
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_returns_fetch_failed_when_unreachable() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        // All other validators report `Submitted` (have not seen a rejection),
+        // so the rejection threshold becomes unreachable.
+        for name in &names[1..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(rejection_iota_error());
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::SubmittedButFetchFailed { .. }),
+            "expected SubmittedButFetchFailed, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_ignores_retriable_initial_error() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        let initial = names[0];
+        // Two of the three other validators reject non-retriably (f+1 of three
+        // non-initial = 2). Since the initial error is retriable it is NOT
+        // pre-seeded into the aggregator — the broadcast itself must reach
+        // f+1 on its own.
+        for name in &names[1..3] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: rejection_iota_error(),
+                },
+            );
+        }
+        set_validator_status(&agg, &names[3], digest, TxStatusUpdate::Submitted);
+
+        let initial_error = TransactionRequestError::TimedOutGettingFullEffectsAtValidator;
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
     }
 }

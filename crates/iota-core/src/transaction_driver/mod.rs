@@ -320,6 +320,7 @@ where
             self.certifier
                 .get_effects_without_certification(
                     auth_agg,
+                    &self.client_monitor,
                     tx_digest,
                     name,
                     submit_txn_result,

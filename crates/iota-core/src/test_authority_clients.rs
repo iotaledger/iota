@@ -307,6 +307,8 @@ impl LocalAuthorityClient {
     }
 }
 
+type GetTxStatusResult = IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>;
+
 #[derive(Clone)]
 pub struct MockAuthorityApi {
     delay: Duration,
@@ -314,6 +316,7 @@ pub struct MockAuthorityApi {
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
     handle_capability_notification_result:
         Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
+    get_tx_status_result: Arc<Mutex<Option<GetTxStatusResult>>>,
 }
 
 impl MockAuthorityApi {
@@ -323,6 +326,7 @@ impl MockAuthorityApi {
             count,
             handle_object_info_request_result: None,
             handle_capability_notification_result: None,
+            get_tx_status_result: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -335,6 +339,10 @@ impl MockAuthorityApi {
         result: IotaResult<HandleCapabilityNotificationResponseV1>,
     ) {
         self.handle_capability_notification_result = Some(result);
+    }
+
+    pub fn set_get_tx_status_result(&self, result: GetTxStatusResult) {
+        *self.get_tx_status_result.lock().unwrap() = Some(result);
     }
 }
 
@@ -361,7 +369,11 @@ impl ValidatorV2API for MockAuthorityApi {
         _request: GetTxStatusRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        unimplemented!()
+        tokio::time::sleep(self.delay).await;
+        match self.get_tx_status_result.lock().unwrap().clone() {
+            Some(result) => result,
+            None => unimplemented!(),
+        }
     }
     async fn notify_capabilities_v2(
         &self,
