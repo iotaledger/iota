@@ -77,7 +77,7 @@ use self::{
 };
 use crate::{
     auth_context::{
-        AuthContextAuthenticatorFunctionRefV1CostParams, AuthContextDigestCostParams,
+        AuthContextAuthenticatorFunctionInfoV1CostParams, AuthContextDigestCostParams,
         AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
         AuthContextTxDataBytesCostParams, AuthContextTxInputsCostParams,
     },
@@ -166,8 +166,8 @@ pub struct NativesCostTable {
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
-    pub auth_context_authenticator_function_ref_v1_cost_params:
-        AuthContextAuthenticatorFunctionRefV1CostParams,
+    pub auth_context_authenticator_function_info_v1_cost_params:
+        AuthContextAuthenticatorFunctionInfoV1CostParams,
 
     // Type
     pub type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams,
@@ -509,10 +509,10 @@ impl NativesCostTable {
                     .auth_context_replace_cost_per_byte_as_option()
                     .map(Into::into),
             },
-            auth_context_authenticator_function_ref_v1_cost_params:
-                AuthContextAuthenticatorFunctionRefV1CostParams {
-                    auth_context_authenticator_function_ref_v1_cost_base: protocol_config
-                        .auth_context_authenticator_function_ref_v1_cost_base_as_option()
+            auth_context_authenticator_function_info_v1_cost_params:
+                AuthContextAuthenticatorFunctionInfoV1CostParams {
+                    auth_context_authenticator_function_info_v1_cost_base: protocol_config
+                        .auth_context_authenticator_function_info_v1_cost_base_as_option()
                         .map(Into::into),
                 },
             type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams {
@@ -959,13 +959,13 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "auth_context",
-            "native_sender_authenticator_function_ref_v1",
-            make_native!(auth_context::native_sender_authenticator_function_ref_v1),
+            "native_sender_authenticator_function_info_v1",
+            make_native!(auth_context::native_sender_authenticator_function_info_v1),
         ),
         (
             "auth_context",
-            "native_sponsor_authenticator_function_ref_v1",
-            make_native!(auth_context::native_sponsor_authenticator_function_ref_v1),
+            "native_sponsor_authenticator_function_info_v1",
+            make_native!(auth_context::native_sponsor_authenticator_function_info_v1),
         ),
         (
             "auth_context",
@@ -986,11 +986,6 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_replace",
             make_native!(auth_context::native_replace),
-        ),
-        (
-            "auth_context",
-            "native_authenticator_function_refs_replace",
-            make_native!(auth_context::native_authenticator_function_refs_replace),
         ),
         ("hash", "blake2b256", make_native!(hash::blake2b256)),
         (

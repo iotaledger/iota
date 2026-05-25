@@ -3,11 +3,11 @@
 
 module iota::auth_context;
 
-use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::hash;
 use iota::intent;
 use iota::ptb_call_arg::CallArg;
 use iota::ptb_command::Command;
+use std::ascii;
 
 // === Errors ===
 
@@ -34,6 +34,14 @@ public struct AuthContext has drop {
     tx_commands: vector<Command>,
 }
 
+/// Identifies the `authenticate` function used by a `MoveAuthenticator`
+/// signature, without binding to a specific account type.
+public struct AuthenticatorFunctionInfoV1 has copy, drop, store {
+    package: ID,
+    module_name: ascii::String,
+    function_name: ascii::String,
+}
+
 // === Public functions ===
 
 /// Returns the MoveAuthenticator digest.
@@ -56,21 +64,21 @@ public fun sponsor_auth_digest(_ctx: &AuthContext): &Option<vector<u8>> {
     native_sponsor_auth_digest()
 }
 
-/// Returns the sender's `AuthenticatorFunctionRefV1` if the sender uses a
+/// Returns the sender's `AuthenticatorFunctionInfoV1` if the sender uses a
 /// `MoveAuthenticator` signature, `none` otherwise.
-public fun sender_authenticator_function_ref_v1<Account: key>(
+public fun sender_authenticator_function_info_v1(
     _ctx: &AuthContext,
-): &Option<AuthenticatorFunctionRefV1<Account>> {
-    native_sender_authenticator_function_ref_v1()
+): &Option<AuthenticatorFunctionInfoV1> {
+    native_sender_authenticator_function_info_v1()
 }
 
-/// Returns the sponsor's `AuthenticatorFunctionRefV1` if the transaction is
+/// Returns the sponsor's `AuthenticatorFunctionInfoV1` if the transaction is
 /// sponsored and the sponsor uses a `MoveAuthenticator` signature, `none`
 /// otherwise.
-public fun sponsor_authenticator_function_ref_v1<Account: key>(
+public fun sponsor_authenticator_function_info_v1(
     _ctx: &AuthContext,
-): &Option<AuthenticatorFunctionRefV1<Account>> {
-    native_sponsor_authenticator_function_ref_v1()
+): &Option<AuthenticatorFunctionInfoV1> {
+    native_sponsor_authenticator_function_info_v1()
 }
 
 /// Returns the transaction input objects or primitive values.
@@ -103,6 +111,21 @@ public fun signing_digest(ctx: &AuthContext): vector<u8> {
     hash::blake2b256(&intent_msg)
 }
 
+/// Returns the package ID of the `AuthenticatorFunctionInfoV1`.
+public fun package(self: &AuthenticatorFunctionInfoV1): ID {
+    self.package
+}
+
+/// Returns the module name of the `AuthenticatorFunctionInfoV1`.
+public fun module_name(self: &AuthenticatorFunctionInfoV1): &ascii::String {
+    &self.module_name
+}
+
+/// Returns the function name of the `AuthenticatorFunctionInfoV1`.
+public fun function_name(self: &AuthenticatorFunctionInfoV1): &ascii::String {
+    &self.function_name
+}
+
 // === Native functions ===
 
 native fun native_digest(): &vector<u8>;
@@ -111,9 +134,9 @@ native fun native_sender_auth_digest(): &vector<u8>;
 
 native fun native_sponsor_auth_digest(): &Option<vector<u8>>;
 
-native fun native_sender_authenticator_function_ref_v1<F>(): &Option<F>;
+native fun native_sender_authenticator_function_info_v1<F>(): &Option<F>;
 
-native fun native_sponsor_authenticator_function_ref_v1<F>(): &Option<F>;
+native fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>;
 
 native fun native_tx_data_bytes(): &vector<u8>;
 
@@ -123,9 +146,7 @@ native fun native_tx_commands<C>(): &vector<C>;
 
 // === Test-only functions ===
 
-/// Creates a new `AuthContext` for testing. The authenticator function refs
-/// (`sender_authenticator_function_ref_v1` and
-/// `sponsor_authenticator_function_ref_v1`) are initialized to `none`.
+/// Creates a new `AuthContext` for testing.
 #[test_only]
 public fun new_for_testing(
     auth_digest: vector<u8>,
@@ -134,6 +155,8 @@ public fun new_for_testing(
     tx_data_bytes: vector<u8>,
     sender_auth_digest: vector<u8>,
     sponsor_auth_digest: Option<vector<u8>>,
+    sender_authenticator_function_info_v1: Option<AuthenticatorFunctionInfoV1>,
+    sponsor_authenticator_function_info_v1: Option<AuthenticatorFunctionInfoV1>,
 ): AuthContext {
     assert!(auth_digest.length() == DIGEST_LENGTH, EBadDigestLength);
     assert!(sender_auth_digest.length() == DIGEST_LENGTH, EBadDigestLength);
@@ -148,6 +171,8 @@ public fun new_for_testing(
         tx_data_bytes,
         sender_auth_digest,
         sponsor_auth_digest,
+        sender_authenticator_function_info_v1,
+        sponsor_authenticator_function_info_v1,
     );
 
     // The fields of the returned `AuthContext` are not actually used,
@@ -159,30 +184,24 @@ public fun new_for_testing(
     }
 }
 
-/// Replaces the sender and sponsor authenticator function refs for testing.
 #[test_only]
-public fun replace_authenticator_function_refs_for_testing<Account: key>(
-    sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1<Account>>,
-    sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1<Account>>,
-) {
-    native_authenticator_function_refs_replace(
-        sender_authenticator_function_ref_v1,
-        sponsor_authenticator_function_ref_v1,
-    );
-}
-
-#[test_only]
-native fun native_replace<I, C>(
+native fun native_replace<I, C, F>(
     auth_digest: vector<u8>,
     tx_inputs: vector<I>,
     tx_commands: vector<C>,
     tx_data_bytes: vector<u8>,
     sender_auth_digest: vector<u8>,
     sponsor_auth_digest: Option<vector<u8>>,
+    sender_authenticator_function_info_v1: Option<F>,
+    sponsor_authenticator_function_info_v1: Option<F>,
 );
 
+/// Creates an `AuthenticatorFunctionInfoV1` for testing, skipping validation.
 #[test_only]
-native fun native_authenticator_function_refs_replace<F>(
-    sender_authenticator_function_ref_v1: Option<F>,
-    sponsor_authenticator_function_ref_v1: Option<F>,
-);
+public fun create_auth_function_info_v1_for_testing(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionInfoV1 {
+    AuthenticatorFunctionInfoV1 { package: package.to_id(), module_name, function_name }
+}

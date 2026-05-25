@@ -224,15 +224,6 @@ impl AuthContext {
         self.sender_authenticator_function_ref_v1 = sender_authenticator_function_ref_v1;
         self.sponsor_authenticator_function_ref_v1 = sponsor_authenticator_function_ref_v1;
     }
-    /// Replaces only the authenticator function refs. For test-only use.
-    pub fn replace_authenticator_function_refs(
-        &mut self,
-        sender: Option<AuthenticatorFunctionRefV1>,
-        sponsor: Option<AuthenticatorFunctionRefV1>,
-    ) {
-        self.sender_authenticator_function_ref_v1 = sender;
-        self.sponsor_authenticator_function_ref_v1 = sponsor;
-    }
 }
 
 /// A Move-side `AuthContext` representation.

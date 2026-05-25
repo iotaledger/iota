@@ -138,18 +138,18 @@ pub fn native_sponsor_auth_digest(
 }
 
 #[derive(Clone)]
-pub struct AuthContextAuthenticatorFunctionRefV1CostParams {
-    pub auth_context_authenticator_function_ref_v1_cost_base: Option<InternalGas>,
+pub struct AuthContextAuthenticatorFunctionInfoV1CostParams {
+    pub auth_context_authenticator_function_info_v1_cost_base: Option<InternalGas>,
 }
 
 /// ****************************************************************************
-/// native fun native_sender_authenticator_function_ref_v1
+/// native fun native_sender_authenticator_function_info_v1
 /// Implementation of the Move native function
-/// `fun native_sender_authenticator_function_ref_v1<F>(): &Option<F>`
+/// `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
 ///
 /// Returns `None` if the sender did not use a `MoveAuthenticator` signature.
 /// ****************************************************************************
-pub fn native_sender_authenticator_function_ref_v1(
+pub fn native_sender_authenticator_function_info_v1(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
     args: VecDeque<Value>,
@@ -158,44 +158,44 @@ pub fn native_sender_authenticator_function_ref_v1(
     debug_assert!(args.is_empty());
 
     let cost_params = get_extension!(context, NativesCostTable)?
-        .auth_context_authenticator_function_ref_v1_cost_params
+        .auth_context_authenticator_function_info_v1_cost_params
         .clone();
     native_charge_gas_early_exit!(
         context,
         cost_params
-            .auth_context_authenticator_function_ref_v1_cost_base
+            .auth_context_authenticator_function_info_v1_cost_base
             .ok_or_else(|| {
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost base for native_sender_authenticator_function_ref_v1 not available"
+                    "Gas cost base for native_sender_authenticator_function_info_v1 not available"
                         .to_string(),
                 )
             })?
     );
 
-    let authenticator_function_ref_v1_type = ty_args.pop().unwrap();
-    let authenticator_function_ref_v1_type_layout =
-        resolve_move_layout(context, &authenticator_function_ref_v1_type)?;
+    let authenticator_function_info_v1_type = ty_args.pop().unwrap();
+    let authenticator_function_info_v1_type_layout =
+        resolve_move_layout(context, &authenticator_function_info_v1_type)?;
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let sender_authenticator_function_ref_v1_value = auth_context
-        .sender_authenticator_function_ref_v1_ref(authenticator_function_ref_v1_type_layout)?;
+    let sender_authenticator_function_info_v1_value = auth_context
+        .sender_authenticator_function_info_v1_ref(authenticator_function_info_v1_type_layout)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![sender_authenticator_function_ref_v1_value],
+        smallvec![sender_authenticator_function_info_v1_value],
     ))
 }
 
 /// ****************************************************************************
-/// native fun native_sponsor_authenticator_function_ref_v1
+/// native fun native_sponsor_authenticator_function_info_v1
 /// Implementation of the Move native function
-/// `fun native_sponsor_authenticator_function_ref_v1<F>(): &Option<F>`
+/// `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
 ///
 /// Returns `None` if the transaction is unsponsored or the sponsor did not use
 /// a `MoveAuthenticator` signature.
 /// ****************************************************************************
-pub fn native_sponsor_authenticator_function_ref_v1(
+pub fn native_sponsor_authenticator_function_info_v1(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
     args: VecDeque<Value>,
@@ -204,32 +204,32 @@ pub fn native_sponsor_authenticator_function_ref_v1(
     debug_assert!(args.is_empty());
 
     let cost_params = get_extension!(context, NativesCostTable)?
-        .auth_context_authenticator_function_ref_v1_cost_params
+        .auth_context_authenticator_function_info_v1_cost_params
         .clone();
     native_charge_gas_early_exit!(
         context,
         cost_params
-            .auth_context_authenticator_function_ref_v1_cost_base
+            .auth_context_authenticator_function_info_v1_cost_base
             .ok_or_else(|| {
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost base for native_sponsor_authenticator_function_ref_v1 not available"
+                    "Gas cost base for native_sponsor_authenticator_function_info_v1 not available"
                         .to_string(),
                 )
             })?
     );
 
-    let authenticator_function_ref_v1_type = ty_args.pop().unwrap();
-    let authenticator_function_ref_v1_type_layout =
-        resolve_move_layout(context, &authenticator_function_ref_v1_type)?;
+    let authenticator_function_info_v1_type = ty_args.pop().unwrap();
+    let authenticator_function_info_v1_type_layout =
+        resolve_move_layout(context, &authenticator_function_info_v1_type)?;
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let sponsor_authenticator_function_ref_v1_value = auth_context
-        .sponsor_authenticator_function_ref_v1_ref(authenticator_function_ref_v1_type_layout)?;
+    let sponsor_authenticator_function_info_v1_value = auth_context
+        .sponsor_authenticator_function_info_v1_ref(authenticator_function_info_v1_type_layout)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![sponsor_authenticator_function_ref_v1_value],
+        smallvec![sponsor_authenticator_function_info_v1_value],
     ))
 }
 
@@ -410,20 +410,22 @@ pub struct AuthContextReplaceCostParams {
 }
 
 /// ****************************************************************************
-/// native fun replace
+/// native fun native_replace
 /// Implementation of the Move native function
-/// `fun native_replace<I, C>(auth_digest: vector<u8>, tx_inputs: vector<I>,
+/// `fun native_replace<I, C, F>(auth_digest: vector<u8>, tx_inputs: vector<I>,
 /// tx_commands: vector<C>, tx_data_bytes: vector<u8>,
-/// sender_auth_digest: vector<u8>, sponsor_auth_digest: Option<vector<u8>>)`
+/// sender_auth_digest: vector<u8>, sponsor_auth_digest: Option<vector<u8>>,
+/// sender_authenticator_function_info_v1: Option<F>,
+/// sponsor_authenticator_function_info_v1: Option<F>)`
 /// ****************************************************************************
 pub fn native_replace(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 2);
+    debug_assert!(ty_args.len() == 2 || ty_args.len() == 3);
     let args_len = args.len();
-    debug_assert!(args_len == 3 || args_len == 4 || args_len == 6);
+    debug_assert!(args_len == 3 || args_len == 4 || args_len == 6 || args_len == 8);
 
     let auth_context_replace_cost_params = get_extension!(context, NativesCostTable)?
         .auth_context_replace_cost_params
@@ -451,6 +453,27 @@ pub fn native_replace(
             })?
             * args_size.into()
     );
+
+    let (sender_authenticator_function_ref_v1_opt, sponsor_authenticator_function_ref_v1_opt) =
+        if args_len >= 8 {
+            let authenticator_function_info_v1_type = ty_args.pop().unwrap();
+            let authenticator_function_info_v1_type_layout =
+                resolve_move_layout(context, &authenticator_function_info_v1_type)?;
+            let sponsor_authenticator_function_info_v1_struct = pop_arg!(args, Struct);
+            let sender_authenticator_function_info_v1_struct = pop_arg!(args, Struct);
+            (
+                Some(unpack_authenticator_function_info_v1_opt(
+                    sender_authenticator_function_info_v1_struct,
+                    &authenticator_function_info_v1_type_layout,
+                )?),
+                Some(unpack_authenticator_function_info_v1_opt(
+                    sponsor_authenticator_function_info_v1_struct,
+                    &authenticator_function_info_v1_type_layout,
+                )?),
+            )
+        } else {
+            (None, None)
+        };
 
     let (sender_auth_digest_opt, sponsor_auth_digest_opt) = if args_len >= 6 {
         let option_struct = pop_arg!(args, Struct);
@@ -490,76 +513,6 @@ pub fn native_replace(
         tx_data_bytes_opt,
         sender_auth_digest_opt,
         sponsor_auth_digest_opt,
-    )?;
-
-    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
-}
-
-/// ****************************************************************************
-/// native fun native_authenticator_function_refs_replace
-/// Implementation of the Move native function
-/// `fun native_authenticator_function_refs_replace<F>(sender: Option<F>,
-/// sponsor: Option<F>)`
-///
-/// Replaces the cached sender and sponsor authenticator function refs in the
-/// `AuthContext`. For test-only use.
-/// ****************************************************************************
-pub fn native_authenticator_function_refs_replace(
-    context: &mut NativeContext,
-    mut ty_args: Vec<Type>,
-    mut args: VecDeque<Value>,
-) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
-    debug_assert!(args.len() == 2);
-
-    let auth_context_replace_cost_params = get_extension!(context, NativesCostTable)?
-        .auth_context_replace_cost_params
-        .clone();
-    native_charge_gas_early_exit!(
-        context,
-        auth_context_replace_cost_params
-            .auth_context_replace_cost_base
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost base for native_authenticator_function_refs_replace not available"
-                        .to_string(),
-                )
-            })?
-    );
-
-    let args_size = args
-        .iter()
-        .fold(0_u64, |acc, v| acc + u64::from(v.legacy_size()));
-    native_charge_gas_early_exit!(
-        context,
-        auth_context_replace_cost_params
-            .auth_context_replace_cost_per_byte
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Gas cost per byte for native_authenticator_function_refs_replace not available".to_string())
-            })?
-            * args_size.into()
-    );
-
-    let authenticator_function_ref_v1_type = ty_args.pop().unwrap();
-    let authenticator_function_ref_v1_type_layout =
-        resolve_move_layout(context, &authenticator_function_ref_v1_type)?;
-
-    // Args arrive in reverse order: sponsor first, then sender.
-    let sponsor_authenticator_function_ref_v1_struct = pop_arg!(args, Struct);
-    let sender_authenticator_function_ref_v1_struct = pop_arg!(args, Struct);
-
-    let sender_authenticator_function_ref_v1_opt = unpack_authenticator_function_ref_v1_opt(
-        sender_authenticator_function_ref_v1_struct,
-        &authenticator_function_ref_v1_type_layout,
-    )?;
-    let sponsor_authenticator_function_ref_v1_opt = unpack_authenticator_function_ref_v1_opt(
-        sponsor_authenticator_function_ref_v1_struct,
-        &authenticator_function_ref_v1_type_layout,
-    )?;
-
-    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
-    auth_context.replace_authenticator_function_refs(
         sender_authenticator_function_ref_v1_opt,
         sponsor_authenticator_function_ref_v1_opt,
     )?;
@@ -596,7 +549,7 @@ where
     }
 }
 
-fn unpack_authenticator_function_ref_v1_opt(
+fn unpack_authenticator_function_info_v1_opt(
     option_struct: Struct,
     layout: &MoveTypeLayout,
 ) -> PartialVMResult<Option<AuthenticatorFunctionRefV1>> {

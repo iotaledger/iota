@@ -323,4 +323,4 @@ auth_context_tx_inputs_cost_base: 30
 auth_context_tx_inputs_cost_per_byte: 2
 auth_context_replace_cost_base: 30
 auth_context_replace_cost_per_byte: 2
-auth_context_authenticator_function_ref_v1_cost_base: 270
+auth_context_authenticator_function_info_v1_cost_base: 270

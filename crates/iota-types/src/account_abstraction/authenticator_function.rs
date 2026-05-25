@@ -113,9 +113,7 @@ impl AuthenticatorFunctionRefForExecution {
 }
 
 /// Extracts the sender's and sponsor's [`AuthenticatorFunctionRef`] by calling
-/// `find_ref` for `sender` and, when the gas owner differs, for `gas_owner`,
-/// mirroring the address-matching logic of
-/// `SenderSignedData::compute_auth_digests`.
+/// `find_ref` for `sender` and, when the gas owner differs, for `gas_owner`.
 pub fn extract_auth_fun_refs(
     sender: IotaAddress,
     gas_owner: IotaAddress,
