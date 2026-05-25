@@ -71,7 +71,7 @@ async fn main() -> Result<(), IndexerError> {
                     run_migrations(&mut pool_conn)?;
                 }
                 if retention_config.is_some() {
-                    check_prunable_tables_valid(&mut pool_conn).await?;
+                    check_prunable_tables_valid(&mut pool_conn)?;
                 }
             }
 

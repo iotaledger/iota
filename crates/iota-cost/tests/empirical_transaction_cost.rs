@@ -66,7 +66,7 @@ async fn test_good_snapshot() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn split_n_tx(
+fn split_n_tx(
     n: u64,
     coin: ObjectRef,
     gas: ObjectRef,
@@ -167,7 +167,7 @@ async fn create_txes(
     for n in 0..4 {
         let gas = gas_objects.pop().unwrap();
         let coin = gas_objects.pop().unwrap();
-        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).await.clone();
+        let split_tx = split_n_tx(n, gas, coin, gas_price, sender).clone();
         ret.insert(CommonTransactionCosts::SplitCoin(n as usize), split_tx);
     }
 

@@ -50,7 +50,7 @@ impl<R: Processor + Send + Sync + Clone + 'static> LoadTest<R> {
         let payloads = self.processor.prepare(&self.config).await?;
         let (tx, mut rx) = mpsc::channel(payloads.len());
 
-        self.run_workers(tx, payloads).await;
+        self.run_workers(tx, payloads);
 
         // Collect the results from the worker threads
         let mut num_successful_commands = 0;
@@ -76,7 +76,7 @@ impl<R: Processor + Send + Sync + Clone + 'static> LoadTest<R> {
         Ok(())
     }
 
-    async fn run_workers(&self, tx: Sender<usize>, payloads: Vec<Payload>) {
+    fn run_workers(&self, tx: Sender<usize>, payloads: Vec<Payload>) {
         println!("Running with {} threads...", payloads.len());
         for payload in payloads.iter() {
             let tx = tx.clone();

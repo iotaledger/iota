@@ -78,7 +78,7 @@ pub async fn start_cluster(
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
-    .await;
+    ;
 
     // Starts graphql server
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
@@ -150,7 +150,7 @@ pub async fn serve_executor(
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
-    .await;
+    ;
 
     // Starts graphql server
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
@@ -389,6 +389,6 @@ impl ExecutorCluster {
         self.cancellation_token.cancel();
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
         let db_url = self.graphql_connection_config.db_url.clone();
-        force_delete_database(db_url).await;
+        force_delete_database(db_url);
     }
 }

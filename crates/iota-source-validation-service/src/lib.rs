@@ -289,7 +289,7 @@ impl CloneCommand {
         })
     }
 
-    pub async fn run(&self) -> anyhow::Result<()> {
+    pub fn run(&self) -> anyhow::Result<()> {
         for args in &self.args {
             let result = Command::new("git").args(args).output().map_err(|_| {
                 anyhow!(
@@ -325,7 +325,7 @@ pub async fn clone_repositories(repos: Vec<&RepositorySource>, dir: &Path) -> an
                 &b.branch,
                 dir.display()
             );
-            let t = tokio::spawn(async move { command.run().await });
+            let t = tokio::spawn(async move { command.run() });
             tasks.push(t);
         }
     }
@@ -349,11 +349,11 @@ pub async fn initialize(
     }
     clone_repositories(repos, dir).await?;
     let sources = verify_packages(config, dir).await?;
-    let sources_list = sources_list(&sources).await;
+    let sources_list = sources_list(&sources);
     Ok((sources, sources_list))
 }
 
-pub async fn sources_list(sources: &NetworkLookup) -> NetworkLookup {
+pub fn sources_list(sources: &NetworkLookup) -> NetworkLookup {
     let mut sources_list = NetworkLookup::new();
     for (network, addresses) in sources {
         let mut address_map = AddressLookup::new();
@@ -439,7 +439,7 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
 // upgrade, so that we do not falsely report outdated sources for a package.
 // Pass an optional `channel` to observe the upgrade transaction(s).
 // The `channel` parameter exists for testing.
-pub async fn watch_for_upgrades(
+pub fn watch_for_upgrades(
     _packages: Vec<PackageSource>,
     _app_state: Arc<RwLock<AppState>>,
     _network: Network,

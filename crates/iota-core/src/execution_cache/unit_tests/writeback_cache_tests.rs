@@ -355,7 +355,7 @@ impl Scenario {
 
     // Commit the current tx to the cache, return its digest, and reset the
     // transaction outputs to a new empty one.
-    pub async fn do_tx(&mut self) -> TransactionDigest {
+    pub fn do_tx(&mut self) -> TransactionDigest {
         // Resets outputs, but not objects, so that subsequent runs must respect
         // the state so far.
         let outputs = self.take_outputs();
@@ -371,7 +371,7 @@ impl Scenario {
     }
 
     // commit a transaction to the database
-    pub async fn commit(&mut self, tx: TransactionDigest) {
+    pub fn commit(&mut self, tx: TransactionDigest) {
         let batch = self.cache().build_db_batch(1, &[tx]);
         self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
@@ -551,7 +551,7 @@ async fn test_uncommitted() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.assert_live(&[1, 2]);
         s.reset_cache();
@@ -565,7 +565,7 @@ async fn test_committed() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        let tx = s.do_tx().await;
+        let tx = s.do_tx();
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
@@ -585,10 +585,10 @@ async fn test_mutated() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.with_mutated(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.assert_live(&[1, 2]);
     })
@@ -600,10 +600,10 @@ async fn test_deleted() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.with_deleted(&[1]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.assert_live(&[2]);
         s.assert_not_exists(&[1]);
@@ -616,10 +616,10 @@ async fn test_wrapped() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.with_wrapped(&[1]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.assert_live(&[2]);
         s.assert_not_exists(&[1]);
@@ -632,11 +632,11 @@ async fn test_received() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.with_mutated(&[1, 2]);
         s.with_received(&[1]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.assert_received(&[1]);
         s.assert_live(&[1, 2]);
@@ -653,14 +653,14 @@ async fn test_extra_outputs() {
         s.with_created(&[1, 2]);
         s.with_events();
 
-        let tx = s.do_tx().await;
+        let tx = s.do_tx();
 
         s.cache.get_transaction_block(&tx).unwrap();
         let fx = s.cache.get_executed_effects(&tx).unwrap();
         let _events_digest = fx.events_digest().unwrap();
         s.cache.get_events(&tx).unwrap();
 
-        s.commit(tx).await;
+        s.commit(tx);
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
@@ -674,7 +674,7 @@ async fn test_extra_outputs() {
         s.cache.get_events(&tx).unwrap();
 
         s.with_created(&[3]);
-        let tx = s.do_tx().await;
+        let tx = s.do_tx();
 
         // when Events is empty, it should be treated as None
         let fx = s.cache.get_executed_effects(&tx).unwrap();
@@ -684,7 +684,7 @@ async fn test_extra_outputs() {
             "empty events should be none"
         );
 
-        s.commit(tx).await;
+        s.commit(tx);
         assert!(
             s.cache.get_events(&tx).is_none(),
             "empty events should be none"
@@ -705,12 +705,12 @@ async fn test_out_of_order_commit() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1, 2]);
-        s.do_tx().await;
+        s.do_tx();
 
         s.with_mutated(&[1, 2]);
-        let tx2 = s.do_tx().await;
+        let tx2 = s.do_tx();
 
-        s.commit(tx2).await;
+        s.commit(tx2);
     })
     .await;
 }
@@ -734,21 +734,21 @@ async fn test_lt_or_eq() {
 
         // make 3 versions of the object
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
+        let tx1 = s.do_tx();
         s.with_mutated(&[1]);
-        let tx2 = s.do_tx().await;
+        let tx2 = s.do_tx();
         s.with_mutated(&[1]);
-        let tx3 = s.do_tx().await;
+        let tx3 = s.do_tx();
 
         // make sure we find the correct version regardless of which
         // txns are committed vs uncommitted. Scenario::iterate repeats
         // the test with cache eviction at each possible point.
         check_all_versions(&s);
-        s.commit(tx1).await;
+        s.commit(tx1);
         check_all_versions(&s);
-        s.commit(tx2).await;
+        s.commit(tx2);
         check_all_versions(&s);
-        s.commit(tx3).await;
+        s.commit(tx3);
         check_all_versions(&s);
     })
     .await;
@@ -760,14 +760,14 @@ async fn test_lt_or_eq_caching() {
     Scenario::iterate(|mut s| async move {
         // make 3 versions of the object
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
+        let tx1 = s.do_tx();
         s.with_mutated_version_delta(&[1], 2);
-        let tx2 = s.do_tx().await;
+        let tx2 = s.do_tx();
         s.with_mutated_version_delta(&[1], 2);
-        let tx3 = s.do_tx().await;
-        s.commit(tx1).await;
-        s.commit(tx2).await;
-        s.commit(tx3).await;
+        let tx3 = s.do_tx();
+        s.commit(tx1);
+        s.commit(tx2);
+        s.commit(tx3);
 
         s.reset_cache();
 
@@ -824,11 +824,11 @@ async fn test_lt_or_eq_with_cached_tombstone() {
     Scenario::iterate(|mut s| async move {
         // make an object, and a tombstone
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
+        let tx1 = s.do_tx();
         s.with_deleted(&[1]);
-        let tx2 = s.do_tx().await;
-        s.commit(tx1).await;
-        s.commit(tx2).await;
+        let tx2 = s.do_tx();
+        s.commit(tx1);
+        s.commit(tx2);
 
         s.reset_cache();
 
@@ -876,7 +876,7 @@ async fn test_missing_reverts_panic() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
-        s.do_tx().await;
+        s.do_tx();
         s.clear_state_end_of_epoch();
     })
     .await;
@@ -888,8 +888,8 @@ async fn test_revert_committed_tx_panics() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
-        s.commit(tx1).await;
+        let tx1 = s.do_tx();
+        s.commit(tx1);
         s.cache().revert_state_update(&tx1);
     })
     .await;
@@ -900,8 +900,8 @@ async fn test_revert_unexecuted_tx() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
-        s.commit(tx1).await;
+        let tx1 = s.do_tx();
+        s.commit(tx1);
         let random_digest = TransactionDigest::random();
         // must not panic - pending_consensus_transactions is a super set of
         // executed but un-checkpointed transactions
@@ -916,7 +916,7 @@ async fn test_revert_state_update_created() {
     Scenario::iterate(|mut s| async move {
         // newly created object
         s.with_created(&[1]);
-        let tx1 = s.do_tx().await;
+        let tx1 = s.do_tx();
         s.assert_live(&[1]);
 
         s.cache().revert_state_update(&tx1);
@@ -933,13 +933,13 @@ async fn test_revert_state_update_mutated() {
     Scenario::iterate(|mut s| async move {
         let v1 = {
             s.with_created(&[1]);
-            let tx = s.do_tx().await;
-            s.commit(tx).await;
+            let tx = s.do_tx();
+            s.commit(tx);
             s.cache().get_object(&s.obj_id(1)).unwrap().version()
         };
 
         s.with_mutated(&[1]);
-        let tx = s.do_tx().await;
+        let tx = s.do_tx();
 
         s.cache().revert_state_update(&tx);
         s.clear_state_end_of_epoch();
@@ -956,7 +956,7 @@ async fn test_invalidate_package_cache_on_revert() {
     Scenario::iterate(|mut s| async move {
         s.with_created(&[1]);
         s.with_packages(&[2]);
-        let tx1 = s.do_tx().await;
+        let tx1 = s.do_tx();
 
         s.assert_live(&[1]);
         s.assert_packages(&[2]);
@@ -1059,7 +1059,7 @@ async fn test_concurrent_lockers() {
         let c = i * 4 + 2;
         let d = i * 4 + 3;
         s.with_created(&[a, b]);
-        s.do_tx().await;
+        s.do_tx();
 
         let a_ref = s.obj_ref(a);
         let b_ref = s.obj_ref(b);
@@ -1139,7 +1139,7 @@ async fn test_concurrent_lockers_same_tx() {
         let a = i * 4;
         let b = i * 4 + 1;
         s.with_created(&[a, b]);
-        s.do_tx().await;
+        s.do_tx();
 
         let a_ref = s.obj_ref(a);
         let b_ref = s.obj_ref(b);
@@ -1342,7 +1342,7 @@ async fn test_transaction_cache_race() {
     for i in 0..1000 {
         let a = i * 4;
         s.with_created(&[a]);
-        s.do_tx().await;
+        s.do_tx();
 
         let outputs = s.take_outputs();
         let tx = (*outputs.transaction).clone();

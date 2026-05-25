@@ -93,7 +93,7 @@ async fn create_passthrough_cache() -> Arc<PassthroughCache> {
 // Generic test functions
 // ---------------------------------------------------------------------------
 
-async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestCache) {
+fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestCache) {
     let canceled_key = InputKey::VersionedObject {
         id: ObjectID::random(),
         version: SequenceNumber::CANCELLED_READ,
@@ -130,7 +130,7 @@ async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestC
     assert_eq!(result.len(), 1);
 }
 
-async fn test_immediate_return_cached_object_impl(cache: &impl NotifyReadTestCache) {
+fn test_immediate_return_cached_object_impl(cache: &impl NotifyReadTestCache) {
     let object_id = ObjectID::random();
     let version = SequenceNumber::from(1);
     let object = Object::with_id_owner_version_for_testing(object_id, version, Owner::Immutable);
@@ -153,7 +153,7 @@ async fn test_immediate_return_cached_object_impl(cache: &impl NotifyReadTestCac
     assert_eq!(result.len(), 1);
 }
 
-async fn test_immediate_return_cached_package_impl(cache: &impl NotifyReadTestCache) {
+fn test_immediate_return_cached_package_impl(cache: &impl NotifyReadTestCache) {
     let input_keys = vec![InputKey::Package {
         id: IOTA_FRAMEWORK_PACKAGE_ID,
     }];
@@ -169,7 +169,7 @@ async fn test_immediate_return_cached_package_impl(cache: &impl NotifyReadTestCa
     assert_eq!(result.len(), 1);
 }
 
-async fn test_immediate_return_shared_deleted_impl(cache: &impl NotifyReadTestCache) {
+fn test_immediate_return_shared_deleted_impl(cache: &impl NotifyReadTestCache) {
     let object_id = ObjectID::random();
     let version = SequenceNumber::from(1);
     let epoch_id = 0;
@@ -327,7 +327,7 @@ async fn test_wait_for_shared_deleted_impl<C: NotifyReadTestCache>(cache: Arc<C>
     assert_eq!(result.len(), 1);
 }
 
-async fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCache) {
+fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCache) {
     let object_id = ObjectID::random();
     let requested_version = SequenceNumber::from(1);
     let higher_version = SequenceNumber::from(2);
@@ -364,25 +364,25 @@ async fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCa
 #[tokio::test]
 async fn test_writeback_immediate_return_canceled_shared() {
     let cache = create_writeback_cache().await;
-    test_immediate_return_canceled_shared_impl(&*cache).await;
+    test_immediate_return_canceled_shared_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_writeback_immediate_return_cached_object() {
     let cache = create_writeback_cache().await;
-    test_immediate_return_cached_object_impl(&*cache).await;
+    test_immediate_return_cached_object_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_writeback_immediate_return_cached_package() {
     let cache = create_writeback_cache().await;
-    test_immediate_return_cached_package_impl(&*cache).await;
+    test_immediate_return_cached_package_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_writeback_immediate_return_shared_deleted() {
     let cache = create_writeback_cache().await;
-    test_immediate_return_shared_deleted_impl(&*cache).await;
+    test_immediate_return_shared_deleted_impl(&*cache);
 }
 
 #[tokio::test]
@@ -406,7 +406,7 @@ async fn test_writeback_wait_for_shared_deleted() {
 #[tokio::test]
 async fn test_writeback_receiving_object_higher_version() {
     let cache = create_writeback_cache().await;
-    test_receiving_object_higher_version_impl(&*cache).await;
+    test_receiving_object_higher_version_impl(&*cache);
 }
 
 // ---------------------------------------------------------------------------
@@ -416,25 +416,25 @@ async fn test_writeback_receiving_object_higher_version() {
 #[tokio::test]
 async fn test_passthrough_immediate_return_canceled_shared() {
     let cache = create_passthrough_cache().await;
-    test_immediate_return_canceled_shared_impl(&*cache).await;
+    test_immediate_return_canceled_shared_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_passthrough_immediate_return_cached_object() {
     let cache = create_passthrough_cache().await;
-    test_immediate_return_cached_object_impl(&*cache).await;
+    test_immediate_return_cached_object_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_passthrough_immediate_return_cached_package() {
     let cache = create_passthrough_cache().await;
-    test_immediate_return_cached_package_impl(&*cache).await;
+    test_immediate_return_cached_package_impl(&*cache);
 }
 
 #[tokio::test]
 async fn test_passthrough_immediate_return_shared_deleted() {
     let cache = create_passthrough_cache().await;
-    test_immediate_return_shared_deleted_impl(&*cache).await;
+    test_immediate_return_shared_deleted_impl(&*cache);
 }
 
 #[tokio::test]
@@ -458,5 +458,5 @@ async fn test_passthrough_wait_for_shared_deleted() {
 #[tokio::test]
 async fn test_passthrough_receiving_object_higher_version() {
     let cache = create_passthrough_cache().await;
-    test_receiving_object_higher_version_impl(&*cache).await;
+    test_receiving_object_higher_version_impl(&*cache);
 }

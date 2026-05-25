@@ -115,7 +115,7 @@ pub async fn start_test_indexer(
         data_ingestion_path,
         token.clone(),
     )
-    .await;
+    ;
     (store, handle, token)
 }
 
@@ -128,7 +128,7 @@ pub async fn start_test_indexer(
 /// indexer. To force the indexer to sync from the fullnode via gRPC, set
 /// `data_ingestion_path` to `None` and it will use the `rpc_url` to stream
 /// checkpoints from the fullnode gRPC endpoint.
-pub async fn start_test_indexer_impl(
+pub fn start_test_indexer_impl(
     db_url: String,
     reset_db: bool,
     db_init_hook: Option<DBInitHook>,
@@ -290,7 +290,7 @@ fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
     )
 }
 
-pub async fn force_delete_database(db_url: String) {
+pub fn force_delete_database(db_url: String) {
     // Replace the database name with the default `postgres`, which should be the
     // last string after `/` This is necessary because you can't drop a database
     // while being connected to it. Hence switch to the default `postgres`

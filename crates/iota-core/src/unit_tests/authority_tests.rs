@@ -165,8 +165,8 @@ async fn construct_shared_object_transaction_with_sequence_number(
     // Make a sample transaction.
     let (validator, fullnode, package) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
-    validator.insert_genesis_object(shared_object.clone()).await;
-    fullnode.insert_genesis_object(shared_object.clone()).await;
+    validator.insert_genesis_object(shared_object.clone());
+    fullnode.insert_genesis_object(shared_object.clone());
     let rgp = validator.reference_gas_price_for_testing().unwrap();
     let gas_object = validator.get_object(&gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
@@ -970,8 +970,8 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.compute_object_reference();
-    validator.insert_genesis_object(gas_object.clone()).await;
-    fullnode.insert_genesis_object(gas_object).await;
+    validator.insert_genesis_object(gas_object.clone());
+    fullnode.insert_genesis_object(gas_object);
     // create the parent
     let effects = call_move_(
         &validator,
@@ -1097,8 +1097,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         Owner::Address(sender),
     );
     let gas_object_ref = gas_object.compute_object_reference();
-    validator.insert_genesis_object(gas_object.clone()).await;
-    fullnode.insert_genesis_object(gas_object).await;
+    validator.insert_genesis_object(gas_object.clone());
+    fullnode.insert_genesis_object(gas_object);
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
@@ -1591,7 +1591,7 @@ async fn test_immutable_gas() {
     let imm_object = Object::immutable_with_id_for_testing(imm_object_id);
     authority_state
         .insert_genesis_object(imm_object.clone())
-        .await;
+        ;
     let mut_object = authority_state.get_object(&mut_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
@@ -1625,7 +1625,7 @@ async fn test_objected_owned_gas() {
     let child_object = Object::with_object_owner_for_testing(child_object_id, parent_object_id);
     authority_state
         .insert_genesis_object(child_object.clone())
-        .await;
+        ;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let data = TransactionData::new_transfer_iota(
         recipient,
@@ -1747,7 +1747,7 @@ async fn test_publish_module_no_dependencies_ok() {
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, gas_balance);
     let gas_payment_object_ref = gas_payment_object.compute_object_reference();
-    authority.insert_genesis_object(gas_payment_object).await;
+    authority.insert_genesis_object(gas_payment_object);
 
     let module = file_format::empty_module();
     let mut module_bytes = Vec::new();
@@ -2835,7 +2835,7 @@ async fn test_authority_persist() {
     let obj = Object::with_id_owner_for_testing(object_id, recipient);
 
     // Store an object
-    authority.insert_genesis_object(obj).await;
+    authority.insert_genesis_object(obj);
 
     // Close the authority
     drop(authority);
@@ -4084,7 +4084,7 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 ) -> (Arc<AuthorityState>, ObjectRef) {
     let state = TestAuthorityBuilder::new().build().await;
     for obj in objects {
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     publish_object_basics(state).await
 }
@@ -4098,7 +4098,7 @@ pub async fn init_state_with_ids_and_object_basics<
     let state = TestAuthorityBuilder::new().build().await;
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     publish_object_basics(state).await
 }
@@ -4123,7 +4123,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
     )
     .unwrap();
     let pkg_ref = pkg.compute_object_reference();
-    state.insert_genesis_object(pkg).await;
+    state.insert_genesis_object(pkg);
     (state, pkg_ref)
 }
 
@@ -4138,8 +4138,8 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
-        validator.insert_genesis_object(obj.clone()).await;
-        fullnode.insert_genesis_object(obj).await;
+        validator.insert_genesis_object(obj.clone());
+        fullnode.insert_genesis_object(obj);
     }
 
     // add object_basics package object to genesis, since lots of test use it
@@ -4159,8 +4159,8 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
     )
     .unwrap();
     let pkg_ref = pkg.compute_object_reference();
-    validator.insert_genesis_object(pkg.clone()).await;
-    fullnode.insert_genesis_object(pkg).await;
+    validator.insert_genesis_object(pkg.clone());
+    fullnode.insert_genesis_object(pkg);
     (validator, fullnode, pkg_ref)
 }
 
@@ -6245,7 +6245,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     let mut genesis_objects = gas_objects_commit_1.clone();
     genesis_objects.extend(gas_objects_commit_2.clone());
     genesis_objects.extend(shared_objects.clone());
-    authority.insert_genesis_objects(&genesis_objects).await;
+    authority.insert_genesis_objects(&genesis_objects);
 
     // Create first batch of commits. Here, we create 5 transactions that operate on
     // the first shared object with very high gas budget. And
@@ -6467,7 +6467,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     genesis_objects.extend(gas_objects_cancelled_txn.clone());
     genesis_objects.extend(shared_objects.clone());
     genesis_objects.extend(owned_objects_cancelled_txn.clone());
-    authority.insert_genesis_objects(&genesis_objects).await;
+    authority.insert_genesis_objects(&genesis_objects);
 
     let mut certificates: Vec<VerifiedCertificate> = vec![];
     let gas_price_of_non_cancelled_txs = 2_000;

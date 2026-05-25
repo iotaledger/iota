@@ -163,7 +163,7 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
 }
 
 /// Check that prunable tables exist in the database.
-pub async fn check_prunable_tables_valid(conn: &mut PoolConnection) -> Result<(), IndexerError> {
+pub fn check_prunable_tables_valid(conn: &mut PoolConnection) -> Result<(), IndexerError> {
     info!("Starting compatibility check");
 
     use diesel::RunQueryDsl;

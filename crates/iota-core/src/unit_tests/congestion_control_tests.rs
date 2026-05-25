@@ -88,7 +88,7 @@ impl TestSetup {
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         setup_authority_state
             .insert_genesis_object(gas_object.clone())
-            .await;
+            ;
 
         let package = build_and_publish_test_package(
             &setup_authority_state,
@@ -318,7 +318,7 @@ async fn test_congestion_control_execution_cancellation() {
         .await;
     authority_state
         .insert_genesis_objects(&genesis_objects)
-        .await;
+        ;
     let authority_state_2 = TestAuthorityBuilder::new()
         .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
         .with_protocol_config(test_setup.protocol_config.clone())
@@ -326,7 +326,7 @@ async fn test_congestion_control_execution_cancellation() {
         .await;
     authority_state_2
         .insert_genesis_objects(&genesis_objects)
-        .await;
+        ;
 
     // The congestion limit, taking overshoot into account is
     // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
@@ -489,7 +489,7 @@ async fn test_congestion_control_debt_tracking() {
         .await;
     authority_state
         .insert_genesis_objects(&genesis_objects)
-        .await;
+        ;
 
     // Commit 1: a transaction with gas budget 3*default_tx_gas_budget that touches
     // shared_object_1 and an owned object.

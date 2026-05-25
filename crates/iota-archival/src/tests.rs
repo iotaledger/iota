@@ -46,7 +46,7 @@ struct TestState {
     committee: CommitteeFixture,
 }
 
-async fn write_new_checkpoints_to_store(
+fn write_new_checkpoints_to_store(
     test_state: &TestState,
     store: SharedInMemoryStore,
     num_checkpoints: usize,
@@ -91,7 +91,7 @@ async fn setup_test_state(temp_dir: PathBuf) -> anyhow::Result<TestState> {
         20,
         &Registry::default(),
     )
-    .await?;
+    ?;
     let archive_reader_config = ArchiveReaderConfig {
         remote_store_config: remote_store_config.clone(),
         download_concurrency: NonZeroUsize::new(2).unwrap(),
@@ -149,7 +149,7 @@ async fn insert_checkpoints_and_verify_manifest(
         tokio::time::sleep(Duration::from_secs(1)).await;
         prev_checkpoint =
             write_new_checkpoints_to_store(test_state, test_store.clone(), 1, prev_checkpoint)
-                .await?;
+                ?;
     }
     Ok(prev_checkpoint)
 }

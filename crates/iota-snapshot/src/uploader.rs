@@ -138,7 +138,7 @@ impl StateSnapshotUploader {
                     FileCompression::Zstd,
                     NonZeroUsize::new(20).unwrap(),
                 )
-                .await?;
+                ?;
                 let db = Arc::new(AuthorityPerpetualTables::open(
                     &path_to_filesystem(self.db_checkpoint_path.clone(), &db_path.child("store"))?,
                     None,

@@ -497,7 +497,7 @@ pub async fn verify_archive_with_checksums(
         manifest.next_checkpoint_seq_num()
     );
 
-    let file_metadata = archive_reader.verify_manifest(manifest).await?;
+    let file_metadata = archive_reader.verify_manifest(manifest)?;
     // Account for both summary and content files
     let num_files = file_metadata.len() * 2;
     archive_reader

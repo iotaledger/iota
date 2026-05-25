@@ -260,7 +260,7 @@ pub struct StateSnapshotWriterV1 {
 }
 
 impl StateSnapshotWriterV1 {
-    pub async fn new_from_store(
+    pub fn new_from_store(
         local_staging_path: &std::path::Path,
         local_staging_store: &Arc<DynObjectStore>,
         remote_object_store: &Arc<DynObjectStore>,
@@ -276,7 +276,7 @@ impl StateSnapshotWriterV1 {
         })
     }
 
-    pub async fn new(
+    pub fn new(
         local_store_config: &ObjectStoreConfig,
         remote_store_config: &ObjectStoreConfig,
         file_compression: FileCompression,

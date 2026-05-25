@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         commit_duration_seconds: config.commit_duration_seconds,
     };
 
-    let reducer = ArchivalReducer::new(archival_config).await?;
+    let reducer = ArchivalReducer::new(archival_config)?;
     let progress_store = ShimProgressStore(reducer.get_watermark().await?);
     let mut executor = IndexerExecutor::new(
         progress_store,

@@ -3048,8 +3048,8 @@ mod test {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_flush_and_recovery(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_flush_and_recovery(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
@@ -3710,8 +3710,8 @@ mod test {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_contains_transactions(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_contains_transactions(#[values(true, false)] consensus_fast_commit_sync: bool) {
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         context
@@ -3840,8 +3840,8 @@ mod test {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_eviction(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_eviction(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
@@ -4123,8 +4123,8 @@ mod test {
     /// Ensures `flush()` performs eviction even when there is nothing to write,
     /// so changes in `last_solid_subdag_base` take effect.
     #[rstest]
-    #[tokio::test]
-    async fn test_flush_evicts_transactions_without_pending_writes(
+    #[test]
+    fn test_flush_evicts_transactions_without_pending_writes(
         #[values(true, false)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
@@ -4191,8 +4191,8 @@ mod test {
     /// Ensures transaction eviction during fast sync does not depend on cached
     /// headers (so `recent_headers_refs_by_authority` may be empty).
     #[rstest]
-    #[tokio::test]
-    async fn test_fast_sync_transaction_eviction_without_headers(
+    #[test]
+    fn test_fast_sync_transaction_eviction_without_headers(
         #[values(true, false)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();

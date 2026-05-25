@@ -21,7 +21,7 @@ use crate::TransactionBuilder;
 impl TransactionBuilder {
     /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
-    pub async fn publish_tx_kind(
+    pub fn publish_tx_kind(
         &self,
         sender: IotaAddress,
         modules: Vec<Vec<u8>>,

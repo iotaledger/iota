@@ -107,7 +107,7 @@ impl SingleValidator {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)
             .publish_with_data(publish_data);
         let transaction = tx_builder.build_and_sign(keypair);
-        let effects = self.execute_raw_transaction(transaction).await;
+        let effects = self.execute_raw_transaction(transaction);
         let package = effects
             .all_changed_objects()
             .into_iter()
@@ -118,7 +118,7 @@ impl SingleValidator {
         (package, updated_gas)
     }
 
-    pub async fn execute_raw_transaction(&self, transaction: Transaction) -> TransactionEffects {
+    pub fn execute_raw_transaction(&self, transaction: Transaction) -> TransactionEffects {
         let executable = VerifiedExecutableTransaction::new_from_quorum_execution(
             VerifiedTransaction::new_unchecked(transaction),
             0,
@@ -132,7 +132,7 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn execute_dry_run(&self, transaction: Transaction) -> TransactionEffects {
+    pub fn execute_dry_run(&self, transaction: Transaction) -> TransactionEffects {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
@@ -191,7 +191,7 @@ impl SingleValidator {
         effects
     }
 
-    pub(crate) async fn execute_transaction_in_memory(
+    pub(crate) fn execute_transaction_in_memory(
         &self,
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
@@ -242,7 +242,7 @@ impl SingleValidator {
             .into_inner()
     }
 
-    pub(crate) async fn build_checkpoints(
+    pub(crate) fn build_checkpoints(
         &self,
         transactions: Vec<CertifiedTransaction>,
         mut all_effects: BTreeMap<TransactionDigest, TransactionEffects>,
@@ -299,7 +299,7 @@ impl SingleValidator {
         InMemoryObjectStore::new(objects)
     }
 
-    pub(crate) async fn assigned_shared_object_versions(
+    pub(crate) fn assigned_shared_object_versions(
         &self,
         transactions: &[CertifiedTransaction],
     ) {

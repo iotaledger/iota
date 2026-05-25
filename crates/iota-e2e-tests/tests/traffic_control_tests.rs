@@ -468,7 +468,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
 
     // start test firewall server
     let mut server = NodeFwTestServer::new();
-    server.start(port).await;
+    server.start(port);
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
@@ -493,7 +493,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
         !fw_blocklist.is_empty(),
         "Expected blocklist to be non-empty"
     );
-    server.stop().await;
+    server.stop();
     Ok(())
 }
 
@@ -529,7 +529,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
 
     // start test firewall server
     let mut server = NodeFwTestServer::new();
-    server.start(port).await;
+    server.start(port);
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
     let context = test_cluster.wallet;
@@ -581,7 +581,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         !fw_blocklist.is_empty(),
         "Expected blocklist to be non-empty"
     );
-    server.stop().await;
+    server.stop();
     Ok(())
 }
 

@@ -393,7 +393,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             randomness::Handle::new_stub(),
             &keypair,
         )
-        .await;
+        ;
         if let Some(randomness_manager) = randomness_manager {
             // Randomness might fail if test configuration does not permit DKG init.
             // In that case, skip setting it up.

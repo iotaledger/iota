@@ -914,7 +914,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     Ok(())
 }
 
-async fn get_obj_read_from_node(
+fn get_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectID,
 ) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
@@ -925,7 +925,7 @@ async fn get_obj_read_from_node(
     }
 }
 
-async fn get_past_obj_read_from_node(
+fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectID,
     seq_num: SequenceNumber,
@@ -958,7 +958,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     let recipient = test_cluster.get_address_1();
     assert_ne!(sender, recipient);
 
-    let (object_ref_v1, object_v1, _) = get_obj_read_from_node(node, object_id).await?;
+    let (object_ref_v1, object_v1, _) = get_obj_read_from_node(node, object_id)?;
 
     // Transfer the object from sender to recipient
     let gas_ref = test_cluster
@@ -975,7 +975,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     test_cluster.execute_transaction(nft_transfer_tx).await;
     sleep(Duration::from_secs(1)).await;
 
-    let (object_ref_v2, object_v2, _) = get_obj_read_from_node(node, object_id).await?;
+    let (object_ref_v2, object_v2, _) = get_obj_read_from_node(node, object_id)?;
     assert_ne!(object_ref_v2, object_ref_v1);
 
     // Transfer some IOTA to recipient
@@ -1007,13 +1007,13 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(object_ref_v3, read_ref_v3);
 
     let (read_ref_v2, read_obj_v2, _) =
-        get_past_obj_read_from_node(node, object_id, object_ref_v2.version).await?;
+        get_past_obj_read_from_node(node, object_id, object_ref_v2.version)?;
     assert_eq!(read_ref_v2, object_ref_v2);
     assert_eq!(read_obj_v2, object_v2);
     assert_eq!(read_obj_v2.owner, Owner::Address(recipient));
 
     let (read_ref_v1, read_obj_v1, _) =
-        get_past_obj_read_from_node(node, object_id, object_ref_v1.version).await?;
+        get_past_obj_read_from_node(node, object_id, object_ref_v1.version)?;
     assert_eq!(read_ref_v1, object_ref_v1);
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::Address(sender));

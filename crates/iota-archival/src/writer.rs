@@ -344,7 +344,7 @@ pub struct ArchiveWriter {
 }
 
 impl ArchiveWriter {
-    pub async fn new(
+    pub fn new(
         local_store_config: ObjectStoreConfig,
         remote_store_config: ObjectStoreConfig,
         file_compression: FileCompression,

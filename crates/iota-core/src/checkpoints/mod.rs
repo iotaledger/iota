@@ -1177,7 +1177,7 @@ impl CheckpointBuilder {
 
             let consensus_commit_prologue = self
                 .extract_consensus_commit_prologue(&root_digests, &root_effects)
-                .await?;
+                ?;
 
             // Get the un-included dependencies of the consensus commit prologue. We should
             // expect no other dependencies that haven't been included in any
@@ -1236,7 +1236,7 @@ impl CheckpointBuilder {
     // effects from the root transactions.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
-    async fn extract_consensus_commit_prologue(
+    fn extract_consensus_commit_prologue(
         &self,
         root_digests: &[TransactionDigest],
         root_effects: &[TransactionEffects],
@@ -1634,7 +1634,7 @@ impl CheckpointBuilder {
                     )?;
                     state_acc
                         .digest_epoch(self.epoch_store.clone(), sequence_number)
-                        .await?
+                        ?
                 };
                 self.metrics.highest_accumulated_epoch.set(epoch as i64);
                 info!("Epoch {epoch} root state hash digest: {root_state_digest:?}");

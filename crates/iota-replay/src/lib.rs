@@ -217,7 +217,7 @@ pub async fn execute_replay_command(
             let sandbox_state: ExecutionSandboxState = serde_json::from_str(&contents)?;
             info!("Executing tx: {}", sandbox_state.transaction_info.tx_digest);
             let sandbox_state =
-                LocalExec::certificate_execute_with_sandbox_state(&sandbox_state).await?;
+                LocalExec::certificate_execute_with_sandbox_state(&sandbox_state)?;
             sandbox_state.check_effects()?;
             info!("Execution finished successfully. Local and on-chain effects match.");
             None
@@ -340,7 +340,7 @@ pub async fn execute_replay_command(
                         serde_json::from_str(&contents).unwrap();
                     let sandbox_state =
                         LocalExec::certificate_execute_with_sandbox_state(&sandbox_state)
-                            .await
+                            
                             .unwrap();
                     sandbox_state.check_effects().unwrap();
                 }

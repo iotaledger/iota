@@ -241,7 +241,7 @@ impl StressTestRunner {
         effects: &TransactionEffects,
         name: &str,
     ) -> Option<Object> {
-        self.get_from_effects(&effects.created(), name).await
+        self.get_from_effects(&effects.created(), name)
     }
 
     #[expect(dead_code)]
@@ -250,7 +250,7 @@ impl StressTestRunner {
         effects: &TransactionEffects,
         name: &str,
     ) -> Option<Object> {
-        self.get_from_effects(&effects.mutated(), name).await
+        self.get_from_effects(&effects.mutated(), name)
     }
 
     fn split_off(builder: &mut ProgrammableTransactionBuilder, amount: u64) -> Argument {
@@ -258,7 +258,7 @@ impl StressTestRunner {
         builder.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
     }
 
-    async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
+    fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
         let db = self.state().get_object_store().clone();
         let found: Vec<_> = effects
             .iter()

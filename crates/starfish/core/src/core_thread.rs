@@ -576,12 +576,12 @@ pub(crate) mod tests {
     }
 
     impl MockCoreThreadDispatcher {
-        pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
+        pub(crate) fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
             blocks.drain(0..).collect()
         }
 
-        pub(crate) async fn get_and_drain_block_headers(&self) -> Vec<VerifiedBlockHeader> {
+        pub(crate) fn get_and_drain_block_headers(&self) -> Vec<VerifiedBlockHeader> {
             let mut block_headers = self.block_headers.lock();
             block_headers.drain(0..).collect()
         }
@@ -594,19 +594,19 @@ pub(crate) mod tests {
             self.block_headers.lock().clone()
         }
 
-        pub(crate) async fn stub_missing_block_headers(&self, block_refs: BTreeSet<BlockRef>) {
+        pub(crate) fn stub_missing_block_headers(&self, block_refs: BTreeSet<BlockRef>) {
             let mut missing_block_headers = self.missing_block_headers.lock();
             for block_ref in &block_refs {
                 missing_block_headers.insert(*block_ref, BTreeSet::from([block_ref.author]));
             }
         }
 
-        pub(crate) async fn get_last_own_proposed_round(&self) -> Vec<Round> {
+        pub(crate) fn get_last_own_proposed_round(&self) -> Vec<Round> {
             let last_known_proposed_round = self.last_known_proposed_round.lock();
             last_known_proposed_round.clone()
         }
 
-        pub(crate) async fn get_new_block_calls(
+        pub(crate) fn get_new_block_calls(
             &self,
         ) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
             let mut binding = self.new_block_calls.lock();

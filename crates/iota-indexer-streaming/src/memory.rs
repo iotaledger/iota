@@ -214,7 +214,7 @@ impl InMemory {
     /// - spawns the background task that processes checkpoint notifications.
     /// - handles automatically reconnecting to PostgreSQL if the connection is
     ///   lost.
-    pub async fn new(
+    pub fn new(
         config: Config,
         indexer_reader: IndexerReader,
         metrics: impl Into<Arc<InMemoryStreamMetrics>>,
@@ -707,7 +707,7 @@ impl InMemory {
             .broadcast_tx_and_ev_to_subscribers_latency
             .start_timer();
 
-        Self::publish_tx_and_events(metrics, transactions, event_tx, transaction_tx).await?;
+        Self::publish_tx_and_events(metrics, transactions, event_tx, transaction_tx)?;
 
         let elapsed = publish_data_to_subscribers_timer.stop_and_record();
         debug!(
@@ -725,7 +725,7 @@ impl InMemory {
     }
 
     /// Publishes transactions and extracted events from them to subscribers.
-    async fn publish_tx_and_events(
+    fn publish_tx_and_events(
         metrics: &InMemoryStreamMetrics,
         transactions: Vec<StoredTransaction>,
         event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,

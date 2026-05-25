@@ -142,7 +142,7 @@ impl SnapshotPipeline {
         spawn_monitored_task!(writer.persist_sequentially(receiver, cancel))
     }
 
-    pub async fn run(
+    pub fn run(
         self,
         remote_store_url: Option<RemoteUrl>,
         reader_options: ReaderOptions,

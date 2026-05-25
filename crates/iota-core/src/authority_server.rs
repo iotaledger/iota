@@ -155,7 +155,7 @@ impl AuthorityServer {
                 self.metrics,
             )))
             .bind(&address, Some(tls_config))
-            .await
+            
             .unwrap();
         let local_addr = server.local_addr().to_owned();
         info!("Listening to traffic on {local_addr}");
@@ -814,7 +814,7 @@ impl ValidatorService {
         })
     }
 
-    async fn soft_bundle_validity_check(
+    fn soft_bundle_validity_check(
         &self,
         certificates: &NonEmpty<CertifiedTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -939,7 +939,7 @@ impl ValidatorService {
 
         // Now that individual certificates are valid, we check if the bundle is valid.
         self.soft_bundle_validity_check(&certificates, &epoch_store, total_size_bytes)
-            .await?;
+            ?;
 
         info!(
             "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size [{}]bytes",
@@ -995,7 +995,7 @@ impl ValidatorService {
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
-    async fn checkpoint_impl(
+    fn checkpoint_impl(
         &self,
         request: tonic::Request<CheckpointRequest>,
     ) -> WrappedServiceResponse<CheckpointResponse> {
@@ -1004,7 +1004,7 @@ impl ValidatorService {
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
-    async fn get_system_state_object_impl(
+    fn get_system_state_object_impl(
         &self,
         _request: tonic::Request<SystemStateRequest>,
     ) -> WrappedServiceResponse<IotaSystemState> {
@@ -1151,7 +1151,7 @@ impl ValidatorService {
         unwrapped_response
     }
 
-    async fn handle_capability_notification_v1_impl(
+    fn handle_capability_notification_v1_impl(
         &self,
         request: tonic::Request<HandleCapabilityNotificationRequestV1>,
     ) -> WrappedServiceResponse<HandleCapabilityNotificationResponseV1> {
@@ -1292,6 +1292,25 @@ macro_rules! handle_with_decoration {
     }};
 }
 
+/// Same as [`handle_with_decoration`] but for synchronous impl functions.
+#[macro_export]
+macro_rules! handle_with_decoration_sync {
+    ($self:ident, $func_name:ident, $request:ident) => {{
+        if $self.client_id_source.is_none() {
+            return $self.$func_name($request).map(|(result, _)| result);
+        }
+
+        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
+
+        // check if either IP is blocked, in which case return early
+        $self.handle_traffic_req(client.clone()).await?;
+
+        // handle traffic tallying
+        let wrapped_response = $self.$func_name($request);
+        $self.handle_traffic_resp(client, wrapped_response)
+    }};
+}
+
 #[async_trait]
 impl Validator for ValidatorService {
     /// Handles a `Transaction` request.
@@ -1369,7 +1388,7 @@ impl Validator for ValidatorService {
         &self,
         request: tonic::Request<CheckpointRequest>,
     ) -> Result<tonic::Response<CheckpointResponse>, tonic::Status> {
-        handle_with_decoration!(self, checkpoint_impl, request)
+        handle_with_decoration_sync!(self, checkpoint_impl, request)
     }
 
     /// Gets the `IotaSystemState` response.
@@ -1377,13 +1396,13 @@ impl Validator for ValidatorService {
         &self,
         request: tonic::Request<SystemStateRequest>,
     ) -> Result<tonic::Response<IotaSystemState>, tonic::Status> {
-        handle_with_decoration!(self, get_system_state_object_impl, request)
+        handle_with_decoration_sync!(self, get_system_state_object_impl, request)
     }
 
     async fn handle_capability_notification_v1(
         &self,
         request: tonic::Request<HandleCapabilityNotificationRequestV1>,
     ) -> Result<tonic::Response<HandleCapabilityNotificationResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
+        handle_with_decoration_sync!(self, handle_capability_notification_v1_impl, request)
     }
 }

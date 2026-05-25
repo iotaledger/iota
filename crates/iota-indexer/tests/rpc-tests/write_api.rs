@@ -54,7 +54,7 @@ type Signatures = Vec<Base64>;
 // execution time.
 const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
-async fn prepare_and_sign_object_transfer_tx(
+fn prepare_and_sign_object_transfer_tx(
     sender: IotaAddress,
     sender_key_pair: AccountKeyPair,
     receiver: IotaAddress,
@@ -150,7 +150,7 @@ fn dry_run_transaction_block() {
             object_to_transfer,
             gas_ref,
         )
-        .await;
+        ;
 
         let dry_run_tx_block_resp = client
             .dry_run_transaction_block(tx_bytes.clone())
@@ -351,7 +351,7 @@ fn execute_transaction_block() {
             object_to_transfer,
             gas_ref,
         )
-        .await;
+        ;
 
         let indexer_tx_response = client
             .execute_transaction_block(
@@ -438,7 +438,7 @@ fn optimistic_objects_are_finalized() {
             object_to_transfer,
             gas_ref,
         )
-        .await;
+        ;
 
         let res = client
             .execute_transaction_block(

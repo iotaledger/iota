@@ -67,7 +67,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
         self
     }
 
-    pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
+    pub fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let http_config = self
             .config
             .http_config()
@@ -255,7 +255,7 @@ mod test {
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(&address, None)
-            .await
+            
             .unwrap();
 
         let address = server.local_addr().to_owned();
@@ -315,7 +315,7 @@ mod test {
         let server = config
             .server_builder_with_metrics(metrics.clone())
             .bind(&address, None)
-            .await
+            
             .unwrap();
 
         let address = server.local_addr().to_owned();
@@ -338,7 +338,7 @@ mod test {
 
     async fn test_multiaddr(address: Multiaddr) {
         let config = Config::new();
-        let server_handle = config.server_builder().bind(&address, None).await.unwrap();
+        let server_handle = config.server_builder().bind(&address, None).unwrap();
         let address = server_handle.local_addr().to_owned();
         let channel = config.connect(&address, None).await.unwrap();
         let mut client = HealthClient::new(channel);

@@ -635,7 +635,7 @@ impl IotaNode {
                 genesis_tx,
                 span,
             )
-            .await;
+            ;
 
             // Execute migration transactions if present
             if let Some(migration_tx_data) = migration_tx_data {
@@ -647,7 +647,7 @@ impl IotaNode {
                         tx,
                         span,
                     )
-                    .await;
+                    ;
                 }
             }
         }
@@ -899,7 +899,7 @@ impl IotaNode {
                 256 * 1024 * 1024,
                 prometheus_registry,
             )
-            .await?;
+            ?;
             Ok(Some(archive_writer.start(state_sync_store).await?))
         } else {
             Ok(None)
@@ -1188,7 +1188,7 @@ impl IotaNode {
             consensus_adapter.clone(),
             &validator_registry,
         )
-        .await?;
+        ?;
 
         // Starts an overload monitor that monitors the execution of the authority.
         // Don't start the overload monitor when max_load_shedding_percentage is 0.
@@ -1274,7 +1274,7 @@ impl IotaNode {
             randomness_handle,
             config.authority_key_pair(),
         )
-        .await;
+        ;
         if let Some(randomness_manager) = randomness_manager {
             epoch_store
                 .set_randomness_manager(randomness_manager)
@@ -1401,7 +1401,7 @@ impl IotaNode {
         )
     }
 
-    async fn start_grpc_validator_service(
+    fn start_grpc_validator_service(
         config: &NodeConfig,
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -1433,7 +1433,7 @@ impl IotaNode {
         let bind_future = async move {
             let server = server_builder
                 .bind(&network_address, Some(tls_config))
-                .await
+                
                 .map_err(|err| anyhow!("Failed to bind to {network_address}: {err}"))?;
 
             let local_addr = server.local_addr();
@@ -2029,7 +2029,7 @@ impl IotaNode {
         &self.config
     }
 
-    async fn execute_transaction_immediately_at_zero_epoch(
+    fn execute_transaction_immediately_at_zero_epoch(
         state: &Arc<AuthorityState>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx: &Transaction,
@@ -2392,7 +2392,7 @@ pub async fn build_http_server(
 
         let server_type = config.jsonrpc_server_type();
 
-        server.to_router(server_type).await?
+        server.to_router(server_type)?
     };
 
     router = router.merge(json_rpc_router);

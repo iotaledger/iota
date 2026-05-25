@@ -150,7 +150,7 @@ pub enum PruningMode {
 
 impl AuthorityStorePruner {
     /// prunes old versions of objects based on transaction effects
-    async fn prune_objects(
+    fn prune_objects(
         transaction_effects: Vec<TransactionEffects>,
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
@@ -523,7 +523,7 @@ impl AuthorityStorePruner {
                             checkpoint_number,
                             metrics.clone(),
                         )
-                        .await?
+                        ?
                     }
                     PruningMode::Checkpoints => Self::prune_checkpoints(
                         perpetual_db,
@@ -567,7 +567,7 @@ impl AuthorityStorePruner {
                         checkpoint_number,
                         metrics.clone(),
                     )
-                    .await?
+                    ?
                 }
                 PruningMode::Checkpoints => Self::prune_checkpoints(
                     perpetual_db,
@@ -1074,7 +1074,7 @@ mod tests {
                 ));
             }
             AuthorityStorePruner::prune_objects(vec![effects], &db, None, 0, metrics)
-                .await
+                
                 .unwrap();
             to_keep
         };
@@ -1163,7 +1163,7 @@ mod tests {
         let metrics = AuthorityStorePruningMetrics::new(&registry);
         let total_pruned =
             AuthorityStorePruner::prune_objects(vec![effects], &perpetual_db, None, 0, metrics)
-                .await;
+                ;
         info!("Total pruned keys = {:?}", total_pruned);
 
         perpetual_db.objects.compact_range(&start, &end)?;

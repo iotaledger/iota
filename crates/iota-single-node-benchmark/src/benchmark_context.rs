@@ -352,7 +352,7 @@ impl BenchmarkContext {
         let effects = self
             .validator()
             .execute_dry_run(sample_transaction.into_unsigned())
-            .await;
+            ;
         info!("Sample effects: {:?}\n\n", effects);
         assert!(effects.status().is_success());
     }
@@ -401,7 +401,7 @@ impl BenchmarkContext {
         let validator = self.validator();
         let checkpoints = validator
             .build_checkpoints(transactions, effects, checkpoint_size)
-            .await;
+            ;
         info!("Built {} checkpoints", checkpoints.len());
         let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
         let checkpoint_executor = validator.create_checkpoint_executor();
@@ -444,7 +444,7 @@ impl BenchmarkContext {
             .into_iter()
             .map(|tx| {
                 let validator = self.validator();
-                tokio::spawn(async move { validator.execute_raw_transaction(tx).await })
+                tokio::spawn(async move { validator.execute_raw_transaction(tx) })
             })
             .collect();
         let results: Vec<_> = tasks.collect().await;
@@ -464,7 +464,7 @@ impl BenchmarkContext {
                 effects.push(
                     self.validator
                         .execute_transaction_in_memory(store.clone(), transaction)
-                        .await,
+                        ,
                 );
             }
             effects
@@ -475,7 +475,7 @@ impl BenchmarkContext {
                     let store = store.clone();
                     let validator = self.validator();
                     tokio::spawn(
-                        async move { validator.execute_transaction_in_memory(store, tx).await },
+                        async move { validator.execute_transaction_in_memory(store, tx) },
                     )
                 })
                 .collect();

@@ -43,7 +43,7 @@ pub struct HistoricalReducer {
 }
 
 impl HistoricalReducer {
-    pub async fn new(config: HistoricalWriterConfig) -> anyhow::Result<Self> {
+    pub fn new(config: HistoricalWriterConfig) -> anyhow::Result<Self> {
         let remote_store = config.object_store_config.make()?;
 
         Ok(Self {

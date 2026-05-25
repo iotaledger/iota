@@ -26,7 +26,7 @@ use crate::{
     test_authority_clients::LocalAuthorityClient,
 };
 
-async fn init_genesis(
+fn init_genesis(
     committee_size: usize,
     mut genesis_objects: Vec<Object>,
 ) -> (
@@ -94,14 +94,14 @@ pub async fn init_local_authorities(
     Genesis,
     ObjectID,
 ) {
-    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
+    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects);
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
         TestAuthorityBuilder::new()
             .with_genesis_and_keypair(&genesis, key_pair)
             .build()
     }))
     .await;
-    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone()).await;
+    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone());
     (aggregator, authorities, genesis, framework)
 }
 
@@ -116,7 +116,7 @@ pub async fn init_local_authorities_with_overload_thresholds(
     Genesis,
     ObjectID,
 ) {
-    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
+    let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects);
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
         TestAuthorityBuilder::new()
             .with_genesis_and_keypair(&genesis, key_pair)
@@ -124,12 +124,12 @@ pub async fn init_local_authorities_with_overload_thresholds(
             .build()
     }))
     .await;
-    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone()).await;
+    let aggregator = init_local_authorities_with_genesis(&genesis, authorities.clone());
     (aggregator, authorities, genesis, framework)
 }
 
 #[cfg(test)]
-pub async fn init_local_authorities_with_genesis(
+pub fn init_local_authorities_with_genesis(
     genesis: &Genesis,
     authorities: Vec<Arc<AuthorityState>>,
 ) -> AuthorityAggregator<LocalAuthorityClient> {

@@ -741,7 +741,7 @@ async fn test_authority_txn_signing_pushback() {
         .await;
     authority_state
         .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+        ;
 
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
@@ -873,7 +873,7 @@ async fn test_authority_txn_execution_pushback() {
         .await;
     authority_state
         .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+        ;
 
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new(

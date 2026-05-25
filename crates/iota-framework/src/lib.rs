@@ -185,7 +185,7 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   without a framework upgrade).
 /// - Returns the digest of the new framework (and version) if it is compatible
 ///   (indicates support for a protocol upgrade with a framework upgrade).
-pub async fn compare_system_package<S: ObjectStore>(
+pub fn compare_system_package<S: ObjectStore>(
     object_store: &S,
     id: &ObjectID,
     modules: &[CompiledModule],

@@ -315,7 +315,7 @@ impl TrafficControlPolicy {
                 FreqThresholdPolicy::new(policy_config, freq_threshold_config),
             ),
             PolicyType::TestNConnIP(n) => {
-                Self::TestNConnIP(TestNConnIPPolicy::new(policy_config, n).await)
+                Self::TestNConnIP(TestNConnIPPolicy::new(policy_config, n))
             }
             PolicyType::TestPanicOnInvocation => {
                 Self::TestPanicOnInvocation(TestPanicOnInvocationPolicy::new(policy_config))
@@ -453,7 +453,7 @@ pub struct TestNConnIPPolicy {
 }
 
 impl TestNConnIPPolicy {
-    pub async fn new(config: PolicyConfig, threshold: u64) -> Self {
+    pub fn new(config: PolicyConfig, threshold: u64) -> Self {
         let frequencies = Arc::new(RwLock::new(HashMap::new()));
         let frequencies_clone = frequencies.clone();
         spawn_monitored_task!(run_clear_frequencies(

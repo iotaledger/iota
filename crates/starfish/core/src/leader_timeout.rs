@@ -339,7 +339,7 @@ mod tests {
         // wait enough until the min block delay has passed and a new_block call is
         // triggered
         sleep(2 * min_block_delay).await;
-        let all_calls = dispatcher.get_new_block_calls().await;
+        let all_calls = dispatcher.get_new_block_calls();
         assert_eq!(all_calls.len(), 1);
 
         let (round, reason, timestamp) = all_calls[0];
@@ -354,7 +354,7 @@ mod tests {
 
         // wait enough until a new_block has been received
         sleep(2 * leader_timeout).await;
-        let all_calls = dispatcher.get_new_block_calls().await;
+        let all_calls = dispatcher.get_new_block_calls();
         assert_eq!(all_calls.len(), 1);
 
         let (round, reason, timestamp) = all_calls[0];
@@ -369,7 +369,7 @@ mod tests {
 
         // now wait another 2 * leader_timeout, no other call should be received
         sleep(2 * leader_timeout).await;
-        let all_calls = dispatcher.get_new_block_calls().await;
+        let all_calls = dispatcher.get_new_block_calls();
 
         assert_eq!(all_calls.len(), 0);
     }
@@ -443,7 +443,7 @@ mod tests {
         sleep(2 * leader_timeout).await;
 
         // only the last one should be received
-        let all_calls = dispatcher.get_new_block_calls().await;
+        let all_calls = dispatcher.get_new_block_calls();
         let (round, reason, timestamp) = all_calls[0];
         assert_eq!(round, 15);
         assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);

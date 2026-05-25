@@ -328,7 +328,7 @@ impl LocalExec {
                 .await?,
             None,
         )
-        .await
+        
     }
 
     pub async fn replay_with_network_config(
@@ -373,12 +373,12 @@ impl LocalExec {
             self.client.expect("Remote client not initialized"),
             Some(self.fetcher.into_remote()),
         )
-        .await?
+        ?
         .init_for_execution()
         .await
     }
 
-    pub async fn new_for_remote(
+    pub fn new_for_remote(
         client: IotaClient,
         remote_fetcher: Option<RemoteFetcher>,
     ) -> Result<Self, ReplayEngineError> {
@@ -1003,7 +1003,7 @@ impl LocalExec {
     /// Executes a transaction with the state specified in `pre_run_sandbox`
     /// This is useful for executing a transaction with a specific state
     /// However if the state in invalid, the behavior is undefined.
-    pub async fn certificate_execute_with_sandbox_state(
+    pub fn certificate_execute_with_sandbox_state(
         pre_run_sandbox: &ExecutionSandboxState,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         // These cannot be changed and are inherited from the sandbox state
@@ -1211,7 +1211,7 @@ impl LocalExec {
         let pre_run_sandbox = self
             .execution_engine_execute_impl(tx_digest, expensive_safety_check_config)
             .await?;
-        Self::certificate_execute_with_sandbox_state(&pre_run_sandbox).await
+        Self::certificate_execute_with_sandbox_state(&pre_run_sandbox)
     }
 
     /// Must be called after `init_for_execution`
@@ -1601,7 +1601,7 @@ impl LocalExec {
         Ok(mapping)
     }
 
-    pub async fn get_protocol_config(
+    pub fn get_protocol_config(
         &self,
         epoch_id: EpochId,
         chain: Chain,
@@ -1799,7 +1799,7 @@ impl LocalExec {
             // Find the protocol version for this epoch
             // This assumes we already initialized the protocol version table
             // `protocol_version_epoch_table`
-            protocol_version: self.get_protocol_config(epoch_id, chain).await?.version,
+            protocol_version: self.get_protocol_config(epoch_id, chain)?.version,
             tx_digest: *tx_digest,
             epoch_start_timestamp,
             sender_signed_data: orig_tx.clone(),

@@ -770,7 +770,7 @@ mod test {
         }
 
         impl Endpoint {
-            async fn get_page(&self, cursor: Option<usize>) -> anyhow::Result<Page<i32, usize>> {
+            fn get_page(&self, cursor: Option<usize>) -> anyhow::Result<Page<i32, usize>> {
                 const PAGE_SIZE: usize = 100;
                 anyhow::ensure!(cursor.is_none_or(|v| v < self.data.len()), "invalid cursor");
                 let index = cursor.unwrap_or_default();
@@ -790,7 +790,7 @@ mod test {
 
         let endpoint = Endpoint { data };
 
-        let mut stream = PagedFn::stream(async |cursor| endpoint.get_page(cursor).await);
+        let mut stream = PagedFn::stream(async |cursor| endpoint.get_page(cursor));
 
         assert_eq!(
             stream
@@ -804,7 +804,7 @@ mod test {
         assert_eq!(stream.by_ref().try_next().await.unwrap(), Some(9999));
         assert!(stream.try_next().await.unwrap().is_none());
 
-        let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
+        let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)));
 
         assert!(bad_stream.try_next().await.is_err());
     }

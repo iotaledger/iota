@@ -106,7 +106,7 @@ impl<S: Serialize + ParquetSchema + 'static> Worker for AnalyticsProcessor<S> {
 }
 
 impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
-    pub async fn new(
+    pub fn new(
         handler: Box<dyn AnalyticsHandler<S>>,
         writer: Box<dyn AnalyticsWriter<S>>,
         max_checkpoint_reader: Box<dyn MaxCheckpointReader>,

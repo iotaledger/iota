@@ -1219,7 +1219,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 // Get Abstract Test Account
                 let (aa_id, move_authenticator) = self
                     .prepare_move_authenticator_data(authenticator_inputs, account)
-                    .await?;
+                    ?;
 
                 let account = self.abstract_accounts.get(&aa_id).ok_or_else(|| {
                     anyhow::anyhow!("Unbound abstract account @{aa_id} for MoveAuthenticator")
@@ -1406,7 +1406,7 @@ impl IotaTestAdapter {
 
     /// Build a MoveAuthenticator.
     /// Returns the Abstract Test Account and MoveAuthenticator.
-    async fn prepare_move_authenticator_data(
+    fn prepare_move_authenticator_data(
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,

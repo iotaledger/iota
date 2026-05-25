@@ -143,7 +143,7 @@ impl JsonRpcServerBuilder {
         })
     }
 
-    pub async fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
+    pub fn to_router(&self, server_type: ServerType) -> Result<axum::Router, Error> {
         let routing = self.rpc_doc.method_routing.clone();
 
         let disable_routing = env::var("DISABLE_BACKWARD_COMPATIBILITY")
@@ -222,7 +222,7 @@ impl JsonRpcServerBuilder {
         server_type: ServerType,
         cancel: Option<CancellationToken>,
     ) -> Result<ServerHandle, Error> {
-        let app = self.to_router(server_type).await?;
+        let app = self.to_router(server_type)?;
 
         let listener = tokio::net::TcpListener::bind(listen_address)
             .await

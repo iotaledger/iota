@@ -127,7 +127,7 @@ impl GasPriceFeedbackTester {
             .iter()
             .map(|gas_object_id| Object::with_id_owner_for_testing(*gas_object_id, sender))
             .collect::<Vec<_>>();
-        authority_state.insert_genesis_objects(&gas_objects).await;
+        authority_state.insert_genesis_objects(&gas_objects);
 
         let gas_object_id = gas_object_ids.first().unwrap();
 

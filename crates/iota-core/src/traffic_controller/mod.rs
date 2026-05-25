@@ -260,8 +260,6 @@ impl TrafficController {
             blocklists.proxied_clients.clone(),
             &self.metrics.proxy_ip_blocklist_len,
         );
-        let (client_check, proxied_client_check) =
-            futures::future::join(client_check, proxied_client_check).await;
         client_check && proxied_client_check
     }
 
@@ -269,7 +267,7 @@ impl TrafficController {
         self.dry_run_mode
     }
 
-    async fn check_and_clear_blocklist(
+    fn check_and_clear_blocklist(
         &self,
         client: &Option<IpAddr>,
         blocklist: Blocklist,
@@ -486,7 +484,7 @@ async fn handle_error_tally(
             .await;
         }
     }
-    handle_policy_response(resp, policy_config, blocklists, metrics).await;
+    handle_policy_response(resp, policy_config, blocklists, metrics);
     Ok(())
 }
 
@@ -520,11 +518,11 @@ async fn handle_spam_tally(
             .await;
         }
     }
-    handle_policy_response(resp, policy_config, blocklists, metrics).await;
+    handle_policy_response(resp, policy_config, blocklists, metrics);
     Ok(())
 }
 
-async fn handle_policy_response(
+fn handle_policy_response(
     response: PolicyResponse,
     policy_config: &PolicyConfig,
     blocklists: Arc<Blocklists>,

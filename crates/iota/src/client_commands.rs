@@ -1132,7 +1132,7 @@ impl IotaClientCommands {
                 let tx_kind = client
                     .transaction_builder()
                     .publish_tx_kind(sender, compiled_modules, dep_ids)
-                    .await?;
+                    ?;
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)

@@ -191,7 +191,7 @@ pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
         // TODO: Make this part of genesis initialization instead of explicit insert.
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
@@ -205,7 +205,7 @@ pub async fn init_state_with_ids_and_versions<
     for (address, object_id, version) in objects {
         let obj =
             Object::with_id_owner_version_for_testing(object_id, version, Owner::Address(address));
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
@@ -230,7 +230,7 @@ pub async fn init_state_with_objects_and_committee<I: IntoIterator<Item = Object
 ) -> Arc<AuthorityState> {
     let state = init_state_with_committee(genesis, authority_key).await;
     for o in objects {
-        state.insert_genesis_object(o).await;
+        state.insert_genesis_object(o);
     }
     state
 }
@@ -255,7 +255,7 @@ pub async fn init_state_with_ids_and_expensive_checks<
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
         // TODO: Make this part of genesis initialization instead of explicit insert.
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
@@ -370,7 +370,7 @@ pub async fn enqueue_all_and_execute_all(
     Ok(output)
 }
 
-pub async fn execute_sequenced_certificate_to_effects(
+pub fn execute_sequenced_certificate_to_effects(
     authority: &AuthorityState,
     certificate: VerifiedCertificate,
 ) -> Result<(TransactionEffects, Option<ExecutionError>), IotaError> {

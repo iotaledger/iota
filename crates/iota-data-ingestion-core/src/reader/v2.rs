@@ -99,7 +99,7 @@ enum RemoteStore {
 }
 
 impl RemoteStore {
-    async fn new(
+    fn new(
         remote_url: RemoteUrl,
         batch_size: usize,
         timeout_secs: u64,
@@ -575,7 +575,7 @@ impl CheckpointReader {
                     config.base.reader_options.batch_size,
                     config.base.reader_options.timeout_secs,
                 )
-                .await?,
+                ?,
             ))
         } else {
             None

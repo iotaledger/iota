@@ -180,7 +180,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     );
     authority_state
         .insert_genesis_object(gas_object.clone())
-        .await;
+        ;
 
     const N: usize = 10;
     let mut builder = ProgrammableTransactionBuilder::new();

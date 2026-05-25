@@ -177,7 +177,7 @@ pub struct RandomnessManager {
 
 impl RandomnessManager {
     // Returns None in case of invalid input or other failure to initialize DKG.
-    pub async fn try_new(
+    pub fn try_new(
         epoch_store_weak: Weak<AuthorityPerEpochStore>,
         consensus_adapter: Box<dyn SubmitToConsensus>,
         network_handle: randomness::Handle,
@@ -399,7 +399,7 @@ impl RandomnessManager {
     }
 
     /// Sends the initial dkg::Message to begin the randomness DKG protocol.
-    pub async fn start_dkg(&mut self) -> IotaResult {
+    pub fn start_dkg(&mut self) -> IotaResult {
         if self.used_messages.initialized() || self.dkg_output.initialized() {
             // DKG already started (or completed or failed).
             return Ok(());
@@ -912,7 +912,7 @@ mod tests {
                 iota_network::randomness::Handle::new_stub(),
                 validator.authority_key_pair(),
             )
-            .await
+            
             .unwrap();
 
             epoch_stores.push(epoch_store);
@@ -922,7 +922,7 @@ mod tests {
         // Generate and distribute Messages.
         let mut dkg_messages = Vec::new();
         for randomness_manager in randomness_managers.iter_mut() {
-            randomness_manager.start_dkg().await.unwrap();
+            randomness_manager.start_dkg().unwrap();
 
             let mut dkg_message = rx_consensus.recv().await.unwrap();
             assert!(dkg_message.len() == 1);
@@ -1062,7 +1062,7 @@ mod tests {
                 iota_network::randomness::Handle::new_stub(),
                 validator.authority_key_pair(),
             )
-            .await
+            
             .unwrap();
 
             epoch_stores.push(epoch_store);
@@ -1072,7 +1072,7 @@ mod tests {
         // Generate and distribute Messages.
         let mut dkg_messages = Vec::new();
         for randomness_manager in randomness_managers.iter_mut() {
-            randomness_manager.start_dkg().await.unwrap();
+            randomness_manager.start_dkg().unwrap();
 
             let mut dkg_message = rx_consensus.recv().await.unwrap();
             assert!(dkg_message.len() == 1);

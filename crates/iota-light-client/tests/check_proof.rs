@@ -49,9 +49,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(FIXTURES_DIR)
         .join(format!("{committee_seq}.sum"));
-    let summary = read_checkpoint_summary(&checkpoint_summary_path)
-        .await
-        .unwrap();
+    let summary = read_checkpoint_summary(&checkpoint_summary_path).unwrap();
     let prev_committee = summary
         .end_of_epoch_data
         .as_ref()
@@ -66,12 +64,12 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(FIXTURES_DIR)
         .join(format!("{seq}.chk"));
-    let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
+    let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).unwrap();
 
     (committee, full_checkpoint)
 }
 
-async fn read_checkpoint_summary(
+fn read_checkpoint_summary(
     checkpoint_path: &PathBuf,
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
     let mut reader = fs::File::open(checkpoint_path.clone())?;
@@ -81,7 +79,7 @@ async fn read_checkpoint_summary(
     bcs::from_bytes(&buffer).context("failed to deserialize summary from bcs bytes")
 }
 
-async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
+fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
     let mut reader = fs::File::open(checkpoint_path.clone())?;
     let metadata = fs::metadata(checkpoint_path)?;
     let mut buffer = vec![0; metadata.len() as usize];

@@ -42,7 +42,7 @@ impl Worker for ObjectsSnapshotWorker {
         &self,
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        let transformed_data = PrimaryWorker::index_objects(&checkpoint, &self.metrics).await?;
+        let transformed_data = PrimaryWorker::index_objects(&checkpoint, &self.metrics)?;
         self.sender
             .send((
                 CommitterWatermark::from(checkpoint.as_ref()),

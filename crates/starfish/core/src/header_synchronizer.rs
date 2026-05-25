@@ -2163,7 +2163,7 @@ mod tests {
         sleep(Duration::from_millis(1_000)).await;
 
         // THEN ensure those ended up in Core
-        let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        let added_blocks = core_dispatcher.get_and_drain_block_headers();
         assert_eq!(added_blocks, expected_block_headers);
 
         // Stop synchronizer and ensure that no panic occurred
@@ -2294,10 +2294,10 @@ mod tests {
         // AND stub the missing blocks refs
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs_1.clone())
-            .await;
+            ;
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs_2.clone())
-            .await;
+            ;
 
         // AND stub the request responses for authority 1 & 2. They will be picked as
         // peers that know block_refs. Make the first authority timeout, so the
@@ -2346,7 +2346,7 @@ mod tests {
 
         // THEN the missing block headers from peer 2 should now be fetched and added to
         // core
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers();
         assert_eq!(added_block_headers, expected_block_headers_2);
 
         // AND missing blocks should contain header from peer 1
@@ -2407,7 +2407,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs)
-            .await;
+            ;
 
         // Stub the requests for authority 1 & 2 & 3
         let stub_block_headers = expected_block_headers
@@ -2498,7 +2498,7 @@ mod tests {
 
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
-        let mut added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        let mut added_block_headers = core_dispatcher.get_and_drain_block_headers();
 
         added_block_headers.sort_by_key(|block| block.reference());
         expected_blocks.sort_by_key(|block| block.reference());
@@ -2538,7 +2538,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs.clone())
-            .await;
+            ;
 
         // AND stub the requests for authority 1 & 2
         // Make the first authority timeout, so the second will be called. "We" are
@@ -2601,7 +2601,7 @@ mod tests {
 
         // Since we should be in commit lag mode none of the missed blocks should have
         // been fetched - hence nothing should be sent to core for processing.
-        let added_blocks = core_dispatcher.get_and_drain_blocks().await;
+        let added_blocks = core_dispatcher.get_and_drain_blocks();
         assert_eq!(added_blocks, vec![]);
 
         // AND advance now the local commit index by adding a new commit that matches
@@ -2635,12 +2635,12 @@ mod tests {
         // Now stub again the missing blocks to fetch the exact same ones.
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs.clone())
-            .await;
+            ;
 
         sleep(2 * FETCH_REQUEST_TIMEOUT).await;
 
         // THEN the missing blocks should now be fetched and added to core
-        let mut added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        let mut added_blocks = core_dispatcher.get_and_drain_block_headers();
 
         added_blocks.sort_by_key(|block| block.reference());
         expected_headers.sort_by_key(|block| block.reference());
@@ -2757,7 +2757,7 @@ mod tests {
 
         // Assert that core has been called to set the min proposed round
         assert_eq!(
-            core_dispatcher.get_last_own_proposed_round().await,
+            core_dispatcher.get_last_own_proposed_round(),
             vec![10]
         );
 
@@ -3252,7 +3252,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Check blocks were sent to core
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers();
         assert_eq!(
             added_block_headers
                 .iter()
@@ -3293,7 +3293,7 @@ mod tests {
 
         // Verify NO block headers were sent to core on the second call
         // because they were already in the LruCache
-        let added_block_headers_second_call = core_dispatcher.get_and_drain_block_headers().await;
+        let added_block_headers_second_call = core_dispatcher.get_and_drain_block_headers();
         assert!(
             added_block_headers_second_call.is_empty(),
             "Expected no block headers to be added on second call due to LruCache, but got {} headers",

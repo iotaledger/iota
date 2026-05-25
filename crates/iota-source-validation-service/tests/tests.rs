@@ -109,7 +109,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     let app_state_ref = app_state.clone();
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
-        watch_for_upgrades(config.packages, app_state, Network::Localnet, Some(tx)).await
+        watch_for_upgrades(config.packages, app_state, Network::Localnet, Some(tx))
     });
 
     // Set up to upgrade package.

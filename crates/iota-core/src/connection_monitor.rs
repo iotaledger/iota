@@ -96,7 +96,7 @@ impl ConnectionMonitor {
 
         // now report the connected peers
         for peer_id in connected_peers.iter() {
-            self.handle_peer_event(PeerEvent::NewPeer(*peer_id)).await;
+            self.handle_peer_event(PeerEvent::NewPeer(*peer_id));
         }
 
         let mut connection_stat_collection_interval =
@@ -135,7 +135,7 @@ impl ConnectionMonitor {
                     }
                 }
                 Ok(event) = subscriber.recv() => {
-                    self.handle_peer_event(event).await;
+                    self.handle_peer_event(event);
                 }
                 _ = wait_for_shutdown(&mut self.rx_shutdown) => {
                     return;
@@ -144,7 +144,7 @@ impl ConnectionMonitor {
         }
     }
 
-    async fn handle_peer_event(&self, peer_event: PeerEvent) {
+    fn handle_peer_event(&self, peer_event: PeerEvent) {
         if let Some(network) = self.network.upgrade() {
             self.connection_metrics
                 .network_peers

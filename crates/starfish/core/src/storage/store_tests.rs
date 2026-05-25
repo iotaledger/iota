@@ -78,8 +78,8 @@ fn new_mem_teststore(consensus_fast_commit_sync: bool) -> TestStore {
 }
 
 #[rstest]
-#[tokio::test]
-async fn read_and_contain_block_headers(
+#[test]
+fn read_and_contain_block_headers(
     #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
 ) {
     let store = test_store.store();
@@ -187,8 +187,8 @@ async fn read_and_contain_block_headers(
 }
 
 #[rstest]
-#[tokio::test]
-async fn scan_block_headers(
+#[test]
+fn scan_block_headers(
     #[values(
         new_rocksdb_teststore(false),
         new_mem_teststore(false),
@@ -319,8 +319,8 @@ async fn scan_block_headers(
 }
 
 #[rstest]
-#[tokio::test]
-async fn read_and_contain_transactions(
+#[test]
+fn read_and_contain_transactions(
     #[values(
         new_rocksdb_teststore(false),
         new_mem_teststore(false),
@@ -453,8 +453,8 @@ async fn read_and_contain_transactions(
 }
 
 #[rstest]
-#[tokio::test]
-async fn read_and_scan_commits(
+#[test]
+fn read_and_scan_commits(
     #[values(new_rocksdb_teststore(false), new_mem_teststore(false))] test_store: TestStore,
 ) {
     let store = test_store.store();
@@ -579,8 +579,8 @@ async fn read_and_scan_commits(
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_voting_block_headers_storage(
+#[test]
+fn test_voting_block_headers_storage(
     #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
 ) {
     let store = test_store.store();
@@ -658,8 +658,8 @@ async fn test_voting_block_headers_storage(
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_read_highest_commit_index_with_votes(
+#[test]
+fn test_read_highest_commit_index_with_votes(
     #[values(new_rocksdb_teststore(true), new_mem_teststore(true))] test_store: TestStore,
 ) {
     let store = test_store.store();

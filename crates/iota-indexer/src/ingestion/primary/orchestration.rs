@@ -77,7 +77,7 @@ impl PrimaryPipeline {
         })
     }
 
-    pub async fn run(
+    pub fn run(
         self,
         data_ingestion_path: Option<std::path::PathBuf>,
         remote_store_url: Option<RemoteUrl>,

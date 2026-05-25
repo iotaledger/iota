@@ -1177,7 +1177,7 @@ impl AuthorityPerEpochStore {
         mut randomness_manager: RandomnessManager,
     ) -> IotaResult<()> {
         let reporter = randomness_manager.reporter();
-        let result = randomness_manager.start_dkg().await;
+        let result = randomness_manager.start_dkg();
         if self
             .randomness_manager
             .set(tokio::sync::Mutex::new(randomness_manager))

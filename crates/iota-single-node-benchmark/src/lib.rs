@@ -35,7 +35,7 @@ pub async fn run_benchmark(
     let transactions = ctx.certify_transactions(transactions, skip_signing).await;
     ctx.validator()
         .assigned_shared_object_versions(&transactions)
-        .await;
+        ;
     match component {
         Component::CheckpointExecutor => {
             ctx.benchmark_checkpoint_executor(transactions, checkpoint_size)

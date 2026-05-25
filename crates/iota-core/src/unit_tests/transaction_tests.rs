@@ -834,7 +834,7 @@ async fn test_handle_soft_bundle_certificates() {
         let gas_object_id = ObjectID::random();
 
         let obj = Object::with_id_owner_for_testing(gas_object_id, address);
-        authority.insert_genesis_object(obj).await;
+        authority.insert_genesis_object(obj);
 
         senders.push((address, keypair));
         gas_object_ids.push(gas_object_id);
@@ -1003,8 +1003,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .build()
         .await;
 
-    authority.insert_genesis_objects(&gas_objects).await;
-    authority.insert_genesis_objects(&owned_objects).await;
+    authority.insert_genesis_objects(&gas_objects);
+    authority.insert_genesis_objects(&owned_objects);
 
     let (authority, package) = publish_object_basics(authority).await;
 

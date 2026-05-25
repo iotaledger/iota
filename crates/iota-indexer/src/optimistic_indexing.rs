@@ -87,7 +87,7 @@ pub struct OptimisticTransactionExecutor {
 }
 
 impl OptimisticTransactionExecutor {
-    pub async fn new(
+    pub fn new(
         fullnode_grpc_client: GrpcClient,
         read: IndexerReader,
         store: PgIndexerStore,

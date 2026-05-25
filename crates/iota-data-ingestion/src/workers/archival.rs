@@ -43,7 +43,7 @@ pub struct ArchivalReducer {
 }
 
 impl ArchivalReducer {
-    pub async fn new(config: ArchivalConfig) -> anyhow::Result<Self> {
+    pub fn new(config: ArchivalConfig) -> anyhow::Result<Self> {
         let remote_store =
             create_remote_store_client(config.remote_url, config.remote_store_options, 10)?;
 

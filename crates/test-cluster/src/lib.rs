@@ -277,7 +277,7 @@ impl TestCluster {
             .compute_object_reference()
     }
 
-    pub async fn get_object_or_tombstone_from_fullnode_store(
+    pub fn get_object_or_tombstone_from_fullnode_store(
         &self,
         object_id: ObjectID,
     ) -> ObjectRef {

@@ -75,7 +75,7 @@ pub async fn main() -> anyhow::Result<()> {
             continue;
         }
         let watcher = tokio::spawn(async move {
-            watch_for_upgrades(packages, app_state_copy, network, None).await
+            watch_for_upgrades(packages, app_state_copy, network, None)
         });
         threads.push(watcher);
     }

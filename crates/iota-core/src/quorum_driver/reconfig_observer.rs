@@ -82,7 +82,7 @@ impl ReconfigObserver<NetworkAuthorityClient> for OnsiteReconfigObserver {
                             .recreate_with_new_epoch_start_state(&epoch_start_state);
                         quorum_driver
                             .update_validators(Arc::new(new_auth_agg))
-                            .await;
+                            ;
                     } else {
                         // This should only happen when the node just starts
                         warn!("Epoch number decreased - ignoring committee: {}", committee);

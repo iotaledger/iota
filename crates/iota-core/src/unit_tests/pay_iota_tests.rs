@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use futures::future::join_all;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
@@ -414,11 +413,9 @@ async fn execute_pay_iota(
         .iter()
         .map(|coin_obj| coin_obj.compute_object_reference())
         .collect();
-    let handles: Vec<_> = input_coin_objects
-        .into_iter()
-        .map(|obj| authority_state.insert_genesis_object(obj))
-        .collect();
-    join_all(handles).await;
+    for obj in input_coin_objects {
+        authority_state.insert_genesis_object(obj);
+    }
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let mut builder = ProgrammableTransactionBuilder::new();

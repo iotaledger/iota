@@ -1085,7 +1085,7 @@ mod tests {
     /// is bumped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn try_schedule_once_gated_by_fast_sync_active() {
-        async fn run_scenario(fast_sync_active: Option<Arc<AtomicBool>>) -> (usize, u64) {
+        fn run_scenario(fast_sync_active: Option<Arc<AtomicBool>>) -> (usize, u64) {
             let (context, _) = Context::new_for_test(4);
             let context = Context {
                 own_index: AuthorityIndex::new_for_test(3),
@@ -1159,7 +1159,7 @@ mod tests {
         }
 
         // Flag off (mainnet-style): scheduling proceeds, gate never fires.
-        let (pending, paused) = run_scenario(None).await;
+        let (pending, paused) = run_scenario(None);
         assert!(
             pending > 0,
             "expected regular sync to schedule ranges when fast_sync_active is None"
@@ -1167,7 +1167,7 @@ mod tests {
         assert_eq!(paused, 0);
 
         // Fast sync active: scheduling is skipped, metric bumped exactly once.
-        let (pending, paused) = run_scenario(Some(Arc::new(AtomicBool::new(true)))).await;
+        let (pending, paused) = run_scenario(Some(Arc::new(AtomicBool::new(true))));
         assert_eq!(
             pending, 0,
             "expected no ranges scheduled while fast sync is active"

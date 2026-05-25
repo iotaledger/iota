@@ -278,10 +278,10 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         Scenario::iterate(|mut s| async move {
             s.with_created(&[1, 2, 3]);
-            s.do_tx().await;
+            s.do_tx();
 
             s.with_mutated(&[1, 2, 3]);
-            s.do_tx().await;
+            s.do_tx();
 
             let new1 = s.obj_ref(1);
             let new2 = s.obj_ref(2);
@@ -325,12 +325,12 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         Scenario::iterate(|mut s| async move {
             s.with_created(&[1, 2]);
-            s.do_tx().await;
+            s.do_tx();
 
             let old2 = s.obj_ref(2);
 
             s.with_mutated(&[1, 2]);
-            s.do_tx().await;
+            s.do_tx();
 
             let new1 = s.obj_ref(1);
             let new2 = s.obj_ref(2);
@@ -359,12 +359,12 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         Scenario::iterate(|mut s| async move {
             s.with_created(&[1, 2]);
-            s.do_tx().await;
+            s.do_tx();
 
             let old2 = s.obj_ref(2);
 
             s.with_mutated(&[1, 2]);
-            s.do_tx().await;
+            s.do_tx();
 
             let new1 = s.obj_ref(1);
             let new2 = s.obj_ref(2);
@@ -399,7 +399,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         Scenario::iterate(|mut s| async move {
             s.with_created(&[1, 2]);
-            s.do_tx().await;
+            s.do_tx();
 
             let objects: Vec<_> = vec![s.object(1), s.object(2)]
                 .into_iter()

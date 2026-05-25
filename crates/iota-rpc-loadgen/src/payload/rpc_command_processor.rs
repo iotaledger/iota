@@ -275,35 +275,35 @@ impl Processor for RpcCommandProcessor {
                 if !config.divide_tasks {
                     vec![config.command.clone(); config.num_threads]
                 } else {
-                    divide_query_transaction_blocks_tasks(data, config.num_threads).await
+                    divide_query_transaction_blocks_tasks(data, config.num_threads)
                 }
             }
             CommandData::MultiGetTransactionBlocks(data) => {
                 if !config.divide_tasks {
                     vec![config.command.clone(); config.num_threads]
                 } else {
-                    divide_multi_get_transaction_blocks_tasks(data, config.num_threads).await
+                    divide_multi_get_transaction_blocks_tasks(data, config.num_threads)
                 }
             }
             CommandData::GetAllBalances(data) => {
                 if !config.divide_tasks {
                     vec![config.command.clone(); config.num_threads]
                 } else {
-                    divide_get_all_balances_tasks(data, config.num_threads).await
+                    divide_get_all_balances_tasks(data, config.num_threads)
                 }
             }
             CommandData::MultiGetObjects(data) => {
                 if !config.divide_tasks {
                     vec![config.command.clone(); config.num_threads]
                 } else {
-                    divide_multi_get_objects_tasks(data, config.num_threads).await
+                    divide_multi_get_objects_tasks(data, config.num_threads)
                 }
             }
             CommandData::GetObject(data) => {
                 if !config.divide_tasks {
                     vec![config.command.clone(); config.num_threads]
                 } else {
-                    divide_get_object_tasks(data, config.num_threads).await
+                    divide_get_object_tasks(data, config.num_threads)
                 }
             }
             _ => vec![config.command.clone(); config.num_threads],
@@ -473,7 +473,7 @@ async fn divide_checkpoint_tasks(
         .collect()
 }
 
-async fn divide_query_transaction_blocks_tasks(
+fn divide_query_transaction_blocks_tasks(
     data: &QueryTransactionBlocks,
     num_chunks: usize,
 ) -> Vec<Command> {
@@ -489,7 +489,7 @@ async fn divide_query_transaction_blocks_tasks(
         .collect()
 }
 
-async fn divide_multi_get_transaction_blocks_tasks(
+fn divide_multi_get_transaction_blocks_tasks(
     data: &MultiGetTransactionBlocks,
     num_chunks: usize,
 ) -> Vec<Command> {
@@ -505,7 +505,7 @@ async fn divide_multi_get_transaction_blocks_tasks(
         .collect()
 }
 
-async fn divide_get_all_balances_tasks(data: &GetAllBalances, num_threads: usize) -> Vec<Command> {
+fn divide_get_all_balances_tasks(data: &GetAllBalances, num_threads: usize) -> Vec<Command> {
     let per_thread_size = if data.addresses.len() < num_threads {
         1
     } else {
@@ -520,7 +520,7 @@ async fn divide_get_all_balances_tasks(data: &GetAllBalances, num_threads: usize
 }
 
 // TODO: probs can do generic divide tasks
-async fn divide_multi_get_objects_tasks(data: &MultiGetObjects, num_chunks: usize) -> Vec<Command> {
+fn divide_multi_get_objects_tasks(data: &MultiGetObjects, num_chunks: usize) -> Vec<Command> {
     let chunk_size = if data.object_ids.len() < num_chunks {
         1
     } else {
@@ -533,7 +533,7 @@ async fn divide_multi_get_objects_tasks(data: &MultiGetObjects, num_chunks: usiz
         .collect()
 }
 
-async fn divide_get_object_tasks(data: &GetObject, num_threads: usize) -> Vec<Command> {
+fn divide_get_object_tasks(data: &GetObject, num_threads: usize) -> Vec<Command> {
     let per_thread_size = if data.object_ids.len() < num_threads {
         1
     } else {

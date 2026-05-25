@@ -87,7 +87,7 @@ impl TestRunner {
         for _ in 0..num {
             let gas_object_id = ObjectID::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-            authority_state.insert_genesis_object(gas_object).await;
+            authority_state.insert_genesis_object(gas_object);
             gas_object_ids.push(gas_object_id);
         }
 
@@ -152,7 +152,7 @@ impl TestRunner {
             self.authority_state
                 .database_for_testing()
                 .prune_objects_immediately_for_testing(vec![effects.clone()])
-                .await
+                
                 .unwrap();
         }
 
@@ -187,7 +187,7 @@ impl TestRunner {
             self.authority_state
                 .database_for_testing()
                 .prune_objects_immediately_for_testing(vec![effects.clone()])
-                .await
+                
                 .unwrap();
         }
 
@@ -247,7 +247,7 @@ impl TestRunner {
             self.authority_state
                 .database_for_testing()
                 .prune_objects_immediately_for_testing(vec![effects.clone()])
-                .await
+                
                 .unwrap();
         }
         effects

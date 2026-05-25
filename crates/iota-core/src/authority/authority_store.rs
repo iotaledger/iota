@@ -185,7 +185,7 @@ impl AuthorityStore {
             registry,
             migration_tx_data,
         )
-        .await?;
+        ?;
         this.update_epoch_flags_metrics(&[], epoch_start_configuration.flags());
         Ok(this)
     }
@@ -230,10 +230,10 @@ impl AuthorityStore {
         // TODO: Since we always start at genesis, the committee should be technically
         // the same as the genesis committee.
         assert_eq!(committee.epoch, 0);
-        Self::open_inner(genesis, perpetual_tables, true, &Registry::new(), None).await
+        Self::open_inner(genesis, perpetual_tables, true, &Registry::new(), None)
     }
 
-    async fn open_inner(
+    fn open_inner(
         genesis: &Genesis,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         enable_epoch_iota_conservation_check: bool,
@@ -1690,7 +1690,7 @@ impl AuthorityStore {
     }
 
     #[cfg(test)]
-    pub async fn prune_objects_immediately_for_testing(
+    pub fn prune_objects_immediately_for_testing(
         &self,
         transaction_effects: Vec<TransactionEffects>,
     ) -> anyhow::Result<()> {

@@ -232,7 +232,7 @@ impl GlobalStateHasher {
         acc.digest().into()
     }
 
-    pub async fn digest_epoch(
+    pub fn digest_epoch(
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,

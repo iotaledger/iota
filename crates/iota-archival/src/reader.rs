@@ -180,7 +180,7 @@ impl ArchiveReader {
     /// This function verifies that the files in archive cover the entire range
     /// of checkpoints from sequence number 0 until the latest available
     /// checkpoint with no missing checkpoint
-    pub async fn verify_manifest(
+    pub fn verify_manifest(
         &self,
         manifest: Manifest,
     ) -> Result<Vec<(FileMetadata, FileMetadata)>> {
@@ -407,7 +407,7 @@ impl ArchiveReader {
             );
         }
 
-        let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest).await?;
+        let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest)?;
 
         let start_index = match files.binary_search_by_key(&checkpoint_range.start, |(s, _c)| {
             s.checkpoint_seq_range.start
@@ -613,7 +613,7 @@ impl ArchiveReader {
 
         let summary_files: Vec<FileMetadata> = self
             .verify_manifest(manifest)
-            .await?
+            ?
             .iter()
             .map(|(s, _)| s.clone())
             .collect();
@@ -657,7 +657,7 @@ impl ArchiveReader {
 
         let summary_files: Vec<FileMetadata> = self
             .verify_manifest(manifest)
-            .await?
+            ?
             .iter()
             .map(|(s, _)| s.clone())
             .collect();

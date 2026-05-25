@@ -39,7 +39,7 @@ mod compatibility_tests {
                     cur_package.dependencies.to_vec(),
                     &binary_config,
                 )
-                .await
+                
                 .is_none()
                 {
                     panic!(

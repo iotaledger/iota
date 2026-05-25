@@ -547,7 +547,7 @@ impl SimpleFaucet {
                     .await?;
                 self.metrics.total_coin_requests_succeeded.inc();
                 self.check_and_map_transfer_gas_result(response, number_of_coins, recipient)
-                    .await
+                    
             }
 
             GasCoinResponse::UnknownGasCoin(coin_id) => {
@@ -704,7 +704,7 @@ impl SimpleFaucet {
             })
     }
 
-    async fn check_and_map_transfer_gas_result(
+    fn check_and_map_transfer_gas_result(
         &self,
         res: IotaTransactionBlockResponse,
         number_of_coins: usize,

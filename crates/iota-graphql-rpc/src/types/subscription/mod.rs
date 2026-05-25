@@ -177,7 +177,7 @@ impl GraphQLStream {
             ..Default::default()
         };
         let streamer = InMemory::new(config, indexer_reader, InMemoryStreamMetrics::new(registry))
-            .await
+            
             .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self { streamer })
     }

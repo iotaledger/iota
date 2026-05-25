@@ -2174,7 +2174,7 @@ impl CouponHouse {
         Ok(entry.value)
     }
 
-    async fn apply_coupon(&self, coupon: &Coupon, price: u64) -> anyhow::Result<u64> {
+    fn apply_coupon(&self, coupon: &Coupon, price: u64) -> anyhow::Result<u64> {
         Ok(match coupon.kind {
             0 => {
                 let discount_amount = ((price as u128) * (coupon.amount as u128) / 100) as u64;
@@ -2198,7 +2198,7 @@ impl CouponHouse {
                 bail!("coupon '{coupon_str}' cannot stack with the other coupons provided");
             }
 
-            price = self.apply_coupon(&coupon, price).await?;
+            price = self.apply_coupon(&coupon, price)?;
         }
 
         Ok(price)

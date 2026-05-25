@@ -76,7 +76,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         FileCompression::Zstd,
         NonZeroUsize::new(1).unwrap(),
     )
-    .await?;
+    ?;
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
         &tmp_dir.path().join("db"),
         None,
@@ -130,7 +130,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         FileCompression::Zstd,
         NonZeroUsize::new(1).unwrap(),
     )
-    .await?;
+    ?;
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
         &tmp_dir.path().join("db"),
         None,

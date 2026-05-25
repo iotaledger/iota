@@ -551,8 +551,8 @@ mod tests {
 
     /// Tests the happy path where a single sub-dag is successfully committed.
     #[rstest]
-    #[tokio::test]
-    async fn test_happy_path_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_happy_path_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
@@ -574,8 +574,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_missing_blocks(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_missing_blocks(#[values(false, true)] consensus_fast_commit_sync: bool) {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
         let (mut commit_solidifier, _selective_dag_state) = setup
             .create_selective_commit_solidifier(
@@ -610,8 +610,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_commit_after_missing_blocks_arrive(
+    #[test]
+    fn test_commit_after_missing_blocks_arrive(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
@@ -657,8 +657,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_multiple_subdags_in_order(
+    #[test]
+    fn test_multiple_subdags_in_order(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
@@ -688,8 +688,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_out_of_order_subdags(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_out_of_order_subdags(#[values(false, true)] consensus_fast_commit_sync: bool) {
         let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
@@ -725,8 +725,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_empty_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_empty_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
         let setup = Arc::new(TestSetup::new(2, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
@@ -738,8 +738,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_duplicate_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    #[test]
+    fn test_duplicate_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
@@ -762,8 +762,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_out_of_order_commit_calls(
+    #[test]
+    fn test_out_of_order_commit_calls(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
@@ -803,8 +803,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_all_missing_refs_are_collected(
+    #[test]
+    fn test_all_missing_refs_are_collected(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
@@ -890,9 +890,9 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
+    #[test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
-    async fn test_duplicate_missing_refs_panic(
+    fn test_duplicate_missing_refs_panic(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
@@ -950,8 +950,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_gaps_in_subdags_sequence(
+    #[test]
+    fn test_gaps_in_subdags_sequence(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(5, consensus_fast_commit_sync));
@@ -1027,8 +1027,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_set_last_committed_index(
+    #[test]
+    fn test_set_last_committed_index(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
@@ -1051,8 +1051,8 @@ mod tests {
     }
 
     #[rstest]
-    #[tokio::test]
-    async fn test_get_missing_transaction_data(
+    #[test]
+    fn test_get_missing_transaction_data(
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));

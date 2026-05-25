@@ -71,13 +71,13 @@ where
                     metrics.clone(),
                     metrics_label,
                 )
-                .await;
+                ;
             }
         });
         streamer
     }
 
-    async fn send_to_all_subscribers(
+    fn send_to_all_subscribers(
         subscribers: Subscribers<S, F>,
         data: T,
         metrics: Arc<SubscriptionMetrics>,

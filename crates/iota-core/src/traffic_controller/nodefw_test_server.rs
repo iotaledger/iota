@@ -46,7 +46,7 @@ impl NodeFwTestServer {
         }
     }
 
-    pub async fn start(&mut self, port: u16) {
+    pub fn start(&mut self, port: u16) {
         let app_state = self.state.clone();
         let app = Router::new()
             .route("/list_addresses", get(Self::list_addresses))
@@ -108,7 +108,7 @@ impl NodeFwTestServer {
         (StatusCode::CREATED, "created")
     }
 
-    pub async fn stop(&self) {
+    pub fn stop(&self) {
         self.shutdown_signal.notify_one();
     }
 }

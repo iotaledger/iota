@@ -608,7 +608,7 @@ async fn build_write_api(
         indexer_store,
         metrics,
     )
-    .await?;
+    ?;
     Ok(OptimisticWriteApi::new(
         WriteApi::new(fullnode_grpc_client, reader),
         optimistic_tx_executor,
@@ -934,7 +934,7 @@ pub mod tests {
                 store.clone(),
                 indexer_metrics,
             )
-            .await
+            
             .unwrap();
         let write_api = OptimisticWriteApi::new(
             WriteApi::new(fullnode_gpc_client, indexer_reader),

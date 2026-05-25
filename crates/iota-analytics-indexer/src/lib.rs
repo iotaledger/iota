@@ -168,7 +168,7 @@ struct SnowflakeMaxCheckpointReader {
 }
 
 impl SnowflakeMaxCheckpointReader {
-    pub async fn new(
+    pub fn new(
         account_identifier: &str,
         warehouse: &str,
         database: &str,
@@ -518,7 +518,7 @@ impl Processor {
                 metrics,
                 config,
             )
-            .await?,
+            ?,
         );
 
         Ok(Processor {
@@ -626,7 +626,7 @@ pub async fn make_max_checkpoint_reader(
                     .as_ref()
                     .ok_or(anyhow!("missing sf checkpoint col id"))?,
             )
-            .await?,
+            ?,
         )
     } else {
         Box::new(NoOpCheckpointReader {})

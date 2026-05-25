@@ -70,7 +70,7 @@ pub async fn build_json_rpc_server(
     builder.register_module(OptimisticWriteApi::new(
         WriteApi::new(fullnode_grpc_client.clone(), reader.clone()),
         OptimisticTransactionExecutor::new(fullnode_grpc_client, reader.clone(), store, metrics)
-            .await?,
+            ?,
     ))?;
 
     let handle = builder

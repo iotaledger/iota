@@ -2935,7 +2935,7 @@ impl AuthorityState {
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
                 self.try_get_object_or_tombstone(request.object_id)
-                    .await?
+                    ?
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
                             object_id: request.object_id,
@@ -4442,19 +4442,16 @@ impl AuthorityState {
         Ok(events)
     }
 
-    pub async fn insert_genesis_object(&self, object: Object) {
+    pub fn insert_genesis_object(&self, object: Object) {
         self.get_reconfig_api()
             .try_insert_genesis_object(object)
             .expect("Cannot insert genesis object")
     }
 
-    pub async fn insert_genesis_objects(&self, objects: &[Object]) {
-        futures::future::join_all(
-            objects
-                .iter()
-                .map(|o| self.insert_genesis_object(o.clone())),
-        )
-        .await;
+    pub fn insert_genesis_objects(&self, objects: &[Object]) {
+        for o in objects {
+            self.insert_genesis_object(o.clone());
+        }
     }
 
     /// Make a status response for a transaction
@@ -4681,18 +4678,18 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
     /// Non-fallible version of `try_get_objects`.
     pub async fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
         self.try_get_objects(objects)
-            .await
+            
             .expect("storage access failed")
     }
 
-    pub async fn try_get_object_or_tombstone(
+    pub fn try_get_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
@@ -4703,7 +4700,7 @@ impl AuthorityState {
     /// Non-fallible version of `try_get_object_or_tombstone`.
     pub async fn get_object_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
         self.try_get_object_or_tombstone(object_id)
-            .await
+            
             .expect("storage access failed")
     }
 
@@ -4780,7 +4777,7 @@ impl AuthorityState {
                 system_package.dependencies.to_vec(),
                 binary_config,
             )
-            .await
+            
             else {
                 return vec![];
             };

@@ -523,8 +523,8 @@ async fn test_iter_with_bounds() {
 }
 
 #[rstest]
-#[tokio::test]
-async fn test_range_iter() {
+#[test]
+fn test_range_iter() {
     let tmp_dir = iota_common::tempdir();
     let db = open_map(tmp_dir.path(), None);
 

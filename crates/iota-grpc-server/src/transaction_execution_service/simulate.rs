@@ -157,7 +157,7 @@ pub async fn simulate_transactions(
     let mut transaction_results = Vec::with_capacity(request.transactions.len());
     for item in &request.transactions {
         let result =
-            match simulate_single_transaction(reader, executor, config, item, &read_mask).await {
+            match simulate_single_transaction(reader, executor, config, item, &read_mask) {
                 Ok(tx) => SimulateTransactionResult::default().with_simulated_transaction(tx),
                 Err(error) => {
                     SimulateTransactionResult::default().with_error(error.into_status_proto())
@@ -170,7 +170,7 @@ pub async fn simulate_transactions(
 }
 
 /// Simulate a single transaction item.
-async fn simulate_single_transaction(
+fn simulate_single_transaction(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
     config: &iota_config::node::GrpcApiConfig,

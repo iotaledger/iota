@@ -126,7 +126,7 @@ impl PrimaryWorker {
         }
     }
 
-    async fn index_epoch(data: &CheckpointData) -> Result<Option<EpochToCommit>, IndexerError> {
+    fn index_epoch(data: &CheckpointData) -> Result<Option<EpochToCommit>, IndexerError> {
         let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
 
         let CheckpointData {
@@ -228,12 +228,12 @@ impl PrimaryWorker {
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
         // Index epoch
-        let epoch = Self::index_epoch(data).await?;
+        let epoch = Self::index_epoch(data)?;
 
         // Index Objects
-        let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
+        let object_changes = Self::index_checkpoint_objects(data, &metrics)?;
         let object_history_changes: TransactionObjectChangesToCommit =
-            Self::index_objects_history(data).await?;
+            Self::index_objects_history(data)?;
         let object_versions = Self::derive_object_versions(&object_history_changes)?;
         let backward_history_changes = Self::index_objects_backward_history(data)?;
 
@@ -541,7 +541,7 @@ impl PrimaryWorker {
         })
     }
 
-    pub(crate) async fn index_checkpoint_objects(
+    pub(crate) fn index_checkpoint_objects(
         data: &CheckpointData,
         metrics: &IndexerMetrics,
     ) -> Result<CheckpointObjectChanges, IndexerError> {
@@ -549,7 +549,7 @@ impl PrimaryWorker {
         data.try_into()
     }
 
-    pub(crate) async fn index_objects(
+    pub(crate) fn index_objects(
         data: &CheckpointData,
         metrics: &IndexerMetrics,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
@@ -582,7 +582,7 @@ impl PrimaryWorker {
     }
 
     // similar to index_objects, but objects_history keeps all versions of objects
-    async fn index_objects_history(
+    fn index_objects_history(
         data: &CheckpointData,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;

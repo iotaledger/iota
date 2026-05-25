@@ -28,7 +28,7 @@ pub async fn health() -> Result<Json<&'static str>, StatusCode> {
 }
 
 /// Internal function that handles the actual gas request logic
-async fn request_gas_internal(
+fn request_gas_internal(
     state: &AppState,
     recipient: iota_types::base_types::IotaAddress,
 ) -> Result<FaucetReceipt, String> {
@@ -88,7 +88,7 @@ pub async fn request_gas(
 ) -> impl IntoResponse {
     match payload {
         FaucetRequest::FixedAmountRequest(request) => {
-            match request_gas_internal(&state, request.recipient).await {
+            match request_gas_internal(&state, request.recipient) {
                 Ok(receipt) => (StatusCode::CREATED, Json(FaucetResponse::from(receipt))),
                 Err(err) => (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -125,7 +125,7 @@ pub async fn batch_request_gas(
         );
     };
 
-    match request_gas_internal(&state, request.recipient).await {
+    match request_gas_internal(&state, request.recipient) {
         Ok(_receipt) => (
             StatusCode::CREATED,
             Json(BatchFaucetResponse {

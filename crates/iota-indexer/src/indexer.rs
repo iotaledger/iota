@@ -114,17 +114,14 @@ impl Indexer {
         };
 
         info!("Starting data ingestion executor...");
-        let mut primary_pipeline_handle = primary_pipeline
-            .run(
-                config.sources.data_ingestion_path.clone(),
-                remote_store_url.clone(),
-                extra_reader_options.clone(),
-            )
-            .await;
+        let mut primary_pipeline_handle = primary_pipeline.run(
+            config.sources.data_ingestion_path.clone(),
+            remote_store_url.clone(),
+            extra_reader_options.clone(),
+        );
 
-        let mut snapshot_pipeline_handle = snapshot_pipeline
-            .run(remote_store_url, extra_reader_options)
-            .await;
+        let mut snapshot_pipeline_handle =
+            snapshot_pipeline.run(remote_store_url, extra_reader_options);
 
         let mut primary_pipeline_done = false;
         let mut snapshot_pipeline_done = false;

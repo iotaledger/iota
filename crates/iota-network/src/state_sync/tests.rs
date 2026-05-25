@@ -320,7 +320,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
         20,
         &Registry::default(),
     )
-    .await?;
+    ?;
     let test_store = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
