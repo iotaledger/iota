@@ -372,11 +372,10 @@ impl TransactionFilter {
                 _ => false,
             },
 
-            TransactionFilter::Events(event_filter) => item.events.as_ref().is_some_and(|evts| {
-                evts.data
-                    .iter()
-                    .any(|event| event_filter.matches_event(event))
-            }),
+            TransactionFilter::Events(event_filter) => item
+                .events
+                .as_ref()
+                .is_some_and(|evts| evts.iter().any(|event| event_filter.matches_event(event))),
 
             TransactionFilter::ExecutionStatus(status_filter) => {
                 status_filter.matches_status(item.effects.status())

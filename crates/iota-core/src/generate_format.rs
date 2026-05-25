@@ -419,15 +419,13 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sample_obj_inner).unwrap();
 
     // Trace TransactionEvents via trace_value
-    let sample_events = TransactionEvents {
-        data: vec![Event {
-            package_id: ObjectID::ZERO,
-            module: Identifier::from_static("foo"),
-            sender: IotaAddress::ZERO,
-            type_: struct_tag.clone(),
-            contents: vec![0],
-        }],
-    };
+    let sample_events = TransactionEvents(vec![Event {
+        package_id: ObjectID::ZERO,
+        module: Identifier::from_static("foo"),
+        sender: IotaAddress::ZERO,
+        type_: struct_tag.clone(),
+        contents: vec![0],
+    }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();
 
     tracer

@@ -158,7 +158,7 @@ impl PrimaryWorker {
 
         let event = transactions
             .iter()
-            .flat_map(|t| t.events.as_ref().map(|e| &e.data))
+            .flat_map(|t| t.events.as_ref().map(|e| &e.0))
             .flatten()
             .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
             .map(|ev| {
@@ -391,7 +391,7 @@ impl PrimaryWorker {
         let tx = sender_signed_data.transaction_data();
         let events = events
             .as_ref()
-            .map(|events| events.data.clone())
+            .map(|events| events.0.clone())
             .unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
@@ -507,7 +507,7 @@ impl PrimaryWorker {
         let events = tx
             .events
             .as_ref()
-            .map(|events| events.data.clone())
+            .map(|events| events.0.clone())
             .unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx_data.kind());

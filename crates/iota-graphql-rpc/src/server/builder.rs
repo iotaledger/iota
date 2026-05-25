@@ -484,9 +484,8 @@ impl ServerBuilder {
 
         let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
 
-        let fullnode_grpc_client = GrpcClient::new(fullnode_url)
-            .await
-            .map_err(|e| Error::ServerInit(e.to_string()))?;
+        let fullnode_grpc_client =
+            GrpcClient::new(fullnode_url).map_err(|e| Error::ServerInit(e.to_string()))?;
 
         let read_api = ReadApi::new(reader.clone(), fullnode_grpc_client.clone());
         let write_api = build_write_api(fullnode_grpc_client, reader, indexer_metrics).await?;
@@ -926,7 +925,7 @@ pub mod tests {
         // Use reader without watermark cache, test doesn't check pruning behaviour
         let indexer_reader =
             iota_indexer::read::IndexerReader::new_without_watermark_cache(store.blocking_cp());
-        let fullnode_gpc_client = GrpcClient::new(fn_grpc_url).await.unwrap();
+        let fullnode_gpc_client = GrpcClient::new(fn_grpc_url).unwrap();
 
         let optimistic_tx_executor =
             iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(

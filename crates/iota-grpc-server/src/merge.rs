@@ -634,7 +634,7 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
         source: iota_types::effects::TransactionEvents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
-        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.data), mask)
+        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.0), mask)
     }
 }
 

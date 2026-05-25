@@ -1204,7 +1204,7 @@ impl IotaTransactionBlockEvents {
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
+                .0
                 .into_iter()
                 .enumerate()
                 .map(|(seq, event)| {
@@ -1225,7 +1225,7 @@ impl IotaTransactionBlockEvents {
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
+                .0
                 .into_iter()
                 .enumerate()
                 .map(|(seq, event)| {

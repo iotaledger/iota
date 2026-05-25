@@ -457,7 +457,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
         match self.try_get_events(tx_digest)? {
-            Some(events) => Ok(events.data),
+            Some(events) => Ok(events.0),
             None => Ok(Vec::new()),
         }
     }

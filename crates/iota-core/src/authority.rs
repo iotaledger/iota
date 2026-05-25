@@ -4412,7 +4412,7 @@ impl AuthorityState {
                         .get(&k.1)
                         .expect("fetched digest is missing")
                         .clone()
-                        .and_then(|e| e.data.get(k.2).cloned()),
+                        .and_then(|e| e.get(k.2).cloned()),
                 )
             })
             .map(
@@ -5291,7 +5291,7 @@ impl AuthorityState {
         // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
-            .data
+            .0
             .into_iter()
             .find(|event| event.is_system_epoch_info_event())
             .map(SystemEpochInfoEvent::from);

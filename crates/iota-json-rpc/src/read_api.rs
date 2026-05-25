@@ -957,7 +957,7 @@ impl ReadApiServer for ReadApi {
                     .flatten();
                 Ok(match events {
                     Some(events) => events
-                        .data
+                        .0
                         .into_iter()
                         .enumerate()
                         .map(|(seq, e)| {

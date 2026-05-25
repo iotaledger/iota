@@ -170,7 +170,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
             match self.events.as_mut() {
                 None => return Ok(()),
                 Some(proto_events) => {
-                    for (message, event) in proto_events.events.iter_mut().zip(&events.data) {
+                    for (message, event) in proto_events.events.iter_mut().zip(&events.0) {
                         // Populate json_contents if we have a valid datatype layout
                         message.json_contents = crate::utils::render_json(
                             source.reader.clone(),

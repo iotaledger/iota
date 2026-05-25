@@ -1682,7 +1682,7 @@ impl IndexerReader {
         timestamp_ms: Option<u64>,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
         let events = stored_events_to_events(serialized_events)?;
-        let tx_events = TransactionEvents { data: events };
+        let tx_events = TransactionEvents(events);
         tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
             .await
             .map(|iota_tx_event| iota_tx_event.data)

@@ -325,7 +325,7 @@ impl StoredTransaction {
                         })
                         .collect::<Result<Vec<Event>, IndexerError>>()?
             };
-            let tx_events = TransactionEvents { data: events };
+            let tx_events = TransactionEvents(events);
 
             Some(
                 tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
@@ -463,8 +463,8 @@ pub async fn tx_events_to_iota_tx_events(
     timestamp: Option<u64>,
 ) -> Result<IotaTransactionBlockEvents, IndexerError> {
     let mut iota_event_futures = vec![];
-    let tx_events_data_len = tx_events.data.len();
-    for tx_event in tx_events.data.clone() {
+    let tx_events_data_len = tx_events.len();
+    for tx_event in tx_events.0.clone() {
         let package_resolver_clone = package_resolver.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
@@ -494,7 +494,7 @@ pub async fn tx_events_to_iota_tx_events(
         .collect::<Vec<_>>();
     assert!(tx_events_data_len == event_move_datatype_layouts.len());
     let iota_events = tx_events
-        .data
+        .0
         .into_iter()
         .enumerate()
         .zip(event_move_datatype_layouts)
