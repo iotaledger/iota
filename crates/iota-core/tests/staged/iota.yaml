@@ -897,10 +897,9 @@ TransactionEffectsV1:
         OPTION:
           TYPENAME: Digest
 TransactionEvents:
-  STRUCT:
-    - data:
-        SEQ:
-          TYPENAME: Event
+  NEWTYPESTRUCT:
+    SEQ:
+      TYPENAME: Event
 TransactionExpiration:
   ENUM:
     0:
