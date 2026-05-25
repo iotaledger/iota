@@ -3088,7 +3088,7 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -3172,7 +3172,11 @@ impl AuthorityPerEpochStore {
                 for tx in &verified_transactions {
                     if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
                         kind:
-                            ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                            ConsensusTransactionKind::OverloadNotificationV1(
+                                authority,
+                                _,
+                                percentage,
+                            ),
                         ..
                     }) = &tx.0.transaction
                     {
@@ -4607,7 +4611,7 @@ impl AuthorityPerEpochStore {
                 )
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, percentage),
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                 ..
             }) => {
                 if self
