@@ -110,6 +110,18 @@ public fun borrow_package_view_functions_metadata(
     )
 }
 
+/// Attach view function metadata to a package metadata object.
+public(package) fun attach_package_view_functions_metadata(
+    self: &mut PackageMetadataV1,
+    package_view_functions: PackageViewFunctionsMetadata,
+) {
+    dynamic_field::add(
+        &mut self.id,
+        PackageViewFunctionsMetadataKey {},
+        package_view_functions,
+    )
+}
+
 public fun view_functions(
     self: &PackageViewFunctionsMetadata,
 ): VecMap<ascii::String, vector<ascii::String>> {
@@ -235,10 +247,11 @@ public fun create_package_metadata_v1_for_testing_with_view_functions(
     );
     let mut package_view_functions = iota::vec_map::empty<ascii::String, vector<ascii::String>>();
     package_view_functions.insert(module_name, view_functions);
-    dynamic_field::add(
-        &mut metadata.id,
-        PackageViewFunctionsMetadataKey {},
-        PackageViewFunctionsMetadata { package_view_functions },
+    attach_package_view_functions_metadata(
+        &mut metadata,
+        PackageViewFunctionsMetadata {
+            package_view_functions,
+        },
     );
     metadata
 }

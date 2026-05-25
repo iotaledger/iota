@@ -1462,6 +1462,9 @@ modules_metadata_v1
 borrow_package_view_functions_metadata
 	public fun
 	0x2::package_metadata
+attach_package_view_functions_metadata
+	public(package) fun
+	0x2::package_metadata
 view_functions
 	public fun
 	0x2::package_metadata
