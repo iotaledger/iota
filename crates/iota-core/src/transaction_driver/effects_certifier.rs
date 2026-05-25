@@ -634,9 +634,8 @@ impl EffectsCertifier {
         );
         self.metrics.skip_cert_corroboration_unreachable.inc();
         TransactionDriverError::SubmittedButFetchFailed {
-            error: format!(
-                "failed to get full effects from submitting validator {initial_validator:?}: {initial_error} (corroboration inconclusive)"
-            ),
+            validator: initial_validator,
+            error: format!("{initial_error} (corroboration inconclusive)"),
         }
     }
 
@@ -1156,7 +1155,7 @@ mod tests {
         let agg = make_aggregator(4);
         let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
         let certifier = EffectsCertifier::new(metrics.clone());
-        let monitor = Arc::new(ValidatorClientMonitor::new_for_test(agg.clone()));
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
         let digest = TransactionDigest::random();
 
         let names: Vec<_> = agg.committee.names().copied().collect();
@@ -1206,7 +1205,7 @@ mod tests {
         let agg = make_aggregator(4);
         let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
         let certifier = EffectsCertifier::new(metrics.clone());
-        let monitor = Arc::new(ValidatorClientMonitor::new_for_test(agg.clone()));
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
         let digest = TransactionDigest::random();
 
         let names: Vec<_> = agg.committee.names().copied().collect();

@@ -107,7 +107,10 @@ pub enum TransactionDriverError {
     /// tx is expected to be finalized via the local checkpoint executor; the
     /// caller may recover by waiting for checkpoint inclusion and reading
     /// effects from the local cache. Retriable at the client level.
-    SubmittedButFetchFailed { error: String },
+    SubmittedButFetchFailed {
+        validator: AuthorityName,
+        error: String,
+    },
 }
 
 impl TransactionDriverError {
@@ -271,10 +274,11 @@ impl std::fmt::Display for TransactionDriverError {
                         .unwrap_or_default()
                 )
             }
-            TransactionDriverError::SubmittedButFetchFailed { error } => {
+            TransactionDriverError::SubmittedButFetchFailed { validator, error } => {
                 write!(
                     f,
-                    "Transaction submitted to consensus but failed to fetch effects from submitter: {error}"
+                    "Transaction submitted to consensus but failed to fetch effects from submitter {:?}: {error}",
+                    validator.concise()
                 )
             }
         }
