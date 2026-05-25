@@ -15,57 +15,57 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 84:
 //# run P0::m::callU8
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 13906834303192399873
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 0, instruction: 1, function_name: Some(Identifier("callU8")) }, code: 13906834303192399873 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834303192399873), message: Some("P0::m::callU8 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 13906834303192399873; caused by: VMError with status ABORTED with sub status 13906834303192399873 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU8 at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 3, line 86:
 //# run P0::m::callU16
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 13906834316077432835
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 1, instruction: 1, function_name: Some(Identifier("callU16")) }, code: 13906834316077432835 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834316077432835), message: Some("P0::m::callU16 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 13906834316077432835; caused by: VMError with status ABORTED with sub status 13906834316077432835 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU16 at offset 1 at code offset 1 in function definition 1; at command index: 0
 
 task 4, line 88:
 //# run P0::m::callU32
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 13906834328962465797
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 2, instruction: 1, function_name: Some(Identifier("callU32")) }, code: 13906834328962465797 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834328962465797), message: Some("P0::m::callU32 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(2), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 13906834328962465797; caused by: VMError with status ABORTED with sub status 13906834328962465797 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU32 at offset 1 at code offset 1 in function definition 2; at command index: 0
 
 task 5, line 90:
 //# run P0::m::callU64
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 13906834341847498759
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 3, instruction: 1, function_name: Some(Identifier("callU64")) }, code: 13906834341847498759 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834341847498759), message: Some("P0::m::callU64 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(3), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 13906834341847498759; caused by: VMError with status ABORTED with sub status 13906834341847498759 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU64 at offset 1 at code offset 1 in function definition 3; at command index: 0
 
 task 6, line 92:
 //# run P0::m::callU128
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 13906834354732531721
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 4, instruction: 1, function_name: Some(Identifier("callU128")) }, code: 13906834354732531721 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834354732531721), message: Some("P0::m::callU128 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(4), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 13906834354732531721; caused by: VMError with status ABORTED with sub status 13906834354732531721 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU128 at offset 1 at code offset 1 in function definition 4; at command index: 0
 
 task 7, line 94:
 //# run P0::m::callU256
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 13906834367617564683
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 5, instruction: 1, function_name: Some(Identifier("callU256")) }, code: 13906834367617564683 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834367617564683), message: Some("P0::m::callU256 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(5), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 13906834367617564683; caused by: VMError with status ABORTED with sub status 13906834367617564683 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU256 at offset 1 at code offset 1 in function definition 5; at command index: 0
 
 task 8, line 96:
 //# run P0::m::callAddress
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 13906834380502728719
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 6, instruction: 1, function_name: Some(Identifier("callAddress")) }, code: 13906834380502728719 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834380502728719), message: Some("P0::m::callAddress at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(6), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 13906834380502728719; caused by: VMError with status ABORTED with sub status 13906834380502728719 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callAddress at offset 1 at code offset 1 in function definition 6; at command index: 0
 
 task 9, line 98:
 //# run P0::m::callString
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 13906834393387761681
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 7, instruction: 1, function_name: Some(Identifier("callString")) }, code: 13906834393387761681 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834393387761681), message: Some("P0::m::callString at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 13906834393387761681; caused by: VMError with status ABORTED with sub status 13906834393387761681 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callString at offset 1 at code offset 1 in function definition 7; at command index: 0
 
 task 10, line 100:
 //# run P0::m::callU64vec
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 13906834406272794643
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 8, instruction: 1, function_name: Some(Identifier("callU64vec")) }, code: 13906834406272794643 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834406272794643), message: Some("P0::m::callU64vec at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(8), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 13906834406272794643; caused by: VMError with status ABORTED with sub status 13906834406272794643 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::callU64vec at offset 1 at code offset 1 in function definition 8; at command index: 0
 
 task 11, line 102:
 //# run P0::m::normalAbort
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 9, instruction: 1, function_name: Some(Identifier("normalAbort")) }, code: 0 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("P0::m::normalAbort at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(9), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::normalAbort at offset 1 at code offset 1 in function definition 9; at command index: 0
 
 task 12, line 104:
 //# run P0::m::assertLineNo
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 13906834436336386047
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 10, instruction: 1, function_name: Some(Identifier("assertLineNo")) }, code: 13906834436336386047 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834436336386047), message: Some("P0::m::assertLineNo at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(10), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 13906834436336386047; caused by: VMError with status ABORTED with sub status 13906834436336386047 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::assertLineNo at offset 1 at code offset 1 in function definition 10; at command index: 0
 
 task 13, line 106:
 //# create-checkpoint
@@ -157,57 +157,57 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 16, line 200:
 //# run P0::m::callU8
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 13906834801408606209
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 0, instruction: 1, function_name: Some(Identifier("callU8")) }, code: 13906834801408606209 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834801408606209), message: Some("fake(1,1)::m::callU8 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 13906834801408606209; caused by: VMError with status ABORTED with sub status 13906834801408606209 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU8 at offset 1 at code offset 1 in function definition 0; at command index: 0
 
 task 17, line 202:
 //# run P0::m::callU16
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 13906834814293639171
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 1, instruction: 1, function_name: Some(Identifier("callU16")) }, code: 13906834814293639171 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834814293639171), message: Some("fake(1,1)::m::callU16 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 13906834814293639171; caused by: VMError with status ABORTED with sub status 13906834814293639171 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU16 at offset 1 at code offset 1 in function definition 1; at command index: 0
 
 task 18, line 204:
 //# run P0::m::callU32
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 13906834827178672133
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 2, instruction: 1, function_name: Some(Identifier("callU32")) }, code: 13906834827178672133 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834827178672133), message: Some("fake(1,1)::m::callU32 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(2), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 13906834827178672133; caused by: VMError with status ABORTED with sub status 13906834827178672133 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU32 at offset 1 at code offset 1 in function definition 2; at command index: 0
 
 task 19, line 206:
 //# run P0::m::callU64
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 13906834840063705095
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 3, instruction: 1, function_name: Some(Identifier("callU64")) }, code: 13906834840063705095 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834840063705095), message: Some("fake(1,1)::m::callU64 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(3), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 13906834840063705095; caused by: VMError with status ABORTED with sub status 13906834840063705095 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU64 at offset 1 at code offset 1 in function definition 3; at command index: 0
 
 task 20, line 208:
 //# run P0::m::callU128
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 13906834852948738057
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 4, instruction: 1, function_name: Some(Identifier("callU128")) }, code: 13906834852948738057 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834852948738057), message: Some("fake(1,1)::m::callU128 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(4), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 13906834852948738057; caused by: VMError with status ABORTED with sub status 13906834852948738057 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU128 at offset 1 at code offset 1 in function definition 4; at command index: 0
 
 task 21, line 210:
 //# run P0::m::callU256
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 13906834865833771019
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 5, instruction: 1, function_name: Some(Identifier("callU256")) }, code: 13906834865833771019 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834865833771019), message: Some("fake(1,1)::m::callU256 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(5), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 13906834865833771019; caused by: VMError with status ABORTED with sub status 13906834865833771019 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU256 at offset 1 at code offset 1 in function definition 5; at command index: 0
 
 task 22, line 212:
 //# run P0::m::callAddress
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 13906834878718935055
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 6, instruction: 1, function_name: Some(Identifier("callAddress")) }, code: 13906834878718935055 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834878718935055), message: Some("fake(1,1)::m::callAddress at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(6), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 13906834878718935055; caused by: VMError with status ABORTED with sub status 13906834878718935055 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callAddress at offset 1 at code offset 1 in function definition 6; at command index: 0
 
 task 23, line 214:
 //# run P0::m::callString
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 13906834891603968017
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 7, instruction: 1, function_name: Some(Identifier("callString")) }, code: 13906834891603968017 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834891603968017), message: Some("fake(1,1)::m::callString at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 13906834891603968017; caused by: VMError with status ABORTED with sub status 13906834891603968017 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callString at offset 1 at code offset 1 in function definition 7; at command index: 0
 
 task 24, line 216:
 //# run P0::m::callU64vec
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 13906834904489000979
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 8, instruction: 1, function_name: Some(Identifier("callU64vec")) }, code: 13906834904489000979 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834904489000979), message: Some("fake(1,1)::m::callU64vec at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(8), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 13906834904489000979; caused by: VMError with status ABORTED with sub status 13906834904489000979 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::callU64vec at offset 1 at code offset 1 in function definition 8; at command index: 0
 
 task 25, line 218:
 //# run P0::m::normalAbort
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 9, instruction: 1, function_name: Some(Identifier("normalAbort")) }, code: 0 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("fake(1,1)::m::normalAbort at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(9), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0; caused by: VMError with status ABORTED with sub status 0 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::normalAbort at offset 1 at code offset 1 in function definition 9; at command index: 0
 
 task 26, line 220:
 //# run P0::m::assertLineNo
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 13906834934552592383
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("P0"), module: Identifier("m"), function: 10, instruction: 1, function_name: Some(Identifier("assertLineNo")) }, code: 13906834934552592383 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(13906834934552592383), message: Some("fake(1,1)::m::assertLineNo at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(10), 1)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 13906834934552592383; caused by: VMError with status ABORTED with sub status 13906834934552592383 at location Module ModuleId { address: fake(1,1), name: Identifier("m") } and message fake(1,1)::m::assertLineNo at offset 1 at code offset 1 in function definition 10; at command index: 0
 
 task 27, line 222:
 //# create-checkpoint

@@ -278,7 +278,7 @@ fun test_missing_withdraw_call() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
         // AuthContext without withdraw_call
-        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[], vector[]);
+        let auth_context = make_auth_context_for_testing(*test_ctx.digest(), vector[], vector[]);
 
         spending_limit_account::ed25519_authenticator(
             &account,
@@ -471,7 +471,7 @@ fun test_withdraw_call_wrong_package_id() {
 
         let inputs = vector[account_call_arg, amount_call_arg];
 
-        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands, vector[]);
+        let auth_context = make_auth_context_for_testing(*test_ctx.digest(), inputs, commands);
 
         spending_limit_account::ed25519_authenticator(
             &account,
@@ -523,7 +523,7 @@ fun test_withdraw_call_wrong_module() {
         let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
         let inputs = vector[account_call_arg, amount_call_arg];
 
-        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands, vector[]);
+        let auth_context = make_auth_context_for_testing(*test_ctx.digest(), inputs, commands);
 
         spending_limit_account::ed25519_authenticator(
             &account,
@@ -575,7 +575,7 @@ fun test_withdraw_call_wrong_function() {
         let amount_call_arg = ptb_call_arg::new_call_arg_pure_for_testing(amount_bytes);
         let inputs = vector[account_call_arg, amount_call_arg];
 
-        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands, vector[]);
+        let auth_context = make_auth_context_for_testing(*test_ctx.digest(), inputs, commands);
 
         spending_limit_account::ed25519_authenticator(
             &account,
@@ -628,7 +628,7 @@ fun test_withdraw_invalid_bcs_amount() {
         let command = ptb_command::new_move_call_command_for_testing(move_call);
         let commands = vector[command];
 
-        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands, vector[]);
+        let auth_context = make_auth_context_for_testing(*test_ctx.digest(), inputs, commands);
         spending_limit_account::ed25519_authenticator(
             &account,
             signature,
@@ -704,7 +704,7 @@ fun create_auth_context_for_testing(
     let command = ptb_command::new_move_call_command_for_testing(move_call);
     let commands = vector[command];
 
-    auth_context::new_with_tx_inputs(*ctx.digest(), inputs, commands, vector[])
+    make_auth_context_for_testing(*ctx.digest(), inputs, commands)
 }
 
 fun create_auth_context_for_testing_multiple_withdraw_calls(
@@ -757,5 +757,20 @@ fun create_auth_context_for_testing_multiple_withdraw_calls(
         i = i + 1;
     };
 
-    auth_context::new_with_tx_inputs(*ctx.digest(), inputs, commands, vector[])
+    make_auth_context_for_testing(*ctx.digest(), inputs, commands)
+}
+
+fun make_auth_context_for_testing(
+    auth_digest: vector<u8>,
+    inputs: vector<iota::ptb_call_arg::CallArg>,
+    commands: vector<iota::ptb_command::Command>,
+): AuthContext {
+    auth_context::new_for_testing(
+        auth_digest,
+        inputs,
+        commands,
+        vector[],
+        b"00000000000000000000000000000000",
+        option::none(),
+    )
 }

@@ -16,4 +16,4 @@ task 2, lines 14-15:
 //# programmable
 //> 0: test::m1::priv();
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Can only call `entry` or `public` functions"), command: Some(0) } }
+Execution Error: NonEntryFunctionInvoked: Non Entry Function Invoked. Move Call must start with an entry function; caused by: Can only call `entry` or `public` functions; at command index: 0

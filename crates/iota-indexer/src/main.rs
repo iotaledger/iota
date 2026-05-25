@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-
-use clap::{CommandFactory, FromArgMatches, Parser};
+use clap::{CommandFactory, FromArgMatches};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
-    config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
+    config::{Command, IndexerConfig},
     db::{
         check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
@@ -33,26 +31,14 @@ async fn main() -> Result<(), IndexerError> {
         "WARNING: IOTA indexer is still experimental and we expect occasional breaking changes that require backfills."
     );
 
-    let old_conf = OldIndexerConfig::try_parse();
-
-    let opts = match old_conf {
-        Ok(old_conf) => old_conf.try_into()?,
-        Err(_) => IndexerConfig::from_arg_matches_mut(
-            &mut IndexerConfig::command().version(VERSION).get_matches(),
-        )
-        .unwrap_or_else(|e| e.exit()),
-    };
+    let opts = IndexerConfig::from_arg_matches_mut(
+        &mut IndexerConfig::command().version(VERSION).get_matches(),
+    )
+    .unwrap_or_else(|e| e.exit());
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
     iota_metrics::init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
-
-    if let Command::HelpDeprecated = opts.command {
-        OldIndexerConfig::command().print_help().map_err(|e| {
-            IndexerError::Generic(format!("failed printing deprecated CLI help: {e}"))
-        })?;
-        return Ok(());
-    }
 
     let connection_pool = new_connection_pool(
         opts.database_url
@@ -129,7 +115,6 @@ async fn main() -> Result<(), IndexerError> {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
-        Command::HelpDeprecated => unreachable!("this case is handled earlier"),
         Command::RunBackfill {
             start,
             end,

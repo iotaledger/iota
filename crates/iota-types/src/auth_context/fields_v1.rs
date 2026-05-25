@@ -290,11 +290,11 @@ mod tests {
 
     #[test]
     fn call_arg_bcs_compatible_shared() {
-        let tx_arg = CallArg::Shared(SharedObjectRef {
-            object_id: obj_id(),
-            initial_shared_version: SequenceNumber::from(5),
-            mutable: true,
-        });
+        let tx_arg = CallArg::Shared(SharedObjectRef::new(
+            obj_id(),
+            SequenceNumber::from(5),
+            true,
+        ));
         let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),

@@ -23,7 +23,7 @@ jobs:
         uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
         with:
           command: doc
-          args: --workspace --exclude "iota-benchmark" --no-deps
+          args: --workspace --no-deps
 
       - name: Deploy documentation
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0

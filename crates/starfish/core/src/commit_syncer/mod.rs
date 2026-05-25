@@ -198,87 +198,139 @@ impl<C: NetworkClient> Inner<C> {
         serialized_vote_blocks_headers: Vec<Bytes>,
         max_commits: usize,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
-        // Validate response size - peer should not return more than max_commits
-        if serialized_commits.len() > max_commits {
-            return Err(ConsensusError::TooManyCommitsFromPeer {
-                peer,
-                count: serialized_commits.len() as CommitIndex,
-                limit: max_commits as CommitIndex,
-            });
-        }
-
-        // Parse and verify commits.
-        let mut commits = Vec::new();
-        for serialized in &serialized_commits {
-            let commit: Commit =
-                bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
-            let digest = TrustedCommit::compute_digest(serialized);
-            if commits.is_empty() {
-                // start is inclusive, so first commit must be at the start index.
-                if commit.index() != commit_range.start() {
-                    return Err(ConsensusError::UnexpectedStartCommit {
-                        peer,
-                        start: commit_range.start(),
-                        commit: Box::new(commit),
-                    });
-                }
-            } else {
-                // Verify next commit increments index and references the previous digest.
-                let (last_commit_digest, last_commit): &(CommitDigest, Commit) =
-                    commits.last().unwrap();
-                if commit.index() != last_commit.index() + 1
-                    || &commit.previous_digest() != last_commit_digest
-                {
-                    return Err(ConsensusError::UnexpectedCommitSequence {
-                        peer,
-                        prev_commit: Box::new(last_commit.clone()),
-                        curr_commit: Box::new(commit),
-                    });
-                }
-            }
-            commits.push((digest, commit));
-        }
-        let Some((end_commit_digest, end_commit)) = commits.last() else {
-            return Err(ConsensusError::NoCommitReceived { peer });
-        };
-
-        // Parse and verify blocks. Then accumulate votes on the end commit.
-        let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
-        let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        let mut verified_voting_headers = Vec::new();
-        for serialized_block_header in serialized_vote_blocks_headers {
-            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
-            // The block signature needs to be verified.
-            self.block_verifier.verify(&signed_block_header)?;
-            for vote in signed_block_header.commit_votes() {
-                if *vote == end_commit_ref {
-                    stake_aggregator.add(signed_block_header.author(), &self.context.committee);
-                }
-            }
-            // Store the verified voting block header
-            verified_voting_headers.push(VerifiedBlockHeader::new_verified(
-                signed_block_header,
-                serialized_block_header,
-            ));
-        }
-
-        // Check if the end commit has enough votes.
-        if !stake_aggregator.reached_threshold(&self.context.committee) {
-            return Err(ConsensusError::NotEnoughCommitVotes {
-                stake: stake_aggregator.stake(),
-                peer,
-                commit: Box::new(end_commit.clone()),
-            });
-        }
-
-        let trusted_commits = commits
-            .into_iter()
-            .zip(serialized_commits)
-            .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
-            .collect();
-        Ok((trusted_commits, verified_voting_headers))
+        verify_commits(
+            &self.context,
+            self.block_verifier.as_ref(),
+            peer,
+            commit_range,
+            serialized_commits,
+            serialized_vote_blocks_headers,
+            max_commits,
+        )
     }
+}
+
+/// Rejects a deserialized commit whose variant does not match the local
+/// protocol-flag configuration. The flag is uniform across the network within
+/// an epoch, so any mismatch implies either a malicious peer or a misconfigured
+/// upgrade path. Called on commits received over the network in
+/// `verify_commits`; recovery from local store is trusted and skips this check.
+pub(crate) fn check_commit_version_matches_flags(
+    commit: &Commit,
+    protocol_config: &iota_protocol_config::ProtocolConfig,
+) -> ConsensusResult<()> {
+    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
+    let variant_matches_flags = matches!(
+        (commit, fast_commit_sync),
+        (Commit::V1(_), false) | (Commit::V2(_), true)
+    );
+    if !variant_matches_flags {
+        let actual = match commit {
+            Commit::V1(_) => "V1",
+            Commit::V2(_) => "V2",
+        };
+        return Err(ConsensusError::WrongCommitVersionForFlags {
+            actual,
+            fast_commit_sync,
+        });
+    }
+    Ok(())
+}
+
+/// Free-function form of `Inner::verify_commits`, taking only the inputs the
+/// verification actually uses (`Context` and `BlockVerifier`). Lets tests
+/// exercise the full deserialize-and-verify path without constructing a full
+/// `Inner<C>` fixture.
+pub(crate) fn verify_commits(
+    context: &Arc<Context>,
+    block_verifier: &dyn BlockVerifier,
+    peer: AuthorityIndex,
+    commit_range: CommitRange,
+    serialized_commits: Vec<Bytes>,
+    serialized_vote_blocks_headers: Vec<Bytes>,
+    max_commits: usize,
+) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    // Validate response size - peer should not return more than max_commits
+    if serialized_commits.len() > max_commits {
+        return Err(ConsensusError::TooManyCommitsFromPeer {
+            peer,
+            count: serialized_commits.len() as CommitIndex,
+            limit: max_commits as CommitIndex,
+        });
+    }
+
+    // Parse and verify commits.
+    let mut commits = Vec::new();
+    for serialized in &serialized_commits {
+        let commit: Commit =
+            bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
+        check_commit_version_matches_flags(&commit, &context.protocol_config)?;
+        let digest = TrustedCommit::compute_digest(serialized);
+        if commits.is_empty() {
+            // start is inclusive, so first commit must be at the start index.
+            if commit.index() != commit_range.start() {
+                return Err(ConsensusError::UnexpectedStartCommit {
+                    peer,
+                    start: commit_range.start(),
+                    commit: Box::new(commit),
+                });
+            }
+        } else {
+            // Verify next commit increments index and references the previous digest.
+            let (last_commit_digest, last_commit): &(CommitDigest, Commit) =
+                commits.last().unwrap();
+            if commit.index() != last_commit.index() + 1
+                || &commit.previous_digest() != last_commit_digest
+            {
+                return Err(ConsensusError::UnexpectedCommitSequence {
+                    peer,
+                    prev_commit: Box::new(last_commit.clone()),
+                    curr_commit: Box::new(commit),
+                });
+            }
+        }
+        commits.push((digest, commit));
+    }
+    let Some((end_commit_digest, end_commit)) = commits.last() else {
+        return Err(ConsensusError::NoCommitReceived { peer });
+    };
+
+    // Parse and verify blocks. Then accumulate votes on the end commit.
+    let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
+    let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+    let mut verified_voting_headers = Vec::new();
+    for serialized_block_header in serialized_vote_blocks_headers {
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+        // The block signature needs to be verified.
+        block_verifier.verify(&signed_block_header)?;
+        for vote in signed_block_header.commit_votes() {
+            if *vote == end_commit_ref {
+                stake_aggregator.add(signed_block_header.author(), &context.committee);
+            }
+        }
+        // Store the verified voting block header
+        verified_voting_headers.push(VerifiedBlockHeader::new_verified(
+            signed_block_header,
+            serialized_block_header,
+        ));
+    }
+
+    // Check if the end commit has enough votes.
+    if !stake_aggregator.reached_threshold(&context.committee) {
+        return Err(ConsensusError::NotEnoughCommitVotes {
+            stake: stake_aggregator.stake(),
+            peer,
+            commit: Box::new(end_commit.clone()),
+        });
+    }
+
+    let trusted_commits = commits
+        .into_iter()
+        .zip(serialized_commits)
+        .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
+        .collect();
+    Ok((trusted_commits, verified_voting_headers))
 }
 
 /// Verifies transactions against their block headers and returns a map of
@@ -738,5 +790,61 @@ pub(crate) fn requeue_partial_range(
 ) {
     if commit_end < target_end {
         pending_fetches.insert((commit_end + 1..=target_end).into());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        block_verifier::NoopBlockVerifier,
+        commit::{CommitV1, CommitV2},
+    };
+
+    /// Builds a single-commit byte stream from `commit` and runs it through
+    /// `verify_commits` with `consensus_fast_commit_sync` set to
+    /// `fast_commit_sync_on`. The version check fires before the index
+    /// check, so the default commit index of 0 is fine here.
+    fn run_verify(commit: Commit, fast_commit_sync_on: bool) -> ConsensusResult<()> {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(fast_commit_sync_on);
+        let context = Arc::new(context);
+        let serialized = commit.serialize().unwrap();
+        verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            AuthorityIndex::new_for_test(1),
+            CommitRange::new(1..=1),
+            vec![serialized],
+            vec![],
+            10,
+        )
+        .map(|_| ())
+    }
+
+    #[tokio::test]
+    async fn verify_commits_rejects_v2_commit_when_fast_commit_sync_disabled() {
+        let result = run_verify(Commit::V2(CommitV2::default()), false);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::WrongCommitVersionForFlags {
+                actual: "V2",
+                fast_commit_sync: false,
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_commits_rejects_v1_commit_when_fast_commit_sync_enabled() {
+        let result = run_verify(Commit::V1(CommitV1::default()), true);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::WrongCommitVersionForFlags {
+                actual: "V1",
+                fast_commit_sync: true,
+            })
+        ));
     }
 }

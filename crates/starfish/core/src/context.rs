@@ -14,7 +14,10 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block_header::BlockTimestampMs, metrics::Metrics};
+use crate::{
+    block_header::{BlockTimestampMs, Round},
+    metrics::Metrics,
+};
 
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
@@ -59,6 +62,12 @@ impl Context {
 
     pub(crate) fn authority_hostname(&self, authority: AuthorityIndex) -> &str {
         self.committee.authority(authority).hostname.as_str()
+    }
+
+    /// Lower bound (inclusive) on the round of an acknowledgment or non-own
+    /// ancestor of a block at `block_round`.
+    pub(crate) fn min_ref_round(&self, block_round: Round) -> Round {
+        block_round.saturating_sub(self.protocol_config.gc_depth())
     }
 
     /// Create a test context with a committee of given size and even stake

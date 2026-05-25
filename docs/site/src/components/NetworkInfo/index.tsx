@@ -91,6 +91,14 @@ function L1(props: NetworkProps) {
             <CodeBlock>{props.rpc.graphql}</CodeBlock>
           </td>
         </tr>
+        {props.rpc.grpc && (
+          <tr>
+            <th>gRPC URL</th>
+            <td>
+              <CodeBlock>{props.rpc.grpc}</CodeBlock>
+            </td>
+          </tr>
+        )}
         {props.faucet && (
           <tr>
             <th>Faucet</th>

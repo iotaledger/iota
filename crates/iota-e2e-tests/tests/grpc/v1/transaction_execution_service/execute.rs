@@ -32,7 +32,7 @@ fn first_executed_transaction(response: &ExecuteTransactionsResponse) -> &Execut
     match &result.result {
         Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => tx,
         Some(execute_transaction_result::Result::Error(e)) => {
-            panic!("expected executed transaction, got error: {:?}", e)
+            panic!("expected executed transaction, got error: {e:?}")
         }
         _ => panic!("expected executed transaction, got None"),
     }

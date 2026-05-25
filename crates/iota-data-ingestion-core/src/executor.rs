@@ -17,6 +17,7 @@ use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    config::CheckpointReaderConfigExt,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -246,6 +247,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ) -> IngestionResult<()> {
         self.progress_store.save(task_name, watermark).await
     }
+
     pub async fn read_watermark(
         &mut self,
         task_name: String,
@@ -261,10 +263,11 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// registered.
     pub async fn run_with_config(
         mut self,
-        config: CheckpointReaderConfig,
+        config: impl Into<CheckpointReaderConfigExt>,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
+        let checkpoint_reader =
+            CheckpointReader::new(reader_checkpoint_number, config.into()).await?;
 
         self.run_executor_loop(reader_checkpoint_number, checkpoint_reader)
             .await

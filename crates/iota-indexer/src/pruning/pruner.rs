@@ -101,6 +101,7 @@ pub enum PrunableTable {
     Checkpoints,
     PrunerCpWatermark,
     OptimisticTransactions,
+    ObjectsBackwardHistory,
 }
 
 /// Represents how a table is pruned
@@ -114,6 +115,10 @@ pub enum PruningStrategy {
     ByTransaction,
     /// Delete rows by global sequence number
     ByGlobalSeq,
+    /// Delete rows by checkpoint range with a per-statement row limit.
+    /// Used for tables with variable rows per checkpoint (e.g. backward
+    /// history).
+    ByCheckpointWithLimit,
 }
 
 /// Represents a specific chunk of data to be pruned
@@ -127,6 +132,8 @@ enum PruningChunk {
     TransactionRange(u64, u64),
     /// Prune by global_sequence_number range [start..=end] inclusive
     GlobalSeqRange(u64, u64),
+    /// Prune by checkpoint range [start..=end] with row-limited deletes
+    CheckpointRangeWithLimit(u64, u64),
 }
 
 impl PruningChunk {
@@ -138,6 +145,7 @@ impl PruningChunk {
             PruningChunk::CheckpointRange(_, end) => end + 1,
             PruningChunk::TransactionRange(_, end) => end + 1,
             PruningChunk::GlobalSeqRange(_, end) => end + 1,
+            PruningChunk::CheckpointRangeWithLimit(_, end) => end + 1,
         }
     }
 }
@@ -181,6 +189,9 @@ impl PrunableTable {
 
             // Optimistic transactions table - pruned by global sequence number
             PrunableTable::OptimisticTransactions => PruningStrategy::ByGlobalSeq,
+
+            // Backward history - pruned by checkpoint with row limit
+            PrunableTable::ObjectsBackwardHistory => PruningStrategy::ByCheckpointWithLimit,
         }
     }
 }
@@ -370,6 +381,21 @@ impl<'a> TablePruner<'a> {
                         }),
                 )
             }
+            PruningStrategy::ByCheckpointWithLimit => {
+                let range_end = min_available_cp;
+                info!(
+                    "pruning table {} in checkpoint range (with limit): [{lowest_unpruned_key}..{range_end})",
+                    self.table.as_ref()
+                );
+                Box::new(
+                    (lowest_unpruned_key..range_end)
+                        .step_by(MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize)
+                        .map(move |start| {
+                            let end = (start + MAX_CHECKPOINTS_PER_PRUNE_BATCH).min(range_end);
+                            PruningChunk::CheckpointRangeWithLimit(start, end - 1)
+                        }),
+                )
+            }
         }
     }
 
@@ -462,6 +488,10 @@ impl<'a> TablePruner<'a> {
             PruningChunk::GlobalSeqRange(start, end) => {
                 self.prune_by_global_seq_with_limit(start, end).await?;
             }
+
+            PruningChunk::CheckpointRangeWithLimit(start, end) => {
+                self.prune_by_checkpoint_with_limit(start, end).await?;
+            }
         }
         Ok(())
     }
@@ -498,6 +528,42 @@ impl<'a> TablePruner<'a> {
             );
 
             // Brief pause between batches
+            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
+        }
+        Ok(())
+    }
+
+    /// Prune table by checkpoint range with row-limited deletes.
+    /// Keeps deleting batches until no more rows remain in the range.
+    async fn prune_by_checkpoint_with_limit(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<(), IndexerError> {
+        loop {
+            let deleted = self
+                .store
+                .prune_table_by_checkpoint_with_limit(
+                    &self.table,
+                    start,
+                    end,
+                    MAX_CHECKPOINTS_PER_PRUNE_BATCH as i64,
+                )
+                .await?;
+
+            if deleted < MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize {
+                info!(
+                    "finished pruning table {} for checkpoint range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
+                break;
+            }
+
+            info!(
+                "pruned {deleted} rows from table {} (checkpoint range [{start}..={end}])",
+                self.table.as_ref(),
+            );
+
             tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
         }
         Ok(())

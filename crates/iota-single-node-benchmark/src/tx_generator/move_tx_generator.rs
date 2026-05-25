@@ -81,11 +81,11 @@ impl TxGenerator for MoveTxGenerator {
                         Identifier::from_static("benchmark"),
                         Identifier::from_static("increment_shared_counter"),
                         vec![],
-                        vec![CallArg::Shared(SharedObjectRef {
-                            object_id: shared_object.0,
-                            initial_shared_version: shared_object.1,
-                            mutable: true,
-                        })],
+                        vec![CallArg::Shared(SharedObjectRef::new(
+                            shared_object.0,
+                            shared_object.1,
+                            true,
+                        ))],
                     )
                     .unwrap();
             }

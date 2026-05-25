@@ -36,7 +36,7 @@ use crate::{
         Identifier, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber,
     },
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     move_package::MovePackage,

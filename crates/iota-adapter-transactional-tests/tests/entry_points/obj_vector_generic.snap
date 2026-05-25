@@ -38,7 +38,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, lines 125-129:
 //# run Test::M::child_access_any --sender A --type-args Test::M::Any --args object(4,0) vector[object(5,0)]
-Error: Error checking transaction input objects: Object ObjectId("object(5,0)") is owned by object ObjectId("object(5,1)"). Objects owned by other objects cannot be used as input arguments
+Error: Error checking transaction input objects: Object object(5,0) is owned by object object(5,1). Objects owned by other objects cannot be used as input arguments
 
 task 7, line 131:
 //# run Test::M::mint_another_any --type-args Test::M::Any --sender A --args 42
@@ -49,7 +49,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 8, lines 133-136:
 //# run Test::M::obj_vec_destroy_any --sender A --type-args Test::M::Any --args vector[object(7,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: TypeMismatch }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 0. The type of the value does not match the expected type; at command index: 1
 
 task 9, line 138:
 //# run Test::M::mint_another_any --sender A --type-args Test::M::Any --args 42
@@ -66,7 +66,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 11, lines 142-145:
 //# run Test::M::two_obj_vec_destroy_any --sender A --type-args Test::M::Any --args vector[object(9,0),object(10,0)]
 Error: Transaction Effects Status: Invalid command argument at 1. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: TypeMismatch }, source: None, command: Some(0) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. The type of the value does not match the expected type; at command index: 0
 
 task 12, line 147:
 //# run Test::M::mint_shared_any --sender A --type-args Test::M::Any --args 42
@@ -89,7 +89,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 15, lines 156-159:
 //# run Test::M::same_objects_any --sender A --type-args Test::M::Any --args object(14,0) vector[object(14,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 16, line 161:
 //# run Test::M::mint_any --sender A --type-args Test::M::Any --args 42
@@ -100,4 +100,4 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 17, line 163:
 //# run Test::M::same_objects_ref_any --sender A --type-args Test::M::Any --args object(16,0) vector[object(16,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1

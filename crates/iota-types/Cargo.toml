@@ -32,14 +32,11 @@ indexmap.workspace = true
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
-num-bigint.workspace = true
-num-traits = "0.2.18"
 once_cell.workspace = true
 parking_lot.workspace = true
 passkey-types.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
 prost-types.workspace = true
 rand.workspace = true
 roaring.workspace = true
@@ -96,7 +93,6 @@ default = []
 tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
 fuzzing = [
   "dep:proptest",
-  "dep:proptest-derive",
   "iota-sdk-types/proptest",
   "move-core-types/fuzzing",
 ]

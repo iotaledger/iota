@@ -41,7 +41,7 @@ impl PackageObjectCache {
                 assert_eq!(
                     store.get_object(package_id).unwrap().digest(),
                     p.object().digest(),
-                    "Package object cache is inconsistent for package {package_id:?}"
+                    "Package object cache is inconsistent for package {package_id}"
                 )
             }
             return Ok(Some(p.clone()));

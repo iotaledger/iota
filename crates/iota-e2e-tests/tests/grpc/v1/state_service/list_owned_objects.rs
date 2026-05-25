@@ -16,7 +16,7 @@ use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{IotaAddress, StructTag, TypeTag},
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     object::Owner,
     parse_iota_struct_tag,
     transaction::CallArg,

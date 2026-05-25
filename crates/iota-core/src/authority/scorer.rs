@@ -1,773 +1,657 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
-};
+use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{
-    messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport},
-    scoring_metrics::VersionedScoringMetrics,
-};
+use iota_types::messages_consensus::{MisbehaviorObservations, MisbehaviorObservationsV1};
 
-pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
+use crate::authority::authority_per_epoch_store::report_aggregator::ReportAggregator;
+
+/// Must match MAX_SCORE in validator_set.move in iota-framework.
+pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1;
+/// Fixed-point scale used when combining weighted minor scores before dividing
+/// back down to [0, MAX_SCORE]. Chosen as 2^16 so that MAX_SCORE * SCALE_FACTOR
+/// fits in a u64 without overflow.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
-/// Holds all information related to scoring of authorities in the committee.
-pub struct Scorer {
-    // The current metrics counts collected by the authority, i.e., the local view of the node
-    // about the behaviour of the rest of the committee, according to the blocks received.
-    pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    // The metrics counts received from other authorities, i.e., the information contained in the
-    // MisbehaviourReports received by the authority. If an authority has not sent a report, its
-    // entry in this vector will be all zeroed.
-    received_metrics: Vec<VersionedScoringMetrics>,
-    // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
-    // this to differentiate an authority that did not send a report from another one who sent
-    // zeroed reports.
-    has_not_sent_report: Vec<AtomicBool>,
-    // The current scores of the authorities, updated after each received report. This score is
-    // calculated based on the information in the received reports and the validity of the reports
-    // themselves.
-    current_scores: Scores,
-    // The count of invalid reports received from each authority. Validity here must be checked in
-    // a deterministic way, since this information will not be propagated again to the rest of the
-    // committee.
-    invalid_reports_count: Vec<AtomicU64>,
+type VotingPower = u64;
+
+/// Published score state for the current epoch. Owns the snapshot readers see
+/// and the voting power table; the actual scoring math lives in
+/// `VersionedScorer` and its per-version structs (`ScorerV1`, ...).
+pub struct Scoreboard {
+    // Published as a single `Arc<Vec<u64>>` so readers always see a consistent
+    // snapshot across all authorities (no torn reads mixing old and new scores).
+    current_scores: ArcSwap<Vec<u64>>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
-    // A summary of the last MisbehaviorReport sent by the authority in the checkpoint creation.
-    // Since this particular report is meant to include misbehavior counts (instead of proofs), and
-    // those counts are always non-decreasing, the summary can be created by adding all metrics for
-    // all validators. This is used as part of the MisbehaviorReport rate limiting mechanism.
-    last_report_summary: AtomicU64,
-    // Indicates the sequence number of the last checkpoint for which the authority sent a report.
-    // This is used as part of the MisbehaviorReport rate limiting mechanism.
-    last_report_checkpoint_seq: AtomicU64,
-    // Indicates whether the authority sent a report close to the epoch end.
-    has_sent_end_of_epoch_report: AtomicBool,
-    // The version of the scorer being used with its parameters.
-    version: ScorerVersion,
+    // The active scorer version; carries its own parameters and implementation.
+    scorer: VersionedScorer,
 }
 
-impl Scorer {
+impl Scoreboard {
     pub fn new(voting_power: Vec<u64>, protocol_config: &ProtocolConfig) -> Self {
         let committee_size = voting_power.len();
-        match protocol_config.scorer_version_as_option() {
-            None | Some(1) => {
-                // Local metrics count are always initialized as zero.
-                let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-                    committee_size,
-                    protocol_config,
-                ));
-                let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
-                    (0..committee_size)
-                        .map(|_| {
-                            (
-                                // Received metrics initialized to zero.
-                                VersionedScoringMetrics::new(committee_size, protocol_config),
-                                // Initially, none of the authorities had sent any valid report.
-                                AtomicBool::new(true),
-                                // Current scores initialized to max score.
-                                AtomicU64::new(MAX_SCORE),
-                                // Invalid reports count initialized to zero.
-                                AtomicU64::new(0),
-                            )
-                        })
-                        .collect();
-                let parameters = ParametersV1 {
-                    allowances: MisbehaviorsV1 {
-                        faulty_blocks_provable: 1,
-                        faulty_blocks_unprovable: 2,
-                        missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
-                        equivocations: 0,
-                    },
-                    maximums: MisbehaviorsV1 {
-                        faulty_blocks_provable: 5,
-                        faulty_blocks_unprovable: 10,
-                        missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
-                        equivocations: 1,
-                    },
-                    weights: MisbehaviorsV1 {
-                        faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                        faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                        missing_proposals: SCALE_FACTOR * 35 / 100,
-                        equivocations: 1,
-                    },
-                };
-                // Assert that the allowance for major misbehaviors is 0,
-                // maximum is 1 and weight is 1. This is because major misbehaviors should
-                // reduce the score to 0 is there are any occurrences.
-                // Only equivocation is considered a major misbehavior in this version.
-                assert!(
-                    parameters
-                        .allowances
-                        .iter_major_misbehaviors()
-                        .all(|&a| a == 0)
-                        && parameters
-                            .maximums
-                            .iter_major_misbehaviors()
-                            .all(|&m| m == 1)
-                        && parameters
-                            .weights
-                            .iter_major_misbehaviors()
-                            .all(|&w| w == 1)
-                );
-                // Assert that allowances are compatible with the maximums for all metrics.
-                assert!(
-                    parameters
-                        .allowances
-                        .iter()
-                        .zip(parameters.maximums.iter())
-                        .all(|(&a, &m)| a < m)
-                );
+        let scorer = VersionedScorer::from_protocol(protocol_config);
+        let current_scores = ArcSwap::from_pointee(vec![MAX_SCORE; committee_size]);
 
-                // Assert that maximums are compatible with MAX_SCORE for all metrics, to
-                // prevent overflows.
-                assert!(
-                    parameters
-                        .maximums
-                        .iter()
-                        .all(|&a| a <= u64::MAX / MAX_SCORE)
-                );
-
-                Self {
-                    current_local_metrics_count,
-                    received_metrics,
-                    has_not_sent_report,
-                    current_scores,
-                    invalid_reports_count,
-                    voting_power,
-                    last_report_summary: AtomicU64::new(0),
-                    last_report_checkpoint_seq: AtomicU64::new(0),
-                    has_sent_end_of_epoch_report: AtomicBool::new(false),
-                    version: ScorerVersion::V1(parameters),
-                }
-            }
-            _ => panic!("Unsupported scorer version"),
+        Self {
+            current_scores,
+            voting_power,
+            scorer,
         }
     }
 
-    fn get_parameters_v1(&self) -> ParametersV1 {
-        match &self.version {
-            ScorerVersion::V1(params) => params.clone(),
+    /// Recomputes all authority scores from the aggregated reports in the
+    /// `ReportAggregator` and atomically publishes the new vector.
+    pub(crate) fn update_scores(&self, aggregator: &ReportAggregator) {
+        if let Some(scores) = self.scorer.update_scores(&self.voting_power, aggregator) {
+            // Single pointer swap publishes the whole vector; checkpoint readers
+            // never observe a mix of old and new scores.
+            self.current_scores.store(Arc::new(scores));
         }
-    }
-
-    // Boundary checks for this functions are done at a higher level. `authority``
-    // should always be derived from a valid AuthorityIndex
-    pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
-        self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
-    }
-
-    pub(crate) fn update_scores(&self) {
-        match self.version {
-            ScorerVersion::V1(_) => self.update_scores_v1(),
-        };
-    }
-
-    pub(crate) fn update_received_reports(
-        &self,
-        authority: u32,
-        report: &VersionedMisbehaviorReport,
-    ) {
-        // Update the received metrics for the authority, and mark that we have received
-        // metrics from them. Then, update the scores accordingly.
-        self.received_metrics[authority as usize].update_from_report(report);
-        self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
-    }
-
-    pub(crate) fn last_report_checkpoint_seq(&self) -> u64 {
-        self.last_report_checkpoint_seq.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn store_last_report_checkpoint_seq(&self, checkpoint_seq: u64) {
-        self.last_report_checkpoint_seq
-            .store(checkpoint_seq, Ordering::Relaxed)
-    }
-
-    pub(crate) fn last_report_summary(&self) -> u64 {
-        self.last_report_summary.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn store_last_report_summary(&self, summary: u64) {
-        self.last_report_summary.store(summary, Ordering::Relaxed)
-    }
-
-    pub(crate) fn has_sent_end_of_epoch_report(&self) -> bool {
-        self.has_sent_end_of_epoch_report.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn mark_end_of_epoch_report_sent(&self) {
-        self.has_sent_end_of_epoch_report
-            .store(true, Ordering::Relaxed);
     }
 
     pub(crate) fn current_scores(&self) -> Vec<u64> {
-        self.current_scores
-            .iter()
-            .map(|x| x.load(Ordering::Relaxed))
-            .collect()
-    }
-
-    pub(crate) fn generate_report_with_current_local_metrics(&self) -> VersionedMisbehaviorReport {
-        self.current_local_metrics_count.to_report()
+        self.current_scores.load().as_ref().clone()
     }
 }
 
-// Methods for ScorerVersion::V1
-impl Scorer {
-    fn update_scores_v1(&self) {
-        // Vector with the highest received reports from each authority and their voting
-        // power. Authorities that did not send reports are filtered out.
-        let highest_received_reports_from_authority = self
-            .received_metrics
-            .iter()
-            .zip(self.voting_power.iter())
-            .zip(self.has_not_sent_report.iter())
-            .filter(|((_, _), is_missing)| !is_missing.load(Ordering::Relaxed))
-            .map(|((metrics, voting_power), _)| (metrics.to_report(), *voting_power))
-            .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
-        // Ensure that we have at least one report to calculate the scores, otherwise we
-        // do nothing.
-        if highest_received_reports_from_authority.is_empty() {
-        } else {
-            let median_report = calculate_median_report(&highest_received_reports_from_authority);
-            let scores = calculate_scores_v1(median_report, self.get_parameters_v1());
-            for (i, &score) in scores.iter().enumerate() {
-                self.current_scores[i].store(score, Ordering::Relaxed);
+/// Versioned scoring engine. Each variant is a self-contained struct that
+/// owns its parameters and the math for the matching `MisbehaviorObservations`
+/// version. `Scoreboard` delegates here and stores the result.
+///
+/// Per-version variants are tied to the corresponding observations variant:
+/// `V1(ScorerV1)` consumes only `MisbehaviorObservationsV1`. The unwrap from
+/// the `MisbehaviorObservations` enum happens here at the dispatch boundary,
+/// so per-version scorer impls take typed inputs and never re-match.
+enum VersionedScorer {
+    V1(ScorerV1),
+}
+
+impl VersionedScorer {
+    fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => Self::V1(ScorerV1::v1_parameters()),
+            Some(version) => panic!("Unsupported scorer version {version}"),
+        }
+    }
+
+    /// Computes the new score vector. Returns `None` when no reports have been
+    /// received yet (the published vector is left untouched in that case).
+    fn update_scores(
+        &self,
+        voting_power: &[u64],
+        aggregator: &ReportAggregator,
+    ) -> Option<Vec<u64>> {
+        let reporters = aggregator.reporters_with_voting_power(voting_power);
+        if reporters.is_empty() {
+            return None;
+        }
+        match self {
+            Self::V1(scorer) => {
+                // Destructure each reporter into its V1 inner once. When V2
+                // lands this `match` becomes non-exhaustive, forcing a
+                // deliberate decision about cross-version reports rather than
+                // silently dropping them.
+                let reporters_v1: Vec<(&MisbehaviorObservationsV1, VotingPower)> = reporters
+                    .iter()
+                    .map(|(observations, vp)| match observations.as_ref() {
+                        MisbehaviorObservations::V1(o) => (o, *vp),
+                    })
+                    .collect();
+                let median = scorer.median_report(voting_power, &reporters_v1);
+                Some(scorer.score_from_median(voting_power, &median))
             }
         }
     }
 }
 
-/// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
-/// the medians for all metrics in VersionedMisbehaviorReport and authorities:
-///
-/// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
-///   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
-/// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
-///   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric
-///   values for report R_i.
-/// - Each M_i is a vector of length N, where the j-th value corresponds to the
-///   metric value for authority j.
-///
-/// Example: If we have 4 authorities in the committee, and we receive 3
-/// reports:
-/// - Report R_1 from authority A_1 with voting power VP_1 = 1:
-///     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_2 from authority A_2 with voting power VP_2 = 1:
-///     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_3 from authority A_3 with voting power VP_3 = 1:
-///     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///
-/// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
-///
-/// This method returns a vector of MedianMetricVec, one per metric in
-/// VersionedMisbehaviorReport
-fn calculate_median_report(
-    reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
-) -> MisbehaviorsV1<MedianMetricVec> {
-    // Calls to this method should ensure that we have at least one report to
-    // process.
-    assert!(!reports_and_voting_power.is_empty());
-
-    let number_of_metrics = reports_and_voting_power[0].0.iterate_over_metrics().len();
-
-    // In the case of the example in the method documentation,
-    // reports_and_voting_power_per_metric should be
-    // vec![
-    //      vec![([0, 0, 0, 0],VP_1),([1, 1, 1, 1],VP_2),([2, 2, 2, 2],VP_3)],
-    //      vec![([0, 0, 0, 0],VP_1),([2, 2, 2, 2],VP_2),([1, 1, 1, 1],VP_3)]
-    //      ]
-    let mut reports_and_voting_power_per_metric: Vec<Vec<(MetricVec, VotingPower)>> =
-        vec![vec![]; number_of_metrics];
-    for (versioned_report, voting_power) in reports_and_voting_power.iter() {
-        for (i, metric) in versioned_report.iterate_over_metrics().enumerate() {
-            reports_and_voting_power_per_metric[i].push((metric.clone(), *voting_power));
-        }
-    }
-
-    // Calculate and return the weighted median for each metric
-    let median_report = reports_and_voting_power_per_metric
-        .iter_mut()
-        .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
-        .collect::<MisbehaviorsV1<MedianMetricVec>>();
-    median_report
-}
-
-// Given a vector of pairs (MetricVec, VotingPower), calculate the weighted
-// median of each entry of MetricVec and returns a MedianMetricVec. Each entry
-// of reports corresponds to a single authority i who sent the report. MetricVec
-// always corresponds to a single metric, and each of its entries corresponds to
-// the number of misbehaviors that i claims to have detected from each authority
-// in the committee.
-fn calculate_weighted_median(reports: &mut [(MetricVec, VotingPower)]) -> MedianMetricVec {
-    // Calls to this method should ensure that we have at least one pair (MetricVec,
-    // VotingPower) to process.
-    assert!(!reports.is_empty());
-
-    // We calculate the weighted median relative to the voting power of the
-    // authorities who actually sent a report.
-    let voting_power_used = reports.iter().map(|(_, vp)| *vp).sum::<VotingPower>();
-    // The caller should also guarantee that the MetricVec in all reports have the
-    // same length (committee_size). This is naturally guaranteed when these data
-    // come from MisbehaviorReports, since they would been considered invalid
-    // otherwise.
-    let committee_size = reports[0].0.len();
-    let mut median_per_validator_being_scored = Vec::new();
-
-    for validator_being_scored in 0..committee_size {
-        let mut accumulated_voting_power = 0;
-        reports.sort_by_key(|(reported_counts, _)| reported_counts[validator_being_scored]);
-        for (reported_counts, voting_power) in reports.iter() {
-            accumulated_voting_power += *voting_power;
-            if accumulated_voting_power * 2 >= voting_power_used {
-                median_per_validator_being_scored.push(reported_counts[validator_being_scored]);
-                break;
-            }
-        }
-    }
-
-    median_per_validator_being_scored
-}
-
-// Scorer version. Currently, only V1 is implemented, relative to both
-// protocol_config.scorer_version = None or Some(1).
-enum ScorerVersion {
-    V1(ParametersV1),
-}
-
-// Parameters for ScorerVersion::V1
-#[derive(Clone)]
-struct ParametersV1 {
-    // Allowed misbehaviors without any punishment
-    allowances: MisbehaviorsV1<u64>,
-    // Number of misbehaviors that lead to zero score
-    maximums: MisbehaviorsV1<u64>,
-    // Weights for each metric. The sum of minor misbehavior weights + baseline_score =
-    // scale_factor. Major misbehavior weights are either 0 or 1.
-    weights: MisbehaviorsV1<u64>,
-}
-
-// Aliases for better readability.
-pub(crate) type Scores = Vec<Score>;
-pub(crate) type Score = AtomicU64;
-type VotingPower = u64;
-type MedianMetricVec = Vec<u64>;
-type MetricVec = Vec<u64>;
-
-// Given the median reports for all metrics, calculate the final scores. A score
-// is an integer between 0 and max_score. For each metrics, we have an allowance
-// (allowed misbehaviors without any punishment) and a maximum (number of
-// misbehaviors that lead to zero score). Based on those values, we calculate a
-// score per metric, and then combine them into a final score. Each individual
-// score for minor misbeahviors (non-equivocation) is also  an integer between 0
-// and max_score, and the weights used for the combination are such that
-// sum(weights) + baseline_score = scale_factor. Thus, we need
-// max_score*scale_factor < 2^64 to avoid overflows.
-// Major misbehaviors (equivocations) are treated differently, as they
-// multiplicatively impact the final score. Their value is either 0 or 1.
-fn calculate_scores_v1(
-    median_reports: MisbehaviorsV1<MedianMetricVec>,
-    parameters: ParametersV1,
-) -> Vec<u64> {
-    let baseline_score = SCALE_FACTOR - parameters.weights.iter_minor_misbehaviors().sum::<u64>();
-
-    let median_minor_reports_and_parameters = median_reports
-        .iter_minor_misbehaviors()
-        .zip(parameters.allowances.iter_minor_misbehaviors())
-        .zip(parameters.maximums.iter_minor_misbehaviors());
-
-    // Calculate individual metric scores
-    let minor_metric_scores = median_minor_reports_and_parameters
-        .map(
-            |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-                median_report_single_metric_to_score(
-                    median_report_for_a_single_metric,
-                    *metric_allowance,
-                    *metric_maximum,
-                    MAX_SCORE,
-                )
-            },
-        )
-        .collect::<Vec<Vec<u64>>>();
-
-    let median_major_reports_and_parameters = median_reports
-        .iter_major_misbehaviors()
-        .zip(parameters.allowances.iter_major_misbehaviors())
-        .zip(parameters.maximums.iter_major_misbehaviors());
-
-    // Calculate individual metric scores
-    let major_metric_scores = median_major_reports_and_parameters
-        .map(
-            |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-                median_report_single_metric_to_score(
-                    median_report_for_a_single_metric,
-                    *metric_allowance,
-                    *metric_maximum,
-                    1,
-                )
-            },
-        )
-        .collect::<Vec<Vec<u64>>>();
-
-    metrics_scores_to_final_scores(
-        minor_metric_scores,
-        major_metric_scores,
-        parameters.weights,
-        baseline_score,
-        SCALE_FACTOR,
-        MAX_SCORE,
-    )
-}
-
-fn metrics_scores_to_final_scores(
-    minor_metric_scores: Vec<Vec<u64>>,
-    major_metric_scores: Vec<Vec<u64>>,
-    weights: MisbehaviorsV1<u64>,
+/// V1 scoring parameters and implementation. Field order mirrors
+/// `MisbehaviorObservationsV1` so the score loop can iterate
+/// `(row, params)` pairs without an indirection through `Misbehavior`.
+struct ScorerV1 {
+    faulty_blocks_provable: MetricParams,
+    faulty_blocks_unprovable: MetricParams,
+    missing_proposals: MetricParams,
+    equivocations: MetricParams,
+    /// `SCALE_FACTOR - sum(minor weights)`. Pre-multiplied by `MAX_SCORE` to
+    /// produce the per-authority initial value before the weighted-minor
+    /// accumulation loop.
     baseline_score: u64,
-    scale_factor: u64,
-    max_score: u64,
-) -> Vec<u64> {
-    // Initialise the final scores with the baseline score whose value is between 0
-    // and max_score * scale_factor.
-    let committee_size = minor_metric_scores.first().unwrap().len();
-    let mut final_scores = vec![baseline_score * max_score; committee_size];
-    // First, calculate the weights sum of minor misbehavior scores vector. The
-    // values in final_scores will still be between 0 and max_score * scale_factor
-    minor_metric_scores
-        .iter()
-        .zip(weights.iter_minor_misbehaviors())
-        .for_each(|(scores, weight)| {
-            for (i, &score) in scores.iter().enumerate() {
-                final_scores[i] += score * weight;
+}
+
+impl ScorerV1 {
+    fn v1_parameters() -> Self {
+        // 1 provable faulty block is allowed without punishment, to account
+        // for honest mistakes / protocol edge cases.
+        let faulty_blocks_provable = MetricParams {
+            allowance: 1,
+            maximum: 5,
+            kind: MetricKind::Minor {
+                weight: SCALE_FACTOR * 30 / 100,
+            },
+        };
+        // 2 unprovable faulty blocks allowed without punishment; less severe
+        // than provable.
+        let faulty_blocks_unprovable = MetricParams {
+            allowance: 2,
+            maximum: 10,
+            kind: MetricKind::Minor {
+                weight: SCALE_FACTOR * 10 / 100,
+            },
+        };
+        // ~3% of consensus rounds in an epoch allowed; ~10% leads to zero
+        // score.
+        let missing_proposals = MetricParams {
+            allowance: 48_000,
+            maximum: 160_000,
+            kind: MetricKind::Minor {
+                weight: SCALE_FACTOR * 35 / 100,
+            },
+        };
+        // Equivocations: any occurrence collapses the score to zero.
+        let equivocations = MetricParams {
+            allowance: 0,
+            maximum: 1,
+            kind: MetricKind::Major,
+        };
+
+        let metrics = [
+            &faulty_blocks_provable,
+            &faulty_blocks_unprovable,
+            &missing_proposals,
+            &equivocations,
+        ];
+
+        // Init-time invariants. Cheaper than guarding every score evaluation.
+        for p in &metrics {
+            assert!(p.allowance < p.maximum, "allowance must be < maximum");
+            assert!(
+                p.maximum <= u64::MAX / MAX_SCORE,
+                "maximum must be <= u64::MAX / MAX_SCORE to keep arithmetic safe"
+            );
+            if let MetricKind::Major = p.kind {
+                assert!(
+                    p.allowance == 0 && p.maximum == 1,
+                    "major metric must have allowance=0 and maximum=1 so any occurrence \
+                     collapses the score to zero"
+                );
             }
-        });
-    // Then, multiply by each major misbehavior score which is a value of either 0
-    // or 1.
-    major_metric_scores.iter().for_each(|scores| {
-        for (i, &score) in scores.iter().enumerate() {
-            final_scores[i] *= score;
         }
-    });
-    // Finally, divide by the scale factor and scale to max_score
-    for score in final_scores.iter_mut() {
-        *score /= scale_factor;
+
+        let minor_weights_sum: u64 = metrics
+            .iter()
+            .map(|p| match p.kind {
+                MetricKind::Minor { weight } => weight,
+                MetricKind::Major => 0,
+            })
+            .sum();
+        assert!(
+            minor_weights_sum <= SCALE_FACTOR,
+            "minor weights sum ({minor_weights_sum}) exceeds SCALE_FACTOR ({SCALE_FACTOR})"
+        );
+        let baseline_score = SCALE_FACTOR - minor_weights_sum;
+
+        Self {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+            baseline_score,
+        }
     }
-    final_scores
-}
 
-// Calculate the metric scores for a single metric's median report vector. It
-// returns a vector of values between 0 and the max score for that metric.
-fn median_report_single_metric_to_score(
-    median_report_for_metric: &MedianMetricVec,
-    metric_allowance: u64,
-    metric_max: u64,
-    max_metric_score: u64,
-) -> Vec<u64> {
-    median_report_for_metric
-        .iter()
-        .map(|&report| metric_to_score(report, metric_allowance, metric_max, max_metric_score))
-        .collect()
-}
+    /// `(row in median, params)` pairs for the explicit named-field iteration
+    /// used by both phases of the score formula. Adding a metric to
+    /// `MisbehaviorObservationsV1` / `ScorerV1` makes this array a
+    /// missing-field error, forcing the new metric to be wired in.
+    fn metric_pairs<'a>(
+        &'a self,
+        median: &'a MisbehaviorObservationsV1,
+    ) -> [(&'a [u64], &'a MetricParams); 4] {
+        [
+            (&median.faulty_blocks_provable, &self.faulty_blocks_provable),
+            (
+                &median.faulty_blocks_unprovable,
+                &self.faulty_blocks_unprovable,
+            ),
+            (&median.missing_proposals, &self.missing_proposals),
+            (&median.equivocations, &self.equivocations),
+        ]
+    }
 
-fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 {
-    if value <= allowance {
-        max_score
-    } else if value >= max {
-        0
-    } else {
-        // max - allowance > 0 and the multiplication not overflowing are guaranteed by
-        // assertions done during scorer initialization
-        max.saturating_sub(value).saturating_mul(max_score) / max.saturating_sub(allowance)
+    /// Calculates the weighted median across all reporters for each metric and
+    /// authority. Caller is responsible for ensuring `reporters` is non-empty.
+    fn median_report(
+        &self,
+        voting_power: &[u64],
+        reporters: &[(&MisbehaviorObservationsV1, VotingPower)],
+    ) -> MisbehaviorObservationsV1 {
+        debug_assert!(
+            !reporters.is_empty(),
+            "median_report requires at least one reporter"
+        );
+        let committee_size = voting_power.len();
+        // Sum only over reporters, not the full committee — the median is
+        // weighted by the voting power of authorities that actually submitted.
+        let total_voting_power: VotingPower = reporters.iter().map(|(_, vp)| *vp).sum();
+
+        // Reused across all (metric, authority) pairs — one allocation total.
+        let mut chunk: Vec<(u64, VotingPower)> = Vec::with_capacity(reporters.len());
+
+        let mut weighted_median_for = |select: &dyn Fn(&MisbehaviorObservationsV1) -> &[u64]| {
+            let mut median_for_metric = Vec::with_capacity(committee_size);
+            for authority in 0..committee_size {
+                chunk.clear();
+                chunk.extend(
+                    reporters
+                        .iter()
+                        .map(|(counts, vp)| (select(counts)[authority], *vp)),
+                );
+                chunk.sort_unstable_by_key(|&(val, _)| val);
+
+                let mut accumulated = 0;
+                for &(val, vp) in &chunk {
+                    accumulated += vp;
+                    if accumulated * 2 >= total_voting_power {
+                        median_for_metric.push(val);
+                        break;
+                    }
+                }
+            }
+            debug_assert_eq!(
+                median_for_metric.len(),
+                committee_size,
+                "weighted median did not produce a value for every authority; \
+                 this is a bug — accumulated voting power must always reach total"
+            );
+            median_for_metric
+        };
+
+        MisbehaviorObservationsV1 {
+            faulty_blocks_provable: weighted_median_for(&|c| &c.faulty_blocks_provable),
+            faulty_blocks_unprovable: weighted_median_for(&|c| &c.faulty_blocks_unprovable),
+            missing_proposals: weighted_median_for(&|c| &c.missing_proposals),
+            equivocations: weighted_median_for(&|c| &c.equivocations),
+        }
+    }
+
+    /// Given the median report, produces the per-authority final score vector.
+    ///
+    /// A score is an integer in `[0, MAX_SCORE]`. Each minor metric's score is
+    /// also in `[0, MAX_SCORE]`; their weights satisfy
+    /// `sum(minor_weights) + baseline_score = SCALE_FACTOR`, so we need
+    /// `MAX_SCORE * SCALE_FACTOR < 2^64` to avoid overflow (asserted at init).
+    /// Major metrics are multiplicative (factor 0 or 1).
+    fn score_from_median(
+        &self,
+        voting_power: &[u64],
+        median: &MisbehaviorObservationsV1,
+    ) -> Vec<u64> {
+        let committee_size = voting_power.len();
+        let mut final_scores = vec![self.baseline_score * MAX_SCORE; committee_size];
+
+        // Phase 1: weighted-minor accumulation. Values are in
+        // [0, MAX_SCORE * SCALE_FACTOR].
+        for (row, params) in &self.metric_pairs(median) {
+            if let MetricKind::Minor { weight } = params.kind {
+                for (authority, &count) in row.iter().enumerate() {
+                    final_scores[authority] += params.metric_to_score(count, MAX_SCORE) * weight;
+                }
+            }
+        }
+
+        // Scale down to [0, MAX_SCORE].
+        for score in final_scores.iter_mut() {
+            *score /= SCALE_FACTOR;
+        }
+
+        // Phase 2: multiplicative major-metric gates (factor 0 or 1).
+        for (row, params) in &self.metric_pairs(median) {
+            if matches!(params.kind, MetricKind::Major) {
+                for (authority, score) in final_scores.iter_mut().enumerate() {
+                    *score *= params.metric_to_score(row[authority], 1);
+                }
+            }
+        }
+
+        final_scores
     }
 }
 
-// NOTE: the tests below are going to be finalized in a different PR
+#[derive(Copy, Clone)]
+enum MetricKind {
+    /// Linear penalty between `allowance` and `maximum`, weighted into the
+    /// per-authority score. Sum of all minor weights ≤ SCALE_FACTOR.
+    Minor { weight: u64 },
+    /// Multiplicative gate: factor is 0 if `value >= maximum`, 1 otherwise.
+    Major,
+}
+
+#[derive(Copy, Clone)]
+struct MetricParams {
+    allowance: u64,
+    maximum: u64,
+    kind: MetricKind,
+}
+
+impl MetricParams {
+    /// Maps a single misbehavior count to a score in `[0, max_score]`. Returns
+    /// `max_score` if `value <= allowance`, `0` if `value >= maximum`, and
+    /// linearly interpolates in between. `max_score` is `MAX_SCORE` for the
+    /// minor phase and `1` for the major phase.
+    fn metric_to_score(&self, value: u64, max_score: u64) -> u64 {
+        if value <= self.allowance {
+            max_score
+        } else if value >= self.maximum {
+            0
+        } else {
+            // `maximum - allowance > 0` and the multiplication staying in u64
+            // are guaranteed by assertions in `ScorerV1::v1_parameters`.
+            self.maximum.saturating_sub(value).saturating_mul(max_score)
+                / self.maximum.saturating_sub(self.allowance)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
-
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{
+        MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
+    };
 
-    use crate::authority::authority_per_epoch_store::scorer::{
-        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
+    use crate::authority::authority_per_epoch_store::{
+        misbehavior::MisbehaviorReportVersion,
+        report_aggregator::ReportAggregator,
+        scorer::{MAX_SCORE, Scoreboard, ScorerV1, VotingPower},
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
         ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
-    impl Scorer {
-        fn set_reports_for_tests(
-            &self,
-            reports_and_authorities: &[(VersionedMisbehaviorReport, u32)],
-        ) {
-            for (report, authority) in reports_and_authorities.iter() {
-                self.update_received_reports(*authority, report);
-            }
+    fn mock_report_version() -> MisbehaviorReportVersion {
+        MisbehaviorReportVersion::from_protocol(&mock_protocol_config())
+    }
+
+    fn mock_scoreboard(voting_power: Vec<u64>) -> Scoreboard {
+        Scoreboard::new(voting_power, &mock_protocol_config())
+    }
+
+    /// Test helper: pull the V1-typed reporter view out of an aggregator the
+    /// same way `VersionedScorer::update_scores` does, so `ScorerV1`'s typed
+    /// API can be exercised directly. Returns owned arcs so the borrowed
+    /// view lives as long as needed.
+    fn reporters_v1(
+        arcs: &[(std::sync::Arc<MisbehaviorObservations>, VotingPower)],
+    ) -> Vec<(&MisbehaviorObservationsV1, VotingPower)> {
+        arcs.iter()
+            .map(|(arc, vp)| match arc.as_ref() {
+                MisbehaviorObservations::V1(o) => (o, *vp),
+            })
+            .collect()
+    }
+
+    fn mock_aggregator(committee_size: usize) -> ReportAggregator {
+        ReportAggregator::new(mock_report_version(), committee_size)
+    }
+
+    fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {
+        VersionedMisbehaviorReport::new_v1(
+            iota_types::base_types::AuthorityName::default(),
+            0,
+            MisbehaviorObservationsV1 {
+                faulty_blocks_provable: raw_counts[0].clone(),
+                faulty_blocks_unprovable: raw_counts[1].clone(),
+                missing_proposals: raw_counts[2].clone(),
+                equivocations: raw_counts[3].clone(),
+            },
+        )
+    }
+
+    fn set_reports(
+        aggregator: &ReportAggregator,
+        reports_and_authorities: &[(VersionedMisbehaviorReport, u32)],
+    ) {
+        for (report, authority) in reports_and_authorities {
+            aggregator.process_report(*authority, report);
         }
     }
+
     #[test]
     fn test_scorer_initialization() {
         let voting_power = vec![10, 20, 30];
         let committee_size = voting_power.len();
-        let protocol_config = mock_protocol_config();
+        let scorer = mock_scoreboard(voting_power);
 
-        let scorer = Scorer::new(voting_power, &protocol_config);
-
-        assert_eq!(scorer.current_scores.len(), committee_size);
-        assert_eq!(scorer.invalid_reports_count.len(), committee_size);
-        assert_eq!(scorer.received_metrics.len(), committee_size);
-        assert_eq!(scorer.has_not_sent_report.len(), committee_size);
-    }
-
-    #[test]
-    fn test_increment_invalid_reports_count() {
-        let voting_power = vec![10, 20, 30];
-
-        let protocol_config = mock_protocol_config();
-
-        let scorer = Scorer::new(voting_power, &protocol_config);
-
-        let authority_index = 2;
-
-        // Before update
-        assert_eq!(
-            scorer.invalid_reports_count[authority_index as usize].load(Ordering::Relaxed),
-            0
-        );
-
-        // Call the method
-        scorer.increment_invalid_reports_count(authority_index);
-
-        // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
-
-        let authority_index = 1;
-        // Call the method twice
-        scorer.increment_invalid_reports_count(authority_index);
-        scorer.increment_invalid_reports_count(authority_index);
-
-        // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            2
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
+        let scores = scorer.current_scores();
+        assert_eq!(scores.len(), committee_size);
+        assert!(scores.iter().all(|&s| s == MAX_SCORE));
     }
 
     #[test]
     fn test_update_scores() {
+        // Committee of 3, voting powers [2, 5, 20].
+        //
+        // Weighted medians (total_vp = 27, threshold = 14):
+        //   provable[0]:      reporters [(5,2),(0,5),(0,20)] → sorted
+        // [(0,5),(0,20),(5,2)]                     accumulated 5, 25 ≥ 14 →
+        // median = 0   provable[2]:      reporters [(0,2),(0,5),(15,20)] →
+        // accumulated 2,7,27 → median = 15   equivocations[0]: reporters
+        // [(0,2),(0,5),(5,20)] → accumulated 2,7,27 → median = 5
+        //
+        // Scores:
+        //   authority 0: equivocations median = 5 ≥ max(1) → major factor = 0 → score =
+        // 0   authority 1: all medians = 0 → MAX_SCORE
+        //   authority 2: provable median = 15 ≥ max(5) → provable contribution = 0,
+        //                all other metrics 0 → score = baseline + unprovable + missing
+        // = 45876
         let voting_power = vec![2, 5, 20];
-        let protocol_config = mock_protocol_config();
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        let committee_size = voting_power.len();
+        let aggregator = mock_aggregator(committee_size);
+        let scorer = mock_scoreboard(voting_power);
 
-        // Before calling update_scores, all scores should be MAX_SCORE
-        scorer
-            .current_scores
-            .iter()
-            .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
+        assert!(scorer.current_scores().iter().all(|&s| s == MAX_SCORE));
 
-        // Set some reports for testing
-        let reports_and_authorities = vec![
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![5, 0, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
-                0_u32,
-            ),
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 10, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
-                1_u32,
-            ),
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 0, 15],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![5, 0, 0],
-                }),
-                2_u32,
-            ),
-        ];
+        set_reports(
+            &aggregator,
+            &[
+                (
+                    report_v1(&[vec![5, 0, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]]),
+                    0,
+                ),
+                (
+                    report_v1(&[vec![0, 10, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]]),
+                    1,
+                ),
+                (
+                    report_v1(&[vec![0, 0, 15], vec![0, 0, 0], vec![0, 0, 0], vec![5, 0, 0]]),
+                    2,
+                ),
+            ],
+        );
 
-        scorer.set_reports_for_tests(&reports_and_authorities);
-
-        // Call the method
-        scorer.update_scores();
+        scorer.update_scores(&aggregator);
 
         let expected_score = vec![0, 65536, 45876];
-        // After calling update_scores, scores should be updated
         let actual_score = scorer.current_scores();
         assert_eq!(actual_score, expected_score);
     }
 
     #[test]
     fn test_calculate_median_report() {
-        let reports_and_voting_power = vec![(
-            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3],
-            }),
-            10_u64,
-        )];
-        let median_report = calculate_median_report(&reports_and_voting_power);
+        let scorer = ScorerV1::v1_parameters();
 
-        assert_eq!(
-            median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
-        );
-
-        let reports_and_voting_power = vec![
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+        // Single reporter: median equals their own report.
+        {
+            let aggregator = mock_aggregator(3);
+            let voting_power = vec![10, 10, 10];
+            aggregator.process_report(
+                0,
+                &report_v1(&[
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3],
+                ]),
+            );
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
+            assert_eq!(
+                median,
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
                     equivocations: vec![1, 2, 3],
-                }),
-                20_u64,
-            ),
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![70, 80, 90],
-                    faulty_blocks_unprovable: vec![100, 110, 120],
-                    missing_proposals: vec![40, 50, 60],
-                    equivocations: vec![10, 20, 30],
-                }),
-                10_u64,
-            ),
-        ];
+                }
+            );
+        }
 
-        let median_report = calculate_median_report(&reports_and_voting_power);
-
-        assert_eq!(
-            median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
-        );
-
-        let reports_and_voting_power = vec![
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![1, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 15, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 20, 3],
-                }),
-                10_u64,
-            ),
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+        // Two reporters with 2:1 voting power — the majority reporter's values win.
+        // total_vp = 30, threshold = 15. Authority 0 (vp=20) always crosses the
+        // threshold first.
+        {
+            let aggregator = mock_aggregator(3);
+            let voting_power = vec![20, 10, 10];
+            aggregator.process_report(
+                0,
+                &report_v1(&[
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3],
+                ]),
+            );
+            aggregator.process_report(
+                1,
+                &report_v1(&[
+                    vec![70, 80, 90],
+                    vec![100, 110, 120],
+                    vec![40, 50, 60],
+                    vec![10, 20, 30],
+                ]),
+            );
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
+            assert_eq!(
+                median,
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 2, 0],
-                }),
-                10_u64,
-            ),
-            (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                    equivocations: vec![1, 2, 3],
+                }
+            );
+        }
+
+        // Three equal reporters — standard weighted median.
+        // total_vp = 30, threshold = 15. The middle value wins for each (metric,
+        // authority) pair.
+        {
+            let aggregator = mock_aggregator(3);
+            let voting_power = vec![10, 10, 10];
+            aggregator.process_report(
+                0,
+                &report_v1(&[
+                    vec![1, 8, 9],
+                    vec![10, 15, 12],
+                    vec![4, 5, 6],
+                    vec![1, 20, 3],
+                ]),
+            );
+            aggregator.process_report(
+                1,
+                &report_v1(&[
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 0],
+                ]),
+            );
+            aggregator.process_report(
+                2,
+                &report_v1(&[
+                    vec![6, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 22, 6],
+                    vec![1, 2, 30],
+                ]),
+            );
+            let arcs = aggregator.reporters_with_voting_power(&voting_power);
+            let median = scorer.median_report(&voting_power, &reporters_v1(&arcs));
+            assert_eq!(
+                median,
+                MisbehaviorObservationsV1 {
                     faulty_blocks_provable: vec![6, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 22, 6],
-                    equivocations: vec![1, 2, 30],
-                }),
-                10_u64,
-            ),
-        ];
-
-        let median_report = calculate_median_report(&reports_and_voting_power);
-
-        assert_eq!(
-            median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![6, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
-        );
+                    missing_proposals: vec![4, 5, 6],
+                    equivocations: vec![1, 2, 3],
+                }
+            );
+        }
     }
 
     #[test]
-    fn test_calculate_scores_v1() {
-        let parameters = ParametersV1 {
-            allowances: MisbehaviorsV1 {
-                faulty_blocks_provable: 1,
-                faulty_blocks_unprovable: 2,
-                missing_proposals: 1000,
-                equivocations: 0,
-            },
-            maximums: MisbehaviorsV1 {
-                faulty_blocks_provable: 5,
-                faulty_blocks_unprovable: 10,
-                missing_proposals: 5000,
-                equivocations: 1,
-            },
-            weights: MisbehaviorsV1 {
-                faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                missing_proposals: SCALE_FACTOR * 35 / 100,
-                equivocations: 1,
-            },
-        };
+    fn test_score_from_median() {
+        // V1 parameters:
+        //   allowances:      [1, 2, 48_000, 0]
+        //   maximums:        [5, 10, 160_000, 1]
+        //   minor weights:   [19660, 6553, 22937]  (30%, 10%, 35% of SCALE_FACTOR)
+        //   baseline_score:  16386  (SCALE_FACTOR - sum_of_minor_weights)
+        //
+        // All-zero misbehaviors → every authority gets MAX_SCORE (65536).
+        // Derivation: (16386 + 19660 + 6553 + 22937) * MAX_SCORE / SCALE_FACTOR =
+        // MAX_SCORE.
+        let committee_size = 3;
+        let voting_power = vec![10; committee_size];
+        let scorer = ScorerV1::v1_parameters();
 
-        let median_reports = MisbehaviorsV1 {
-            faulty_blocks_provable: vec![6, 7, 8],
-            faulty_blocks_unprovable: vec![9, 10, 11],
-            missing_proposals: vec![3, 4, 5],
-            equivocations: vec![0, 1, 2],
-        };
+        assert_eq!(
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorObservationsV1 {
+                    faulty_blocks_provable: vec![0, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![0, 0, 0],
+                }
+            ),
+            vec![MAX_SCORE, MAX_SCORE, MAX_SCORE]
+        );
 
-        let scores = calculate_scores_v1(median_reports, parameters);
+        // Authority 0 equivocates (≥ max 1) → major factor = 0 → score = 0.
+        assert_eq!(
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorObservationsV1 {
+                    faulty_blocks_provable: vec![0, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![1, 0, 0],
+                }
+            ),
+            vec![0, MAX_SCORE, MAX_SCORE]
+        );
 
-        // Check that scores are calculated correctly
-        assert_eq!(scores, vec![40142, 0, 0]);
+        // Authority 0 reaches provable-fault maximum (≥ 5) → provable contribution = 0.
+        // score = (baseline + unprovable_weight + missing_weight) = 16386 + 6553 +
+        // 22937 = 45876.
+        assert_eq!(
+            scorer.score_from_median(
+                &voting_power,
+                &MisbehaviorObservationsV1 {
+                    faulty_blocks_provable: vec![5, 0, 0],
+                    faulty_blocks_unprovable: vec![0, 0, 0],
+                    missing_proposals: vec![0, 0, 0],
+                    equivocations: vec![0, 0, 0],
+                }
+            ),
+            vec![45876, MAX_SCORE, MAX_SCORE]
+        );
     }
 }

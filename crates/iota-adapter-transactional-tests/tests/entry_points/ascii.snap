@@ -30,4 +30,4 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 5, line 48:
 //# run Test::M::ascii_arg --sender A --args "Some∫tring"
 Error: Transaction Effects Status: Invalid command argument at 0. The argument cannot be deserialized into a value of the specified type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidBcsBytes }, source: Some("Function expects std::ascii::String but provided argument's value does not match"), command: Some(0) } }
+Execution Error: CommandArgumentError: Invalid command argument at 0. The argument cannot be deserialized into a value of the specified type; caused by: Function expects std::ascii::String but provided argument's value does not match; at command index: 0

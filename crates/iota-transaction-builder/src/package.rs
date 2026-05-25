@@ -85,11 +85,11 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                    object_id: upgrade_capability.object_ref().object_id,
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                    upgrade_capability.object_ref().object_id,
                     initial_shared_version,
-                    mutable: true,
-                }),
+                    true,
+                )),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }

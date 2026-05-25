@@ -165,11 +165,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -188,11 +188,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: false,
-            }))
+                false,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -215,11 +215,11 @@ impl TestRunner {
             .obj(CallArg::ImmutableOrOwned(owned_obj))
             .unwrap();
         let arg_2 = object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
 
         move_call! {
@@ -241,19 +241,19 @@ impl TestRunner {
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         // this one gets deleted
         let arg_2 = object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id_2,
-                mutable: true,
-                initial_shared_version: initial_shared_version_2,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id_2,
+                initial_shared_version_2,
+                true,
+            )))
             .unwrap();
 
         move_call! {
@@ -277,11 +277,11 @@ impl TestRunner {
             .obj(CallArg::ImmutableOrOwned(owned_obj))
             .unwrap();
         let arg_2 = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -302,18 +302,18 @@ impl TestRunner {
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         let arg_2 = object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id_2,
-                mutable: true,
-                initial_shared_version: initial_shared_version_2,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id_2,
+                initial_shared_version_2,
+                true,
+            )))
             .unwrap();
 
         move_call! {
@@ -333,11 +333,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .make_obj_vec(vec![CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .make_obj_vec(vec![CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            })])
+                true,
+            ))])
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -356,18 +356,10 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg1 = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: so1.0,
-                initial_shared_version: so1.1,
-                mutable: so1.2,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(so1.0, so1.1, so1.2)))
             .unwrap();
         let arg2 = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: so2.0,
-                initial_shared_version: so2.1,
-                mutable: so2.2,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(so2.0, so2.1, so2.2)))
             .unwrap();
         // If both mutable
         if so1.2 && so2.2 {
@@ -404,11 +396,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -427,11 +419,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: false,
-            }))
+                false,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -450,11 +442,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -473,11 +465,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,
@@ -496,11 +488,11 @@ impl TestRunner {
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: shared_obj_id,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                shared_obj_id,
                 initial_shared_version,
-                mutable: true,
-            }))
+                true,
+            )))
             .unwrap();
         move_call! {
             delete_object_transaction_builder,

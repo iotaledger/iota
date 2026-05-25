@@ -257,8 +257,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Recipient: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, recipient, object_type, version, digest
+                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Recipient: {recipient}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Mutated {
@@ -272,8 +271,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, owner, object_type, version, digest
+                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Deleted {
@@ -284,8 +282,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id, sender, object_type, version
+                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Wrapped {
@@ -296,8 +293,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id, sender, object_type, version
+                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Unwrapped {
@@ -329,8 +325,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, owner, object_type, version, digest
+                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
         }

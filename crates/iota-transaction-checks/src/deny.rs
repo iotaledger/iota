@@ -146,7 +146,7 @@ fn check_input_objects(
         let id = input_object_kind.object_id();
         deny_if_true!(
             deny_map.contains(&id),
-            format!("Access to input object {:?} is temporarily disabled", id)
+            format!("Access to input object {id} is temporarily disabled")
         );
         deny_if_true!(
             shared_object_disabled && input_object_kind.is_shared_object(),
@@ -214,7 +214,7 @@ fn check_package_dependencies(
     for dep in dependencies {
         deny_if_true!(
             deny_map.contains(&dep),
-            format!("Access to package {:?} is temporarily disabled", dep)
+            format!("Access to package {dep} is temporarily disabled")
         );
     }
     Ok(())

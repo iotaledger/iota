@@ -1798,6 +1798,12 @@ AuthContext
 digest
 	public fun
 	0x2::auth_context
+sender_auth_digest
+	public fun
+	0x2::auth_context
+sponsor_auth_digest
+	public fun
+	0x2::auth_context
 tx_inputs
 	public fun
 	0x2::auth_context
@@ -1814,6 +1820,12 @@ signing_digest
 	public fun
 	0x2::auth_context
 native_digest
+	fun
+	0x2::auth_context
+native_sender_auth_digest
+	fun
+	0x2::auth_context
+native_sponsor_auth_digest
 	fun
 	0x2::auth_context
 native_tx_data_bytes

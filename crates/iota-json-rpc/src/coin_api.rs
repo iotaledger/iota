@@ -88,7 +88,7 @@ impl IotaRpcModule for CoinReadApi {
 
 #[async_trait]
 impl CoinReadApiServer for CoinReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_coins(
         &self,
         owner: IotaAddress,
@@ -117,7 +117,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_coins(
         &self,
         owner: IotaAddress,
@@ -163,7 +163,7 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_balance(
         &self,
         owner: IotaAddress,
@@ -176,7 +176,7 @@ impl CoinReadApiServer for CoinReadApi {
                 .get_balance(owner, coin_type_tag.clone())
                 .await
                 .tap_err(|e| {
-                    debug!(?owner, "Failed to get balance with error: {:?}", e);
+                    debug!(%owner, "Failed to get balance with error: {e}");
                 })?;
             Ok(Balance {
                 coin_type: coin_type_tag.to_string(),
@@ -188,11 +188,11 @@ impl CoinReadApiServer for CoinReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
         async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
-                debug!(?owner, "Failed to get all balance with error: {:?}", e);
+                debug!(%owner, "Failed to get all balance with error: {e}");
             })?;
             Ok(all_balance
                 .iter()
@@ -578,7 +578,7 @@ mod tests {
         base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
-        effects::{TransactionEffects, TransactionEvents},
+        effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
@@ -945,7 +945,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
 
@@ -1211,7 +1211,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
 
@@ -1323,7 +1323,7 @@ mod tests {
                 error_result.code(),
                 jsonrpsee::types::error::INVALID_PARAMS_CODE
             );
-            let expected = expect!["Index store not available on this Fullnode."];
+            let expected = expect!["Index store not available on this Fullnode"];
             expected.assert_eq(error_result.message());
         }
     }
@@ -1379,7 +1379,7 @@ mod tests {
         #[tokio::test]
         async fn test_object_not_found() {
             let transaction_digest = TransactionDigest::from([0; 32]);
-            let transaction_effects = TransactionEffects::default();
+            let transaction_effects = TransactionEffects::new_empty_v1(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
             mock_state
@@ -1506,7 +1506,7 @@ mod tests {
             let package_id = get_test_package_id();
             let (coin_name, _, _, _, _) = get_test_treasury_cap_peripherals(package_id);
             let transaction_digest = TransactionDigest::from([0; 32]);
-            let transaction_effects = TransactionEffects::default();
+            let transaction_effects = TransactionEffects::new_empty_v1(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
             mock_state
@@ -1578,7 +1578,7 @@ mod tests {
                 jsonrpsee::types::error::CALL_EXECUTION_FAILED_CODE
             );
             let expected = expect![
-                "Failure deserializing object in the requested format: \"Unable to deserialize TreasuryCap object: remaining input\""
+                "Failure deserializing object in the requested format: Unable to deserialize TreasuryCap object: remaining input"
             ];
             expected.assert_eq(error_result.message());
         }

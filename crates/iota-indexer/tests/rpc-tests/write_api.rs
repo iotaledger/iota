@@ -101,8 +101,7 @@ async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64
         counter_value_str.parse().unwrap()
     } else {
         panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
+            "Counter value field is not a string (expected u64 serialized as string), got: {value_field:?}"
         );
     }
 }
@@ -744,8 +743,7 @@ fn test_parallel_shared_object_updates() {
                 let counter_value = get_counter_value(counter_obj, client).await;
                 assert_eq!(
                     counter_value, expected_count,
-                    "Counter value should be {} but was {} at iteration {}",
-                    expected_count, counter_value, i
+                    "Counter value should be {expected_count} but was {counter_value} at iteration {i}"
                 );
             }
 
@@ -1456,6 +1454,30 @@ fn move_view_function_call() {
         };
         assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
+
+        // Test mixed object, bool and address arguments.
+        let fn_name = format!("{}::wat_counter::has_address_arg", object_ref.object_id);
+        let address = IotaAddress::from_str(
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        )
+        .unwrap();
+        let view_results = client
+            .view_function_call(
+                fn_name,
+                None,
+                vec![
+                    call_arg!(review_id).unwrap(),
+                    call_arg!("true").unwrap(),
+                    call_arg!(address).unwrap(),
+                ],
+            )
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        assert_eq!(
+            view_results.into_return_values(),
+            vec![IotaMoveValue::Bool(true)]
+        );
     });
 }
 
@@ -1570,7 +1592,9 @@ fn dry_run_request_add_stake() {
         let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
             IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(s) => s.active_validators[0].iota_address,
-            _ => unimplemented!("there is a new system state summary variant that must be handled"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         let tx_bytes: TransactionBlockBytes = client

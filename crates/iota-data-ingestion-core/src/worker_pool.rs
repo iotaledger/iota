@@ -44,9 +44,14 @@ pub enum WorkerPoolStatus {
 #[derive(Debug, Clone, Copy)]
 enum WorkerStatus<M> {
     /// Message with information (e.g. `(<worker-id>`,
-    /// `checkpoint_sequence_number`, [`Worker::Message`]) about the ingestion
-    /// progress.
-    Running((WorkerID, CheckpointSequenceNumber, M)),
+    /// `checkpoint_sequence_number`, Option<[`Worker::Message`]>) about the
+    /// ingestion progress.
+    ///
+    /// The `Option<M>` is used to indicate that the worker skipped
+    /// processing the checkpoint. Useful for filtered checkpoints where non
+    /// matching checkpoints should not be forwarded to worker. In this case the
+    /// `checkpoint_sequence_number` is needed to track the progress.
+    Running((WorkerID, CheckpointSequenceNumber, Option<M>)),
     /// Message with information (e.g. `<worker-id>`) about shutdown status.
     Shutdown(WorkerID),
 }
@@ -279,7 +284,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         let (watermark_sender, watermark_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let mut idle: BTreeSet<_> = (0..self.concurrency).collect();
         let mut checkpoints = VecDeque::new();
-        let mut workers_shutdown_signals = vec![];
+        let mut workers_shutdown_signals = Vec::with_capacity(self.concurrency);
         let (workers, workers_join_handles) = self.spawn_workers(progress_sender, token.clone());
         // Spawn a task that tracks checkpoint processing progress. The task:
         // - Receives (checkpoint_number, message) pairs from workers.
@@ -328,10 +333,14 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     if sequence_number < watermark {
                         continue;
                     }
-                    self.worker
-                        .preprocess_hook(checkpoint.clone())
-                        .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
-                        .expect("failed to preprocess task");
+
+                    if !Self::should_skip_filtered_checkpoint(&checkpoint) {
+                        self.worker
+                            .preprocess_hook(checkpoint.clone())
+                            .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
+                            .expect("failed to preprocess task");
+                    }
+
                     if idle.is_empty() {
                         checkpoints.push_back(checkpoint);
                     } else {
@@ -390,9 +399,12 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         },
                         Some(checkpoint) = worker_recv.recv() => {
                             let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-                            info!("received checkpoint for processing {} for workflow {}", sequence_number, task_name);
+                            info!("received checkpoint for processing {sequence_number} for workflow {task_name}", );
                             let start_time = Instant::now();
                             let status = Self::process_checkpoint_with_retry(worker_id, &worker, checkpoint, reset_backoff(&backoff), &token).await;
+                            if matches!(status, WorkerStatus::Running((_,_, None))) {
+                                info!("checkpoint {sequence_number} for workflow {task_name} filtered out");
+                            }
                             let trigger_shutdown = matches!(status, WorkerStatus::Shutdown(_));
                             if cloned_progress_sender.send(status).await.is_err() || trigger_shutdown {
                                 break;
@@ -409,6 +421,18 @@ impl<W: Worker + 'static> WorkerPool<W> {
             workers_join_handles.push(join_handle);
         }
         (worker_senders, workers_join_handles)
+    }
+
+    /// Returns `true` if the checkpoint was entirely stripped of its
+    /// transactions by a server-side filter, indicating a filtered-out
+    /// checkpoint.
+    ///
+    /// The fullnode's gRPC `stream_checkpoints` endpoint applies configured
+    /// `TransactionFilter`s to the expanded `transactions` payload but
+    /// leaves `checkpoint_contents` (the list of all transaction digests in
+    /// the original checkpoint) completely untouched.
+    fn should_skip_filtered_checkpoint(checkpoint: &CheckpointData) -> bool {
+        !checkpoint.checkpoint_contents.inner().is_empty() && checkpoint.transactions.is_empty()
     }
 
     /// Attempts to process a checkpoint with exponential backoff retries on
@@ -442,14 +466,26 @@ impl<W: Worker + 'static> WorkerPool<W> {
         token: &CancellationToken,
     ) -> WorkerStatus<W::Message> {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+
+        if Self::should_skip_filtered_checkpoint(&checkpoint) {
+            return if token.is_cancelled() {
+                WorkerStatus::Shutdown(worker_id)
+            } else {
+                WorkerStatus::Running((worker_id, sequence_number, None))
+            };
+        }
+
         loop {
             // check for cancellation before attempting processing.
             if token.is_cancelled() {
                 return WorkerStatus::Shutdown(worker_id);
             }
+
             // attempt to process checkpoint.
             match worker.process_checkpoint(checkpoint.clone()).await {
-                Ok(message) => return WorkerStatus::Running((worker_id, sequence_number, message)),
+                Ok(message) => {
+                    return WorkerStatus::Running((worker_id, sequence_number, Some(message)));
+                }
                 Err(err) => {
                     let err = IngestionError::CheckpointProcessing(err.to_string());
                     warn!(
@@ -491,7 +527,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     fn spawn_watermark_tracking(
         &mut self,
         watermark: CheckpointSequenceNumber,
-        watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+        watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, Option<W::Message>)>,
         executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) -> JoinHandle<Result<(), IngestionError>> {
@@ -527,7 +563,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         workers_join_handles: Vec<JoinHandle<()>>,
         watermark_handle: JoinHandle<Result<(), IngestionError>>,
         executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
-        watermark_sender: mpsc::Sender<(u64, <W as Worker>::Message)>,
+        watermark_sender: mpsc::Sender<(CheckpointSequenceNumber, Option<<W as Worker>::Message>)>,
     ) {
         for worker in workers_join_handles {
             _ = worker
@@ -556,7 +592,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
 async fn simple_watermark_tracking<W: Worker>(
     task_name: String,
     mut current_checkpoint_number: CheckpointSequenceNumber,
-    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, Option<W::Message>)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each

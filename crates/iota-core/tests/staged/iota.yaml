@@ -291,12 +291,14 @@ ECMHLiveObjectSetDigest:
         TYPENAME: Digest
 EffectsObjectChange:
   STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
     - input_state:
         TYPENAME: ObjectIn
     - output_state:
         TYPENAME: ObjectOut
     - id_operation:
-        TYPENAME: IDOperation
+        TYPENAME: IdOperation
 EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
@@ -542,14 +544,14 @@ GenesisTransaction:
     - events:
         SEQ:
           TYPENAME: Event
-IDOperation:
+IdOperation:
   ENUM:
     0:
-      None: UNIT
+      none: UNIT
     1:
-      Created: UNIT
+      created: UNIT
     2:
-      Deleted: UNIT
+      deleted: UNIT
 Intent:
   STRUCT:
     - scope: U8
@@ -698,15 +700,15 @@ ObjectId:
 ObjectIn:
   ENUM:
     0:
-      NotExist: UNIT
+      Missing: UNIT
     1:
-      Exist:
-        NEWTYPE:
-          TUPLE:
-            - TUPLE:
-                - U64
-                - TYPENAME: Digest
-            - TYPENAME: Owner
+      Data:
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
+          - owner:
+              TYPENAME: Owner
 ObjectInfoRequestKind:
   ENUM:
     0:
@@ -717,19 +719,20 @@ ObjectInfoRequestKind:
 ObjectOut:
   ENUM:
     0:
-      NotExist: UNIT
+      Missing: UNIT
     1:
       ObjectWrite:
-        NEWTYPE:
-          TUPLE:
-            - TYPENAME: Digest
-            - TYPENAME: Owner
+        STRUCT:
+          - digest:
+              TYPENAME: Digest
+          - owner:
+              TYPENAME: Owner
     2:
       PackageWrite:
-        NEWTYPE:
-          TUPLE:
-            - U64
-            - TYPENAME: Digest
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
 Owner:
   ENUM:
     0:
@@ -870,8 +873,8 @@ TransactionEffectsV1:
   STRUCT:
     - status:
         TYPENAME: ExecutionStatus
-    - executed_epoch: U64
-    - gas_used:
+    - epoch: U64
+    - gas_cost_summary:
         TYPENAME: GasCostSummary
     - transaction_digest:
         TYPENAME: Digest
@@ -886,15 +889,11 @@ TransactionEffectsV1:
     - lamport_version: U64
     - changed_objects:
         SEQ:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - TYPENAME: EffectsObjectChange
+          TYPENAME: EffectsObjectChange
     - unchanged_shared_objects:
         SEQ:
-          TUPLE:
-            - TYPENAME: ObjectId
-            - TYPENAME: UnchangedSharedKind
-    - aux_data_digest:
+          TYPENAME: UnchangedSharedObject
+    - auxiliary_data_digest:
         OPTION:
           TYPENAME: Digest
 TransactionEvents:
@@ -1035,6 +1034,12 @@ UnchangedSharedKind:
           - version: U64
     4:
       PerEpochConfig: UNIT
+UnchangedSharedObject:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - kind:
+        TYPENAME: UnchangedSharedKind
 Upgrade:
   STRUCT:
     - modules:

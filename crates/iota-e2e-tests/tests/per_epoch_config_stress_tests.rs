@@ -140,11 +140,11 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
                 "deny_list_v1_remove"
             },
             vec![
-                CallArg::Shared(SharedObjectRef {
-                    object_id: ObjectID::DENY_LIST,
-                    initial_shared_version: test_env.deny_list_object_init_version,
-                    mutable: true,
-                }),
+                CallArg::Shared(SharedObjectRef::new(
+                    ObjectID::DENY_LIST,
+                    test_env.deny_list_object_init_version,
+                    true,
+                )),
                 CallArg::ImmutableOrOwned(
                     test_env.get_latest_object_ref(&test_env.deny_cap_id).await,
                 ),

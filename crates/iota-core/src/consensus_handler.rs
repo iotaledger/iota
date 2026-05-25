@@ -253,6 +253,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // last_consensus_stats, so that it won't be re-executed in the future.
         self.last_consensus_stats.index = execution_index;
 
+        if self
+            .epoch_store
+            .protocol_config()
+            .calculate_validator_scores()
+        {
+            self.epoch_store
+                .misbehavior_monitor
+                .update_from_consensus_output(consensus_output.misbehavior_counts());
+        }
+
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),
             self.epoch_store.committee(),
@@ -497,7 +507,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
-        ConsensusTransactionKind::MisbehaviorReport(_, _, _) => "misbehavior_report",
+        ConsensusTransactionKind::MisbehaviorReport(_) => "misbehavior_report",
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }

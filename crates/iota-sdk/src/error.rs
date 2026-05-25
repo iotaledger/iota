@@ -17,7 +17,7 @@ pub enum Error {
     BcsSerialization(#[from] bcs::Error),
     #[error("Subscription error: {0}")]
     Subscription(String),
-    #[error("Failed to confirm tx status for {0:?} within {1} seconds.")]
+    #[error("Failed to confirm tx status for {0} within {1} seconds.")]
     FailToConfirmTransactionStatus(TransactionDigest, u64),
     #[error("Data error: {0}")]
     Data(String),

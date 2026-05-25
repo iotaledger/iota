@@ -21,7 +21,7 @@ use iota_types::{
     },
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{Digest, TransactionDigest},
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
@@ -198,6 +198,8 @@ impl executor::Executor for Executor {
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -222,6 +224,8 @@ impl executor::Executor for Executor {
             transaction_signer,
             transaction_digest,
             transaction_data_bytes,
+            sender_auth_digest,
+            sponsor_auth_digest,
             trace_builder_opt,
             &self.0,
         )
@@ -251,6 +255,8 @@ impl executor::Executor for Executor {
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -268,6 +274,8 @@ impl executor::Executor for Executor {
             authenticated_transaction_signer,
             authenticated_transaction_digest,
             transaction_data_bytes,
+            sender_auth_digest,
+            sponsor_auth_digest,
             trace_builder_opt,
             &self.0,
         )

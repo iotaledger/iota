@@ -81,7 +81,7 @@ impl IotaTxValidator {
                     authority_cap_batch.push(signed_cap);
                 }
 
-                ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
+                ConsensusTransactionKind::MisbehaviorReport(_) => {
                     if !self
                         .epoch_store
                         .protocol_config()
@@ -212,7 +212,7 @@ mod tests {
         crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
-            ConsensusTransaction, ConsensusTransactionKind, MisbehaviorsV1,
+            ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
@@ -346,7 +346,7 @@ mod tests {
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
                 // Gated behind `calculate_validator_scores`.
-                ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
+                ConsensusTransactionKind::MisbehaviorReport(_) => {
                     Some(config.calculate_validator_scores())
                 }
 
@@ -393,16 +393,16 @@ mod tests {
             ),
             (
                 "MisbehaviorReport",
-                ConsensusTransactionKind::MisbehaviorReport(
+                ConsensusTransactionKind::MisbehaviorReport(VersionedMisbehaviorReport::new_v1(
                     authority,
-                    VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                    0,
+                    MisbehaviorObservationsV1 {
                         faulty_blocks_provable: vec![],
                         faulty_blocks_unprovable: vec![],
                         missing_proposals: vec![],
                         equivocations: vec![],
-                    }),
-                    0,
-                ),
+                    },
+                )),
             ),
         ];
 

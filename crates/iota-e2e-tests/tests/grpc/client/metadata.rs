@@ -75,7 +75,9 @@ async fn metadata_envelope_with_auth() {
     type ConfigureAuth = fn(&mut HeadersInterceptor);
     let scenarios: &[(&str, ConfigureAuth)] = &[
         ("basic auth", |i| i.basic_auth("user", Some("pass"))),
-        ("bearer auth", |i| i.bearer_auth("my-token")),
+        ("bearer auth", |i| {
+            i.bearer_auth("my-token").unwrap();
+        }),
     ];
 
     for (label, configure) in scenarios {

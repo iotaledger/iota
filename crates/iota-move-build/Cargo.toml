@@ -12,7 +12,6 @@ description = "Logic for building IOTA Move Packages"
 anyhow.workspace = true
 fastcrypto.workspace = true
 serde-reflection.workspace = true
-tempfile.workspace = true
 
 # internal dependencies
 iota-common.workspace = true

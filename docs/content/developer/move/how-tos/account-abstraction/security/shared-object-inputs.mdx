@@ -1,0 +1,166 @@
+---
+description: "How to mitigate the risks of using shared objects as inputs to authenticator functions."
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
+---
+
+# Authenticator Shared Object Inputs
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+This how-to explains a critical security vulnerability that can occur when authenticator functions accept shared objects as input parameters, potentially allowing attackers to bypass authentication checks.
+
+## The Vulnerability
+
+When an authenticator function accepts a shared object as an input parameter, an attacker may be able to swap that shared object with a different one that has the same type but different data. This can allow the attacker to bypass authentication checks that depend on the data within that shared object.
+
+## Attack Scenario
+
+Consider an account with an authenticator that checks if the sender is blacklisted using a shared `Blacklist` object:
+
+1. The legitimate user's account address is added to a blacklist
+2. The user creates a transaction that should be blocked by the blacklist check
+3. An attacker intercepts the transaction
+4. The attacker **creates a new empty blacklist** shared object
+5. The attacker **swaps the blacklist object reference** in the transaction to point to the empty one
+6. The transaction passes authentication because the empty blacklist doesn't contain the account address
+
+## Vulnerable Implementation
+
+Here's an example of a **vulnerable** authenticator that uses a shared object input:
+
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-shared-object-swap/sources/account.move
+```
+
+The blacklist implementation:
+
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-shared-object-swap/sources/blacklist.move
+```
+
+**Problem**: The authenticator accepts any `Blacklist` shared object. An attacker can create their own empty blacklist and swap it in.
+
+## Exploitation Example
+
+An attacker can exploit this vulnerability by swapping the shared object:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L192-L219
+```
+
+The swap function replaces the shared object reference in the transaction:
+
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L435-L463
+```
+
+## Secure Implementations
+
+There are several approaches to mitigate this vulnerability:
+
+### Option 1: Verify Shared Object Identity
+
+If you need to use a shared object, cryptographically bind it to the account by storing its ID:
+
+```move
+/// A dynamic field key used for storing the "authorized blacklist" for an account.
+public struct AuthorizedBlacklist has copy, drop, store {}
+
+#[authenticator]
+public fun authenticate(
+    account: &Account,
+    blacklist: &Blacklist,
+    _: &AuthContext,
+    ctx: &TxContext,
+) {
+    // ✅ SECURE: Verify this is the authorized blacklist
+    let authorized_blacklist_id = *dynamic_field::borrow(&account.id, AuthorizedBlacklist {});
+    assert!(object::id(blacklist) == authorized_blacklist_id, EUnauthorizedBlacklist);
+    
+    // Now safe to use the blacklist
+    assert!(!blacklist.is_blacklisted(ctx.sender()), EAccountIsBlacklisted);
+    
+    ...
+}
+```
+
+### Option 2: Make sure that it is possible to create only one Shared Object instance
+
+There is no need to check the ID of a shared object if only one instance of that type can be created.
+
+```move
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+module authenticator_shared_object_swap::blacklist;
+
+/// OTW
+public struct BLACKLIST has drop {}
+
+#[error(code = 0)]
+const EAccountIsAlreadyBlacklisted: vector<u8> = b"Account is already blacklisted.";
+
+/// A shared object that maintains a blacklist of accounts.
+public struct Blacklist has key {
+    id: UID,
+    accounts: vector<address>,
+}
+
+/// Module initializer
+fun init(_: BLACKLIST, ctx: &mut TxContext) {
+    // ✅ SECURE: Only one `Blacklist` instance can be created
+    let blacklist = Blacklist { id: object::new(ctx), accounts: vector::empty() };
+    transfer::share_object(blacklist);
+}
+
+/// Adds an account address to the blacklist.
+public fun add(blacklist: &mut Blacklist, account: address) {
+    assert!(!blacklist.accounts.contains(&account), EAccountIsAlreadyBlacklisted);
+    blacklist.accounts.push_back(account);
+}
+
+/// Returns `true` if the given account address is blacklisted.
+public fun is_blacklisted(blacklist: &Blacklist, account: address): bool {
+    blacklist.accounts.contains(&account)
+}
+```
+
+However, please keep in mind that creating several instances may become possible with a package update.
+
+### Option 3: Avoid shared objects in authenticators
+
+Whenever possible, store critical authentication data in the account itself using dynamic fields instead of using a shared object.
+
+```move
+/// A dynamic field key used for storing the information whether an account is blacklisted.
+public struct IsBlacklisted has copy, drop, store {}
+
+#[authenticator]
+public fun authenticate(account: &Account, _: &AuthContext, _: &TxContext) {
+    // ✅ SECURE: Verify if the account is blacklisted based on the dynamic field
+    let is_blacklisted = *dynamic_field::borrow(&account.id, IsBlacklisted {});
+    assert!(!is_blacklisted, EAccountIsBlacklisted);
+ 
+    ...
+}
+```
+
+## Key Takeaways
+
+✅ **Verify object identity**: If shared objects are necessary, always verify the object ID matches an expected value stored in the account
+
+✅ **Make sure that a shared object managed correctly**: There is no need to check the ID of a shared object if only one instance of that type can be created
+
+✅ **Avoid shared objects in authenticators**: Whenever possible, store authentication data directly in the account using dynamic fields
+
+✅ **Document security assumptions**: Clearly document what objects are trusted and how they're verified
+
+✅ **Test object swapping**: Create tests that attempt to swap shared objects to verify your implementation is secure
+
+❌ **Don't assume type safety is enough**: Just because an object has the right type doesn't mean it's the right object
+
+❌ **Don't trust arbitrary shared objects**: Any shared object can be passed by an attacker
+
+❌ **Don't skip validation**: Always validate that shared objects are the ones you expect

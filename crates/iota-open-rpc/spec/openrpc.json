@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.23.1-beta"
+    "version": "1.24.0-beta"
   },
   "methods": [
     {
@@ -1294,7 +1294,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "26",
+              "maxSupportedProtocolVersion": "27",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1306,6 +1306,7 @@
                 "congestion_control_min_free_execution_slot": false,
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": false,
                 "consensus_batched_block_sync": false,
+                "consensus_block_restrictions": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_fast_commit_sync": false,
@@ -1334,6 +1335,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": false,
                 "pass_validator_scores_to_advance_epoch": false,
                 "passkey_auth": true,
+                "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
                 "relocate_event_module": true,
