@@ -199,7 +199,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects,
-                events: value.events.map(Into::into),
+                events: value.events,
                 input_objects,
                 output_objects,
             }),
@@ -227,7 +227,7 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects,
-                events: value.events.map(Into::into),
+                events: value.events,
                 input_objects,
                 output_objects,
             }),
