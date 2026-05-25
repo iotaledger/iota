@@ -1285,8 +1285,13 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
     let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
+    // Only sync from archive when there is at least one checkpoint in the gap
+    // [highest_synced+1, lowest_peer). If highest_synced+1 == lowest_peer the
+    // archive range is empty and there is nothing to do.
     let sync_from_archive = if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
-        highest_synced < lowest_checkpoint_on_peers
+        highest_synced
+            .checked_add(1)
+            .is_some_and(|start| start < lowest_checkpoint_on_peers)
     } else {
         false
     };
@@ -1298,7 +1303,6 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         let start = highest_synced
             .checked_add(1)
             .expect("Checkpoint seq num overflow");
-        // TODO: how to specify the end checkpoint?
         let end = lowest_checkpoint_on_peers.unwrap();
 
         let Some(ref archive_config) = archive_config else {
@@ -1313,7 +1317,10 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
             batch_size: archive_config.download_concurrency.into(),
             ..Default::default()
         };
-        let Ok((executor, _exit_sender)) = setup_single_workflow(
+        // Keep a separate clone for the completion monitor; the original is
+        // moved into StateSyncWorker below.
+        let store_for_monitor = store.clone();
+        let Ok((run_future, exit_sender)) = setup_single_workflow(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
                 historical_url: ingestion_url.clone(),
@@ -1327,13 +1334,33 @@ async fn sync_checkpoint_contents_from_archive_iteration<S>(
         else {
             return;
         };
-        match executor.await {
+        // The archive covers exactly [start, end). Spawn a monitor that cancels
+        // the executor once highest_synced reaches end-1 (the last archived
+        // checkpoint). Without this the reader would spin forever trying to
+        // fetch checkpoint `end` which is not in the archive.
+        let archive_end = end - 1;
+        let exit_clone = exit_sender.clone();
+        let monitor = tokio::spawn(async move {
+            while !exit_clone.is_cancelled() {
+                if store_for_monitor
+                    .get_highest_synced_checkpoint()
+                    .sequence_number
+                    >= archive_end
+                {
+                    exit_clone.cancel();
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+        match run_future.await {
             Ok(_) => info!(
                 "State sync from archive is complete. Checkpoints downloaded = {:?}",
                 end - start
             ),
             Err(err) => warn!("State sync from archive failed with error: {:?}", err),
         }
+        monitor.abort();
     }
 }
 

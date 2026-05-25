@@ -308,7 +308,10 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
             CHECKPOINT_FILE_MAGIC,
             manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
         };
-        use iota_storage::{StorageFormat, blob::{Blob, BlobEncoding}};
+        use iota_storage::{
+            StorageFormat,
+            blob::{Blob, BlobEncoding},
+        };
         use iota_types::full_checkpoint_content::CheckpointData;
 
         let mut chk_buf: Vec<u8> = Vec::new();
@@ -350,7 +353,12 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     );
     let (builder, state_sync_router) = Builder::new()
         .store(store_1)
-        .config(StateSyncConfig::randomized_for_testing())
+        .config(StateSyncConfig {
+            // Shorten the retry delay so pruned-checkpoint tasks quickly discover
+            // that the archive has already advanced highest_synced past them.
+            wait_interval_when_no_peer_to_sync_content_ms: Some(10),
+            ..StateSyncConfig::randomized_for_testing()
+        })
         .archive_config(Some(archive_reader_config))
         .build();
     let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
