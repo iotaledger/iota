@@ -142,9 +142,8 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let (server_handle, _) = common::start_test_server(mock, config_customizer).await;
 
     let server_addr = server_handle.address();
-    let mut client = Client::new(&format!("http://{server_addr}"))
-        .await
-        .expect("Failed to connect to gRPC server");
+    let mut client =
+        Client::new(&format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
 
     if let Some(max_size) = client_max_message_size_bytes {
         client = client.with_max_decoding_message_size(usize::try_from(max_size).unwrap());
