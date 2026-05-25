@@ -361,7 +361,7 @@ pub(super) fn verify_parent(
     match address {
         Address::Alias(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Alias>().is_none() {
+                if parent_obj.to_rust::<Alias>().is_err() {
                     warn!(
                         "verification failed for output id {output_id}: unexpected parent found for alias address {address}"
                     );
@@ -370,7 +370,7 @@ pub(super) fn verify_parent(
         }
         Address::Nft(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Nft>().is_none() {
+                if parent_obj.to_rust::<Nft>().is_err() {
                     warn!(
                         "verification failed for output id {output_id}: unexpected parent found for nft address {address}"
                     );
@@ -436,7 +436,7 @@ impl NativeTokenKind for Field<String, Balance> {
 
     fn from_object(obj: &Object) -> Result<Self> {
         obj.to_rust::<Field<String, Balance>>()
-            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
+            .map_err(|_| anyhow!("expected a native token field, found {:?}", obj.type_()))
     }
 }
 

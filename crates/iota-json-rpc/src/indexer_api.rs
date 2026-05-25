@@ -581,7 +581,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
 
         let name = field_reverse_record_object
             .to_rust::<Field<IotaAddress, Name>>()
-            .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
+            .map_err(|_| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
             .value;
 
         let name = name.to_string();

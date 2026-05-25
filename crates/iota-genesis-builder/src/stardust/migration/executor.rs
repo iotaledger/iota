@@ -484,7 +484,7 @@ impl Executor {
         written.remove(&bag_object.id());
         let field_ids = written
             .iter()
-            .filter_map(|(id, object)| object.to_rust::<Field<String, Balance>>().map(|_| *id))
+            .filter_map(|(id, object)| object.to_rust::<Field<String, Balance>>().ok().map(|_| *id))
             .collect();
         // Save the modified coins
         self.store.finish(written);
