@@ -4,15 +4,21 @@
 
 use std::{collections::HashMap, time::Duration};
 
-use iota_types::base_types::{AuthorityName, TransactionDigest};
+use iota_types::{
+    base_types::{AuthorityName, TransactionDigest},
+    messages_consensus::ConsensusTransaction,
+};
 use tokio::time::timeout;
 use typed_store::rocks::DBBatch;
 
-use crate::authority::{
-    authority_per_epoch_store::{
-        AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput,
+use crate::{
+    authority::{
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput,
+        },
+        test_authority_builder::TestAuthorityBuilder,
     },
-    test_authority_builder::TestAuthorityBuilder,
+    consensus_handler::SequencedConsensusTransactionKey,
 };
 
 /// Records an overload notification through the same path
@@ -223,4 +229,123 @@ async fn test_load_overload_notifications_invariant_under_disk_queue_split() {
 
     // The derived quorum percentage must agree with the union view.
     assert_eq!(store.get_quorum_load_shedding_percentage().unwrap(), 80);
+}
+
+/// `consensus_message_processed` dedups by `ConsensusTransactionKey` for the
+/// remainder of an epoch — once a key has been observed, any later submission
+/// with the same key is silently dropped by `verify_consensus_transaction`.
+/// `OverloadNotificationV1` therefore needs a per-submission disambiguator in
+/// its key; without one, re-sending the same percentage value within an epoch
+/// (e.g. when a validator's local percentage oscillates 0 → high → 0) would
+/// produce a colliding key and the second submission would never reach the
+/// recorded notifications map, freezing peers' view at the stale high value.
+///
+/// This test asserts:
+///   1. Two `new_overload_notification_v1` calls with the same authority and
+///      percentage produce distinct consensus transaction keys.
+///   2. After marking the first key as processed in the quarantine, the
+///      second key is *not* considered processed.
+///   3. Driving the recorded overload-notification map through the
+///      0 → high → 0 oscillation produces the expected sequence of
+///      `load_overload_notifications` values, and the quorum percentage
+///      returns to 0 at the end.
+#[tokio::test]
+async fn test_overload_notification_resend_same_percentage_updates_quorum() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    // (1) Two notifications with identical authority+percentage must produce
+    //     distinct consensus transaction keys. The disambiguator is the
+    //     wall-clock generation embedded by `new_overload_notification_v1`;
+    //     sleep 2ms between calls to guarantee a tick.
+    let first = ConsensusTransaction::new_overload_notification_v1(me, 0);
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    let second = ConsensusTransaction::new_overload_notification_v1(me, 0);
+    assert_ne!(
+        first.key(),
+        second.key(),
+        "two submissions of the same percentage must produce distinct keys; \
+         otherwise consensus_message_processed will silently drop the second \
+         one and the local oscillation will never propagate to peers",
+    );
+
+    // (2) Marking the first key as processed in the quarantine must not
+    //     cause the second key to look processed. This is the invariant
+    //     `verify_consensus_transaction` relies on to admit the second
+    //     submission for processing.
+    let first_seq_key = SequencedConsensusTransactionKey::External(first.key());
+    let second_seq_key = SequencedConsensusTransactionKey::External(second.key());
+    let mut commit_for_first = ConsensusCommitOutput::default();
+    commit_for_first.record_consensus_message_processed(first_seq_key.clone());
+    commit_for_first.set_default_commit_stats_for_testing();
+    store.push_consensus_output_for_tests(commit_for_first);
+
+    assert!(
+        store.is_consensus_message_processed(&first_seq_key).unwrap(),
+        "first submission's key should be marked processed after recording",
+    );
+    assert!(
+        !store
+            .is_consensus_message_processed(&second_seq_key)
+            .unwrap(),
+        "second submission's key must NOT be considered processed — it is a \
+         distinct key and must be admitted by verify_consensus_transaction",
+    );
+
+    // (3) Walk through the 0 → high → 0 oscillation. At each step
+    //     `load_overload_notifications` and the derived quorum percentage
+    //     must reflect the latest reported value.
+    flush_overload_notification(&store, me, 0);
+    assert_eq!(
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&me)
+            .copied(),
+        Some(0),
+        "after first 0% notification, loaded value is 0",
+    );
+    assert_eq!(
+        store.get_quorum_load_shedding_percentage().unwrap(),
+        0,
+        "quorum reflects 0% baseline",
+    );
+
+    flush_overload_notification(&store, me, 80);
+    assert_eq!(
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&me)
+            .copied(),
+        Some(80),
+        "after climbing to 80%, loaded value updates",
+    );
+    assert_eq!(
+        store.get_quorum_load_shedding_percentage().unwrap(),
+        80,
+        "quorum climbs to 80%",
+    );
+
+    // The critical step: re-send 0% after having already sent 0% earlier.
+    // Before the fix, the second 0% transaction's key matched the first one's
+    // and consensus silently deduped it, so this recorder call would never
+    // run in production. With distinct keys it runs and overwrites the 80%.
+    flush_overload_notification(&store, me, 0);
+    assert_eq!(
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&me)
+            .copied(),
+        Some(0),
+        "after returning to 0%, loaded value updates back to 0 — this is the \
+         recovery path that was broken before the generation field was added",
+    );
+    assert_eq!(
+        store.get_quorum_load_shedding_percentage().unwrap(),
+        0,
+        "quorum returns to 0% — peers no longer see a stale high value",
+    );
 }
