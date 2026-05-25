@@ -10,14 +10,14 @@ task 1, lines 9-33:
 //# publish
 created: object(1,0)
 mutated: object(0,3)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5738000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 34-37:
 //# programmable --sender A --inputs @B
 //> TransferObjects([Gas], Input(0))
 // Return a small amount of coin to A
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 38-42:
 //# programmable --sender B --inputs 2 @A
@@ -26,7 +26,7 @@ task 3, lines 38-42:
 // Account A now has 3,0
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, lines 43-45:
 //# view-object 3,0
@@ -56,7 +56,7 @@ task 6, lines 50-54:
 // Account A now has 6,0 6,1 that are 2 gas short of the needed amount
 created: object(6,0), object(6,1)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2941200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2941200, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, lines 55-58:
 //# programmable --sender A --inputs 100 --dry-run --gas-payment 6,0 --gas-payment 6,1
@@ -70,4 +70,4 @@ task 8, lines 59-60:
 created: object(8,0)
 mutated: object(6,0)
 deleted: object(3,0), object(6,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2204000,  storage_rebate: 2941200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2204000, storage_rebate: 2941200, non_refundable_storage_fee: 0

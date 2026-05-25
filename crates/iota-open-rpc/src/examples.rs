@@ -13,10 +13,10 @@ use iota_json_rpc_types::{
     IotaCommittee, IotaData, IotaEvent, IotaExecutionStatus, IotaGetPastObjectRequest,
     IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
     IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData,
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock,
-    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
@@ -738,11 +738,11 @@ impl RpcExampleProvider {
                     mutated: vec![
                         OwnedObjectRef {
                             owner: Owner::AddressOwner(signer),
-                            reference: gas_ref.into(),
+                            reference: gas_ref,
                         },
                         OwnedObjectRef {
                             owner: Owner::AddressOwner(recipient),
-                            reference: object_ref.into(),
+                            reference: object_ref,
                         },
                     ],
                     unwrapped: vec![],
@@ -751,7 +751,7 @@ impl RpcExampleProvider {
                     wrapped: vec![],
                     gas_object: OwnedObjectRef {
                         owner: Owner::ObjectOwner(signer),
-                        reference: IotaObjectRef::from(gas_ref),
+                        reference: gas_ref,
                     },
                     events_digest: Some(TransactionEventsDigest::new(self.rng.gen())),
                     dependencies: vec![],

@@ -8,7 +8,8 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Result;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
-    state_service as grpc_state_service, transaction_execution_service as grpc_tx_service,
+    service_methods, state_service as grpc_state_service,
+    transaction_execution_service as grpc_tx_service,
 };
 use iota_types::transaction_executor::TransactionExecutor;
 use tokio::sync::broadcast;
@@ -134,7 +135,14 @@ pub async fn start_grpc_server(
     let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
 
     // Create broadcasters
-    let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
+    let inflight_subscribers = metrics
+        .as_ref()
+        .map(|m| m.inflight_checkpoint_stream_subscribers());
+    let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(
+        checkpoint_data_tx,
+        config.max_concurrent_stream_subscribers.max(1) as usize,
+        inflight_subscribers,
+    );
 
     // Create the gRPC services - get the cancellation token directly from
     // server level
@@ -201,7 +209,14 @@ pub async fn start_grpc_server(
 
     // Add services and spawn the server, optionally wrapping with metrics layer
     let server_handle = if let Some(metrics) = metrics {
-        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(Arc::new(metrics)));
+        // Use the auto-generated exact method path whitelist so the metrics
+        // layer can label unrecognized/non-gRPC traffic under a single "SPAM"
+        // bucket instead of creating unbounded cardinality from arbitrary HTTP
+        // paths.
+        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(
+            Arc::new(metrics),
+            &service_methods::ALL_METHOD_PATHS,
+        ));
         build_and_spawn!(
             layered_builder,
             ledger_service,

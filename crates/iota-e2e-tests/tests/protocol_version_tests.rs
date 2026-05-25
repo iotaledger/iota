@@ -401,7 +401,7 @@ mod sim_only_tests {
     async fn test_new_framework_package() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let iota_extra = ObjectID::from_single_byte(0x42);
+        let iota_extra = ObjectID::from_u16(0x42);
         framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
         let cluster = TestClusterBuilder::new()
@@ -541,10 +541,9 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.object_id == obj.0)
+        .find(|oref| oref.reference.0 == obj.0)
         .unwrap()
         .reference
-        .to_object_ref()
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: ProgrammableMoveCall) -> u64 {
@@ -586,7 +585,7 @@ mod sim_only_tests {
             .await
             .created()
             .iter()
-            .map(|oref| oref.reference.to_object_ref())
+            .map(|oref| oref.reference)
             .collect()
     }
 
@@ -903,6 +902,7 @@ mod sim_only_tests {
                     .as_ref(),
                 inner.validators.inactive_validators.id,
                 &ID::new(ObjectID::ZERO),
+                Some(inner.protocol_version),
             )
             .unwrap();
         } else {
@@ -928,6 +928,7 @@ mod sim_only_tests {
                     .as_ref(),
                 inner.validators.inactive_validators.id,
                 &ID::new(ObjectID::ZERO),
+                None,
             )
             .unwrap();
         } else {
@@ -994,7 +995,7 @@ mod sim_only_tests {
     fn iota_system_package_object(fixture: &str) -> Object {
         Object::new_package(
             &iota_system_modules(fixture),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
             &ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown),
             &[
                 BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),

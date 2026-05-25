@@ -51,7 +51,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     let obj = Object::new_move(
         move_obj,
         Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     );
     (id, obj)
 }
@@ -121,7 +121,7 @@ async fn test_get_objects_batching_within_limit() {
                 ObjectRequest::default().with_object_ref(
                     ObjectReference::default().with_object_id(
                         iota_grpc_types::v1::types::ObjectId::default()
-                            .with_object_id(id.as_ref().to_vec()),
+                            .with_object_id(id.into_bytes().to_vec()),
                     ),
                 )
             })

@@ -8,7 +8,6 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,7 +30,7 @@ pub const PAY_SPLIT_N_FUNC_NAME: &IdentStr = ident_str!("divide_and_keep");
 pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentStr = ident_str!("split_vec");
 
 // Rust version of the Move iota::coin::Coin type
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Coin {
     pub id: UID,
     pub balance: Balance,
@@ -133,7 +132,7 @@ impl Coin {
 }
 
 // Rust version of the Move iota::coin::TreasuryCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TreasuryCap {
     pub id: UID,
     pub total_supply: Supply,
@@ -195,7 +194,7 @@ impl TryFrom<Object> for TreasuryCap {
 }
 
 // Rust version of the Move iota::coin::CoinMetadata type
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct CoinMetadata {
     pub id: UID,
     /// Number of decimal places the coin uses.

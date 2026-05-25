@@ -74,7 +74,10 @@ impl Loader<PackageKey> for Db {
         for stored_package in stored_packages {
             let move_package = bcs::from_bytes(&stored_package.move_package)?;
             let package = Package::read_from_package(&move_package)?;
-            id_to_package.insert(PackageKey(*move_package.id()), Arc::new(package));
+            id_to_package.insert(
+                PackageKey(AccountAddress::new(move_package.id().into_bytes())),
+                Arc::new(package),
+            );
         }
 
         Ok(id_to_package)

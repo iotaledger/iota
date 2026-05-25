@@ -5,10 +5,10 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator,
     base_types::SequenceNumber,
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
+    global_state_hash::GlobalStateHash,
     storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
@@ -122,10 +122,11 @@ pub struct AuthorityPerpetualTables {
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
-    // Finalized root state accumulator for epoch, to be included in CheckpointSummary
+    // Finalized root state hash for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
     // and never changed
-    pub(crate) root_state_hash_by_epoch: DBMap<EpochId, (CheckpointSequenceNumber, Accumulator)>,
+    pub(crate) root_state_hash_by_epoch:
+        DBMap<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
 
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
@@ -287,16 +288,8 @@ impl AuthorityPerpetualTables {
             StoreObject::Value(object) => self
                 .construct_object(object_key, object)?
                 .compute_object_reference(),
-            StoreObject::Deleted => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            ),
-            StoreObject::Wrapped => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            ),
+            StoreObject::Deleted => (object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED),
+            StoreObject::Wrapped => (object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED),
         };
         Ok(obj_ref)
     }
@@ -307,16 +300,12 @@ impl AuthorityPerpetualTables {
         store_object: &StoreObjectWrapper,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some((
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            )),
-            StoreObject::Wrapped => Some((
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            )),
+            StoreObject::Deleted => {
+                Some((object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED))
+            }
+            StoreObject::Wrapped => {
+                Some((object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED))
+            }
             _ => None,
         };
         Ok(obj_ref)
@@ -426,7 +415,7 @@ impl AuthorityPerpetualTables {
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
-            Some(ObjectKey(object.0, object.1.next())),
+            Some(ObjectKey(object.0, object.1.next().unwrap())),
             Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;
@@ -477,28 +466,10 @@ impl AuthorityPerpetualTables {
         self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        // TODO: Add new tables that get added to the db automatically
-        self.objects.unsafe_clear()?;
-        self.live_owned_object_markers.unsafe_clear()?;
-        self.executed_effects.unsafe_clear()?;
-        self.events_2.unsafe_clear()?;
-        self.events.unsafe_clear()?;
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
-        self.root_state_hash_by_epoch.unsafe_clear()?;
-        self.epoch_start_configuration.unsafe_clear()?;
-        self.pruned_checkpoint.unsafe_clear()?;
-        self.total_iota_supply.unsafe_clear()?;
-        self.expected_storage_fund_imbalance.unsafe_clear()?;
-        self.object_per_epoch_marker_table.unsafe_clear()?;
-        self.objects.db.flush()?;
-        Ok(())
-    }
-
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         Ok(self.root_state_hash_by_epoch.get(&epoch)?)
     }
 
@@ -506,10 +477,10 @@ impl AuthorityPerpetualTables {
         &self,
         epoch: EpochId,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-        accumulator: Accumulator,
+        hash: GlobalStateHash,
     ) -> IotaResult {
         self.root_state_hash_by_epoch
-            .insert(&epoch, &(last_checkpoint_of_epoch, accumulator))?;
+            .insert(&epoch, &(last_checkpoint_of_epoch, hash))?;
         Ok(())
     }
 
@@ -592,7 +563,7 @@ impl LiveObject {
     pub fn object_reference(&self) -> ObjectRef {
         match self {
             LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 

@@ -205,6 +205,25 @@ impl BlockHeaderV1 {
         )
     }
 
+    /// Validates that overlap_start_index and overlap_end_index are within
+    /// bounds of the references vector. Must be called before accessing
+    /// ancestors() or acknowledgments() on deserialized headers to prevent
+    /// panics from adversarial index values.
+    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
+        let len = self.references.len();
+        if self.overlap_end_index as usize > len
+            || self.overlap_start_index as usize > len
+            || self.overlap_start_index > self.overlap_end_index
+        {
+            return Err(ConsensusError::InvalidOverlapIndices {
+                overlap_start: self.overlap_start_index,
+                overlap_end: self.overlap_end_index,
+                references_len: len,
+            });
+        }
+        Ok(())
+    }
+
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
             epoch: context.committee.epoch(),
@@ -309,6 +328,14 @@ impl BlockHeaderAPI for BlockHeader {
     fn transactions_commitment(&self) -> TransactionsCommitment {
         match self {
             BlockHeader::V1(header) => header.transactions_commitment(),
+        }
+    }
+}
+
+impl BlockHeader {
+    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
+        match self {
+            BlockHeader::V1(header) => header.verify_references_indices(),
         }
     }
 }
@@ -595,15 +622,13 @@ impl TransactionsCommitment {
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        let encoded_shards = encoder
-            .encode_serialized_data(serialized_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
+        let encoded_shards =
+            encoder.encode_serialized_data(serialized_transactions, info_length, parity_length)?;
 
         let (transactions_commitment, _) = TransactionsCommitment::compute_merkle_root_and_proof(
             &encoded_shards,
             context.own_index,
-        )
-        .expect("We should expect correct computation of the Merkle root for encoded transactions");
+        )?;
         Ok(transactions_commitment)
     }
 
@@ -619,10 +644,7 @@ impl TransactionsCommitment {
             leaves.push(leaf);
         }
         let merkle_tree = MerkleTree::<DefaultHashFunctionWrapper>::from_leaves(&leaves);
-        let merkle_root = merkle_tree
-            .root()
-            .ok_or("couldn't get the merkle root")
-            .unwrap();
+        let merkle_root = merkle_tree.root().ok_or(ConsensusError::EmptyMerkleTree)?;
 
         let indices_to_prove = vec![own_index.value()];
         let merkle_proof = merkle_tree.proof(&indices_to_prove);
@@ -638,8 +660,11 @@ impl TransactionsCommitment {
         let mut hasher = DefaultHashFunction::new();
         hasher.update(shard.shard());
         let leaf = hasher.finalize().into();
-        let proof =
-            MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone()).unwrap();
+        let proof = match MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone())
+        {
+            Ok(proof) => proof,
+            Err(_) => return false,
+        };
         proof.verify(
             shard.transaction_commitment().0,
             &[leaf_index],
@@ -1039,6 +1064,23 @@ impl VerifiedTransactions {
             transactions,
             transaction_ref,
             block_digest,
+            serialized,
+        }
+    }
+
+    /// Test-only constructor. Wraps `transactions` against the slot of
+    /// `header` so the resulting `VerifiedTransactions` can be dropped into a
+    /// test-constructed `CommittedSubDag`. Used by downstream crates'
+    /// consensus-handler tests; production code must go through
+    /// `VerifiedTransactions::new` during block reception.
+    pub fn new_for_test(header: &VerifiedBlockHeader, transactions: Vec<Transaction>) -> Self {
+        let serialized: Bytes = bcs::to_bytes(&transactions)
+            .expect("Serialization should not fail")
+            .into();
+        Self {
+            transactions,
+            transaction_ref: header.transaction_ref(),
+            block_digest: Some(header.digest()),
             serialized,
         }
     }

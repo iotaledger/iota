@@ -25,12 +25,11 @@ use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
-    DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
-    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
+    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -61,7 +60,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, Field},
+    dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
@@ -1210,7 +1209,8 @@ impl IotaClientCommands {
                     }
                 };
 
-                let signing_limits = Some(VerifierSigningConfig::default().limits_for_signing());
+                let limits = VerifierSigningConfig::default();
+                let signing_limits = Some(limits.limits_for_signing());
                 let mut verifier = iota_execution::verifier(
                     &protocol_config,
                     signing_limits,
@@ -1956,8 +1956,12 @@ impl IotaClientCommands {
                     (false, true, _) => ValidationMode::deps(),
                     (true, false, None) => ValidationMode::root(),
                     (true, true, None) => ValidationMode::root_and_deps(),
-                    (true, false, Some(at)) => ValidationMode::root_at(*at),
-                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
+                    (true, false, Some(at)) => {
+                        ValidationMode::root_at(AccountAddress::new(at.into_bytes()))
+                    }
+                    (true, true, Some(at)) => {
+                        ValidationMode::root_and_deps_at(AccountAddress::new(at.into_bytes()))
+                    }
                 };
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
@@ -2379,7 +2383,7 @@ impl Display for IotaClientCommandResult {
                 let df_refs = DynamicFieldOutput {
                     has_next_page: df_refs.has_next_page,
                     next_cursor: df_refs.next_cursor,
-                    data: df_refs.data.clone(),
+                    data: df_refs.data.iter().cloned().map(Into::into).collect(),
                 };
 
                 let json_obj = json!(df_refs);
@@ -3510,7 +3514,6 @@ async fn execute_dev_inspect(
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
 
     let dev_inspect_args = DevInspectArgs {
         gas_sponsor,
@@ -3690,7 +3693,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::from(module.unit.address.into_inner())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,

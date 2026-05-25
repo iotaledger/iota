@@ -57,7 +57,7 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
-    mysticeti_adapter::LazyMysticetiClient,
+    starfish_adapter::LazyStarfishClient,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
     },
@@ -119,7 +119,7 @@ impl AuthorityServer {
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
@@ -893,11 +893,12 @@ impl ValidatorService {
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let client_addr = if self.client_id_source.is_none() {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+        let client_addr = if let Some(client_id_source) = &self.client_id_source {
+            self.get_client_ip_addr(&request, client_id_source)
         } else {
-            self.get_client_ip_addr(&request, self.client_id_source.as_ref().unwrap())
+            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
         };
+
         let request = request.into_inner();
 
         let certificates =

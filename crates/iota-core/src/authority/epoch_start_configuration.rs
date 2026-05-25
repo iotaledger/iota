@@ -7,7 +7,6 @@ use std::fmt;
 use enum_dispatch::enum_dispatch;
 use iota_config::{ExecutionCacheType, NodeConfig};
 use iota_types::{
-    authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     claim_registry::get_claim_registry_obj_initial_shared_version,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
@@ -27,7 +26,6 @@ pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
     fn claim_registry_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
@@ -133,8 +131,6 @@ impl EpochStartConfiguration {
         object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
     ) -> IotaResult<Self> {
-        let authenticator_obj_initial_shared_version =
-            get_authenticator_state_obj_initial_shared_version(object_store)?;
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
@@ -145,7 +141,9 @@ impl EpochStartConfiguration {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
-            authenticator_obj_initial_shared_version,
+            // Field retained for serialization compatibility; always None because
+            // authenticator state (JWK/zkLogin) was never enabled on IOTA.
+            authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,
             claim_registry_obj_initial_shared_version,
@@ -236,10 +234,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
         self.randomness_obj_initial_shared_version
     }
@@ -276,10 +270,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
 
     fn flags(&self) -> &[EpochFlag] {
         &self.flags
-    }
-
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
     }
 
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {

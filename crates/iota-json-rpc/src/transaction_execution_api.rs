@@ -13,18 +13,22 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType as ExecuteTransactionRequestTypeSchema, IotaExecutionStatus,
+    IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
+};
 use iota_protocol_config::Chain;
 use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectID},
     crypto::default_hash,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
@@ -264,21 +268,37 @@ impl TransactionExecutionApi {
         } else {
             vec![]
         };
+        let resolver = Resolver::new(self.clone());
+
+        let effects = if opts.show_effects {
+            Some(
+                IotaTransactionBlockEffects::from_native_with_clever_error(
+                    response.effects.effects,
+                    &resolver,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+
+        let errors = match effects.as_ref().map(|e| e.status()) {
+            Some(IotaExecutionStatus::Failure { error }) => vec![error.clone()],
+            _ => vec![],
+        };
 
         Ok(IotaTransactionBlockResponse {
             digest,
             transaction,
             raw_transaction,
-            effects: opts
-                .show_effects
-                .then_some(response.effects.effects.try_into()?),
+            effects,
             events,
             object_changes,
             balance_changes,
             timestamp_ms: None,
             confirmed_local_execution: Some(is_executed_locally),
             checkpoint: None,
-            errors: vec![],
+            errors,
             raw_effects,
         })
     }
@@ -336,8 +356,15 @@ impl TransactionExecutionApi {
         )
         .await?;
 
+        let resolver = Resolver::new(self.clone());
+        let effects = IotaTransactionBlockEffects::from_native_with_clever_error(
+            transaction_effects,
+            &resolver,
+        )
+        .await;
+
         Ok(DryRunTransactionBlockResponse {
-            effects: resp.effects,
+            effects,
             events: resp.events,
             object_changes,
             balance_changes,
@@ -356,9 +383,9 @@ impl WriteApiServer for TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
+        request_type: Option<ExecuteTransactionRequestTypeSchema>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
+        self.execute_transaction_block(tx_bytes, signatures, opts, request_type.map(Into::into))
             .trace_timeout(Duration::from_secs(10))
             .await
     }
@@ -434,7 +461,7 @@ impl WriteApiServer for TransactionExecutionApi {
                     sender_address,
                     tx_kind,
                     gas_price.map(|i| *i),
-                    gas_budget.map(|i| *i),
+                    gas_budget,
                     gas_sponsor,
                     gas_objects,
                     show_raw_txn_data_and_effects,
@@ -470,7 +497,7 @@ impl IotaRpcModule for TransactionExecutionApi {
 impl PackageStore for TransactionExecutionApi {
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

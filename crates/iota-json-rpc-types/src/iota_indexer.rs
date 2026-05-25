@@ -9,6 +9,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+use crate::iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema};
+
 /// A single record in the registry.
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
@@ -21,10 +23,12 @@ pub struct IotaNameRecord {
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
+    #[schemars(with = "ObjectIDSchema")]
     pub nft_id: ObjectID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to
+    #[schemars(with = "Option<IotaAddressSchema>")]
     pub target_address: Option<IotaAddress>,
     /// Additional data which may be stored in a record
     pub data: BTreeMap<String, String>,

@@ -25,8 +25,8 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStoreTables,
-    rest_index::RestIndexStore,
 };
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
@@ -206,7 +206,7 @@ pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
 pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
     let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
+    let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
     let highest_pruned_checkpoint = checkpoint_store
         .get_highest_pruned_checkpoint_seq_number()?
         .unwrap_or(0);
@@ -226,7 +226,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     AuthorityStorePruner::prune_objects_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
-        Some(&rest_index),
+        Some(&grpc_indexes_store),
         None,
         pruning_config,
         metrics,
@@ -239,7 +239,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
     let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
+    let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
     info!("Pruning setup for db at path: {:?}", db_path.display());
     let pruning_config = AuthorityStorePruningConfig {
@@ -251,7 +251,7 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
-        Some(&rest_index),
+        Some(&grpc_indexes_store),
         None,
         pruning_config,
         metrics,
@@ -282,6 +282,8 @@ pub fn dump_table(
                     page_number,
                 )
             } else {
+                let perpetual_tables = AuthorityPerpetualTables::describe_tables();
+                assert!(perpetual_tables.contains_key(table_name));
                 AuthorityPerpetualTables::open_readonly(&db_path).dump(
                     table_name,
                     page_size,
@@ -315,18 +317,19 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.keep();
+        let tmp_dir = iota_common::tempdir();
+        let primary_path = tmp_dir.path();
 
         // Open the DB for writing
-        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
-        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(&primary_path, None);
+        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, primary_path, None);
+        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(primary_path, None);
 
         // Get all the tables for AuthorityEpochTables
         let tables = {
             let mut epoch_tables =
-                list_tables(AuthorityEpochTables::path(0, &primary_path)).unwrap();
+                list_tables(AuthorityEpochTables::path(0, primary_path)).unwrap();
             let mut perpetual_tables =
-                list_tables(AuthorityPerpetualTables::path(&primary_path)).unwrap();
+                list_tables(AuthorityPerpetualTables::path(primary_path)).unwrap();
             epoch_tables.append(&mut perpetual_tables);
             epoch_tables
         };
@@ -337,7 +340,7 @@ mod test {
             if dump_table(
                 StoreName::Validator,
                 Some(0),
-                primary_path.clone(),
+                primary_path.to_path_buf(),
                 &t,
                 0,
                 0,

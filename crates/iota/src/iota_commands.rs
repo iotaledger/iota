@@ -56,18 +56,6 @@ pub struct IotaEnvConfig {
 
 #[derive(Parser)]
 pub enum IotaCommand {
-    /// Deprecated: use `iota-localnet start` instead.
-    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
-    #[command(hide = true)]
-    Start {},
-    /// Deprecated: use `iota-localnet genesis` instead.
-    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
-    #[command(hide = true)]
-    Genesis {},
-    /// Deprecated: use `iota-tool genesis-ceremony` instead.
-    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
-    #[command(hide = true)]
-    GenesisCeremony {},
     /// IOTA keystore tool.
     #[command(name = "keytool")]
     KeyTool {
@@ -133,10 +121,6 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: name_commands::NameCommand,
     },
-    /// Deprecated: use `iota-tool fire-drill` instead.
-    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
-    #[command(hide = true)]
-    FireDrill {},
     /// Invoke IOTA's move-analyzer via CLI
     #[command(hide = true)]
     Analyzer,
@@ -149,36 +133,6 @@ impl IotaCommand {
     pub async fn execute(self) -> Result<(), anyhow::Error> {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
         match self {
-            IotaCommand::Start {} => {
-                eprintln!(
-                    "{}",
-                    "The `start` command has been moved to the `iota-localnet` binary.\n\
-                     Please use `iota-localnet start` instead."
-                        .yellow()
-                        .bold()
-                );
-                std::process::exit(1);
-            }
-            IotaCommand::Genesis {} => {
-                eprintln!(
-                    "{}",
-                    "The `genesis` command has been moved to the `iota-localnet` binary.\n\
-                     Please use `iota-localnet genesis` instead."
-                        .yellow()
-                        .bold()
-                );
-                std::process::exit(1);
-            }
-            IotaCommand::GenesisCeremony {} => {
-                eprintln!(
-                    "{}",
-                    "The `genesis-ceremony` command has been moved to `iota-tool`.\n\
-                     Please use `iota-tool genesis-ceremony` instead."
-                        .yellow()
-                        .bold()
-                );
-                std::process::exit(1);
-            }
             IotaCommand::KeyTool {
                 keystore_path,
                 json,
@@ -386,16 +340,6 @@ impl IotaCommand {
                 let mut context = WalletContext::new(&config_path)?;
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
-            }
-            IotaCommand::FireDrill {} => {
-                eprintln!(
-                    "{}",
-                    "The `fire-drill` command has been moved to `iota-tool`.\n\
-                     Please use `iota-tool fire-drill` instead."
-                        .yellow()
-                        .bold()
-                );
-                std::process::exit(1);
             }
             IotaCommand::Analyzer => {
                 analyzer::run(implicit_deps(latest_system_packages()));

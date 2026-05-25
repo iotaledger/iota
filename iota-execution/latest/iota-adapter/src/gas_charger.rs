@@ -16,7 +16,6 @@ pub mod checked {
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        is_system_package,
         object::Data,
     };
     use tracing::trace;
@@ -236,7 +235,7 @@ pub mod checked {
                 .objects()
                 .iter()
                 // don't charge for loading IOTA Framework or Move stdlib
-                .filter(|(id, _)| !is_system_package(**id))
+                .filter(|(id, _)| !id.is_system_package())
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();
             self.gas_status.charge_storage_read(total_size)
@@ -258,6 +257,10 @@ pub mod checked {
             let cost_per_owner = bytes_read_per_owner * cost_per_byte;
             let owner_cost = cost_per_owner * (num_non_gas_coin_owners as usize);
             self.gas_status.charge_storage_read(owner_cost)
+        }
+
+        pub fn charge_fixed_cost(&mut self, cost: u64) -> Result<(), ExecutionError> {
+            self.gas_status.charge_fixed_cost(cost)
         }
 
         /// Resets any mutations, deletions, and events recorded in the store,

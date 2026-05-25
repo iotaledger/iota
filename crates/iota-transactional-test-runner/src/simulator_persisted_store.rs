@@ -5,6 +5,7 @@
 use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_config::genesis;
+use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
@@ -21,7 +22,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
-        RestStateReader, load_package_object_from_object_store,
+        load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -29,7 +30,6 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use simulacrum::Simulacrum;
-use tempfile::tempdir;
 use typed_store::{
     DBMapUtils, Map,
     metrics::SamplingInterval,
@@ -113,7 +113,7 @@ impl PersistedStore {
     where
         R: rand::RngCore + rand::CryptoRng,
     {
-        let path: PathBuf = path.unwrap_or(tempdir().unwrap().keep());
+        let store_directory: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
 
         let mut builder = ConfigBuilder::new_with_temp_dir()
             .rng(&mut rng)
@@ -133,7 +133,7 @@ impl PersistedStore {
 
         let genesis = &config.genesis;
 
-        let store = PersistedStore::new(genesis, path);
+        let store = PersistedStore::new(genesis, store_directory);
         let read_only_wrapper = store.read_replica();
         (
             Simulacrum::new_with_network_config_store(&config, rng, store),
@@ -428,7 +428,7 @@ impl ModuleResolver for PersistedStore {
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
-            .get_package_object(&ObjectID::from(*module_id.address()))?
+            .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
             .and_then(|package| {
                 package
                     .move_package()
@@ -774,7 +774,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
-impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
+impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -794,7 +794,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         None
     }
 

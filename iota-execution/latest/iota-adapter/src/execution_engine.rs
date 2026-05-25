@@ -19,18 +19,16 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account_abstraction::authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+        Identifier,
+        account_abstraction::{
+            authenticator_function::{
+                AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+                AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
+            },
+            builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
         },
         auth_context::AuthContext,
-        authenticator_state::{
-            AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
-            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
-            AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
-        },
         balance::{
             BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             BALANCE_MODULE_NAME,
@@ -58,10 +56,10 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
-            EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+            CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
+            InputObjects, ObjectArg, ProgrammableTransaction, RandomnessStateUpdate,
+            TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -252,7 +250,7 @@ mod checked {
         // Genesis writes a special digest to indicate that an object was created during
         // genesis and not written by any normal transaction - remove that from the
         // dependencies
-        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+        transaction_dependencies.remove(&TransactionDigest::GENESIS_MARKER);
 
         if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store
@@ -314,15 +312,18 @@ mod checked {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -391,42 +392,74 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        // Prepare the authenticators for execution.
+        // Store the loaded object metadata in the `TemporaryStore` before the
+        // authenticators are executed.
+        // The temporary store must contain all the required information at this
+        // point.
+        let authenticators = authenticators
+            .into_iter()
+            .map(
+                |(
+                    authenticator,
+                    authenticator_function_ref_for_execution,
+                    authenticator_input_objects,
+                )| {
+                    let AuthenticatorFunctionRefForExecution {
+                        authenticator_function_ref,
+                        builtin_authenticator_data,
+                        loaded_objects,
+                    } = authenticator_function_ref_for_execution;
+
+                    // Save the pre-loaded objects metadata in the temporary store.
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from_iter(
+                        loaded_objects.into_iter(),
+                    ));
+
+                    (
+                        authenticator,
+                        authenticator_function_ref,
+                        builtin_authenticator_data,
+                        authenticator_input_objects,
+                    )
+                },
+            )
+            .collect::<Vec<_>>();
+
         // Authentication execution.
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        let AuthenticatorFunctionRefForExecution {
-            authenticator_function_ref,
-            loaded_object_id,
-            loaded_object_metadata,
-        } = authenticator_function_ref_for_execution;
-
-        let authentication_execution_result = match authenticator_function_ref {
-            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                // Save the loaded object metadata, i.e., the field object containing the
-                // AuthenticatorFunctionRef, in the temporary store.
-                temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                    loaded_object_id,
-                    loaded_object_metadata,
-                )]));
-
-                // Run the authentication execution.
-                authenticate_transaction_inner(
-                    &mut temporary_store,
-                    protocol_config,
-                    metrics.clone(),
-                    &mut gas_charger,
-                    authenticator,
-                    authenticator_function_ref_v1,
-                    &authenticator_input_objects.into_inner(),
-                    transaction_kind.clone(),
-                    transaction_digest,
-                    tx_ctx.clone(),
-                    trace_builder_opt,
-                    move_vm,
-                )
-            }
-        };
+        // Run each authenticator in sequence; the first failure aborts the chain.
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
+            |(
+                authenticator,
+                authenticator_function_ref,
+                builtin_authenticator_data,
+                authenticator_input_objects,
+            )| {
+                match authenticator_function_ref {
+                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                        authenticate_transaction_inner(
+                            &mut temporary_store,
+                            protocol_config,
+                            metrics.clone(),
+                            &mut gas_charger,
+                            authenticator,
+                            authenticator_function_ref_v1,
+                            builtin_authenticator_data,
+                            &authenticator_input_objects.into_inner(),
+                            transaction_kind.clone(),
+                            transaction_digest,
+                            transaction_data_bytes.clone(),
+                            tx_ctx.clone(),
+                            trace_builder_opt,
+                            move_vm,
+                        )
+                    }
+                }
+            },
+        );
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -474,32 +507,24 @@ mod checked {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRef,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForSigning,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        let input_objects = authenticator_input_objects.into_inner();
-
-        // Prepare the temporary store for the authentication execution.
-        let mut temporary_store = TemporaryStore::new(
-            store,
-            input_objects.clone(),
-            vec![],
-            transaction_digest,
-            protocol_config,
-            *epoch_id,
-        );
-
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
@@ -522,36 +547,59 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Run the authentication.
-        match authenticator_function_ref {
-            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                authenticate_transaction_inner(
-                    &mut temporary_store,
-                    protocol_config,
-                    metrics,
-                    &mut gas_charger,
-                    authenticator,
-                    authenticator_function_ref_v1,
-                    &input_objects,
-                    transaction_kind,
-                    transaction_digest,
-                    tx_ctx,
-                    trace_builder_opt,
-                    move_vm,
-                )
-            }
-        }
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            aggregated_authenticator_input_objects.into_inner(),
+            vec![],
+            transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        // Run each authenticator in sequence; return on first failure.
+        authenticators.into_iter().try_for_each(
+            |(
+                authenticator,
+                authenticator_function_ref_for_signing,
+                authenticator_input_objects,
+            )| {
+                let AuthenticatorFunctionRefForSigning {
+                    authenticator_function_ref,
+                    builtin_authenticator_data,
+                } = authenticator_function_ref_for_signing;
+
+                match authenticator_function_ref {
+                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                        authenticate_transaction_inner(
+                            &mut temporary_store,
+                            protocol_config,
+                            metrics.clone(),
+                            &mut gas_charger,
+                            authenticator,
+                            authenticator_function_ref_v1,
+                            builtin_authenticator_data,
+                            &authenticator_input_objects.into_inner(),
+                            transaction_kind.clone(),
+                            transaction_digest,
+                            transaction_data_bytes.clone(),
+                            tx_ctx.clone(),
+                            trace_builder_opt,
+                            move_vm,
+                        )
+                    }
+                }
+            },
+        )
     }
 
-    // This function implements the authentication execution. It checks that the
-    // authentication method used by the authenticator is valid. It prepares a
-    /// `MoveAuthenticator` PTB with a single move call for execution, then
-    /// executes it through an inner execution method. The
-    /// `MoveAuthenticator` provides the inputs to use for the
-    /// authentication function found in `AuthenticatorFunctionRef`,
-    /// that is retrieved from an account.
-    /// If the execution fails, it returns an execution error; otherwise it
-    /// returns an empty value.
+    /// Executes a single authenticator against the transaction.
+    ///
+    /// If `builtin_authenticator_data` is `Some`, the authenticator function
+    /// ref is a built-in and signature verification is done directly via
+    /// [`builtin_authenticator_functions::verify_builtin_signature`].
+    /// Otherwise a Move VM call is executed for the custom authenticator.
+    ///
+    /// Returns an error on the first failure; an empty value on success.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction_inner(
         temporary_store: &mut TemporaryStore<'_>,
@@ -563,10 +611,14 @@ mod checked {
         // Authenticator
         authenticator: MoveAuthenticator,
         authenticator_function_ref: AuthenticatorFunctionRefV1,
+        // Pre-loaded data for built-in authenticators.
+        // Must be `Some` when `authenticator_function_ref` is a built-in.
+        builtin_authenticator_data: Option<PreloadedBuiltinAuthenticatorData>,
         authenticator_input_objects: &InputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
+        tx_data_bytes: Vec<u8>,
         tx_ctx: Rc<RefCell<TxContext>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -593,38 +645,57 @@ mod checked {
             "No receiving inputs are allowed"
         );
 
-        let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
-        let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
+        let authentication_execution_result = if let Some(builtin_authenticator_data) =
+            builtin_authenticator_data
+        {
+            debug_assert_eq!(
+                builtin_authenticator_functions::resolve_builtin_signature_scheme(
+                    &authenticator_function_ref
+                ),
+                Some(builtin_authenticator_data.expected_scheme),
+                "PreloadedBuiltinAuthenticatorData scheme must match authenticator function ref scheme"
+            );
+            authenticate_transaction_with_builtin_signature(
+                protocol_config,
+                &authenticator,
+                builtin_authenticator_data,
+                &tx_data_bytes,
+                gas_charger,
+            )
+        } else {
+            let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
+            let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
 
-        // Prepare the authentication context.
-        let auth_ctx = {
-            let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
-                unreachable!("Only programmable transactions are allowed");
+            // Prepare the authentication context.
+            let auth_ctx = {
+                let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
+                    unreachable!("Only programmable transactions are allowed");
+                };
+                AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb)
+            let auth_ctx = Rc::new(RefCell::new(auth_ctx));
+
+            // Store the authentication context in the temporary store.
+            // It will be added to the authentication's parameter list later, just before
+            // execution.
+            temporary_store.store_auth_context(auth_ctx);
+
+            // Execute the authentication.
+            execute_authenticator_move_call(
+                temporary_store,
+                authenticator,
+                authenticator_function_ref,
+                gas_charger,
+                tx_ctx,
+                move_vm,
+                protocol_config,
+                metrics,
+                false,
+                contains_deleted_input,
+                cancelled_objects,
+                trace_builder_opt,
+            )
         };
-        let auth_ctx = Rc::new(RefCell::new(auth_ctx));
-
-        // Store the authentication context in the temporary store.
-        // It will be added to the authentication's parameter list later, just before
-        // execution.
-        temporary_store.store_auth_context(auth_ctx);
-
-        // Execute the authentication.
-        let authentication_execution_result = execute_authenticator_move_call(
-            temporary_store,
-            authenticator,
-            authenticator_function_ref,
-            gas_charger,
-            tx_ctx,
-            move_vm,
-            protocol_config,
-            metrics,
-            false,
-            contains_deleted_input,
-            cancelled_objects,
-            trace_builder_opt,
-        );
 
         // Check the authentication result.
         let authentication_execution_status = if let Err(error) = &authentication_execution_result {
@@ -670,11 +741,6 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        debug_assert!(
-            gas_charger.no_charges(),
-            "At this point no gas charges must be applied yet"
-        );
-
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.
@@ -1032,7 +1098,8 @@ mod checked {
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
                             congested_objects: CongestedObjects(cancelled_objects),
                             suggested_gas_price: version
-                                .get_congested_version_suggested_gas_price(),
+                                .get_congested_version_suggested_gas_price()
+                                .unwrap(),
                         }
                     } else {
                         // WARN: do not remove this `else` branch even after
@@ -1221,7 +1288,8 @@ mod checked {
             TransactionKind::EndOfEpochTransaction(txns) => {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
-                for (i, tx) in txns.into_iter().enumerate() {
+
+                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1287,35 +1355,21 @@ mod checked {
                             assert!(protocol_config.enable_claim_registry());
                             builder = setup_claim_registry_create(builder);
                         }
-                        EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-                            builder = setup_authenticator_state_create(builder);
-                        }
-                        EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                            assert!(protocol_config.enable_jwk_consensus_updates());
-
-                            // TODO: it would be nice if a failure of this function didn't cause
-                            // safe mode.
-                            builder = setup_authenticator_state_expire(builder, expire);
-                        }
                     }
                 }
                 unreachable!(
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
-                setup_authenticator_state_update(
-                    auth_state_update,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                    trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                // Deprecated: Authenticator state (JWK) is deprecated and
+                // was never enabled. These transaction kinds are retained
+                // only for BCS enum variant compatibility.
+                return Err(ExecutionError::new(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 setup_randomness_state_update(
@@ -1861,7 +1915,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 CLOCK_MODULE_NAME.to_owned(),
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1896,108 +1950,13 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 CLAIM_REGISTRY_MODULE_NAME.to_owned(),
                 CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
                 vec![],
                 vec![],
             )
             .expect("Unable to generate claim_registry_create transaction!");
-        builder
-    }
-
-    /// This function adds a Move call to the IOTA framework's
-    /// `authenticator_state_create` function, preparing the transaction for
-    /// execution.
-    fn setup_authenticator_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    /// Sets up and executes a `ProgrammableTransaction` to update the
-    /// authenticator state. This function constructs a transaction that
-    /// invokes the `authenticator_state_update` function from the IOTA
-    /// framework, passing the authenticator state object and new active JWKS as
-    /// arguments. It then executes the transaction using the system
-    /// execution mode.
-    fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdateV1,
-        temporary_store: &mut TemporaryStore<'_>,
-        tx_ctx: Rc<RefCell<TxContext>>,
-        move_vm: &Arc<MoveVM>,
-        gas_charger: &mut GasCharger,
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
-        trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: update.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&update.new_active_jwks).unwrap()),
-                ],
-            );
-            assert_invariant!(
-                res.is_ok(),
-                "Unable to generate authenticator_state_update transaction!"
-            );
-            builder.finish()
-        };
-        programmable_transactions::execution::execute::<execution_mode::System>(
-            protocol_config,
-            metrics,
-            move_vm,
-            temporary_store,
-            tx_ctx,
-            gas_charger,
-            pt,
-            trace_builder_opt,
-        )
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to expire authenticator
-    /// state by invoking the `authenticator_state_expire_jwks` function
-    /// from the IOTA framework. The function adds the necessary Move call
-    /// with the authenticator state object and the minimum epoch as arguments.
-    fn setup_authenticator_state_expire(
-        mut builder: ProgrammableTransactionBuilder,
-        expire: AuthenticatorStateExpire,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
-                        mutable: true,
-                    }),
-                    CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),
-                ],
-            )
-            .expect("Unable to generate authenticator_state_expire transaction!");
         builder
     }
 
@@ -2019,7 +1978,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 RANDOMNESS_MODULE_NAME.to_owned(),
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -2109,5 +2068,40 @@ mod checked {
         } else {
             Some(gas_owner)
         }
+    }
+
+    /// This function implements the authentication of a transaction through a
+    /// built-in signature verification.
+    fn authenticate_transaction_with_builtin_signature(
+        protocol_config: &ProtocolConfig,
+        authenticator: &MoveAuthenticator,
+        builtin_authenticator_data: PreloadedBuiltinAuthenticatorData,
+        tx_data_bytes: &[u8],
+        gas_charger: &mut GasCharger,
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
+        if !protocol_config.enable_builtin_move_authenticators() {
+            return Err(ExecutionError::from_kind(
+                ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
+                    reason: "Built-in Move authenticators are not enabled on this network"
+                        .to_string(),
+                },
+            ));
+        }
+
+        let cost = protocol_config.builtin_move_authenticator_cost_base();
+        gas_charger.charge_fixed_cost(cost)?;
+
+        builtin_authenticator_functions::verify_builtin_signature(
+            protocol_config,
+            authenticator,
+            &builtin_authenticator_data,
+            tx_data_bytes,
+        )
+        .map_err(|e| {
+            ExecutionError::from_kind(ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
+                reason: e.to_string(),
+            })
+        })
     }
 }

@@ -60,7 +60,7 @@ impl GenesisTransaction {
         for cursor in consistent_page.cursors {
             let GenesisObject::RawObject { data, owner } = self.native.objects[cursor.ix].clone();
             let native =
-                NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
+                NativeObject::new_from_genesis(data, owner, TransactionDigest::GENESIS_MARKER);
 
             let object =
                 Object::from_native(IotaAddress::from(native.id()), native, cursor.c, None);

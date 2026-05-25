@@ -7,7 +7,6 @@ use iota_grpc_types::{
     v1::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
-        dynamic_field::DynamicField,
         epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
@@ -18,11 +17,7 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::{
-    base_types::ObjectID,
-    iota_sdk_types_conversions::SdkTypeConversionError,
-    storage::{DynamicFieldIndexInfo, DynamicFieldKey},
-};
+use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 use crate::{error::RpcError, validation::object_id_proto};
 
@@ -254,7 +249,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id = Some(object_id_proto(&ObjectID::from(source.package_id)));
+            self.package_id = Some(object_id_proto(&source.package_id));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -327,7 +322,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
-                    ref_builder = ref_builder.with_version(source.version());
+                    ref_builder = ref_builder.with_version(source.version().as_u64());
                 }
 
                 if reference_mask.contains(ObjectReference::DIGEST_FIELD.name) {
@@ -339,7 +334,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
                     .with_object_id(source.object_id())
-                    .with_version(source.version())
+                    .with_version(source.version().as_u64())
                     .with_digest(source.digest())
             };
 
@@ -396,61 +391,6 @@ impl Merge<&Objects> for Objects {
             .iter()
             .map(|obj| Object::merge_from(obj, mask))
             .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(())
-    }
-}
-
-// DynamicField implementations
-
-impl Merge<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicField {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: (DynamicFieldKey, DynamicFieldIndexInfo),
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        let (key, info) = source;
-
-        if mask.contains(Self::KIND_FIELD.name) {
-            use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
-            self.kind = Some(match info.dynamic_field_type {
-                iota_types::dynamic_field::DynamicFieldType::DynamicField => {
-                    DynamicFieldKind::Field.into()
-                }
-                iota_types::dynamic_field::DynamicFieldType::DynamicObject => {
-                    DynamicFieldKind::Object.into()
-                }
-            });
-        }
-
-        if mask.contains(Self::PARENT_FIELD.name) {
-            self.parent = Some(object_id_proto(&key.parent));
-        }
-
-        if mask.contains(Self::FIELD_ID_FIELD.name) {
-            self.field_id = Some(object_id_proto(&key.field_id));
-        }
-
-        // Note: The index stores `name_type: TypeTag` but `BcsData`
-        // proto has no type field (it would need `name` + `value`).
-        // Clients must know the name type out-of-band to decode
-        // the BCS payload.
-        //
-        // value, value_type, field_object, and child_object are populated
-        // by `load_dynamic_field()` in the handler when the read mask
-        // requests them — they require loading the actual field object.
-
-        if mask.contains(Self::CHILD_ID_FIELD.name) {
-            if let Some(dynamic_object_id) = info.dynamic_object_id {
-                self.child_id = Some(object_id_proto(&dynamic_object_id));
-            }
-        }
-
-        if mask.contains(Self::NAME_FIELD.name) {
-            self.name = Some(BcsData::default().with_data(info.name_value));
-        }
 
         Ok(())
     }

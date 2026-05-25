@@ -31,6 +31,7 @@ use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
 };
+use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -61,7 +62,7 @@ use iota_types::{
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    storage::{ObjectStore, ReadStore, RestStateReader},
+    storage::{ObjectStore, ReadStore},
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionKind, VerifiedTransaction,
@@ -146,9 +147,9 @@ pub struct OffChainConfig {
     /// Dir for simulacrum to write checkpoint files to. To be passed to the
     /// offchain indexer if it uses file-based ingestion.
     pub data_ingestion_path: PathBuf,
-    /// URL for the IOTA REST API. To be passed to the offchain indexer if it
-    /// uses the REST API.
-    pub rest_api_url: Option<String>,
+    /// URL for the IOTA gRPC API. To be passed to the offchain indexer if it
+    /// uses the gRPC API.
+    pub grpc_api_url: Option<String>,
 }
 
 struct AdapterInitConfig {
@@ -183,10 +184,10 @@ pub struct IotaTestAdapter {
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
     /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
-    /// will be a `RestStateReader` that can be used to spawn the equivalent
-    /// of a fullnode rest api. This can then be used to serve an indexer
-    /// that reads from said rest api service.
-    pub read_replica: Option<Arc<dyn RestStateReader + Send + Sync>>,
+    /// will be a `GrpcStateReader` that can be used to spawn the equivalent
+    /// of a fullnode gRPC server. This can then be used to serve an indexer
+    /// that reads from said gRPC service.
+    pub read_replica: Option<Arc<dyn GrpcStateReader + Send + Sync>>,
     /// Configuration for offchain state reader read from the file itself, and
     /// can be passed to the specific indexing and reader flavor.
     pub offchain_config: Option<OffChainConfig>,
@@ -219,7 +220,7 @@ impl AdapterInitConfig {
             flavor,
             epochs_to_keep,
             data_ingestion_path,
-            rest_api_url,
+            grpc_api_url,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -256,7 +257,7 @@ impl AdapterInitConfig {
                 snapshot_config,
                 epochs_to_keep,
                 data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
-                rest_api_url,
+                grpc_api_url,
             })
         } else {
             None
@@ -499,7 +500,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let Some(addr) = mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id: ObjectID = addr.into_inner().into();
+                let id = ObjectID::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
@@ -746,7 +747,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         self.stabilize_str(format!(
                             "Owner: {}\nVersion: {}\nContents: {:#}",
                             &obj.owner,
-                            obj.version().value(),
+                            obj.version(),
                             move_struct
                         ))
                     }
@@ -1092,7 +1093,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 })
                                 .collect()
                         });
-                        let value: AccountAddress = id.into();
+                        let value = AccountAddress::new(id.into_bytes());
                         (value, package)
                     }
                     IotaValue::MoveValue(v) => {
@@ -1519,7 +1520,7 @@ impl IotaTestAdapter {
             .trim()
             .parse()?;
 
-        let mut bytes = bcs::to_bytes(&id.to_vec())?;
+        let mut bytes = bcs::to_bytes(&id.as_bytes().to_vec())?;
         for part in parts {
             let n: u64 = part.trim().parse()?;
             bytes.extend(bcs::to_bytes(&n)?);
@@ -1595,7 +1596,7 @@ impl IotaTestAdapter {
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
 
-        let package_id = before_upgrade.into_inner().into();
+        let package_id = ObjectID::new(before_upgrade.into_bytes());
         let upgrade_receipt =
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
@@ -1760,7 +1761,7 @@ impl IotaTestAdapter {
             .into_iter()
             .map(|arg| arg.into_argument(&mut builder, self))
             .collect::<anyhow::Result<_>>()?;
-        let package_id = ObjectID::from(*module_id.address());
+        let package_id = ObjectID::new(module_id.address().into_bytes());
 
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_price = gas_price.unwrap_or(self.gas_price);
@@ -1924,13 +1925,13 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
         let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
         let mut unwrapped_ids: Vec<_> = effects.unwrapped().iter().map(|o| o.object_id()).collect();
-        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.object_id).collect();
+        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.0).collect();
         let mut unwrapped_then_deleted_ids: Vec<_> = effects
             .unwrapped_then_deleted()
             .iter()
-            .map(|o| o.object_id)
+            .map(|o| o.0)
             .collect();
-        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.object_id).collect();
+        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.0).collect();
         let gas_summary = effects.gas_cost_summary();
 
         // make sure objects that have previously not been in storage get assigned a
@@ -2119,10 +2120,7 @@ impl IotaTestAdapter {
         objs.iter()
             .map(|id| match self.real_to_fake_object_id(id) {
                 None => "object(_)".to_string(),
-                Some(FakeID::Known(id)) => {
-                    let id: AccountAddress = id.into();
-                    format!("0x{id:x}")
-                }
+                Some(FakeID::Known(id)) => id.to_string(),
                 Some(fake) => format!("object({fake})"),
             })
             .collect::<Vec<_>>()
@@ -2185,12 +2183,9 @@ impl IotaTestAdapter {
         {
             return known.clone();
         }
-        match self.real_to_fake_object_id(&parsed.into()) {
+        match self.real_to_fake_object_id(&ObjectID::new(parsed.into_bytes())) {
             None => "_".to_string(),
-            Some(FakeID::Known(id)) => {
-                let id: AccountAddress = id.into();
-                format!("0x{id:x}")
-            }
+            Some(FakeID::Known(id)) => id.to_string(),
             Some(fake) => format!("fake({fake})"),
         }
     }
@@ -2210,7 +2205,7 @@ impl IotaTestAdapter {
                 let Some(addr) = self.compiled_state.named_address_mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id: ObjectID = addr.into_inner().into();
+                let id: ObjectID = ObjectID::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
@@ -2330,7 +2325,11 @@ impl IotaTestAdapter {
             .context("abstract account package address not found")?
             .into_inner();
 
-        Ok((aa_package_addr.into(), aa_module_name, create_fn_name))
+        Ok((
+            ObjectID::new(aa_package_addr.into_bytes()),
+            aa_module_name,
+            create_fn_name,
+        ))
     }
 
     fn resolve_account_type(
@@ -2411,10 +2410,7 @@ impl<'a> GetModule for &'a IotaTestAdapter {
 impl fmt::Display for FakeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FakeID::Known(id) => {
-                let addr: AccountAddress = (*id).into();
-                write!(f, "0x{addr:x}")
-            }
+            FakeID::Known(id) => id.fmt(f),
             FakeID::Enumerated(task, i) => write!(f, "{task},{i}"),
         }
     }
@@ -2560,7 +2556,7 @@ async fn init_val_fullnode_executor(
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<Arc<dyn RestStateReader + Send + Sync>>,
+    Option<Arc<dyn GrpcStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2630,7 +2626,7 @@ async fn init_sim_executor(
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<Arc<dyn RestStateReader + Send + Sync>>,
+    Option<Arc<dyn GrpcStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2776,11 +2772,11 @@ async fn update_named_address_mapping(
     let additional_mapping = additional_mapping
         .into_iter()
         .chain(accounts.iter().map(|(n, test_account)| {
-            let addr = NumericalAddress::new(test_account.address.to_inner(), NumberFormat::Hex);
+            let addr = NumericalAddress::new(test_account.address.into_bytes(), NumberFormat::Hex);
             (n.clone(), addr)
         }))
         .chain(active_val_addrs.iter().map(|(n, addr)| {
-            let addr = NumericalAddress::new(addr.to_inner(), NumberFormat::Hex);
+            let addr = NumericalAddress::new(addr.into_bytes(), NumberFormat::Hex);
             (n.clone(), addr)
         }));
     // Extend the mappings of all named addresses with values

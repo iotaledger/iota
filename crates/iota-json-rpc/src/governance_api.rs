@@ -11,8 +11,10 @@ use iota_json_rpc_api::{
     GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
-    DelegatedStake, DelegatedTimelockedStake, IotaCommittee, Stake, StakeStatus, TimelockedStake,
-    ValidatorApy, ValidatorApys,
+    DelegatedStake, DelegatedTimelockedStake, IotaCommittee,
+    IotaSystemStateSummary as IotaSystemStateSummarySchema,
+    IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, Stake, StakeStatus,
+    TimelockedStake, ValidatorApy, ValidatorApys,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -27,9 +29,7 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
-        iota_system_state_summary::{
-            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
-        },
+        iota_system_state_summary::{IotaSystemStateSummaryV1, IotaSystemStateSummaryV2},
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
@@ -208,9 +208,9 @@ impl GovernanceReadApi {
             .await?
             .into_iter()
             // Try to find for any candidate validator exchange rate
-            .chain(candidate_validators_exchange_rate(&self.state)?.into_iter())
+            .chain(candidate_validators_exchange_rate(&self.state)?)
             // Try to find for any pending validator exchange rate
-            .chain(pending_validators_exchange_rate(&self.state)?.into_iter())
+            .chain(pending_validators_exchange_rate(&self.state)?)
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -334,7 +334,7 @@ impl GovernanceReadApi {
                 ObjectRead::Deleted((object_id, version, _)) => {
                     let Some(o) = self
                         .state
-                        .find_object_lt_or_eq_version(&object_id, &version.one_before().unwrap())
+                        .find_object_lt_or_eq_version(&object_id, &version.previous().unwrap())
                         .await?
                     else {
                         Err(IotaRpcInputError::UserInput(
@@ -409,25 +409,27 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
         async move {
             Ok(self
                 .state
                 .get_system_state()?
-                .into_iota_system_state_summary())
+                .into_iota_system_state_summary()
+                .into())
         }
         .trace()
         .await
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
         async move {
-            Ok(self
-                .state
-                .get_system_state()?
-                .into_iota_system_state_summary()
-                .try_into()?)
+            Ok(IotaSystemStateSummaryV1::try_from(
+                self.state
+                    .get_system_state()?
+                    .into_iota_system_state_summary(),
+            )?
+            .into())
         }
         .trace()
         .await
@@ -677,6 +679,7 @@ fn inactive_validators_exchange_rates(
         system_state_summary.inactive_pools_id,
         system_state_summary.inactive_pools_size,
         |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+        Some(system_state_summary.protocol_version),
     )?;
 
     validator_exchange_rates(state, tables)
@@ -730,6 +733,7 @@ fn candidate_validators_exchange_rate(
         system_state_summary.validator_candidates_id,
         system_state_summary.validator_candidates_size,
         |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+        Some(system_state_summary.protocol_version),
     )?;
 
     validator_exchange_rates(state, tables)
@@ -786,6 +790,7 @@ fn validator_summary_from_system_state<K, F>(
     table_id: ObjectID,
     limit: u64,
     key: F,
+    protocol_version: Option<u64>,
 ) -> RpcInterimResult<Vec<ValidatorTable>>
 where
     F: Fn(DynamicFieldInfo) -> RpcInterimResult<K>,
@@ -797,7 +802,8 @@ where
         .get_dynamic_fields(table_id, None, limit as usize)?
         .into_iter()
         .map(|(_object_id, df)| {
-            let validator_summary = get_validator_from_table(object_store, table_id, &key(df)?)?;
+            let validator_summary =
+                get_validator_from_table(object_store, table_id, &key(df)?, protocol_version)?;
 
             Ok((
                 validator_summary.iota_address,
@@ -892,7 +898,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
@@ -924,7 +930,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,

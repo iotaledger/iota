@@ -229,10 +229,9 @@ pub(crate) fn get_checkpoint(
             let sdk_digest: iota_sdk_types::Digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
-            let digest: iota_types::digests::CheckpointDigest = sdk_digest.into();
             service
                 .reader
-                .get_checkpoint_sequence_number_by_digest(&digest)
+                .get_checkpoint_sequence_number_by_digest(&sdk_digest)
                 .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }
@@ -408,9 +407,12 @@ pub(crate) fn stream_checkpoints(
         return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
     }
 
-    let rx = service.checkpoint_data_broadcaster.subscribe();
+    let subscription = service
+        .checkpoint_data_broadcaster
+        .subscribe()
+        .ok_or_else(|| Status::unavailable("maximum concurrent stream subscribers reached"))?;
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
-        rx,
+        subscription,
         start_sequence_number,
         end_sequence_number,
         checkpoint_mask,

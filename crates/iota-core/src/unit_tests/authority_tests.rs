@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, convert::TryInto, env, fs, str::FromStr};
+use std::{collections::HashSet, convert::TryInto, str::FromStr};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -17,8 +17,8 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::{AuthorityName, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -164,7 +164,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
                 initial_shared_version,
             };
         }
-        shared_object.previous_transaction = TransactionDigest::genesis_marker();
+        shared_object.previous_transaction = TransactionDigest::GENESIS_MARKER;
         (shared_object_id, shared_object)
     };
     let initial_shared_version = shared_object.version();
@@ -766,7 +766,7 @@ async fn test_dev_inspect_return_values() {
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
     let expected_type = TypeTag::Struct(Box::new(StructTag {
-        address: object_basics.0.into(),
+        address: AccountAddress::new(object_basics.0.into_bytes()),
         module: Identifier::new("object_basics").unwrap(),
         name: Identifier::new("Wrapper").unwrap(),
         type_params: vec![],
@@ -782,8 +782,8 @@ async fn test_dev_inspect_gas_coin_argument() {
     let epoch_store = validator.epoch_store_for_testing();
     let protocol_config = epoch_store.protocol_config();
 
-    let sender = IotaAddress::random_for_testing_only();
-    let recipient = IotaAddress::random_for_testing_only();
+    let sender = IotaAddress::random();
+    let recipient = IotaAddress::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -831,8 +831,8 @@ async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
 
-    let sender = IotaAddress::random_for_testing_only();
-    let recipient = IotaAddress::random_for_testing_only();
+    let sender = IotaAddress::random();
+    let recipient = IotaAddress::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1096,7 +1096,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber::from_u64(SequenceNumber::MAX_VALID_EXCL.value() - 1),
+        SequenceNumber::MAX_VALID_EXCL - 1,
         Owner::AddressOwner(sender),
     );
     let gas_object_ref = gas_object.compute_object_reference();
@@ -1230,7 +1230,7 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
         (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
-        (sender, gas_object_id, SequenceNumber::new()),
+        (sender, gas_object_id, SequenceNumber::default()),
     ])
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1349,7 +1349,7 @@ async fn test_handle_transfer_transaction_ok() {
 
     let before_object_version = object.version();
     let after_object_version =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
+        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     assert!(before_object_version < after_object_version);
 
@@ -1709,7 +1709,7 @@ async fn test_publish_dependent_module_ok() {
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
-        vec![ObjectID::from(*genesis_module.address())],
+        vec![ObjectID::new(genesis_module.address().into_bytes())],
         gas_budget,
         gas_price,
     );
@@ -1817,7 +1817,7 @@ async fn test_publish_non_existing_dependent_module() {
     let not_on_chain = ObjectID::random();
     dependent_module
         .address_identifiers
-        .push(AccountAddress::from(not_on_chain));
+        .push(AccountAddress::new(not_on_chain.into_bytes()));
     dependent_module.module_handles.push(ModuleHandle {
         address: AddressIdentifierIndex((dependent_module.address_identifiers.len() - 1) as u16),
         name: IdentifierIndex(0),
@@ -1837,7 +1837,10 @@ async fn test_publish_non_existing_dependent_module() {
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
-        vec![ObjectID::from(*genesis_module.address()), not_on_chain],
+        vec![
+            ObjectID::new(genesis_module.address().into_bytes()),
+            not_on_chain,
+        ],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
@@ -2210,7 +2213,7 @@ async fn test_type_argument_dependencies() {
         ident_str!("object_basics").to_owned(),
         ident_str!("generic_test").to_owned(),
         vec![TypeTag::Struct(Box::new(StructTag {
-            address: object_basics.into(),
+            address: AccountAddress::new(object_basics.into_bytes()),
             module: ident_str!("object_basics").to_owned(),
             name: ident_str!("Object").to_owned(),
             type_params: vec![],
@@ -2236,7 +2239,7 @@ async fn test_type_argument_dependencies() {
         ident_str!("object_basics").to_owned(),
         ident_str!("generic_test").to_owned(),
         vec![TypeTag::Struct(Box::new(StructTag {
-            address: ObjectID::MAX.into(),
+            address: AccountAddress::new(ObjectID::MAX.into_bytes()),
             module: ident_str!("object_basics").to_owned(),
             name: ident_str!("Object").to_owned(),
             type_params: vec![],
@@ -2299,7 +2302,7 @@ async fn test_handle_confirmation_transaction_ok() {
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let next_sequence_number =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
+        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -2440,7 +2443,7 @@ async fn test_move_call_mutable_object_not_mutated() {
         .unwrap()
         .version();
 
-    let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]);
+    let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2539,7 +2542,7 @@ async fn test_move_call_insufficient_gas() {
         .unwrap()
         .compute_object_reference();
 
-    let next_object_version = SequenceNumber::lamport_increment([obj_ref.1, gas_ref.1]);
+    let next_object_version = SequenceNumber::lamport_increment([obj_ref.1, gas_ref.1]).unwrap();
 
     let gas_used = if gas_used > kind_of_rebate_to_remove {
         if gas_used - kind_of_rebate_to_remove < 2000 {
@@ -2681,7 +2684,8 @@ async fn test_get_latest_parent_entry() {
     .unwrap();
     let (new_object_id2, seq2, _) = effects.created()[0].0;
 
-    let update_version = SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.1]);
+    let update_version =
+        SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.1]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2708,7 +2712,8 @@ async fn test_get_latest_parent_entry() {
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, update_version);
 
-    let delete_version = SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0.1]);
+    let delete_version =
+        SequenceNumber::lamport_increment([obj_ref.1, effects.gas_object().0.1]).unwrap();
 
     let _effects = call_move(
         &authority_state,
@@ -2727,11 +2732,11 @@ async fn test_get_latest_parent_entry() {
     // Test get_latest_parent_entry function
 
     // The objects just after the gas object also returns None
-    let mut x = gas_object_id.to_vec();
+    let mut x = gas_object_id.as_bytes().to_vec();
     let last_index = x.len() - 1;
     // Prevent overflow
     x[last_index] = u8::MAX - x[last_index];
-    let unknown_object_id: ObjectID = x.try_into().unwrap();
+    let unknown_object_id = ObjectID::from_bytes(x).unwrap();
     assert!(
         authority_state
             .get_object_or_tombstone(unknown_object_id)
@@ -2754,7 +2759,7 @@ async fn test_get_latest_parent_entry() {
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, delete_version);
-    assert_eq!(obj_ref.2, ObjectDigest::OBJECT_DIGEST_DELETED);
+    assert_eq!(obj_ref.2, ObjectDigest::OBJECT_DELETED);
 }
 
 #[tokio::test]
@@ -2793,9 +2798,8 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
 
     // Create a random directory to store the DB
-    let dir = env::temp_dir();
-    let path = dir.join(format!("DB_{:?}", ObjectID::random()));
-    fs::create_dir(&path).unwrap();
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path().to_path_buf();
 
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     // Create an authority
@@ -2928,59 +2932,6 @@ async fn test_invalid_mutable_clock_parameter() {
 }
 
 #[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-// If "enable_jwk_consensus_updates" is set to false, the AuthorityState is
-// never created and therefore the test will fail.
-async fn test_invalid_authenticator_state_parameter() {
-    // User transactions that take the singleton AuthenticatorState object at `0x7`
-    // by mutable reference will fail to sign, to prevent transactions
-    // bottlenecking on it.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
-    let (authority_state, package_object_ref) =
-        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
-    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_ref = gas_object.compute_object_reference();
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-
-    let tx_data = TransactionData::new_move_call(
-        sender,
-        package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_auth_state").to_owned(),
-        // type_args
-        vec![],
-        gas_ref,
-        vec![CallArg::Object(ObjectArg::SharedObject {
-            id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-            initial_shared_version: SequenceNumber::from(1),
-            mutable: true,
-        })],
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp,
-    )
-    .unwrap();
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
-    let transaction = epoch_store.verify_transaction(transaction).unwrap();
-
-    let Err(e) = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await
-    else {
-        panic!(
-            "Expected handling transaction to fail due to mutable AuthenticatorState parameter."
-        );
-    };
-    assert_eq!(
-        UserInputError::try_from(e).unwrap(),
-        UserInputError::InaccessibleSystemObject {
-            object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID
-        }
-    );
-}
-
-#[tokio::test]
 async fn test_invalid_randomness_parameter() {
     // User transactions that take the singleton Randomness object at `0x8` by
     // mutable reference will fail to sign, to prevent transactions
@@ -3078,7 +3029,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
+                "Object {invalid_ownership_object_id} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
             )
         }
     );
@@ -4130,7 +4081,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
         .get_modules()
         .cloned()
         .collect();
-    let digest = TransactionDigest::genesis_marker();
+    let digest = TransactionDigest::GENESIS_MARKER;
     let pkg = Object::new_package_for_testing(
         &modules,
         digest,
@@ -4166,7 +4117,7 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
         .get_modules()
         .cloned()
         .collect();
-    let digest = TransactionDigest::genesis_marker();
+    let digest = TransactionDigest::GENESIS_MARKER;
     let pkg = Object::new_package_for_testing(
         &modules,
         digest,
@@ -4612,7 +4563,7 @@ async fn prepare_authority_and_shared_object_cert()
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -4699,7 +4650,7 @@ async fn test_consensus_commit_prologue_generation() {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
     let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
@@ -4799,7 +4750,7 @@ async fn test_consensus_message_processed() {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -5738,7 +5689,7 @@ async fn test_function_not_found() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::from_single_byte(1),
+            ObjectID::STD_PACKAGE,
             ident_str!("option").to_owned(),
             ident_str!("bad_function").to_owned(),
             vec![],
@@ -5794,7 +5745,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::from_single_byte(1),
+            ObjectID::STD_PACKAGE,
             ident_str!("option").to_owned(),
             ident_str!("is_none").to_owned(),
             vec![TypeTag::U64],
@@ -5899,7 +5850,10 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("b".to_string(), AccountAddress::ZERO),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config
@@ -5935,8 +5889,14 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("a".to_string(), AccountAddress::ZERO),
-        ("b".to_string(), (package_b_id).into()),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "b".to_string(),
+            AccountAddress::new(package_b_id.into_bytes()),
+        ),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config
@@ -5978,9 +5938,18 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("examples".to_string(), AccountAddress::ZERO),
-        ("a".to_string(), (package_a_id).into()),
-        ("b".to_string(), (package_b_id).into()),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "a".to_string(),
+            AccountAddress::new(package_a_id.into_bytes()),
+        ),
+        (
+            "b".to_string(),
+            AccountAddress::new(package_b_id.into_bytes()),
+        ),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config
@@ -6182,7 +6151,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
             let owner = Owner::Shared {
                 initial_shared_version: obj.version(),
             };
-            Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+            Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
         };
         objects.push(shared_object);
     }
@@ -6562,10 +6531,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             (
                 shared_objects[0].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ),
             (
                 shared_objects[1].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )
         ]
         .into_iter()
@@ -6590,7 +6561,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .unwrap();
 
     // The lamport version should be the lamport version of the owned objects.
-    assert_eq!(input_objects.lamport_timestamp(&[]), 3.into());
+    assert_eq!(input_objects.lamport_timestamp(&[]), 3);
 
     // Check SharedInput data.
     let shared_inputs = input_objects.filter_shared_objects();
@@ -6600,10 +6571,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             SharedInput::Cancelled((
                 shared_objects[0].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             )),
             SharedInput::Cancelled((
                 shared_objects[1].id(),
                 SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                    .unwrap()
             ))
         ]
     );
@@ -6616,7 +6589,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     );
     assert_eq!(
         cancellation_reason,
-        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
     );
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6634,13 +6607,13 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                         shared_objects[0].id(),
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
-                        ),
+                        ).unwrap(),
                     ),
                     (
                         shared_objects[1].id(),
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
-                        ),
+                        ).unwrap(),
                     )
                 ]
             )]

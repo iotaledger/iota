@@ -3,20 +3,70 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
+    balance::Supply,
     base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
-    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::Page;
+use crate::{
+    Page,
+    iota_primitives::{
+        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        SequenceNumberString as SequenceNumberStringSchema,
+    },
+};
 
 pub type CoinPage = Page<Coin, ObjectID>;
+
+#[serde_as]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(rename = "Supply")]
+pub struct IotaSupply {
+    #[serde_as(as = "DisplayFromStr")]
+    #[schemars(with = "String")]
+    pub value: u64,
+}
+
+impl SerializeAs<Supply> for IotaSupply {
+    fn serialize_as<S>(source: &Supply, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        IotaSupply::from(source.clone()).serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Supply> for IotaSupply {
+    fn deserialize_as<D>(deserializer: D) -> Result<Supply, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let schema = IotaSupply::deserialize(deserializer)?;
+        Ok(Supply::from(schema))
+    }
+}
+
+impl From<Supply> for IotaSupply {
+    fn from(supply: Supply) -> Self {
+        Self {
+            value: supply.value,
+        }
+    }
+}
+
+impl From<IotaSupply> for Supply {
+    fn from(schema: IotaSupply) -> Self {
+        Self {
+            value: schema.value,
+        }
+    }
+}
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, JsonSchema, PartialEq, Eq, Clone)]
@@ -24,8 +74,8 @@ pub type CoinPage = Page<Coin, ObjectID>;
 pub struct Balance {
     pub coin_type: String,
     pub coin_object_count: usize,
-    #[schemars(with = "BigInt<u128>")]
-    #[serde_as(as = "BigInt<u128>")]
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub total_balance: u128,
 }
 
@@ -44,14 +94,17 @@ impl Balance {
 #[serde(rename_all = "camelCase")]
 pub struct Coin {
     pub coin_type: String,
+    #[schemars(with = "ObjectIDSchema")]
     pub coin_object_id: ObjectID,
-    #[schemars(with = "AsSequenceNumber")]
-    #[serde_as(as = "AsSequenceNumber")]
+    #[serde_as(as = "SequenceNumberStringSchema")]
+    #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
+    #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
     pub balance: u64,
+    #[schemars(with = "Base58Schema")]
     pub previous_transaction: TransactionDigest,
 }
 
@@ -61,6 +114,7 @@ impl Coin {
     }
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaCoinMetadata {
@@ -75,6 +129,7 @@ pub struct IotaCoinMetadata {
     /// URL for the token logo
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
+    #[schemars(with = "Option<ObjectIDSchema>")]
     pub id: Option<ObjectID>,
 }
 

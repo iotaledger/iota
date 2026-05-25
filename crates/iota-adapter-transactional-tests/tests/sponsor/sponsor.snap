@@ -10,12 +10,12 @@ task 1, lines 7-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6072400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6072400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 28-30:
 //# run test::sponsor::is_sponsored --sender A --args false
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 31-33:
 //# run test::sponsor::is_sponsored --sender A --args true
@@ -37,7 +37,7 @@ task 6, lines 40-43:
 //> test::sponsor::is_sponsored(Input(0))
 // abort(101), sponsored transaction
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 7, lines 44-47:
 //# programmable --sender A --sponsor B --inputs false
@@ -57,4 +57,4 @@ task 9, lines 52-53:
 //# programmable --sender A --sponsor B --inputs @B
 //> test::sponsor::check_sponsor(Input(0))
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0

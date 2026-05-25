@@ -18,6 +18,7 @@ use iota_types::{
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     language_storage::{StructTag, TypeTag},
 };
@@ -87,7 +88,7 @@ async fn test_regulated_coin_v1_types() {
     let deny_list_object_init_version =
         env.get_latest_object_ref(&IOTA_DENY_LIST_OBJECT_ID).await.1;
     let regulated_coin_type = TypeTag::Struct(Box::new(StructTag {
-        address: package_id.into(),
+        address: AccountAddress::new(package_id.into_bytes()),
         module: ident_str!("regulated_coin").to_owned(),
         name: ident_str!("REGULATED_COIN").to_owned(),
         type_params: vec![],

@@ -585,14 +585,14 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Create a dummy TransactionData
     let gas = (
         ObjectID::random(),
-        SequenceNumber::new(),
+        SequenceNumber::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random_for_testing_only()],
+        vec![IotaAddress::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,

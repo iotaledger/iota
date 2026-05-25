@@ -90,7 +90,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         packages: vec![PackageSource::Directory(DirectorySource {
             paths: vec![Package {
                 path: "unused".into(),
-                watch: Some(cap.reference.object_id), // watch the upgrade cap
+                watch: Some(cap.reference.0), // watch the upgrade cap
             }],
             network: Some(Network::Localnet),
         })],
@@ -118,8 +118,8 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         .iter()
         .find(|refe| matches!(refe.owner, Owner::Immutable))
         .unwrap();
-    let package_id = package.reference.object_id;
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let package_id = package.reference.0;
+    let tmp_dir = iota_common::tempdir();
     let upgrade_pkg_path =
         copy_with_published_at_manifest(&package_path, &tmp_dir.path().to_path_buf(), package_id);
     // Run the upgrade.
@@ -151,14 +151,14 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         })],
     };
 
-    let fixtures = tempfile::tempdir()?;
-    fs::create_dir(fixtures.path().join("localnet"))?;
+    let tmp_dir_fixtures = iota_common::tempdir();
+    fs::create_dir(tmp_dir_fixtures.path().join("localnet"))?;
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
-        fixtures.path().join("localnet"),
+        tmp_dir_fixtures.path().join("localnet"),
         &fs_extra::dir::CopyOptions::default(),
     )?;
-    let result = verify_packages(&config, fixtures.path()).await;
+    let result = verify_packages(&config, tmp_dir_fixtures.path()).await;
     let truncated_error_message = &result
         .unwrap_err()
         .to_string()
@@ -220,7 +220,7 @@ async fn run_upgrade(
     let build_config = BuildConfig::new_for_testing().config;
     let resp = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
-        upgrade_capability: cap.reference.object_id,
+        upgrade_capability: cap.reference.0,
         build_config,
         skip_dependency_verification: false,
         verify_deps: true,
@@ -276,7 +276,7 @@ fn copy_with_published_at_manifest(
     let idx = lines.iter().position(|s| s == "[package]").unwrap();
     lines.insert(
         idx + 1,
-        format!("published-at = \"{}\"", package_id.to_hex_uncompressed()),
+        format!("published-at = \"{}\"", package_id.to_hex()),
     );
     let new = lines.join("\n");
 
@@ -292,20 +292,20 @@ fn copy_with_published_at_manifest(
 #[tokio::test]
 async fn test_api_route() -> anyhow::Result<()> {
     let config = Config { packages: vec![] };
-    let tmp_dir = tempfile::tempdir()?;
+    let tmp_dir = iota_common::tempdir();
     initialize(&config, tmp_dir.path()).await?;
 
     // set up sample lookup to serve
-    let fixtures = tempfile::tempdir()?;
+    let tmp_dir_fixtures = iota_common::tempdir();
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
-        fixtures.path(),
+        tmp_dir_fixtures.path(),
         &fs_extra::dir::CopyOptions::default(),
     )?;
 
     let address = "0x2";
     let module = "address";
-    let source_path = fixtures
+    let source_path = tmp_dir_fixtures
         .keep()
         .join("iota/move-stdlib/sources/address.move");
 
@@ -449,19 +449,19 @@ paths = [
                                     Package {
                                         path: "crates/iota-framework/packages/move-stdlib",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000001,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000001"),
                                         ),
                                     },
                                     Package {
                                         path: "crates/iota-framework/packages/iota-framework",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000002,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000002"),
                                         ),
                                     },
                                     Package {
                                         path: "crates/iota-framework/packages/iota-system",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000003,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000003"),
                                         ),
                                     },
                                 ],
@@ -475,7 +475,7 @@ paths = [
                             Package {
                                 path: "home/user/some/upgradeable-package",
                                 watch: Some(
-                                    0x0000000000000000000000000000000000000000000000000000000000001234,
+                                    ObjectId("0x0000000000000000000000000000000000000000000000000000000000001234"),
                                 ),
                             },
                             Package {

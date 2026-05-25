@@ -223,7 +223,7 @@ impl SurferState {
                 // races and the child object may no longer exist.
                 continue;
             }
-            let obj_ref = owned_ref.reference.to_object_ref();
+            let obj_ref = owned_ref.reference;
             let object = self
                 .cluster
                 .get_object_from_fullnode_store(&obj_ref.0)

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{net::SocketAddr, path::PathBuf};
 
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -17,7 +17,6 @@ use iota_config::{
         ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
         default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-        default_zklogin_oauth_providers,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
@@ -44,7 +43,6 @@ pub struct ValidatorConfigBuilder {
     config_directory: Option<PathBuf>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
-    jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
@@ -87,11 +85,6 @@ impl ValidatorConfigBuilder {
 
     pub fn with_unpruned_checkpoints(mut self) -> Self {
         self.force_unpruned_checkpoints = true;
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -147,7 +140,7 @@ impl ValidatorConfigBuilder {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -164,7 +157,6 @@ impl ValidatorConfigBuilder {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             parameters: Default::default(),
-            starfish_parameters: Default::default(),
         };
 
         let p2p_config = P2pConfig {
@@ -238,16 +230,6 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
-            jwk_fetch_interval_seconds: self
-                .jwk_fetch_interval
-                .map(|i| i.as_secs())
-                .unwrap_or(3600),
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
             execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
@@ -478,7 +460,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
@@ -598,14 +580,6 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
-            // note: not used by fullnodes.
-            jwk_fetch_interval_seconds: 3600,
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
             jsonrpc_server_type: None,

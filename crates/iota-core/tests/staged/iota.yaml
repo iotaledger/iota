@@ -4,13 +4,11 @@ AccountAddress:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
-ActiveJwk:
-  STRUCT:
-    - jwk_id:
-        TYPENAME: JwkId
-    - jwk:
-        TYPENAME: JWK
-    - epoch: U64
+Address:
+  NEWTYPESTRUCT:
+    TUPLEARRAY:
+      CONTENT: U8
+      SIZE: 32
 Argument:
   ENUM:
     0:
@@ -26,20 +24,6 @@ Argument:
         TUPLE:
           - U16
           - U16
-AuthenticatorStateExpire:
-  STRUCT:
-    - min_epoch: U64
-    - authenticator_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
-AuthenticatorStateUpdateV1:
-  STRUCT:
-    - epoch: U64
-    - round: U64
-    - new_active_jwks:
-        SEQ:
-          TYPENAME: ActiveJwk
-    - authenticator_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -73,11 +57,11 @@ ChangeEpoch:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
 ChangeEpochV2:
   STRUCT:
     - epoch: U64
@@ -92,11 +76,11 @@ ChangeEpochV2:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
 ChangeEpochV3:
   STRUCT:
     - epoch: U64
@@ -111,11 +95,11 @@ ChangeEpochV3:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
     - eligible_active_validators:
         SEQ: U64
 ChangeEpochV4:
@@ -132,11 +116,11 @@ ChangeEpochV4:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
     - eligible_active_validators:
         SEQ: U64
     - scores:
@@ -154,9 +138,6 @@ CheckpointContents:
       V1:
         NEWTYPE:
           TYPENAME: CheckpointContentsV1
-CheckpointContentsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 CheckpointContentsV1:
   STRUCT:
     - transactions:
@@ -175,19 +156,16 @@ CheckpointData:
     - transactions:
         SEQ:
           TYPENAME: CheckpointTransaction
-CheckpointDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 CheckpointSummary:
   STRUCT:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
     - content_digest:
-        TYPENAME: CheckpointContentsDigest
+        TYPENAME: Digest
     - previous_digest:
         OPTION:
-          TYPENAME: CheckpointDigest
+          TYPENAME: Digest
     - epoch_rolling_gas_cost_summary:
         TYPENAME: GasCostSummary
     - timestamp_ms: U64
@@ -244,7 +222,7 @@ Command:
           - SEQ:
               SEQ: U8
           - SEQ:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     5:
       MakeMoveVec:
         TUPLE:
@@ -258,8 +236,8 @@ Command:
           - SEQ:
               SEQ: U8
           - SEQ:
-              TYPENAME: ObjectID
-          - TYPENAME: ObjectID
+              TYPENAME: ObjectId
+          - TYPENAME: ObjectId
           - TYPENAME: Argument
 CommandArgumentError:
   ENUM:
@@ -316,17 +294,10 @@ CompressedSignature:
           TUPLEARRAY:
             CONTENT: U8
             SIZE: 64
-    3:
-      ZkLogin:
-        NEWTYPE:
-          TYPENAME: ZkLoginAuthenticatorAsBytes
 CongestedObjects:
   NEWTYPESTRUCT:
     SEQ:
-      TYPENAME: ObjectID
-ConsensusCommitDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
+      TYPENAME: ObjectId
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -335,7 +306,7 @@ ConsensusCommitPrologueV1:
         OPTION: U64
     - commit_timestamp_ms: U64
     - consensus_commit_digest:
-        TYPENAME: ConsensusCommitDigest
+        TYPENAME: Digest
     - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
 ConsensusDeterminedVersionAssignments:
@@ -345,11 +316,11 @@ ConsensusDeterminedVersionAssignments:
         NEWTYPE:
           SEQ:
             TUPLE:
-              - TYPENAME: TransactionDigest
+              - TYPENAME: Digest
               - SEQ:
                   TUPLE:
-                    - TYPENAME: ObjectID
-                    - TYPENAME: SequenceNumber
+                    - TYPENAME: ObjectId
+                    - U64
 Data:
   ENUM:
     0:
@@ -374,9 +345,6 @@ ECMHLiveObjectSetDigest:
   STRUCT:
     - digest:
         TYPENAME: Digest
-EffectsAuxDataDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 EffectsObjectChange:
   STRUCT:
     - input_state:
@@ -418,19 +386,13 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
-    4:
-      AuthenticatorStateCreate: UNIT
-    5:
-      AuthenticatorStateExpire:
-        NEWTYPE:
-          TYPENAME: AuthenticatorStateExpire
 Event:
   STRUCT:
     - package_id:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - transaction_module: STR
     - sender:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - type_:
         TYPENAME: StructTag
     - contents: BYTES
@@ -443,9 +405,9 @@ ExecutionData:
 ExecutionDigests:
   STRUCT:
     - transaction:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - effects:
-        TYPENAME: TransactionEffectsDigest
+        TYPENAME: Digest
 ExecutionFailureStatus:
   ENUM:
     0:
@@ -470,7 +432,7 @@ ExecutionFailureStatus:
       CircularObjectOwnership:
         STRUCT:
           - object:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     7:
       InsufficientCoinBalance: UNIT
     8:
@@ -559,7 +521,7 @@ ExecutionFailureStatus:
       AddressDeniedForCoin:
         STRUCT:
           - address:
-              TYPENAME: IotaAddress
+              TYPENAME: Address
           - coin_type: STR
     35:
       CoinTypeGlobalPause:
@@ -575,6 +537,10 @@ ExecutionFailureStatus:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      BuiltinAuthenticatorVerificationError:
+        STRUCT:
+          - reason: STR
 ExecutionStatus:
   ENUM:
     0:
@@ -597,21 +563,21 @@ FullCheckpointContents:
             TYPENAME: GenericSignature
 GasCostSummary:
   STRUCT:
-    - computationCost: U64
-    - computationCostBurned: U64
-    - storageCost: U64
-    - storageRebate: U64
-    - nonRefundableStorageFee: U64
+    - computation_cost: U64
+    - computation_cost_burned: U64
+    - storage_cost: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
 GasData:
   STRUCT:
     - payment:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
+            - TYPENAME: ObjectId
+            - U64
+            - TYPENAME: Digest
     - owner:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - price: U64
     - budget: U64
 GenericSignature:
@@ -653,21 +619,6 @@ IntentMessage:
         TYPENAME: Intent
     - value:
         TYPENAME: TransactionData
-IotaAddress:
-  NEWTYPESTRUCT:
-    TUPLEARRAY:
-      CONTENT: U8
-      SIZE: 32
-JWK:
-  STRUCT:
-    - kty: STR
-    - e: STR
-    - n: STR
-    - alg: STR
-JwkId:
-  STRUCT:
-    - iss: STR
-    - kid: STR
 ModuleId:
   STRUCT:
     - address:
@@ -689,8 +640,7 @@ MoveObject:
   STRUCT:
     - type_:
         TYPENAME: MoveObjectType
-    - version:
-        TYPENAME: SequenceNumber
+    - version: U64
     - contents: BYTES
 MoveObjectType:
   NEWTYPESTRUCT:
@@ -712,9 +662,8 @@ MoveObjectType_:
 MovePackage:
   STRUCT:
     - id:
-        TYPENAME: ObjectID
-    - version:
-        TYPENAME: SequenceNumber
+        TYPENAME: ObjectId
+    - version: U64
     - module_map:
         MAP:
           KEY: STR
@@ -725,7 +674,7 @@ MovePackage:
     - linkage_table:
         MAP:
           KEY:
-            TYPENAME: ObjectID
+            TYPENAME: ObjectId
           VALUE:
             TYPENAME: UpgradeInfo
 MultiSig:
@@ -751,7 +700,7 @@ Object:
     - owner:
         TYPENAME: Owner
     - previous_transaction:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - storage_rebate: U64
 ObjectArg:
   ENUM:
@@ -759,30 +708,26 @@ ObjectArg:
       ImmOrOwnedObject:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
+            - TYPENAME: ObjectId
+            - U64
+            - TYPENAME: Digest
     1:
       SharedObject:
         STRUCT:
           - id:
-              TYPENAME: ObjectID
-          - initial_shared_version:
-              TYPENAME: SequenceNumber
+              TYPENAME: ObjectId
+          - initial_shared_version: U64
           - mutable: BOOL
     2:
       Receiving:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectID
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
-ObjectDigest:
+            - TYPENAME: ObjectId
+            - U64
+            - TYPENAME: Digest
+ObjectId:
   NEWTYPESTRUCT:
-    TYPENAME: Digest
-ObjectID:
-  NEWTYPESTRUCT:
-    TYPENAME: AccountAddress
+    TYPENAME: Address
 ObjectIn:
   ENUM:
     0:
@@ -792,8 +737,8 @@ ObjectIn:
         NEWTYPE:
           TUPLE:
             - TUPLE:
-                - TYPENAME: SequenceNumber
-                - TYPENAME: ObjectDigest
+                - U64
+                - TYPENAME: Digest
             - TYPENAME: Owner
 ObjectInfoRequestKind:
   ENUM:
@@ -801,8 +746,7 @@ ObjectInfoRequestKind:
       LatestObjectInfo: UNIT
     1:
       PastObjectInfoDebug:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
+        NEWTYPE: U64
 ObjectOut:
   ENUM:
     0:
@@ -811,29 +755,28 @@ ObjectOut:
       ObjectWrite:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
             - TYPENAME: Owner
     2:
       PackageWrite:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
+            - U64
+            - TYPENAME: Digest
 Owner:
   ENUM:
     0:
       AddressOwner:
         NEWTYPE:
-          TYPENAME: IotaAddress
+          TYPENAME: Address
     1:
       ObjectOwner:
         NEWTYPE:
-          TYPENAME: IotaAddress
+          TYPENAME: Address
     2:
       Shared:
         STRUCT:
-          - initial_shared_version:
-              TYPENAME: SequenceNumber
+          - initial_shared_version: U64
     3:
       Immutable: UNIT
 PackageUpgradeError:
@@ -842,12 +785,12 @@ PackageUpgradeError:
       UnableToFetchPackage:
         STRUCT:
           - package_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     1:
       NotAPackage:
         STRUCT:
           - object_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     2:
       IncompatibleUpgrade: UNIT
     3:
@@ -863,13 +806,13 @@ PackageUpgradeError:
       PackageIDDoesNotMatch:
         STRUCT:
           - package_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
           - ticket_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
 ProgrammableMoveCall:
   STRUCT:
     - package:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - module: STR
     - function: STR
     - type_arguments:
@@ -908,10 +851,6 @@ PublicKey:
           TUPLEARRAY:
             CONTENT: U8
             SIZE: 33
-    3:
-      ZkLogin:
-        NEWTYPE:
-          TYPENAME: ZkLoginPublicIdentifier
 RandomnessRound:
   NEWTYPESTRUCT: U64
 RandomnessStateUpdate:
@@ -921,8 +860,7 @@ RandomnessStateUpdate:
         TYPENAME: RandomnessRound
     - random_bytes:
         SEQ: U8
-    - randomness_obj_initial_shared_version:
-        TYPENAME: SequenceNumber
+    - randomness_obj_initial_shared_version: U64
 SenderSignedData:
   NEWTYPESTRUCT:
     SEQ:
@@ -934,8 +872,6 @@ SenderSignedTransaction:
     - tx_signatures:
         SEQ:
           TYPENAME: GenericSignature
-SequenceNumber:
-  NEWTYPESTRUCT: U64
 StructInput:
   STRUCT:
     - address:
@@ -965,23 +901,17 @@ TransactionDataV1:
     - kind:
         TYPENAME: TransactionKind
     - sender:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - gas_data:
         TYPENAME: GasData
     - expiration:
         TYPENAME: TransactionExpiration
-TransactionDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionEffects:
   ENUM:
     0:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
-TransactionEffectsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionEffectsV1:
   STRUCT:
     - status:
@@ -990,38 +920,34 @@ TransactionEffectsV1:
     - gas_used:
         TYPENAME: GasCostSummary
     - transaction_digest:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - gas_object_index:
         OPTION: U32
     - events_digest:
         OPTION:
-          TYPENAME: TransactionEventsDigest
+          TYPENAME: Digest
     - dependencies:
         SEQ:
-          TYPENAME: TransactionDigest
-    - lamport_version:
-        TYPENAME: SequenceNumber
+          TYPENAME: Digest
+    - lamport_version: U64
     - changed_objects:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - TYPENAME: EffectsObjectChange
     - unchanged_shared_objects:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - TYPENAME: UnchangedSharedKind
     - aux_data_digest:
         OPTION:
-          TYPENAME: EffectsAuxDataDigest
+          TYPENAME: Digest
 TransactionEvents:
   STRUCT:
     - data:
         SEQ:
           TYPENAME: Event
-TransactionEventsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionExpiration:
   ENUM:
     0:
@@ -1044,9 +970,7 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: ConsensusCommitPrologueV1
     3:
-      AuthenticatorStateUpdateV1:
-        NEWTYPE:
-          TYPENAME: AuthenticatorStateUpdateV1
+      AuthenticatorStateUpdateV1Deprecated: UNIT
     4:
       EndOfEpochTransaction:
         NEWTYPE:
@@ -1095,7 +1019,7 @@ TypeOrigin:
     - module_name: STR
     - datatype_name: STR
     - package:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
 TypeTag:
   ENUM:
     0:
@@ -1147,34 +1071,24 @@ UnchangedSharedKind:
       ReadOnlyRoot:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: SequenceNumber
-            - TYPENAME: ObjectDigest
+            - U64
+            - TYPENAME: Digest
     1:
       MutateDeleted:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
+        NEWTYPE: U64
     2:
       ReadDeleted:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
+        NEWTYPE: U64
     3:
       Cancelled:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
+        NEWTYPE: U64
     4:
       PerEpochConfig: UNIT
 UpgradeInfo:
   STRUCT:
     - upgraded_id:
-        TYPENAME: ObjectID
-    - upgraded_version:
-        TYPENAME: SequenceNumber
-ZkLoginAuthenticatorAsBytes:
-  NEWTYPESTRUCT:
-    SEQ: U8
-ZkLoginPublicIdentifier:
-  NEWTYPESTRUCT:
-    SEQ: U8
+        TYPENAME: ObjectId
+    - upgraded_version: U64
 "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:

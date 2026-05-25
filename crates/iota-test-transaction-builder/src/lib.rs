@@ -600,8 +600,7 @@ pub async fn publish_basics_package_and_make_counter(
         .iter()
         .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared { .. }))
         .unwrap()
-        .reference
-        .to_object_ref();
+        .reference;
     (package_ref, counter_ref)
 }
 
@@ -753,7 +752,7 @@ pub async fn create_nft(
         .first()
         .unwrap()
         .reference
-        .object_id;
+        .0;
 
     (sender, object_id, resp.digest)
 }

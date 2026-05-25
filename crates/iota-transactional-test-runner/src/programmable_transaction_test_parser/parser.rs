@@ -358,7 +358,7 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectID::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
                     .collect::<Result<Vec<ObjectID>>>()?;
@@ -371,14 +371,14 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectID::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
                     .collect::<Result<Vec<ObjectID>>>()?;
                 let Some(upgraded_package) = address_mapping(&upgraded_package) else {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
-                let upgraded_package = upgraded_package.into();
+                let upgraded_package = ObjectID::new(upgraded_package.into_bytes());
                 Command::Upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
@@ -405,7 +405,7 @@ impl ParsedMoveCall {
             .map(|t| t.into_type_tag(address_mapping).map(TypeInput::from))
             .collect::<Result<_>>()?;
         Ok(ProgrammableMoveCall {
-            package: package.into(),
+            package: ObjectID::new(package.into_bytes()),
             module: module.to_string(),
             function: function.to_string(),
             type_arguments,

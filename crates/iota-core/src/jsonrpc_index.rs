@@ -34,7 +34,10 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -541,7 +544,7 @@ impl IndexStore {
             "coin_delete_keys: {:?}",
             coin_delete_keys,
         );
-        batch.delete_batch(&self.tables.coin_index, coin_delete_keys.into_iter())?;
+        batch.delete_batch(&self.tables.coin_index, coin_delete_keys)?;
 
         // 2. Upsert new owner, by looking at `object_index_changes.new_owners`.
         // For a object to appear in `new_owners`, it must be owned by `Owner::Address`
@@ -588,7 +591,7 @@ impl IndexStore {
             coin_add_keys,
         );
 
-        batch.insert_batch(&self.tables.coin_index, coin_add_keys.into_iter())?;
+        batch.insert_batch(&self.tables.coin_index, coin_add_keys)?;
 
         let per_coin_type_balance_changes: Vec<_> = balance_changes
             .iter()
@@ -684,21 +687,18 @@ impl IndexStore {
         // Owner index
         batch.delete_batch(
             &self.tables.owner_index,
-            object_index_changes.deleted_owners.into_iter(),
+            object_index_changes.deleted_owners,
         )?;
         batch.delete_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.deleted_dynamic_fields.into_iter(),
+            object_index_changes.deleted_dynamic_fields,
         )?;
 
-        batch.insert_batch(
-            &self.tables.owner_index,
-            object_index_changes.new_owners.into_iter(),
-        )?;
+        batch.insert_batch(&self.tables.owner_index, object_index_changes.new_owners)?;
 
         batch.insert_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.new_dynamic_fields.into_iter(),
+            object_index_changes.new_dynamic_fields,
         )?;
 
         // events
@@ -720,7 +720,10 @@ impl IndexStore {
                 .map(|(i, e)| {
                     (
                         i,
-                        ModuleId::new(e.package_id.into(), e.transaction_module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.package_id.into_bytes()),
+                            e.transaction_module.clone(),
+                        ),
                     )
                 })
                 .map(|(i, m)| ((m, (sequence, i)), (event_digest, *digest, timestamp_ms))),
@@ -1446,13 +1449,10 @@ impl IndexStore {
 
     pub fn insert_genesis_objects(&self, object_index_changes: ObjectIndexChanges) -> IotaResult {
         let mut batch = self.tables.owner_index.batch();
-        batch.insert_batch(
-            &self.tables.owner_index,
-            object_index_changes.new_owners.into_iter(),
-        )?;
+        batch.insert_batch(&self.tables.owner_index, object_index_changes.new_owners)?;
         batch.insert_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.new_dynamic_fields.into_iter(),
+            object_index_changes.new_dynamic_fields,
         )?;
         batch.write()?;
         Ok(())
@@ -1702,7 +1702,7 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, env::temp_dir};
+    use std::collections::BTreeMap;
 
     use iota_types::{
         base_types::{IotaAddress, ObjectInfo, ObjectType},
@@ -1712,7 +1712,6 @@ mod tests {
         object,
         object::Owner,
     };
-    use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
@@ -1726,8 +1725,13 @@ mod tests {
         // again and read balance. The balance should be 700 and verified from
         // both db and cache. This tests make sure we are invalidating entries
         // in the cache and always reading latest balance.
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
-        let address: IotaAddress = AccountAddress::random().into();
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        let address = IotaAddress::random();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
 
@@ -1841,7 +1845,12 @@ mod tests {
         use iota_types::base_types::ObjectID;
         use typed_store::Map;
 
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
         let db = &index_store.tables.transactions_by_move_function;
         db.insert(
             &(

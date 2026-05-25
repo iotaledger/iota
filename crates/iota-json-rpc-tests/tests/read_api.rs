@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
@@ -400,7 +400,7 @@ async fn publish_move_package(cluster: &TestCluster) -> IotaTransactionBlockResp
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::full_content()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -416,7 +416,7 @@ async fn get_package_with_display_should_not_fail() -> Result<(), anyhow::Error>
 
     let response = http_client
         .get_object(
-            ObjectID::from(IOTA_FRAMEWORK_ADDRESS),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             Some(IotaObjectDataOptions::new().with_display()),
         )
         .await;
@@ -1462,7 +1462,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == SequenceNumber::from_u64(1))
+            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && asked_version == seq_num && latest_version == 1)
         );
     }
 }
@@ -1564,7 +1564,7 @@ async fn try_get_past_object_deleted() {
                     package_id,
                     "object_basics",
                     "create",
-                    vec![1u64.into(), CallArg::Pure(address.to_vec())],
+                    vec![1u64.into(), CallArg::Pure(address.as_bytes().to_vec())],
                 )
                 .build(),
         )
@@ -1628,7 +1628,7 @@ async fn try_get_past_object_deleted() {
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
+        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.0 == created_object_id && obj.1 == seq_num)
     );
 }
 

@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -43,6 +43,7 @@ use crate::{
         VerifiedBlockHeader,
     },
     block_verifier::BlockVerifier,
+    commit_syncer::fast::{FastSyncPauseSource, paused_by_fast_sync},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -255,6 +256,7 @@ enum Command {
 pub(crate) struct HeaderSynchronizerHandle {
     commands_sender: Sender<Command>,
     tasks: tokio::sync::Mutex<JoinSet<()>>,
+    verified_headers_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
 }
 
 impl HeaderSynchronizerHandle {
@@ -275,6 +277,10 @@ impl HeaderSynchronizerHandle {
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
         receiver.await.map_err(|_err| ConsensusError::Shutdown)?
+    }
+
+    pub(crate) fn clear_verified_headers_cache(&self) {
+        self.verified_headers_cache.lock().clear();
     }
 
     pub(crate) async fn stop(&self) -> Result<(), JoinError> {
@@ -338,6 +344,13 @@ pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: Core
     inflight_block_headers_map: Arc<InflightBlockHeadersMap>,
     verified_headers_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
     commands_sender: Sender<Command>,
+    /// Present only when the fast commit syncer is running at this
+    /// deployment. When it reads `true`, the header synchronizer skips
+    /// dispatching new fetches (explicit commands and periodic scheduler)
+    /// because fast sync is about to supply the corresponding headers via
+    /// reinitialization. `None` on deployments where fast sync is disabled
+    /// — the gate becomes an unconditional pass-through.
+    fast_sync_active: Option<Arc<AtomicBool>>,
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
@@ -352,6 +365,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
+        fast_sync_active: Option<Arc<AtomicBool>>,
     ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
@@ -389,6 +403,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         let commands_sender_clone = commands_sender.clone();
+        let verified_headers_cache_clone = verified_headers_cache.clone();
 
         if sync_last_known_own_block {
             commands_sender
@@ -413,6 +428,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 verified_headers_cache,
                 commands_sender: commands_sender_clone,
                 dag_state,
+                fast_sync_active,
             };
             s.run().await;
         }));
@@ -420,6 +436,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         Arc::new(HeaderSynchronizerHandle {
             commands_sender,
             tasks: tokio::sync::Mutex::new(tasks),
+            verified_headers_cache: verified_headers_cache_clone,
         })
     }
 
@@ -440,6 +457,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         Command::FetchBlockHeaders{ missing_block_refs, peer_index, result } => {
                             if peer_index == self.context.own_index {
                                 error!("We should never attempt to fetch block headers from our own node");
+                                continue;
+                            }
+
+                            // Skip while fast commit syncer is active — headers for
+                            // committed ranges will be supplied by fast sync's
+                            // reinitialization. Prevents racing with fast sync and
+                            // avoids fetching now-stale ancestors post-reinit.
+                            if paused_by_fast_sync(
+                                self.fast_sync_active.as_ref(),
+                                &self.context.metrics.node_metrics,
+                                FastSyncPauseSource::HeaderCommand,
+                            ) {
+                                result.send(Ok(())).ok();
                                 continue;
                             }
 
@@ -520,6 +550,21 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     };
                 },
                 () = &mut scheduler_timeout => {
+                    // Skip firing the periodic sync task while fast commit
+                    // syncer is active. The timer is still rearmed so the
+                    // scheduler resumes at the next tick after fast sync
+                    // becomes idle.
+                    if paused_by_fast_sync(
+                        self.fast_sync_active.as_ref(),
+                        &self.context.metrics.node_metrics,
+                        FastSyncPauseSource::HeaderScheduler,
+                    ) {
+                        scheduler_timeout
+                            .as_mut()
+                            .reset(Instant::now() + PERIODIC_SYNCHRONIZER_TIMEOUT);
+                        continue;
+                    }
+
                     // we want to start a new task only if the previous one has already finished.
                     if self.fetch_block_headers_scheduler_task.is_empty() {
                         if let Err(err) = self.start_periodic_sync_task().await {
@@ -822,13 +867,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             // asynchronously.
             let now = context.clock.timestamp_utc_ms();
             if now < verified_block_header.timestamp_ms() {
-                warn!(
-                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                trace!(
+                    "Synced block header {} timestamp {} is in the future (now={}). Will not ignore as median based timestamp is enabled.",
                     verified_block_header.reference(),
                     verified_block_header.timestamp_ms(),
                     now
                 );
-                continue;
             }
 
             verified_block_headers.push(verified_block_header);
@@ -2089,6 +2133,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         // Create some test block headers
@@ -2157,6 +2202,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         // Create some test block headers
@@ -2293,6 +2339,7 @@ mod tests {
             block_verifier,
             dag_state,
             false,
+            None,
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2437,6 +2484,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
             false,
+            None,
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2546,6 +2594,7 @@ mod tests {
             block_verifier,
             dag_state.clone(),
             false,
+            None,
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2700,6 +2749,7 @@ mod tests {
             block_verifier,
             dag_state,
             true,
+            None,
         );
 
         // Wait at least for the timeout time
@@ -3115,84 +3165,6 @@ mod tests {
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
-    }
-
-    #[tokio::test]
-    async fn test_process_fetched_headers_with_future_timestamp() {
-        let validators = 4;
-        let (context, _) = Context::new_for_test(validators);
-        let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
-
-        let network_client = Arc::new(MockNetworkClient::default());
-
-        // Set up synchronizers
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            dag_state.clone(),
-        );
-
-        let handle = HeaderSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            commit_vote_monitor.clone(),
-            transactions_synchronizer.clone(),
-            block_verifier.clone(),
-            dag_state.clone(),
-            false,
-        );
-
-        // Create two block headers - one with a normal timestamp, one with a future
-        // timestamp
-        let normal_block_header = TestBlockHeader::new(1, 0)
-            .set_timestamp_ms(context.clock.timestamp_utc_ms())
-            .build();
-        let future_block_header = TestBlockHeader::new(2, 1)
-            .set_timestamp_ms(
-                context.clock.timestamp_utc_ms() + Duration::from_secs(3600).as_millis() as u64,
-            )
-            .build();
-
-        let normal_block_header = VerifiedBlockHeader::new_for_test(normal_block_header);
-        let future_block_header = VerifiedBlockHeader::new_for_test(future_block_header);
-        let headers_refs = [
-            normal_block_header.reference(),
-            future_block_header.reference(),
-        ]
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-        let peer = AuthorityIndex::new_for_test(1);
-        network_client
-            .stub_fetch_headers_response(
-                [normal_block_header.clone(), future_block_header.clone()].to_vec(),
-                peer,
-                None,
-            )
-            .await;
-        let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
-        // Wait a little bit until synchronizer tries to add them into core
-        sleep(Duration::from_millis(1_000)).await;
-
-        // THEN ensure that the normal block header was added and block header with
-        // future timestamp was ignored
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_block_headers.len(), 1);
-        assert_eq!(added_block_headers[0], normal_block_header);
-
-        // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
-        }
     }
 
     #[tokio::test]

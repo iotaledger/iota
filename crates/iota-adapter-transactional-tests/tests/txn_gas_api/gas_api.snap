@@ -10,21 +10,21 @@ task 1, lines 7-16:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 700000, storage_cost: 5023600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 700000, storage_cost: 5023600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 18-20:
 //# programmable --sender A --gas-price 800 --inputs 800 100
 // success, gas price(800) higher than reference gas price(700) + 100
 //> test::gas_test::gas_checks(Input(0), Input(1))
 mutated: object(0,0)
-gas summary: computation_cost: 800000, computation_cost_burned: 700000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 800000, computation_cost_burned: 700000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 22-24:
 //# programmable --sender A --gas-price 2000 --inputs 2000 100
 // success, gas price(2000) higher than reference gas price(700) + 100
 //> test::gas_test::gas_checks(Input(0), Input(1))
 mutated: object(0,0)
-gas summary: computation_cost: 2000000, computation_cost_burned: 700000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 2000000, computation_cost_burned: 700000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 26-28:
 //# programmable --sender A --gas-price 800 --inputs 800 300

@@ -32,9 +32,7 @@ use crate::{
 pub mod error;
 
 pub mod account_abstraction;
-pub mod accumulator;
 pub mod auth_context;
-pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
 pub mod claim_registry;
@@ -61,6 +59,7 @@ pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;
 pub mod gas_model;
+pub mod global_state_hash;
 pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
@@ -100,8 +99,6 @@ pub mod transaction_executor;
 pub mod transfer;
 pub mod type_input;
 pub mod versioned;
-pub mod zk_login_authenticator;
-pub mod zk_login_util;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
@@ -110,7 +107,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::from_address($addr);
+            pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
         )*
     }
 }
@@ -170,9 +167,11 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// authority codebases.
 pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(ParsedAddress::parse(s)?
-        .into_account_address(&resolve_address)?
-        .into())
+    Ok(IotaAddress::new(
+        ParsedAddress::parse(s)?
+            .into_account_address(&resolve_address)?
+            .into_bytes(),
+    ))
 }
 
 /// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by

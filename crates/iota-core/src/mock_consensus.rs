@@ -4,13 +4,13 @@
 
 use std::sync::{Arc, Weak};
 
-use consensus_core::BlockRef;
 use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::VerifiedCertificate,
 };
 use prometheus::Registry;
+use starfish_core::BlockRef;
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
@@ -105,8 +105,8 @@ impl MockConsensusClient {
         self.tx_sender
             .try_send(transaction.clone())
             .map_err(|_| IotaError::from("MockConsensusClient channel overflowed"))?;
-        Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
-            BlockRef::MIN,
+        Ok(with_block_status(starfish_core::BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
         )))
     }
 }
@@ -132,7 +132,7 @@ impl ConsensusClient for MockConsensusClient {
     }
 }
 
-pub(crate) fn with_block_status(status: consensus_core::BlockStatus) -> BlockStatusReceiver {
+pub(crate) fn with_block_status(status: starfish_core::BlockStatus) -> BlockStatusReceiver {
     let (tx, rx) = oneshot::channel();
     tx.send(status.into()).ok();
     rx

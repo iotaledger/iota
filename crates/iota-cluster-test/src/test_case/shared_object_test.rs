@@ -55,7 +55,7 @@ impl TestCaseImpl for SharedCounterTest {
             .unwrap()
             .shared_objects()
             .iter()
-            .find(|o| o.object_id == counter_id)
+            .find(|o| o.0 == counter_id)
             .unwrap_or_else(|| panic!("expect obj {counter_id} in shared_objects"));
 
         let counter_version = response
@@ -72,10 +72,10 @@ impl TestCaseImpl for SharedCounterTest {
                     return None;
                 };
 
-                if obj.reference.object_id == counter_id
+                if obj.reference.0 == counter_id
                     && initial_shared_version == initial_counter_version
                 {
-                    Some(obj.reference.version)
+                    Some(obj.reference.1)
                 } else {
                     None
                 }

@@ -432,13 +432,12 @@ impl ServerBuilder {
             config.connection.clone(),
             config.service.clone(),
             metrics.clone(),
-            cancellation_token,
+            cancellation_token.clone(),
             *version,
         );
         let mut builder = ServerBuilder::new(state);
 
         let iota_names_config = config.service.iota_names.clone();
-        let zklogin_config = config.service.zklogin.clone();
         let reader = PgManager::reader_with_config(
             config.connection.db_url.clone(),
             config.connection.db_pool_size,
@@ -446,6 +445,8 @@ impl ServerBuilder {
             // utilisation (in the worst case we will use 2x the request timeout time in DB wall
             // time).
             config.service.limits.request_timeout_ms.into(),
+            indexer_metrics.clone(),
+            cancellation_token,
         )
         .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
 
@@ -480,8 +481,7 @@ impl ServerBuilder {
             ));
         };
 
-        let graphql_streams =
-            GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
+        let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
 
         let fullnode_grpc_client = GrpcClient::connect(fullnode_url)
             .await
@@ -499,7 +499,6 @@ impl ServerBuilder {
             .context_data(write_api)
             .context_data(read_api)
             .context_data(iota_names_config)
-            .context_data(zklogin_config)
             .context_data(metrics.clone())
             .context_data(config.clone())
             .context_data(graphql_streams)
@@ -815,11 +814,14 @@ pub mod tests {
             connection_config.db_url.clone(),
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
+            IndexerMetrics::new(&prometheus::Registry::new()),
+            CancellationToken::new(),
         )
         .expect("failed to create pg connection pool");
 
         let version = Version::for_testing();
         let metrics = metrics();
+
         let db = Db::new(
             reader.clone(),
             service_config.limits.clone(),
@@ -918,7 +920,10 @@ pub mod tests {
         let store = &cluster.indexer_store;
         let fn_grpc_url = &cluster.validator_fullnode_handle.grpc_url();
         let indexer_metrics = store.get_metrics();
-        let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
+
+        // Use reader without watermark cache, test doesn't check pruning behaviour
+        let indexer_reader =
+            iota_indexer::read::IndexerReader::new_without_watermark_cache(store.blocking_cp());
         let fullnode_gpc_client = GrpcClient::connect(fn_grpc_url).await.unwrap();
 
         let optimistic_tx_executor =

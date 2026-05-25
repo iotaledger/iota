@@ -60,9 +60,9 @@ impl From<IndexedEvent> for StoredEvent {
             senders: event
                 .senders
                 .into_iter()
-                .map(|sender| Some(sender.to_vec()))
+                .map(|sender| Some(sender.as_bytes().to_vec()))
                 .collect(),
-            package: event.package.to_vec(),
+            package: event.package.as_bytes().to_vec(),
             module: event.module.clone(),
             event_type: event.event_type.clone(),
             bcs: event.bcs.clone(),
@@ -118,13 +118,12 @@ impl StoredEvent {
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
         let (_, parsed_json) = type_and_fields_from_move_event_data(move_object)
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
-        let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::Serde(format!(
-                    "Failed to parse transaction digest: {:?}, error: {}",
-                    self.transaction_digest, e
-                ))
-            })?;
+        let tx_digest = TransactionDigest::from_bytes(&self.transaction_digest).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to parse transaction digest: {:?}, error: {}",
+                self.transaction_digest, e
+            ))
+        })?;
         Ok(IotaEvent {
             id: EventID {
                 tx_digest,
@@ -154,7 +153,7 @@ mod tests {
         let event = Event {
             package_id: ObjectID::random(),
             transaction_module: Identifier::new("test").unwrap(),
-            sender: AccountAddress::random().into(),
+            sender: IotaAddress::random(),
             type_: StructTag {
                 address: AccountAddress::TWO,
                 module: Identifier::new("test").unwrap(),

@@ -27,7 +27,6 @@ pub enum TransactionKind {
     ProgrammableTransaction = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdateV1 = 4,
     EndOfEpochTransaction = 5,
     RandomnessStateUpdate = 6,
 }
@@ -42,8 +41,9 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
-            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                TransactionKind::AuthenticatorStateUpdateV1
+            #[allow(deprecated)]
+            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+                TransactionKind::SystemTransaction
             }
             iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
                 TransactionKind::EndOfEpochTransaction
@@ -69,9 +69,6 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
             proto_filter::TransactionKind::Genesis => Ok(TransactionKind::Genesis),
             proto_filter::TransactionKind::ConsensusCommitPrologueV1 => {
                 Ok(TransactionKind::ConsensusCommitPrologueV1)
-            }
-            proto_filter::TransactionKind::AuthenticatorStateUpdateV1 => {
-                Ok(TransactionKind::AuthenticatorStateUpdateV1)
             }
             proto_filter::TransactionKind::EndOfEpochTransaction => {
                 Ok(TransactionKind::EndOfEpochTransaction)
@@ -308,7 +305,6 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .as_ref()
                     .ok_or("object_id is missing")?
                     .object_id()
-                    .map(Into::into)
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }
@@ -332,7 +328,6 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
         TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
-        | TransactionKind::AuthenticatorStateUpdateV1
         | TransactionKind::EndOfEpochTransaction
         | TransactionKind::RandomnessStateUpdate => true,
         TransactionKind::ProgrammableTransaction => false,
@@ -502,13 +497,13 @@ mod tests {
     #[test]
     fn test_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
                 TransactionFilter::AffectedObject(ObjectID::random()),
                 TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
@@ -520,7 +515,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             deep_filter = TransactionFilter::Not(Box::new(deep_filter));
         }
@@ -531,15 +526,15 @@ mod tests {
     #[test]
     fn test_filter_complexity_validation() {
         // Simple filter should pass complexity validation
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_complexity().is_ok());
         assert_eq!(simple_filter.count_nodes(), 1);
 
         // Moderately complex filter should pass
         let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Receiver(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]),
         ]);
@@ -549,11 +544,11 @@ mod tests {
 
     #[test]
     fn test_new_validated() {
-        let valid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let valid_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(TransactionFilter::new_validated(valid_filter).is_ok());
 
         // Create an invalid deeply nested filter
-        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             invalid_filter = TransactionFilter::Not(Box::new(invalid_filter));
         }
@@ -578,11 +573,11 @@ mod tests {
         // Create a complex but valid nested structure
         let complex_filter = TransactionFilter::All(vec![
             TransactionFilter::Any(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
+                TransactionFilter::Receiver(IotaAddress::random()),
             ]),
             TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]))),
         ]);

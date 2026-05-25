@@ -11,7 +11,6 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID};
@@ -24,13 +23,13 @@ pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) =
     (&IOTA_FRAMEWORK_ADDRESS, OBJECT_MODULE_NAME, ID_STRUCT_NAME);
 
 /// Rust version of the Move iota::object::Info type
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UID {
     pub id: ID,
 }
 
 /// Rust version of the Move iota::object::ID type
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct ID {
     pub bytes: ObjectID,

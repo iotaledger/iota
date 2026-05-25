@@ -5,13 +5,15 @@
 use fastcrypto::encoding::Base64;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTypeTag,
+    iota_primitives::{
+        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, TypeTag as TypeTagSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{
-    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
-};
+use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for executing and testing transactions.
@@ -35,8 +37,10 @@ pub trait WriteApi {
     async fn execute_transaction_block(
         &self,
         /// BCS serialized transaction data bytes without its type tag, as base-64 encoded string.
+        #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// A list of signatures (`flag || signature || pubkey` bytes, as base-64 encoded string). Signature is committed to the intent message of the transaction data, as base-64 encoded string.
+        #[schemars(with = "Vec<Base64Schema>")]
         signatures: Vec<Base64>,
         /// options for specifying the content to be returned
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -51,6 +55,7 @@ pub trait WriteApi {
         &self,
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
         function_name: String,
+        #[schemars(with = "Option<Vec<TypeTagSchema>>")]
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults>;
@@ -62,12 +67,16 @@ pub trait WriteApi {
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,
+        #[schemars(with = "IotaAddressSchema")]
         sender_address: IotaAddress,
         /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
+        #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price
+        #[schemars(with = "Option<String>")]
         gas_price: Option<BigInt<u64>>,
         /// The epoch to perform the call. Will be set from the system state object if not provided
+        #[schemars(with = "Option<String>")]
         epoch: Option<BigInt<u64>>,
         /// Additional arguments including gas_budget, gas_objects, gas_sponsor and skip_checks.
         additional_args: Option<DevInspectArgs>,
@@ -78,6 +87,6 @@ pub trait WriteApi {
     #[method(name = "dryRunTransactionBlock")]
     async fn dry_run_transaction_block(
         &self,
-        tx_bytes: Base64,
+        #[schemars(with = "Base64Schema")] tx_bytes: Base64,
     ) -> RpcResult<DryRunTransactionBlockResponse>;
 }

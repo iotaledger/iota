@@ -12,8 +12,6 @@ use super::{
     EffectsObjectChange, IDOperation, ObjectChange,
     object_change::{ObjectIn, ObjectOut},
 };
-#[cfg(debug_assertions)]
-use crate::is_system_package;
 use crate::{
     base_types::{
         EpochId, IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
@@ -214,11 +212,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::Deleted) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_DELETED,
-                    )),
+                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::Deleted) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_DELETED))
+                    }
                     _ => None,
                 }
             })
@@ -234,11 +230,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::NotExist, ObjectOut::NotExist, IDOperation::Deleted) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_DELETED,
-                    )),
+                    (ObjectIn::NotExist, ObjectOut::NotExist, IDOperation::Deleted) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_DELETED))
+                    }
                     _ => None,
                 }
             })
@@ -254,11 +248,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::None) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_WRAPPED,
-                    )),
+                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::None) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_WRAPPED))
+                    }
                     _ => None,
                 }
             })
@@ -307,7 +299,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         } else {
             (
                 (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-                Owner::AddressOwner(IotaAddress::default()),
+                Owner::AddressOwner(IotaAddress::ZERO),
             )
         }
     }
@@ -390,11 +382,11 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::ObjectWrite((
                     obj_ref.2,
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 id_operation: IDOperation::None,
             },
@@ -407,7 +399,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::NotExist,
                 id_operation: IDOperation::Deleted,
@@ -523,7 +515,7 @@ impl TransactionEffectsV1 {
                     IDOperation::None,
                 ) => {
                     // wrapped.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert!(
                         !old_owner.is_shared() && !old_owner.is_immutable(),
                         "Cannot wrap shared or immutable object"
@@ -535,7 +527,7 @@ impl TransactionEffectsV1 {
                     IDOperation::Deleted,
                 ) => {
                     // deleted.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert!(!old_owner.is_immutable(), "Cannot delete immutable object");
                 }
                 (
@@ -544,7 +536,7 @@ impl TransactionEffectsV1 {
                     IDOperation::None,
                 ) => {
                     // mutated.
-                    assert!(old_version.value() < self.lamport_version.value());
+                    assert!(*old_version < self.lamport_version);
                     assert_ne!(old_digest, new_digest);
                     assert!(!old_owner.is_immutable(), "Cannot mutate immutable object");
                     if old_owner.is_shared() {
@@ -560,10 +552,10 @@ impl TransactionEffectsV1 {
                 ) => {
                     // system package upgrade.
                     assert!(
-                        old_owner.is_immutable() && is_system_package(*id),
+                        old_owner.is_immutable() && id.is_system_package(),
                         "Must be a system package"
                     );
-                    assert_eq!(old_version.value() + 1, new_version.value());
+                    assert_eq!(*old_version + 1, *new_version);
                     assert_ne!(old_digest, new_digest);
                 }
                 _ => {

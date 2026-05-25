@@ -12,11 +12,9 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
+use iota_node_storage::GrpcStateReader;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::{
-    storage::RestStateReader,
-    transaction::{Transaction, TransactionData},
-};
+use iota_types::transaction::{Transaction, TransactionData};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -60,7 +58,7 @@ pub async fn start_cluster(
     internal_data_source_rpc_port: Option<u16>,
     service_config: ServiceConfig,
 ) -> Cluster {
-    let data_ingestion_path = tempfile::tempdir().unwrap().keep();
+    let data_ingestion_path = iota_common::tempdir().keep();
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
@@ -119,7 +117,7 @@ pub async fn start_cluster(
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
-    _executor: Arc<dyn RestStateReader + Send + Sync>,
+    _executor: Arc<dyn GrpcStateReader + Send + Sync>,
     snapshot_config: Option<SnapshotLagConfig>,
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
@@ -406,7 +404,7 @@ impl ExecutorCluster {
                     .get_latest_object_snapshot_watermark()
                     .await
                     .unwrap()
-                    .map(|watermark| watermark.checkpoint_hi_inclusive)
+                    .map(|watermark| watermark.max_committed_cp)
                     .unwrap_or_default();
             }
         })

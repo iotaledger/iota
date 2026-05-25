@@ -523,7 +523,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .unwrap()
         .deleted()
         .iter()
-        .map(|coin| coin.object_id)
+        .map(|coin| coin.0)
         .collect();
     let coins = http_client
         .get_coins(address, None, None, Some(100))
@@ -797,7 +797,7 @@ async fn execute_tx(
                     .with_object_changes()
                     .with_balance_changes(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
     assert_eq!(tx_response.status_ok(), Some(true));

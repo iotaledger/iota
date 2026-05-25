@@ -157,7 +157,7 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .object_id;
+            .0;
 
         (package_id, object_id)
     }
@@ -176,7 +176,6 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .to_object_ref()
             .0
     }
 
@@ -210,7 +209,7 @@ mod sim_only_tests {
                 .get_object_or_tombstone_from_fullnode_store(child_id)
                 .await
                 .2
-                .is_wrapped()
+                .is_object_wrapped()
         );
         effects
     }

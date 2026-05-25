@@ -10,7 +10,8 @@ mod ingestion_tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{
-        ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, connection::BoxableConnection,
+        BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper,
+        connection::BoxableConnection,
     };
     use iota_indexer::{
         db::get_pool_connection,
@@ -35,7 +36,6 @@ mod ingestion_tests {
         gas_coin::GasCoin,
     };
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
 
     use crate::common::{
         indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer,
@@ -55,9 +55,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -80,12 +80,13 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -131,12 +132,13 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -160,7 +162,7 @@ mod ingestion_tests {
         // Read the transaction from the database directly.
         let db_object: StoredObject = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects::table
-                .filter(objects::object_id.eq(obj_id.to_vec()))
+                .filter(objects::object_id.eq(obj_id.as_bytes()))
                 .first::<StoredObject>(conn)
         })
         .context("Failed reading object from PostgresDB")?;
@@ -174,7 +176,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IOTA_FRAMEWORK_PACKAGE_ID.to_vec())
+            Some(IOTA_FRAMEWORK_PACKAGE_ID.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -183,16 +185,16 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn objects_snapshot() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Run 10 transfer transactions and create 10 checkpoints
         let mut last_transaction = None;
         let total_checkpoint_sequence_number = 7usize;
         for _ in 0..total_checkpoint_sequence_number {
-            let transfer_recipient = IotaAddress::random_for_testing_only();
+            let transfer_recipient = IotaAddress::random();
             let (transaction, _) = sim.transfer_txn(transfer_recipient);
             let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
             assert!(err.is_none());
@@ -238,7 +240,7 @@ mod ingestion_tests {
 
         let snapshot_object = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects_snapshot::table
-                .filter(objects_snapshot::object_id.eq(obj_id.to_vec()))
+                .filter(objects_snapshot::object_id.eq(obj_id.as_bytes()))
                 .filter(
                     objects_snapshot::checkpoint_sequence_number
                         .eq(max_expected_checkpoint_sequence_number as i64),
@@ -248,24 +250,28 @@ mod ingestion_tests {
         .context("failed reading snapshot object from PostgresDB")?;
         // Assert that the object state is as expected at checkpoint
         // max_expected_checkpoint_sequence_number
-        assert_eq!(snapshot_object.object_id, obj_id.to_vec());
+        assert_eq!(snapshot_object.object_id, obj_id.as_bytes());
         assert_eq!(
             snapshot_object.checkpoint_sequence_number,
             max_expected_checkpoint_sequence_number as i64
         );
         assert_eq!(snapshot_object.owner_type, Some(1));
-        assert_eq!(snapshot_object.owner_id, Some(gas_owner_id.to_vec()));
+        assert_eq!(
+            snapshot_object.owner_id.as_deref(),
+            Some(gas_owner_id.as_bytes())
+        );
         Ok(())
     }
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -316,12 +322,13 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -389,9 +396,9 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -426,9 +433,9 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -455,13 +462,60 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
+    pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+
+        let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
+            .await?
+            .unwrap() as i64;
+        let non_finalized_count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            objects::table
+                .filter(
+                    objects::finalized_in_cp
+                        .is_not_null()
+                        .and(objects::finalized_in_cp.gt(max_cp)),
+                )
+                .count()
+                .get_result::<i64>(conn)
+        })
+        .context("Failed reading objects from PostgresDB")?;
+
+        assert_eq!(
+            non_finalized_count, 0,
+            "All objects should be finalized after checkpoint indexing"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
+        let tmp_dir = iota_common::tempdir();
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

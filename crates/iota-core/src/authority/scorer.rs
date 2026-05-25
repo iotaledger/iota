@@ -31,13 +31,23 @@ pub struct Scorer {
     // The current scores of the authorities, updated after each received report. This score is
     // calculated based on the information in the received reports and the validity of the reports
     // themselves.
-    pub(crate) current_scores: Scores,
+    current_scores: Scores,
     // The count of invalid reports received from each authority. Validity here must be checked in
     // a deterministic way, since this information will not be propagated again to the rest of the
     // committee.
     invalid_reports_count: Vec<AtomicU64>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
+    // A summary of the last MisbehaviorReport sent by the authority in the checkpoint creation.
+    // Since this particular report is meant to include misbehavior counts (instead of proofs), and
+    // those counts are always non-decreasing, the summary can be created by adding all metrics for
+    // all validators. This is used as part of the MisbehaviorReport rate limiting mechanism.
+    last_report_summary: AtomicU64,
+    // Indicates the sequence number of the last checkpoint for which the authority sent a report.
+    // This is used as part of the MisbehaviorReport rate limiting mechanism.
+    last_report_checkpoint_seq: AtomicU64,
+    // Indicates whether the authority sent a report close to the epoch end.
+    has_sent_end_of_epoch_report: AtomicBool,
     // The version of the scorer being used with its parameters.
     version: ScorerVersion,
 }
@@ -130,6 +140,9 @@ impl Scorer {
                     current_scores,
                     invalid_reports_count,
                     voting_power,
+                    last_report_summary: AtomicU64::new(0),
+                    last_report_checkpoint_seq: AtomicU64::new(0),
+                    has_sent_end_of_epoch_report: AtomicBool::new(false),
                     version: ScorerVersion::V1(parameters),
                 }
             }
@@ -145,7 +158,7 @@ impl Scorer {
 
     // Boundary checks for this functions are done at a higher level. `authority``
     // should always be derived from a valid AuthorityIndex
-    pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
+    pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
     }
 
@@ -164,6 +177,43 @@ impl Scorer {
         // metrics from them. Then, update the scores accordingly.
         self.received_metrics[authority as usize].update_from_report(report);
         self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
+    }
+
+    pub(crate) fn last_report_checkpoint_seq(&self) -> u64 {
+        self.last_report_checkpoint_seq.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_checkpoint_seq(&self, checkpoint_seq: u64) {
+        self.last_report_checkpoint_seq
+            .store(checkpoint_seq, Ordering::Relaxed)
+    }
+
+    pub(crate) fn last_report_summary(&self) -> u64 {
+        self.last_report_summary.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_summary(&self, summary: u64) {
+        self.last_report_summary.store(summary, Ordering::Relaxed)
+    }
+
+    pub(crate) fn has_sent_end_of_epoch_report(&self) -> bool {
+        self.has_sent_end_of_epoch_report.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn mark_end_of_epoch_report_sent(&self) {
+        self.has_sent_end_of_epoch_report
+            .store(true, Ordering::Relaxed);
+    }
+
+    pub(crate) fn current_scores(&self) -> Vec<u64> {
+        self.current_scores
+            .iter()
+            .map(|x| x.load(Ordering::Relaxed))
+            .collect()
+    }
+
+    pub(crate) fn generate_report_with_current_local_metrics(&self) -> VersionedMisbehaviorReport {
+        self.current_local_metrics_count.to_report()
     }
 }
 
@@ -444,17 +494,15 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
 mod tests {
     use std::sync::atomic::Ordering;
 
-    use iota_protocol_config::{ConsensusChoice, ProtocolConfig};
+    use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
         MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
     };
 
-    fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
-        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
-        config.set_consensus_choice_for_testing(consensus_choice);
-        config
+    fn mock_protocol_config() -> ProtocolConfig {
+        ProtocolConfig::get_for_max_version_UNSAFE()
     }
 
     impl Scorer {
@@ -471,7 +519,7 @@ mod tests {
     fn test_scorer_initialization() {
         let voting_power = vec![10, 20, 30];
         let committee_size = voting_power.len();
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
 
         let scorer = Scorer::new(voting_power, &protocol_config);
 
@@ -482,10 +530,10 @@ mod tests {
     }
 
     #[test]
-    fn test_update_invalid_reports_count() {
+    fn test_increment_invalid_reports_count() {
         let voting_power = vec![10, 20, 30];
 
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
 
         let scorer = Scorer::new(voting_power, &protocol_config);
 
@@ -498,7 +546,7 @@ mod tests {
         );
 
         // Call the method
-        scorer.update_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
 
         // After update
         assert_eq!(
@@ -516,8 +564,8 @@ mod tests {
 
         let authority_index = 1;
         // Call the method twice
-        scorer.update_invalid_reports_count(authority_index);
-        scorer.update_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
 
         // After update
         assert_eq!(
@@ -537,13 +585,14 @@ mod tests {
     #[test]
     fn test_update_scores() {
         let voting_power = vec![2, 5, 20];
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let protocol_config = mock_protocol_config();
         let scorer = Scorer::new(voting_power, &protocol_config);
 
         // Before calling update_scores, all scores should be MAX_SCORE
-        for score in scorer.current_scores.iter() {
-            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE,);
-        }
+        scorer
+            .current_scores
+            .iter()
+            .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
 
         // Set some reports for testing
         let reports_and_authorities = vec![
@@ -583,11 +632,7 @@ mod tests {
 
         let expected_score = vec![0, 65536, 45876];
         // After calling update_scores, scores should be updated
-        let actual_score = scorer
-            .current_scores
-            .iter()
-            .map(|value| value.load(Ordering::Relaxed))
-            .collect::<Vec<u64>>();
+        let actual_score = scorer.current_scores();
         assert_eq!(actual_score, expected_score);
     }
 

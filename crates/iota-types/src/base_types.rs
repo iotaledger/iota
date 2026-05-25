@@ -4,21 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
     convert::{TryFrom, TryInto},
     fmt,
     str::FromStr,
 };
 
-use anyhow::{anyhow, bail};
-use fastcrypto::{
-    encoding::{Encoding, Hex, decode_bytes_hex},
-    hash::HashFunction,
-    traits::AllowedRng,
-};
-use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
+use anyhow::anyhow;
+use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -27,16 +20,13 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use rand::Rng;
-use schemars::JsonSchema;
 use serde::{
     Deserialize, Serialize, Serializer,
     ser::{Error, SerializeSeq},
 };
-use serde_with::serde_as;
 
 use crate::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     balance::Balance,
     coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
@@ -52,7 +42,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::{HexAccountAddress, Readable, to_iota_struct_tag_string},
+    iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -64,7 +54,6 @@ use crate::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{Transaction, VerifiedTransaction},
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 pub use crate::{
     committee::EpochId,
@@ -75,44 +64,9 @@ pub use crate::{
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
-#[derive(
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Copy,
-    Clone,
-    Hash,
-    Default,
-    Debug,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-#[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub struct SequenceNumber(u64);
-
-impl SequenceNumber {
-    pub fn one_before(&self) -> Option<SequenceNumber> {
-        if self.0 == 0 {
-            None
-        } else {
-            Some(SequenceNumber(self.0 - 1))
-        }
-    }
-
-    pub fn next(&self) -> SequenceNumber {
-        SequenceNumber(self.0 + 1)
-    }
-}
+pub use iota_sdk_types::Version as SequenceNumber;
 
 pub type TxSequenceNumber = u64;
-
-impl fmt::Display for SequenceNumber {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:#x}", self.0)
-    }
-}
 
 pub type VersionNumber = SequenceNumber;
 
@@ -129,13 +83,7 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
-#[serde_as]
-#[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
-pub struct ObjectID(
-    #[schemars(with = "Hex")]
-    #[serde_as(as = "Readable<HexAccountAddress, _>")]
-    AccountAddress,
-);
+pub use iota_sdk_types::ObjectId as ObjectID;
 
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
@@ -144,7 +92,7 @@ pub type ObjectRef = (ObjectID, SequenceNumber, ObjectDigest);
 pub fn random_object_ref() -> ObjectRef {
     (
         ObjectID::random(),
-        SequenceNumber::new(),
+        SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
     )
 }
@@ -643,118 +591,14 @@ impl From<&ObjectInfo> for ObjectRef {
 
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
 
-#[serde_as]
-#[derive(
-    Eq, Default, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub struct IotaAddress(
-    #[schemars(with = "Hex")]
-    #[serde_as(as = "Readable<Hex, _>")]
-    [u8; IOTA_ADDRESS_LENGTH],
-);
+pub use iota_sdk_types::Address as IotaAddress;
 
-impl IotaAddress {
-    pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
-
-    /// Convert the address to a byte buffer.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Return a random IotaAddress.
-    pub fn random_for_testing_only() -> Self {
-        AccountAddress::random().into()
-    }
-
-    pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.gen();
-        Self(buf)
-    }
-
-    /// Return the underlying byte array of a IotaAddress.
-    pub fn to_inner(self) -> [u8; IOTA_ADDRESS_LENGTH] {
-        self.0
-    }
-
-    /// Parse a IotaAddress from a byte array or buffer.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, IotaError> {
-        <[u8; IOTA_ADDRESS_LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| IotaError::InvalidAddress)
-            .map(IotaAddress)
-    }
-
-    /// This derives a zkLogin address by parsing the iss and address_seed from
-    /// [struct ZkLoginAuthenticator]. Define as iss_bytes_len || iss_bytes
-    /// || padded_32_byte_address_seed. This is to be differentiated with
-    /// try_from_unpadded defined below.
-    pub fn try_from_padded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        Ok((&PublicKey::from_zklogin_inputs(inputs)?).into())
-    }
-
-    /// Define as iss_bytes_len || iss_bytes || unpadded_32_byte_address_seed.
-    pub fn try_from_unpadded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        let mut hasher = DefaultHash::default();
-        hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
-        let iss_bytes = inputs.get_iss().as_bytes();
-        hasher.update([iss_bytes.len() as u8]);
-        hasher.update(iss_bytes);
-        hasher.update(inputs.get_address_seed().unpadded());
-        Ok(IotaAddress(hasher.finalize().digest))
-    }
-}
-
-impl From<ObjectID> for IotaAddress {
-    fn from(object_id: ObjectID) -> IotaAddress {
-        Self(object_id.into_bytes())
-    }
-}
-
-impl From<AccountAddress> for IotaAddress {
-    fn from(address: AccountAddress) -> IotaAddress {
-        Self(address.into_bytes())
-    }
-}
-
-impl TryFrom<&[u8]> for IotaAddress {
-    type Error = IotaError;
-
-    /// Tries to convert the provided byte array into a IotaAddress.
-    fn try_from(bytes: &[u8]) -> Result<Self, IotaError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl TryFrom<Vec<u8>> for IotaAddress {
-    type Error = IotaError;
-
-    /// Tries to convert the provided byte buffer into a IotaAddress.
-    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl AsRef<[u8]> for IotaAddress {
-    fn as_ref(&self) -> &[u8] {
-        &self.0[..]
-    }
-}
-
-impl FromStr for IotaAddress {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        decode_bytes_hex(s).map_err(|e| anyhow!(e))
-    }
-}
-
-impl<T: IotaPublicKey> From<&T> for IotaAddress {
-    fn from(pk: &T) -> Self {
-        let mut hasher = DefaultHash::default();
-        T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
-        hasher.update(pk);
-        let g_arr = hasher.finalize();
-        IotaAddress(g_arr.digest)
-    }
+pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> IotaAddress {
+    let mut hasher = DefaultHash::default();
+    T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
+    hasher.update(pk);
+    let g_arr = hasher.finalize();
+    IotaAddress::new(g_arr.digest)
 }
 
 impl From<&PublicKey> for IotaAddress {
@@ -763,7 +607,7 @@ impl From<&PublicKey> for IotaAddress {
         pk.scheme().update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
-        IotaAddress(g_arr.digest)
+        IotaAddress::new(g_arr.digest)
     }
 }
 
@@ -773,9 +617,6 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     /// threshold, concatenation of all n flag, public keys and
     /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
     /// || ... || flag_n || pk_n || weight_n`.
-    ///
-    /// When flag_i is ZkLogin, pk_i refers to [struct ZkLoginPublicIdentifier]
-    /// derived from padded address seed in bytes and iss.
     fn from(multisig_pk: &MultiSigPublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::MultiSig.flag()]);
@@ -785,17 +626,7 @@ impl From<&MultiSigPublicKey> for IotaAddress {
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });
-        IotaAddress(hasher.finalize().digest)
-    }
-}
-
-/// IOTA address for [struct ZkLoginAuthenticator] is defined as the black2b
-/// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
-/// unpadded_address_seed_in_bytes].
-impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
-    type Error = IotaError;
-    fn try_from(authenticator: &ZkLoginAuthenticator) -> IotaResult<Self> {
-        IotaAddress::try_from_unpadded(&authenticator.inputs)
+        IotaAddress::new(hasher.finalize().digest)
     }
 }
 
@@ -816,8 +647,11 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::ZkLoginAuthenticator(zklogin) => {
-                IotaAddress::try_from_unpadded(&zklogin.inputs)
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
             GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
@@ -825,27 +659,13 @@ impl TryFrom<&GenericSignature> for IotaAddress {
     }
 }
 
-impl fmt::Display for IotaAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl fmt::Debug for IotaAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
-    IotaAddress(addr)
+    IotaAddress::new(addr)
 }
 
-#[derive(
-    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema, Debug,
-)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct ExecutionDigests {
     pub transaction: TransactionDigest,
     pub effects: TransactionEffectsDigest,
@@ -1105,7 +925,7 @@ impl TxContext {
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
-            sender: AccountAddress::new(sender.0),
+            sender: AccountAddress::new(sender.into_bytes()),
             digest: digest.into_inner().to_vec(),
             epoch: *epoch_id,
             epoch_timestamp_ms,
@@ -1113,7 +933,7 @@ impl TxContext {
             rgp,
             gas_price,
             gas_budget,
-            sponsor: sponsor.map(|s| s.into()),
+            sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
             is_native: protocol_config.move_native_tx_context(),
         }
     }
@@ -1148,10 +968,6 @@ impl TxContext {
         self.epoch
     }
 
-    pub fn sender(&self) -> IotaAddress {
-        IotaAddress::from(ObjectID(self.sender))
-    }
-
     pub fn epoch_timestamp_ms(&self) -> u64 {
         self.epoch_timestamp_ms
     }
@@ -1162,7 +978,7 @@ impl TxContext {
     }
 
     pub fn sponsor(&self) -> Option<IotaAddress> {
-        self.sponsor.map(IotaAddress::from)
+        self.sponsor.map(|a| IotaAddress::from(a.into_bytes()))
     }
 
     pub fn rgp(&self) -> u64 {
@@ -1187,6 +1003,10 @@ impl TxContext {
         let id = ObjectID::derive_id(self.digest(), self.ids_created);
         self.ids_created += 1;
         id
+    }
+
+    pub fn sender(&self) -> IotaAddress {
+        IotaAddress::new(self.sender.into_bytes())
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -1264,7 +1084,7 @@ impl TxContext {
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
-            &IotaAddress::random_for_testing_only(),
+            &IotaAddress::random(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
             0,
@@ -1273,406 +1093,6 @@ impl TxContext {
             None,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         )
-    }
-}
-
-// TODO: rename to version
-impl SequenceNumber {
-    /// An inclusive lower limit on a valid sequence number.
-    ///
-    /// A valid sequence number means an object, which this sequence number
-    /// is assigned to, does not appear in a cancelled transaction.
-    pub const MIN_VALID_INCL: SequenceNumber = SequenceNumber(u64::MIN);
-
-    /// An exclusive upper limit on a valid sequence number: sequence numbers
-    /// strictly smaller than this limit are valid sequence numbers.
-    ///
-    /// A valid sequence number means an object, which this sequence number
-    /// is assigned to, does not appear in a cancelled transaction.
-    /// Sequence numbers larger than this value are "special" and
-    /// assigned to objects that appear in cancelled transactions.
-    pub const MAX_VALID_EXCL: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
-
-    /// Special sequence number that is assigned to objects which are accessed
-    /// immutably in a cancelled transaction.
-    pub const CANCELLED_READ: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 1);
-
-    /// Special sequence number that was assigned to congested objects which
-    /// cause transaction cancellations. Note that this special sequence
-    /// number was only used prior to the introduction of a gas price feedback
-    /// mechanism, but it is kept for backward compatibility.
-    pub const CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 2);
-
-    /// Special sequence number that is assigned the randomness state object
-    /// if randomness is unavailable.
-    pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX_VALID_EXCL.value() + 3);
-
-    // NOTE: if you want to add new SequenceNumber constants used for cancellation
-    // reasons different than those used for cancellations due to shared object
-    // congestion, please make sure their offset is less than
-    // CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK
-
-    /// The meaning of this constant is as follows:
-    ///
-    /// In the gas price feedback mechanism, sequence numbers >=
-    /// `SequenceNumber::MAX_VALID_EXCL` +
-    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are assigned to
-    /// objects that cause transactions cancellations due to congestion.
-    ///
-    /// Sequence numbers larger than `SequenceNumber::MAX_VALID_EXCL` but
-    /// smaller than `SequenceNumber::MAX_VALID_EXCL` +
-    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are
-    /// intended for other transaction cancellation reasons.
-    ///
-    /// There unlikely will be more than 1000 non-congestion cancellation
-    /// reasons, but this offset can be increased if needed, as long as
-    /// (`SequenceNumber::MIN_CONGESTED.value()` + maximum gas price) does not
-    /// overflow `u64::MAX`.
-    const CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK: u64 = 1_000;
-
-    /// Minimum congested sequence number used in the gas price feedback
-    /// mechanism. A congested sequence number is assigned to objects that
-    /// cause transaction cancellations.
-    const MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK: SequenceNumber = SequenceNumber(
-        SequenceNumber::MAX_VALID_EXCL.value() + Self::CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK,
-    );
-
-    pub const fn new() -> Self {
-        SequenceNumber(0)
-    }
-
-    pub const fn value(&self) -> u64 {
-        self.0
-    }
-
-    pub const fn from_u64(u: u64) -> Self {
-        SequenceNumber(u)
-    }
-
-    /// Returns a special sequence number used for congested shared objects:
-    /// `SequenceNumber::MIN_CONGESTED.value()` + `suggested_gas_price`,
-    /// where `suggested_gas_price` is embedded into a congested sequence
-    /// number to facilitate a gas price feedback mechanism for transactions
-    /// cancelled due to shared object congestion.
-    pub fn new_congested_with_suggested_gas_price(suggested_gas_price: u64) -> Self {
-        let (version, overflows) = Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
-            .value()
-            .overflowing_add(suggested_gas_price);
-        debug_assert!(
-            !overflows,
-            "the calculated version for a congested shared objects overflows"
-        );
-
-        Self(version)
-    }
-
-    /// Check if this sequence number is congested, i.e., the corresponding
-    /// object is the reason for transaction cancellation.
-    pub fn is_congested(&self) -> bool {
-        *self == Self::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
-            || self >= &Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
-    }
-
-    /// Returns the `suggested_gas_price` embedded in this congested shared
-    /// object sequence number. The `suggested_gas_price` here is used for a
-    /// gas price feedback mechanism for transactions cancelled due to
-    /// shared object congestion.
-    pub fn get_congested_version_suggested_gas_price(&self) -> u64 {
-        assert!(
-            *self >= Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK,
-            "this is not a version used for congested shared objects in the gas price feedback \
-                mechanism"
-        );
-
-        self.value() - Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK.value()
-    }
-
-    pub fn increment(&mut self) {
-        assert!(
-            self.is_valid(),
-            "cannot increment a sequence number: \
-                maximum valid sequence number has already been reached"
-        );
-        self.0 += 1;
-    }
-
-    pub fn increment_to(&mut self, next: SequenceNumber) {
-        debug_assert!(*self < next, "Not an increment: {self} to {next}");
-        *self = next;
-    }
-
-    pub fn decrement(&mut self) {
-        assert_ne!(
-            *self,
-            Self::MIN_VALID_INCL,
-            "cannot decrement a sequence number: \
-                minimum valid sequence number has already been reached"
-        );
-        self.0 -= 1;
-    }
-
-    pub fn decrement_to(&mut self, prev: SequenceNumber) {
-        debug_assert!(prev < *self, "Not a decrement: {self} to {prev}");
-        *self = prev;
-    }
-
-    /// Returns a new sequence number that is greater than all `SequenceNumber`s
-    /// in `inputs`, assuming this operation will not overflow.
-    #[must_use]
-    pub fn lamport_increment(inputs: impl IntoIterator<Item = SequenceNumber>) -> SequenceNumber {
-        let max_input = inputs.into_iter().fold(SequenceNumber::new(), max);
-
-        // TODO: Ensure this never overflows.
-        // Option 1: Freeze the object when sequence number reaches MAX.
-        // Option 2: Reject tx with MAX sequence number.
-        // Issue #182.
-        assert!(
-            max_input.is_valid(),
-            "cannot increment a sequence number: \
-                maximum valid sequence number has already been reached"
-        );
-
-        SequenceNumber(max_input.0 + 1)
-    }
-
-    /// Checks if this sequence number is cancelled, i.e., the corresponding
-    /// object appears in a cancelled transaction.
-    pub fn is_cancelled(&self) -> bool {
-        self == &SequenceNumber::CANCELLED_READ
-            || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
-            || self.is_congested()
-    }
-
-    /// Checks if this sequence number is valid, i.e., the corresponding
-    /// object does not appear in a cancelled transaction.
-    pub fn is_valid(&self) -> bool {
-        self < &SequenceNumber::MAX_VALID_EXCL
-    }
-}
-
-impl From<SequenceNumber> for u64 {
-    fn from(val: SequenceNumber) -> Self {
-        val.0
-    }
-}
-
-impl From<u64> for SequenceNumber {
-    fn from(value: u64) -> Self {
-        SequenceNumber(value)
-    }
-}
-
-impl From<SequenceNumber> for usize {
-    fn from(value: SequenceNumber) -> Self {
-        value.0 as usize
-    }
-}
-
-impl ObjectID {
-    /// The number of bytes in an address.
-    pub const LENGTH: usize = AccountAddress::LENGTH;
-    /// Hex address: 0x0
-    pub const ZERO: Self = Self::new([0u8; Self::LENGTH]);
-    pub const MAX: Self = Self::new([0xff; Self::LENGTH]);
-    /// Create a new ObjectID
-    pub const fn new(obj_id: [u8; Self::LENGTH]) -> Self {
-        Self(AccountAddress::new(obj_id))
-    }
-
-    /// Const fn variant of `<ObjectID as From<AccountAddress>>::from`
-    pub const fn from_address(addr: AccountAddress) -> Self {
-        Self(addr)
-    }
-
-    /// Return a random ObjectID.
-    pub fn random() -> Self {
-        Self::from(AccountAddress::random())
-    }
-
-    /// Return a random ObjectID from a given RNG.
-    pub fn random_from_rng<R>(rng: &mut R) -> Self
-    where
-        R: AllowedRng,
-    {
-        let buf: [u8; Self::LENGTH] = rng.gen();
-        ObjectID::new(buf)
-    }
-
-    /// Return the underlying bytes buffer of the ObjectID.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Parse the ObjectID from byte array or buffer.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, ObjectIDParseError> {
-        <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| ObjectIDParseError::TryFromSlice)
-            .map(ObjectID::new)
-    }
-
-    /// Return the underlying bytes array of the ObjectID.
-    pub fn into_bytes(self) -> [u8; Self::LENGTH] {
-        self.0.into_bytes()
-    }
-
-    /// Make an ObjectID with padding 0s before the single byte.
-    pub const fn from_single_byte(byte: u8) -> ObjectID {
-        let mut bytes = [0u8; Self::LENGTH];
-        bytes[Self::LENGTH - 1] = byte;
-        ObjectID::new(bytes)
-    }
-
-    /// Convert from hex string to ObjectID where the string is prefixed with 0x
-    /// Padding 0s if the string is too short.
-    pub fn from_hex_literal(literal: &str) -> Result<Self, ObjectIDParseError> {
-        if !literal.starts_with("0x") {
-            return Err(ObjectIDParseError::HexLiteralPrefixMissing);
-        }
-
-        let hex_len = literal.len() - 2;
-
-        // If the string is too short, pad it
-        if hex_len < Self::LENGTH * 2 {
-            let mut hex_str = String::with_capacity(Self::LENGTH * 2);
-            for _ in 0..Self::LENGTH * 2 - hex_len {
-                hex_str.push('0');
-            }
-            hex_str.push_str(&literal[2..]);
-            Self::from_str(&hex_str)
-        } else {
-            Self::from_str(&literal[2..])
-        }
-    }
-
-    /// Create an ObjectID from `TransactionDigest` and `creation_num`.
-    /// Caller is responsible for ensuring that `creation_num` is fresh
-    pub fn derive_id(digest: TransactionDigest, creation_num: u64) -> Self {
-        let mut hasher = DefaultHash::default();
-        hasher.update([HashingIntentScope::RegularObjectId as u8]);
-        hasher.update(digest);
-        hasher.update(creation_num.to_le_bytes());
-        let hash = hasher.finalize();
-
-        // truncate into an ObjectID.
-        // OK to access slice because digest should never be shorter than
-        // ObjectID::LENGTH.
-        ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
-    }
-
-    /// Increment the ObjectID by one, assuming the ObjectID hex is a number
-    /// represented as an array of bytes
-    pub fn next_increment(&self) -> Result<ObjectID, anyhow::Error> {
-        let mut prev_val = self.to_vec();
-        let mx = [0xFF; Self::LENGTH];
-
-        if prev_val == mx {
-            bail!("Increment will cause overflow");
-        }
-
-        // This logic increments the integer representation of an ObjectID u8 array
-        for idx in (0..Self::LENGTH).rev() {
-            if prev_val[idx] == 0xFF {
-                prev_val[idx] = 0;
-            } else {
-                prev_val[idx] += 1;
-                break;
-            };
-        }
-        ObjectID::try_from(prev_val.clone()).map_err(|w| w.into())
-    }
-
-    /// Create `count` object IDs starting with one at `offset`
-    pub fn in_range(offset: ObjectID, count: u64) -> Result<Vec<ObjectID>, anyhow::Error> {
-        let mut ret = Vec::new();
-        let mut prev = offset;
-        for o in 0..count {
-            if o != 0 {
-                prev = prev.next_increment()?;
-            }
-            ret.push(prev);
-        }
-        Ok(ret)
-    }
-
-    /// Return the full hex string with 0x prefix without removing trailing 0s.
-    /// Prefer this over [fn to_hex_literal] if the string needs to be fully
-    /// preserved.
-    pub fn to_hex_uncompressed(&self) -> String {
-        format!("{self}")
-    }
-
-    pub fn is_clock(&self) -> bool {
-        *self == IOTA_CLOCK_OBJECT_ID
-    }
-}
-
-impl From<IotaAddress> for ObjectID {
-    fn from(address: IotaAddress) -> ObjectID {
-        let tmp: AccountAddress = address.into();
-        tmp.into()
-    }
-}
-
-impl From<AccountAddress> for ObjectID {
-    fn from(address: AccountAddress) -> Self {
-        Self(address)
-    }
-}
-
-impl fmt::Display for ObjectID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl fmt::Debug for ObjectID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl AsRef<[u8]> for ObjectID {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
-
-impl TryFrom<&[u8]> for ObjectID {
-    type Error = ObjectIDParseError;
-
-    /// Tries to convert the provided byte array into ObjectID.
-    fn try_from(bytes: &[u8]) -> Result<ObjectID, ObjectIDParseError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl TryFrom<Vec<u8>> for ObjectID {
-    type Error = ObjectIDParseError;
-
-    /// Tries to convert the provided byte buffer into ObjectID.
-    fn try_from(bytes: Vec<u8>) -> Result<ObjectID, ObjectIDParseError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl FromStr for ObjectID {
-    type Err = ObjectIDParseError;
-
-    /// Parse ObjectID from hex string with or without 0x prefix, pad with 0s if
-    /// needed.
-    fn from_str(s: &str) -> Result<Self, ObjectIDParseError> {
-        decode_bytes_hex(s).or_else(|_| Self::from_hex_literal(s))
-    }
-}
-
-impl std::ops::Deref for ObjectID {
-    type Target = AccountAddress;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -1688,18 +1108,6 @@ pub enum ObjectIDParseError {
 
     #[error("Could not convert from bytes slice")]
     TryFromSlice,
-}
-
-impl From<ObjectID> for AccountAddress {
-    fn from(obj_id: ObjectID) -> Self {
-        obj_id.0
-    }
-}
-
-impl From<IotaAddress> for AccountAddress {
-    fn from(address: IotaAddress) -> Self {
-        Self::new(address.0)
-    }
 }
 
 impl fmt::Display for MoveObjectType {

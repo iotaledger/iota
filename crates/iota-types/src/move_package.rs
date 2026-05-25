@@ -51,7 +51,6 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -109,9 +108,7 @@ pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
 ///
 /// Directly modifying any field is undefined behavior. The fields are only
 /// public for read-only access.
-#[derive(
-    Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash, JsonSchema,
-)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash)]
 pub struct TypeOrigin {
     /// The name of the module the data type resides in.
     pub module_name: String,
@@ -131,7 +128,7 @@ pub struct TypeOrigin {
 ///
 /// Directly modifying any field is undefined behavior. The fields are only
 /// public for read-only access.
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash, JsonSchema)]
+#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct UpgradeInfo {
     /// `Storage ID`/`Package ID` of the referred package.
     pub upgraded_id: ObjectID,
@@ -292,7 +289,7 @@ impl MovePackage {
     ) -> [u8; 32] {
         let mut components = object_ids
             .into_iter()
-            .map(|o| ***o)
+            .map(|o| o.into_bytes())
             .chain(
                 modules
                     .into_iter()
@@ -326,7 +323,7 @@ impl MovePackage {
         let module = modules
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
-        let runtime_id = ObjectID::from(*module.address());
+        let runtime_id = ObjectID::new(module.address().into_bytes());
         let storage_id = runtime_id;
         let type_origin_table = build_initial_type_origin_table(modules);
         Self::from_module_iter_with_type_origin_table(
@@ -357,10 +354,10 @@ impl MovePackage {
         let module = modules
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
-        let runtime_id = ObjectID::from(*module.address());
+        let runtime_id = ObjectID::new(module.address().into_bytes());
         let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
-        new_version.increment();
+        new_version.increment().unwrap();
         Self::from_module_iter_with_type_origin_table(
             storage_id,
             runtime_id,
@@ -381,7 +378,7 @@ impl MovePackage {
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
 
-        let storage_id = ObjectID::from(*module.address());
+        let storage_id = ObjectID::new(module.address().into_bytes());
         let type_origin_table = build_initial_type_origin_table(modules);
 
         let linkage_table = BTreeMap::from_iter(dependencies.into_iter().map(|dep| {
@@ -398,7 +395,7 @@ impl MovePackage {
                 //
                 // This reason, coupled with the fact that system packages can only depend on each
                 // other, mean that their own linkage tables always report a version of zero.
-                upgraded_version: SequenceNumber::new(),
+                upgraded_version: SequenceNumber::default(),
             };
             (dep, info)
         }));
@@ -442,7 +439,7 @@ impl MovePackage {
                 module
                     .immediate_dependencies()
                     .into_iter()
-                    .map(|dep| ObjectID::from(*dep.address())),
+                    .map(|dep| ObjectID::new(dep.address().into_bytes())),
             );
 
             let mut bytes = Vec::new();
@@ -477,7 +474,7 @@ impl MovePackage {
     /// In case the `Storage ID` doesn't match or the module name is not
     /// present in this package the function returns None.
     pub fn get_module(&self, storage_id: &ModuleId) -> Option<&Vec<u8>> {
-        if self.id != ObjectID::from(*storage_id.address()) {
+        if self.id != ObjectID::new(storage_id.address().into_bytes()) {
             None
         } else {
             self.module_map.get(&storage_id.name().to_string())
@@ -523,11 +520,11 @@ impl MovePackage {
     }
 
     pub fn decrement_version(&mut self) {
-        self.version.decrement();
+        self.version.decrement().unwrap();
     }
 
     pub fn increment_version(&mut self) {
-        self.version.increment();
+        self.version.increment().unwrap();
     }
 
     /// Approximate size of the package in bytes. This is used for gas metering.
@@ -579,7 +576,7 @@ impl MovePackage {
         // original package id.
         let module = CompiledModule::deserialize_with_defaults(bytes)
             .expect("A Move package contains a module that cannot be deserialized");
-        (*module.address()).into()
+        ObjectID::new(module.address().into_bytes())
     }
 
     pub fn deserialize_module(
@@ -834,7 +831,7 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
                     let module_name = m.name().to_string();
                     let struct_name = m.identifier_at(struct_handle.name).to_string();
-                    let package: ObjectID = (*m.self_id().address()).into();
+                    let package = ObjectID::new(m.self_id().address().into_bytes());
                     TypeOrigin {
                         module_name,
                         datatype_name: struct_name,
@@ -845,7 +842,7 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
                     let module_name = m.name().to_string();
                     let enum_name = m.identifier_at(enum_handle.name).to_string();
-                    let package: ObjectID = (*m.self_id().address()).into();
+                    let package = ObjectID::new(m.self_id().address().into_bytes());
                     TypeOrigin {
                         module_name,
                         datatype_name: enum_name,

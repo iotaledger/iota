@@ -9,7 +9,7 @@ use iota_types::{
     Identifier, base_types::IotaAddress, coin_manager::CoinManager,
     in_memory_storage::InMemoryStorage, object::Owner,
 };
-use move_core_types::language_storage::ModuleId;
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 
 use crate::stardust::{
     migration::{
@@ -69,7 +69,7 @@ pub(super) fn verify_foundry_output(
         .ok_or_else(|| anyhow!("expected a native token coin"))?;
 
     // The minted native token coin should be owned by `0x0`
-    let expected_owner = Owner::AddressOwner(IotaAddress::default());
+    let expected_owner = Owner::AddressOwner(IotaAddress::ZERO);
     ensure!(
         native_token_coin_obj.owner == expected_owner,
         "native token coin owner mismatch: found {}, expected {}",
@@ -110,7 +110,7 @@ pub(super) fn verify_foundry_output(
     let expected_package_data = NativeTokenPackageData::try_from(output)?;
 
     let module_id = ModuleId::new(
-        created_package.id().into(),
+        AccountAddress::new(created_package.id().into_bytes()),
         Identifier::new(expected_package_data.module().module_name.as_ref())?,
     );
 

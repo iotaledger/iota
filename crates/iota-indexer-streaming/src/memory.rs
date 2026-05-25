@@ -7,19 +7,30 @@
 //! It leverages PostgreSQL NOTIFY channel for receiving committed checkpoints
 //! notifications on which it fetches transactions by sequence number ranges,
 //! extracts events from them, and forwards all data to subscribers through
-//! [`tokio::sync::broadcast`].
+//! [`tokio::sync::broadcast`]. Supports backfill of historical data from
+//! indexer database enabling stream recovery after a disconnection.
 
 use std::{
+    collections::VecDeque,
     fmt::Debug,
+    future::Future,
     num::{NonZeroI64, NonZeroUsize},
     pin::Pin,
-    str::FromStr,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    },
     task::{Context, Poll},
     time::{Duration, Instant},
 };
 
-use futures::{Stream, StreamExt, TryFutureExt, stream};
+use backoff::ExponentialBackoff;
+use diesel::{
+    PgConnection, QueryResult, RunQueryDsl,
+    pg::PgNotification,
+    r2d2::{ConnectionManager, PooledConnection},
+};
+use futures::{Stream, StreamExt, TryFutureExt, future, stream};
 use iota_indexer::{
     models::{
         events::StoredEvent,
@@ -27,20 +38,19 @@ use iota_indexer::{
     },
     read::IndexerReader,
 };
-use iota_types::event::Event;
-use prometheus::IntGauge;
+use iota_types::{digests::TransactionDigest, event::Event};
+use prometheus::{Histogram, IntGauge};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tokio_postgres::{
-    AsyncMessage, Config as PostgresConfig, Connection, NoTls, Socket, tls::NoTlsStream,
-};
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
-use tracing::{debug, error};
+use tracing::{Instrument, debug, error};
 
 use crate::{
     error::{IndexerStreamingError, IndexerStreamingResult},
     metrics::{InMemoryStreamMetrics, METRICS_EVENT_LABEL, METRICS_TRANSACTION_LABEL},
 };
+
+pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;
 
 /// Postgres NOTIFY channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
@@ -48,6 +58,9 @@ const CHANNEL_NAME: &str = "checkpoint_committed";
 /// Delay in seconds before retrying to connect to the Postgres database in case
 /// of failure.
 const RETRY_POSTGRES_CONNECTION_DELAY: Duration = Duration::from_secs(5);
+/// Interval between polling for new notifications from the Postgres NOTIFY
+/// channel when client processed them all.
+const PG_NOTIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Notification received from PostgreSQL NOTIFY channel when a checkpoint is
 /// committed.
@@ -121,9 +134,40 @@ impl Default for Config {
     }
 }
 
+/// Where to start a recovery stream relative to a known transaction digest.
+///
+/// - [`Inclusive`](Self::Inclusive): yield the identified transaction, then
+///   everything after it.
+/// - [`Exclusive`](Self::Exclusive): skip the identified transaction; start
+///   from the next one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+pub enum RecoveryPoint {
+    /// Include the transaction identified by the digest.
+    Inclusive(TransactionDigest),
+    /// Start after the transaction identified by the digest.
+    Exclusive(TransactionDigest),
+}
+
+impl RecoveryPoint {
+    /// Returns the contained transaction digest.
+    fn digest(&self) -> TransactionDigest {
+        match self {
+            Self::Inclusive(d) | Self::Exclusive(d) => *d,
+        }
+    }
+
+    /// Checks if the starting transaction should be included in the stream.
+    fn is_inclusive(&self) -> bool {
+        matches!(self, Self::Inclusive(_))
+    }
+}
+
 /// Provides real-time streaming of transactions and events from the IOTA
 /// Indexer by listening to PostgreSQL NOTIFY messages triggered when new
 /// checkpoints are committed to the indexer database.
+///
+/// Also supports backfill of historical data from indexer database enabling
+/// stream recovery after a disconnection.
 ///
 /// The streamer consists of:
 /// - A PostgreSQL connection listening for notifications after every committed
@@ -134,13 +178,18 @@ impl Default for Config {
 /// # Usage
 ///
 /// ```rust,ignore
-/// use iota_indexer_streaming::memory::{InMemory, StreamTransactionFilter};
+/// use iota_indexer_streaming::{memory::InMemory, metrics::InMemoryStreamMetrics};
 ///
 /// // create a new streamer
-/// let streamer = InMemory::new(db_url, Default::default(), indexer_reader).await?;
+/// let streamer = InMemory::new(
+///     Default::default(),
+///     indexer_reader,
+///     InMemoryStreamMetrics::new(registry),
+/// )
+/// .await?;
 ///
 /// // subscribe to all events
-/// let events = streamer.subscribe_events().unwrap()
+/// let events = streamer.subscribe_events(None);
 /// tokio::spawn(async move {
 ///     use futures::StreamExt;
 ///     while let Some(event) = events.next().await {
@@ -151,7 +200,9 @@ impl Default for Config {
 pub struct InMemory {
     event_tx: broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
     transaction_tx: broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
+    reader: IndexerReader,
     metrics: Arc<InMemoryStreamMetrics>,
+    config: Config,
 }
 
 impl InMemory {
@@ -164,16 +215,11 @@ impl InMemory {
     /// - handles automatically reconnecting to PostgreSQL if the connection is
     ///   lost.
     pub async fn new(
-        db_url: &str,
         config: Config,
         indexer_reader: IndexerReader,
         metrics: impl Into<Arc<InMemoryStreamMetrics>>,
     ) -> IndexerStreamingResult<Self> {
         let metrics = metrics.into();
-
-        let pg_config = PostgresConfig::from_str(db_url).map_err(|e| {
-            IndexerStreamingError::Postgres(format!("failed to parse Postgresdb url: {e}"))
-        })?;
 
         let (event_tx, _) = broadcast::channel(config.channel_buffer_size.get());
         let (transaction_tx, _) = broadcast::channel(config.channel_buffer_size.get());
@@ -185,54 +231,58 @@ impl InMemory {
             let event_tx = event_tx.clone();
             let transaction_tx = transaction_tx.clone();
             let metrics = metrics.clone();
+            let indexer_reader = indexer_reader.clone();
+            let span = tracing::info_span!("live_broker");
 
             async move {
                 loop {
-                    let (client, connection) = match pg_config.connect(NoTls).await {
+                    let mut connection = match indexer_reader.get_pool().get() {
                         Ok(value) => value,
                         Err(e) => {
-                            error!("unable to connect to postgres: {e}");
-                            Self::publish_error(e.into(), &event_tx, &transaction_tx);
+                            error!(
+                                "failed to get connection from postgres connection pool with error: {e:?}"
+                            );
+                            Self::publish_error(
+                                IndexerStreamingError::Postgres(e.to_string()),
+                                &event_tx,
+                                &transaction_tx,
+                            );
                             tokio::time::sleep(RETRY_POSTGRES_CONNECTION_DELAY).await;
                             continue;
                         }
                     };
 
-                    // the client's queries require the connection to be actively polled to execute.
-                    // process_checkpoint_notifications is a long-running future that polls the
-                    // connection for notifications and should never resolve (unless a fatal error
-                    // occurs).
-                    let query_fut = async {
-                        client
-                            .query(&format!("LISTEN {CHANNEL_NAME};"), &[])
-                            .await
-                            .map_err(Into::into)
-                    };
+                    if let Err(e) =
+                        diesel::sql_query(format!("LISTEN {CHANNEL_NAME}")).execute(&mut connection)
+                    {
+                        error!("failed listening to postgres notify channel: {e}");
+                        Self::publish_error(e.into(), &event_tx, &transaction_tx);
+                        continue;
+                    }
 
-                    let process_notification_fut = Self::process_checkpoint_notifications(
+                    if let Err(e) = Self::process_checkpoint_notifications(
                         &metrics,
                         &config,
-                        connection,
+                        &mut connection,
                         &indexer_reader,
                         &event_tx,
                         &transaction_tx,
-                    );
-
-                    // by using try_join!, we poll both futures concurrently, which allows the
-                    // client query to execute while the connection is being actively polled
-                    // for incoming notifications.
-                    if let Err(e) = futures::try_join!(query_fut, process_notification_fut) {
+                    )
+                    .await
+                    {
                         error!("processing checkpoint notifications failed: {e}");
                         Self::publish_error(e, &event_tx, &transaction_tx);
                     }
                 }
-            }
+            }.instrument(span)
         });
 
         Ok(Self {
             event_tx,
             transaction_tx,
+            reader: indexer_reader,
             metrics,
+            config,
         })
     }
 
@@ -241,29 +291,139 @@ impl InMemory {
     /// By default all events are received, the client shall handle the
     /// filtering.
     ///
+    /// When `start_from` is `None`, subscribes to live events only. When
+    /// `start_from` is `Some(recovery_point)`, the stream first backfills
+    /// historical events from the transaction identified by the recovery
+    /// point's digest up to the tip of the network, then seamlessly transitions
+    /// to live events. This enables stream recovery after a disconnection.
+    ///
+    /// The recovery point variant controls whether events of the starting
+    /// transaction are included:
+    /// - [`RecoveryPoint::Inclusive`]: events of the starting transaction are
+    ///   yielded.
+    /// - [`RecoveryPoint::Exclusive`]: events of the starting transaction are
+    ///   skipped; streaming begins from the next transaction onward. Useful for
+    ///   reconnection, where the client already received that transaction's
+    ///   events in the previous session.
+    ///
     /// # Note
-    /// Since under the hood a [`tokio::sync::broadcast`] channel is used the
-    /// slow subscriber problem will be handled according to [documentation](https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html#lagging)
+    /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
+    /// live events, the slow subscriber problem will be handled according to [documentation](https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html#lagging)
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let event_stream = streamer.subscribe_events().unwrap();
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
+    /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    ///
+    /// // live events only.
+    /// let event_stream = streamer.subscribe_events(None);
     /// tokio::spawn(async move {
-    ///    use futures::StreamExt;
-    ///    while let Some(ev) = event_stream.next().await {
-    ///        if let Ok(ev) = ev.inspect_err(|BroadcastStreamRecvError::Lagged(num)| {
-    ///            println!("Lagged by {num} events")
-    ///        }) {
-    ///            println!("Received event: {ev:?}");
-    ///        }
-    ///    }
+    ///     use futures::StreamExt;
+    ///     while let Some(ev) = event_stream.next().await {
+    ///         if let Ok(ev) = ev.inspect_err(
+    ///             |IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(num))| {
+    ///                 println!("Lagged by {num} events")
+    ///             },
+    ///         ) {
+    ///             println!("Received event: {ev:?}");
+    ///         }
+    ///     }
     /// });
     /// ```
-    pub fn subscribe_events(&self) -> impl Stream<Item = IndexerStreamingResult<StoredEvent>> {
+    /// # Example with a starting transaction digest
+    ///
+    /// ```rust,ignore
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
+    /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    ///
+    /// // recover events from a specific transaction digest onwards.
+    /// let event_stream = streamer.subscribe_events(Some(RecoveryPoint::Inclusive(tx_digest)));
+    /// tokio::spawn(async move {
+    ///     use futures::StreamExt;
+    ///     while let Some(ev) = event_stream.next().await {
+    ///         if let Ok(ev) = ev.inspect_err(
+    ///             |IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(num))| {
+    ///                 println!("Lagged by {num} events")
+    ///             },
+    ///         ) {
+    ///             println!("Received event: {ev:?}");
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    pub fn subscribe_events(
+        &self,
+        start_from: Option<RecoveryPoint>,
+    ) -> Pin<Box<dyn Stream<Item = IndexerStreamingResult<StoredEvent>> + Send>> {
         let stream = BroadcastStream::new(self.event_tx.subscribe());
-        SubscriberStream::new(stream, METRICS_EVENT_LABEL, self.metrics.clone())
-            .map(Self::flatten_error)
+        let live_stream = SubscriberStream::new(
+            stream,
+            METRICS_EVENT_LABEL,
+            self.metrics.clone(),
+            start_from.is_some(),
+        )
+        .map(Self::flatten_error);
+        let Some(recovery_point) = start_from else {
+            return Box::pin(live_stream);
+        };
+
+        let historical = HistoricalFetch::new(
+            METRICS_EVENT_LABEL,
+            recovery_point.digest(),
+            self.reader.clone(),
+            self.config.transaction_batch_size.get(),
+            self.metrics.clone(),
+        );
+
+        let cursor = historical.cursor_handle();
+
+        let historical_events = historical
+            .into_stream()
+            .skip_while({
+                let mut include_starting_tx = recovery_point.is_inclusive();
+                move |result| {
+                    future::ready(match result {
+                        Ok(_) if !include_starting_tx => {
+                            include_starting_tx = true;
+                            true
+                        }
+                        _ => false,
+                    })
+                }
+            })
+            // we use Either represented by left/right stream methods to unify the two stream types
+            // returned by the closure: stream::iter (multiple events) and stream::once (single
+            // error). This avoids an extra heap allocation from Box::pin.
+            .map(|result| match result {
+                Ok(tx) => match Self::stored_events_from_transaction(&tx) {
+                    Ok(events) => stream::iter(events.into_iter().map(Ok)).left_stream(),
+                    Err(e) => stream::once(future::err(e)).right_stream(),
+                },
+                Err(e) => stream::once(future::err(e)).right_stream(),
+            })
+            .flatten();
+
+        Box::pin(
+            historical_events
+                // when switching from historical to live, the broadcast buffer may
+                // contain transactions already delivered by the historical backfill.
+                // Filter them out using the cursor to prevent duplicates.
+                .chain({
+                    let mut initial_lagged_skipped = false;
+                    live_stream.skip_while(move |result| {
+                        future::ready(match result {
+                            Ok(tx) => tx.tx_sequence_number < cursor.load(Ordering::Relaxed),
+                            Err(IndexerStreamingError::Lagged(_)) if !initial_lagged_skipped => {
+                                initial_lagged_skipped = true;
+                                true // skip this one
+                            }
+                            // surface any other error or second Lagged
+                            Err(_) => false,
+                        })
+                    })
+                }),
+        )
     }
 
     /// Subscribe to a stream of [`StoredTransaction`].
@@ -271,30 +431,124 @@ impl InMemory {
     /// By default all transactions are received, the client shall handle the
     /// filtering.
     ///
+    /// When `start_from` is `None`, subscribes to live transactions only. When
+    /// `start_from` is `Some(recovery_point)`, the stream first backfills
+    /// historical transactions from the one identified by the recovery point's
+    /// digest up to the tip of the network, then seamlessly transitions to
+    /// live transactions. This enables stream recovery after a disconnection.
+    ///
+    /// The recovery point variant controls whether the starting transaction
+    /// itself is included:
+    /// - [`RecoveryPoint::Inclusive`]: the starting transaction is yielded.
+    /// - [`RecoveryPoint::Exclusive`]: streaming begins from the transaction
+    ///   immediately after the one identified by the digest. Useful for
+    ///   reconnection, where the client already received that transaction in
+    ///   the previous session.
+    ///
     /// # Note
-    /// Since under the hood a [`tokio::sync::broadcast`] channel is used the
-    /// slow subscriber problem will be handled according to [documentation](https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html#lagging)
+    /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
+    /// live transactions, the slow subscriber problem will be handled according to [documentation](https://docs.rs/tokio/latest/tokio/sync/broadcast/index.html#lagging)
     ///
     /// # Example
     /// ```rust,ignore
-    /// let tx_stream = streamer.subscribe_transactions().unwrap();
+    /// use iota_indexer_streaming::error::IndexerStreamingError;
+    /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    ///
+    /// // live transactions only.
+    /// let tx_stream = streamer.subscribe_transactions(None);
     /// tokio::spawn(async move {
-    ///    use futures::StreamExt;
-    ///    while let Some(tx) = tx_stream.next().await {
-    ///        if let Ok(tx) = tx.inspect_err(|BroadcastStreamRecvError::Lagged(num)| {
-    ///            println!("Lagged by {num} transactions")
-    ///        }) {
-    ///            println!("Received transaction: {tx:?}");
-    ///        }
-    ///    }
+    ///     use futures::StreamExt;
+    ///     while let Some(tx) = tx_stream.next().await {
+    ///         if let Ok(tx) = tx.inspect_err(
+    ///             |IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(num))| {
+    ///                 println!("Lagged by {num} transactions")
+    ///             },
+    ///         ) {
+    ///             println!("Received transaction: {tx:?}");
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    /// # Example with a starting transaction digest
+    /// ```rust,ignore
+    /// use iota_indexer_streaming::{error::IndexerStreamingError, memory::RecoveryPoint};
+    /// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    ///
+    /// // recover transactions from a specific transaction digest onwards.
+    /// let tx_stream = streamer.subscribe_transactions(Some(RecoveryPoint::Inclusive(tx_digest)));
+    /// tokio::spawn(async move {
+    ///     use futures::StreamExt;
+    ///     while let Some(tx) = tx_stream.next().await {
+    ///         if let Ok(tx) = tx.inspect_err(
+    ///             |IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(num))| {
+    ///                 println!("Lagged by {num} transactions")
+    ///             },
+    ///         ) {
+    ///             println!("Received transaction: {tx:?}");
+    ///         }
+    ///     }
     /// });
     /// ```
     pub fn subscribe_transactions(
         &self,
-    ) -> impl Stream<Item = IndexerStreamingResult<StoredTransaction>> {
+        start_from: Option<RecoveryPoint>,
+    ) -> Pin<Box<dyn Stream<Item = IndexerStreamingResult<StoredTransaction>> + Send>> {
         let stream = BroadcastStream::new(self.transaction_tx.subscribe());
-        SubscriberStream::new(stream, METRICS_TRANSACTION_LABEL, self.metrics.clone())
-            .map(Self::flatten_error)
+        let live_stream = SubscriberStream::new(
+            stream,
+            METRICS_TRANSACTION_LABEL,
+            self.metrics.clone(),
+            start_from.is_some(),
+        )
+        .map(Self::flatten_error);
+
+        let Some(recovery_point) = start_from else {
+            return Box::pin(live_stream);
+        };
+
+        let historical = HistoricalFetch::new(
+            METRICS_TRANSACTION_LABEL,
+            recovery_point.digest(),
+            self.reader.clone(),
+            self.config.transaction_batch_size.get(),
+            self.metrics.clone(),
+        );
+
+        let cursor = historical.cursor_handle();
+
+        Box::pin(
+            historical
+                .into_stream()
+                .skip_while({
+                    let mut include_starting_tx = recovery_point.is_inclusive();
+                    move |result| {
+                        future::ready(match result {
+                            Ok(_) if !include_starting_tx => {
+                                include_starting_tx = true;
+                                true
+                            }
+                            _ => false,
+                        })
+                    }
+                })
+                // when switching from historical to live, the broadcast buffer may
+                // contain transactions already delivered by the historical backfill.
+                // Filter them out using the cursor to prevent duplicates.
+                .chain({
+                    let mut initial_lagged_skipped = false;
+                    live_stream.skip_while(move |result| {
+                        future::ready(match result {
+                            Ok(tx) => tx.tx_sequence_number < cursor.load(Ordering::Relaxed),
+                            Err(IndexerStreamingError::Lagged(_)) if !initial_lagged_skipped => {
+                                initial_lagged_skipped = true;
+                                true // skip this one
+                            }
+                            // surface any other error or second Lagged
+                            Err(_) => false,
+                        })
+                    })
+                }),
+        )
     }
 
     /// Flattens nested `Result` types from the broadcast stream.
@@ -321,22 +575,32 @@ impl InMemory {
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,
-        mut connection: Connection<Socket, NoTlsStream>,
+        connection: &mut PoolConnection,
         indexer_reader: &IndexerReader,
         event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
         transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
     ) -> IndexerStreamingResult<()> {
-        let mut backoff = backoff::ExponentialBackoff::default();
+        let mut backoff = ExponentialBackoff::default();
         backoff.max_elapsed_time = Some(Duration::from_secs(5));
         backoff.initial_interval = Duration::from_millis(100);
         backoff.current_interval = backoff.initial_interval;
         backoff.multiplier = 1.0;
 
-        // create a stream from the connection that forwards messages to the channel.
-        let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx))
-            .ready_chunks(config.notification_chunk_size.get());
+        loop {
+            // Poll the PostgreSQL NOTIFY channel for new checkpoint commit
+            // notifications. The iterator is non-blocking, it drains whatever
+            // is currently buffered and returns None when empty. We re-poll
+            // after a short sleep since new notifications can arrive at any time.
+            let messages = connection
+                .notifications_iter()
+                .take(config.notification_chunk_size.get())
+                .collect::<Vec<QueryResult<PgNotification>>>();
 
-        while let Some(messages) = stream.next().await {
+            if messages.is_empty() {
+                tokio::time::sleep(PG_NOTIFICATION_POLL_INTERVAL).await;
+                continue;
+            }
+
             // auto-records duration on drop (after each iteration).
             let _record_processed_checkpoint_notifications =
                 metrics.process_notification_batch_latency.start_timer();
@@ -389,16 +653,13 @@ impl InMemory {
                 }
             }
         }
-        Err(IndexerStreamingError::Postgres(
-            "postgres notification stream closed, retrying establishing connection...".into(),
-        ))
     }
 
     /// Resolves the transaction sequence number bounds from the given messages
     /// batch.
     fn resolve_tx_bounds(
         metrics: &InMemoryStreamMetrics,
-        messages: &[Result<AsyncMessage, tokio_postgres::Error>],
+        messages: &[QueryResult<PgNotification>],
     ) -> IndexerStreamingResult<Option<(i64, i64)>> {
         let mut filtered_messages = Self::filter_checkpoint_notifications(metrics, messages);
 
@@ -510,32 +771,24 @@ impl InMemory {
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
     fn filter_checkpoint_notifications<'a>(
         metrics: &'a InMemoryStreamMetrics,
-        messages: &'a [Result<AsyncMessage, tokio_postgres::Error>],
+        messages: &'a [QueryResult<PgNotification>],
     ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> + 'a {
-        messages.iter().filter_map(|msg_result| {
-            match msg_result {
-                Ok(AsyncMessage::Notification(n)) => {
-                    match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {
-                        Ok(notification) => {
-                            metrics
-                                .notified_checkpoint_sequence_number
-                                .set(notification.checkpoint_sequence_number);
+        messages.iter().filter_map(|msg_result| match msg_result {
+            Ok(PgNotification { payload, .. }) => {
+                match serde_json::from_str::<CheckpointCommitNotification>(payload) {
+                    Ok(notification) => {
+                        metrics
+                            .notified_checkpoint_sequence_number
+                            .set(notification.checkpoint_sequence_number);
 
-                            Some(Ok(notification))
-                        }
-                        Err(_) => None,
+                        Some(Ok(notification))
                     }
+                    Err(_) => None,
                 }
-                // not a notification message, skip
-                Ok(AsyncMessage::Notice(msg)) => {
-                    tracing::warn!("received a postgres notice: {msg}");
-                    None
-                }
-                Ok(_) => None,
-                Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
-                    "database connection error: {e}"
-                )))),
             }
+            Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
+                "database connection error: {e}"
+            )))),
         })
     }
 
@@ -552,8 +805,8 @@ impl InMemory {
                 tx_sequence_number: tx.tx_sequence_number,
                 event_sequence_number: idx as i64,
                 transaction_digest: tx.transaction_digest.clone(),
-                senders: vec![Some(native.sender.to_vec())],
-                package: native.package_id.to_vec(),
+                senders: vec![Some(native.sender.as_bytes().to_vec())],
+                package: native.package_id.as_bytes().to_vec(),
                 module: native.transaction_module.to_string(),
                 event_type: native.type_.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
@@ -595,11 +848,14 @@ impl<T> SubscriberStream<T> {
         inner: BroadcastStream<T>,
         label: &'static str,
         metrics: Arc<InMemoryStreamMetrics>,
+        is_historical_used_before: bool,
     ) -> Self {
         let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
         let lagging_subscribers = metrics.lagging_subscribers.with_label_values(&[label]);
 
-        active_subscriber_number.inc();
+        if !is_historical_used_before {
+            active_subscriber_number.inc();
+        }
 
         Self {
             inner,
@@ -659,5 +915,237 @@ impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
         }
 
         poll
+    }
+}
+
+/// Fetches historical transactions from the indexer database starting from a
+/// given transaction digest up to the latest available sequence number.
+///
+/// This stream is used for stream recovery, the caller chains this stream with
+/// a live broadcast stream to provide gap-free delivery from a recovery point.
+struct HistoricalFetch {
+    /// Transaction digest to start fetching from.
+    start_from_digest: TransactionDigest,
+    /// Next transaction sequence number to fetch.
+    cursor: Arc<AtomicI64>,
+    /// Whether [`Self::cursor`] has been resolved from
+    /// [`Self::start_from_digest`].
+    ///
+    /// Needed because `0` is a valid cursor value (the genesis transaction),
+    /// so it cannot be used as a starting point for the unresolved state.
+    cursor_resolved: bool,
+    /// Latest committed transaction sequence number in the database.
+    latest_tx_in_db: i64,
+    /// Database reader for fetching transactions.
+    reader: IndexerReader,
+    /// Buffered transactions from the last database batch fetch.
+    buffer: VecDeque<StoredTransaction>,
+    /// Number of transactions to fetch per database query.
+    batch_size: i64,
+    /// Upon an unrecoverable error, the stream should be closed.
+    should_close_stream: bool,
+    /// Tracks the latency of querying transaction batch from the indexer
+    /// database.
+    query_tx_from_indexer_db_latency: Histogram,
+}
+
+impl HistoricalFetch {
+    fn new(
+        label: &'static str,
+        start_from_digest: TransactionDigest,
+        reader: IndexerReader,
+        batch_size: i64,
+        metrics: Arc<InMemoryStreamMetrics>,
+    ) -> Self {
+        let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
+        active_subscriber_number.inc();
+
+        Self {
+            start_from_digest,
+            cursor: Arc::new(AtomicI64::new(0)),
+            cursor_resolved: false,
+            latest_tx_in_db: 0,
+            reader,
+            buffer: VecDeque::new(),
+            batch_size,
+            should_close_stream: false,
+            query_tx_from_indexer_db_latency: metrics.query_tx_from_indexer_db_latency.clone(),
+        }
+    }
+
+    /// Returns the current value of the cursor.
+    fn cursor_value(&self) -> i64 {
+        self.cursor.load(Ordering::Relaxed)
+    }
+
+    /// Updates the cursor to the given value.
+    fn update_cursor(&self, value: i64) {
+        self.cursor.store(value, Ordering::Relaxed);
+    }
+
+    /// Returns a shared reference to the cursor.
+    ///
+    /// The cursor tracks the next expected transaction sequence number and
+    /// is updated as the historical stream progresses. Used by the live
+    /// stream filter to skip already-delivered transactions.
+    fn cursor_handle(&self) -> Arc<AtomicI64> {
+        self.cursor.clone()
+    }
+
+    /// Retries the provided closure using an [`ExponentialBackoff`]
+    async fn with_retry<F, Fut, T, E>(f: F) -> Result<T, E>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, backoff::Error<E>>>,
+    {
+        let backoff = ExponentialBackoff {
+            max_elapsed_time: Some(Duration::from_secs(5)),
+            initial_interval: Duration::from_millis(100),
+            multiplier: 1.0,
+            ..Default::default()
+        };
+
+        backoff::future::retry(backoff, f).await
+    }
+
+    /// Converts into a stream that yields historical transactions from the
+    /// database in batches. The stream ends once all transactions up to
+    /// the latest committed transaction to database have been yielded, at which
+    /// point the caller can chain a live stream.
+    fn into_stream(self) -> impl Stream<Item = IndexerStreamingResult<StoredTransaction>> {
+        stream::unfold(self, |mut state| {
+            let start_from = state.start_from_digest;
+            let span = tracing::info_span!("historical_backfill", %start_from);
+            async move {
+                loop {
+                    if state.should_close_stream {
+                        return None;
+                    }
+
+                    // drain the buffer before fetching new transactions from the database.
+                    // This is the main point of sending transactions to the caller.
+                    if let Some(tx) = state.buffer.pop_front() {
+                        return Some((Ok(tx), state));
+                    }
+
+                    // resolve the cursor from the digest if it hasn't been set yet.
+                    if !state.cursor_resolved {
+                        match Self::with_retry(|| async {
+                            state
+                                .reader
+                                .db()
+                                .resolve_cursor_tx_digest_to_seq_num(state.start_from_digest)
+                                .await
+                                .map_err(backoff::Error::transient)
+                        })
+                        .await
+                        {
+                            Ok(cursor) => {
+                                state.cursor_resolved = true;
+                                state.update_cursor(cursor);
+                            },
+                            Err(e) => {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::NotFound(format!(
+                                    "unable to resolve transaction, may not exist or has been pruned: {e}"
+                                ));
+                                error!("{e}");
+                                return Some((Err(e), state));
+                            }
+                        }
+                    }
+
+                    // check if cursor is ahead of latest available transaction on database, if so,
+                    // refresh latest, so the stream can continue.
+                    if state.cursor_value() > state.latest_tx_in_db {
+                        state.latest_tx_in_db = match Self::with_retry(|| async {
+                            state
+                                .reader
+                                .db()
+                                .latest_tx_sequence_number()
+                                .await
+                                .map_err(backoff::Error::transient)
+                        })
+                        .await
+                        {
+                            Ok(Some(latest)) => latest,
+                            // this case is very unlikely, but we should handle it gracefully. This
+                            // is mostly because when we resolve the provided tx digest to a
+                            // sequence number (in the previous step), this implies that we already
+                            // have data in transactions table.
+                            Ok(None) => {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::Postgres(
+                                    "unable to fetch latest tx sequence number".into(),
+                                );
+                                error!("{e}");
+                                return Some((Err(e), state));
+                            }
+                            Err(e) => {
+                                state.should_close_stream = true;
+                                let e = IndexerStreamingError::Postgres(format!(
+                                    "unable to fetch latest tx sequence number: {e}"
+                                ));
+                                error!("{e}");
+                                return Some((Err(e), state));
+                            }
+                        };
+
+                        debug!(
+                            cursor = state.cursor_value(),
+                            latest = state.latest_tx_in_db,
+                            "current state"
+                        );
+
+                        // if latest did not advance, we're at the tip and can close the historical
+                        // backfill stream and move to the live one.
+                        if state.cursor_value() > state.latest_tx_in_db {
+                            debug!("reached the tip and are in sync with live data");
+                            return None;
+                        }
+                    }
+
+                    // fetch transaction batch from database and update the cursor.
+                    let start = state.cursor_value();
+                    let end = (start + state.batch_size.saturating_sub(1)).min(state.latest_tx_in_db);
+
+                    let db_query_timer = state.query_tx_from_indexer_db_latency.start_timer();
+                    match Self::with_retry(|| async {
+                        state
+                            .reader
+                            .spawn_blocking(move |this| {
+                                this.multi_get_transactions_by_sequence_numbers_range(start, end)
+                            })
+                            .await
+                            .map_err(backoff::Error::transient)
+                    })
+                    .await
+                    {
+                        Ok(batch) => {
+                            let elapsed = db_query_timer.stop_and_record();
+                            debug!(
+                                "transactions query took: {:?}, tx: {}",
+                                Duration::from_secs_f64(elapsed),
+                                batch.len()
+                            );
+                            state.buffer.extend(batch);
+                            state.update_cursor(end + 1);
+                        }
+                        Err(e) => {
+                            state.should_close_stream = true;
+                            let e = IndexerStreamingError::Postgres(e.to_string());
+                            error!(
+                                batch_start = start,
+                                batch_end = end,
+                                error = ?e,
+                                "batch processing failed after retries, publishing error to clients"
+                            );
+                            return Some((Err(e), state));
+                        }
+                    }
+                }
+            }
+            .instrument(span)
+        })
     }
 }

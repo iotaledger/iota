@@ -28,7 +28,6 @@ mod tests {
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
     use tokio::time::sleep;
 
     async fn mutation_execute_transaction(
@@ -81,7 +80,7 @@ mod tests {
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let data_ingestion_path = iota_common::tempdir().keep();
         let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -153,7 +152,8 @@ mod tests {
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
         let sim = Simulacrum::new_with_rng(rng);
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let tmp_dir = iota_common::tempdir();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
@@ -416,6 +416,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore = "https://github.com/iotaledger/iota/issues/11354"]
     async fn test_transaction_execution() {
         let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
             ConnectionConfig::default(),
@@ -629,131 +630,6 @@ mod tests {
             transactions[2].is_null(),
             "Third transaction should be null for the fake digest"
         );
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-    async fn test_zklogin_sig_verify() {
-        use iota_sdk_types::crypto::{Intent, IntentMessage};
-        use iota_test_transaction_builder::TestTransactionBuilder;
-        use iota_types::{
-            base_types::IotaAddress, crypto::Signature, signature::GenericSignature,
-            utils::load_test_vectors, zk_login_authenticator::ZkLoginAuthenticator,
-        };
-
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
-
-        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
-            ConnectionConfig::default(),
-            None,
-            ServiceConfig::test_defaults(),
-        )
-        .await;
-
-        let test_cluster = &cluster.validator_fullnode_handle;
-        test_cluster.wait_for_epoch_all_nodes(1).await;
-        test_cluster.wait_for_authenticator_state_update().await;
-
-        // Construct a valid zkLogin transaction data, signature.
-        let (kp, pk_zklogin, inputs) =
-            &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()
-                [1];
-
-        let zklogin_addr = (pk_zklogin).into();
-        let rgp = test_cluster.get_reference_gas_price().await;
-        let gas = test_cluster
-            .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
-            .await;
-        let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-            .transfer_iota(None, IotaAddress::ZERO)
-            .build();
-        let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
-        let eph_sig = Signature::new_secure(&msg, kp);
-        let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
-            inputs.clone(),
-            2,
-            eph_sig.clone(),
-        ));
-
-        // construct all parameters for the query
-        let bytes = Base64::encode(bcs::to_bytes(&tx_data).unwrap());
-        let signature = Base64::encode(generic_sig.as_ref());
-        let intent_scope = "TRANSACTION_DATA";
-        let author = zklogin_addr.to_string();
-
-        // now query the endpoint with a valid tx data bytes and a valid signature with
-        // the correct proof for dev env.
-        let query = r#"{ verifyZkloginSignature(bytes: $bytes, signature: $signature, intentScope: $intent_scope, author: $author ) { success, errors}}"#;
-        let variables = vec![
-            GraphqlQueryVariable {
-                name: "bytes".to_string(),
-                ty: "String!".to_string(),
-                value: json!(bytes),
-            },
-            GraphqlQueryVariable {
-                name: "signature".to_string(),
-                ty: "String!".to_string(),
-                value: json!(signature),
-            },
-            GraphqlQueryVariable {
-                name: "intent_scope".to_string(),
-                ty: "ZkLoginIntentScope!".to_string(),
-                value: json!(intent_scope),
-            },
-            GraphqlQueryVariable {
-                name: "author".to_string(),
-                ty: "IotaAddress!".to_string(),
-                value: json!(author),
-            },
-        ];
-        let res = cluster
-            .graphql_client
-            .execute_to_graphql(query.to_string(), true, variables, vec![])
-            .await
-            .unwrap();
-
-        // a valid signature with tx bytes returns success as true.
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        tracing::info!("tktkbinding: {:?}", binding);
-        let res = binding.get("verifyZkloginSignature").unwrap();
-        assert_eq!(res.get("success").unwrap(), true);
-
-        // set up an invalid intent scope.
-        let incorrect_intent_scope = "PERSONAL_MESSAGE";
-        let incorrect_variables = vec![
-            GraphqlQueryVariable {
-                name: "bytes".to_string(),
-                ty: "String!".to_string(),
-                value: json!(bytes),
-            },
-            GraphqlQueryVariable {
-                name: "signature".to_string(),
-                ty: "String!".to_string(),
-                value: json!(signature),
-            },
-            GraphqlQueryVariable {
-                name: "intent_scope".to_string(),
-                ty: "ZkLoginIntentScope!".to_string(),
-                value: json!(incorrect_intent_scope),
-            },
-            GraphqlQueryVariable {
-                name: "author".to_string(),
-                ty: "IotaAddress!".to_string(),
-                value: json!(author),
-            },
-        ];
-        //  returns a non-empty errors list in response
-        let res = cluster
-            .graphql_client
-            .execute_to_graphql(query.to_string(), true, incorrect_variables, vec![])
-            .await
-            .unwrap();
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let res = binding.get("verifyZkloginSignature").unwrap();
-        assert_eq!(res.get("success").unwrap(), false);
     }
 
     // TODO: add more test cases for transaction execution/dry run in transactional

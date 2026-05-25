@@ -5,7 +5,9 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "/external-crates/move"
     schedule:
       interval: "daily"
 
@@ -20,3 +22,5 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    # Disable version update PRs, keep security alerts
+    open-pull-requests-limit: 0

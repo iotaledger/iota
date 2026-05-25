@@ -247,7 +247,7 @@ async fn create_test_env() -> TestEnv {
     let mut coin_owner = None;
     let mut deny_cap = None;
     for created in effects.created() {
-        let object_id = created.reference.object_id;
+        let object_id = created.reference.0;
         let object = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await

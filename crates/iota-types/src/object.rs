@@ -17,7 +17,6 @@ use move_core_types::{
     annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue},
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -34,7 +33,6 @@ use crate::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
-    is_system_package,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
     timelock::timelock::TimeLock,
@@ -146,7 +144,8 @@ impl MoveObject {
         if ID_END_INDEX > contents.len() {
             return Err(ObjectIDParseError::TryFromSlice);
         }
-        ObjectID::try_from(&contents[0..ID_END_INDEX])
+        ObjectID::from_bytes(&contents[0..ID_END_INDEX])
+            .map_err(|_| ObjectIDParseError::TryFromSlice)
     }
 
     /// Return the `value: u64` field of a `Coin<T>` type.
@@ -249,11 +248,21 @@ impl MoveObject {
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
     pub fn increment_version_to(&mut self, next: SequenceNumber) {
-        self.version.increment_to(next);
+        debug_assert!(
+            self.version < next,
+            "Not an increment: {} to {next}",
+            self.version
+        );
+        self.version = next;
     }
 
     pub fn decrement_version_to(&mut self, prev: SequenceNumber) {
-        self.version.decrement_to(prev);
+        debug_assert!(
+            prev < self.version,
+            "Not a decrement: {} to {prev}",
+            self.version
+        );
+        self.version = prev;
     }
 
     pub fn contents(&self) -> &[u8] {
@@ -444,9 +453,7 @@ impl Data {
     }
 }
 
-#[derive(
-    Eq, PartialEq, Debug, Clone, Copy, Deserialize, Serialize, Hash, JsonSchema, Ord, PartialOrd,
-)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Deserialize, Serialize, Hash, Ord, PartialOrd)]
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
 pub enum Owner {
     /// Object is exclusively owned by a single address, and is mutable.
@@ -536,7 +543,7 @@ impl Display for Owner {
             Self::Shared {
                 initial_shared_version,
             } => {
-                write!(f, "Shared( {} )", initial_shared_version.value())
+                write!(f, "Shared( {initial_shared_version} )")
             }
         }
     }
@@ -704,7 +711,7 @@ impl std::ops::DerefMut for Object {
 impl ObjectInner {
     /// Returns true if the object is a system package.
     pub fn is_system_package(&self) -> bool {
-        self.is_package() && is_system_package(self.id())
+        self.is_package() && self.id().is_system_package()
     }
 
     pub fn is_immutable(&self) -> bool {
@@ -903,7 +910,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -924,7 +931,7 @@ impl Object {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
@@ -936,7 +943,7 @@ impl Object {
         ObjectInner {
             owner: Owner::AddressOwner(owner),
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -951,7 +958,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -966,7 +973,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -981,7 +988,7 @@ impl Object {
         ObjectInner {
             owner: Owner::ObjectOwner(owner.into()),
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -1005,7 +1012,7 @@ impl Object {
         ObjectInner {
             owner,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -1022,7 +1029,7 @@ impl Object {
         Object::new_move(
             obj,
             Owner::AddressOwner(owner),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
         )
     }
 
@@ -1219,7 +1226,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), Digest(\"Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM\"))"
         );
     }
 

@@ -16,7 +16,6 @@ use fastcrypto::{
 };
 use iota_types::{
     GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_CLAIM_REGISTRY_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -328,10 +327,6 @@ impl UnsignedGenesis {
         get_iota_system_state(&self.objects()).expect("IOTA System State object must always exist")
     }
 
-    pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
-    }
-
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
             .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
@@ -531,7 +526,7 @@ impl TokenDistributionSchedule {
 
         let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             pre_minted_supply.recipient_address,
             "final allocation must be for the pre-minted supply amount",
         );
@@ -557,7 +552,7 @@ impl TokenDistributionSchedule {
         }
 
         writer.serialize(TokenAllocation {
-            recipient_address: IotaAddress::default(),
+            recipient_address: IotaAddress::ZERO,
             amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
             staked_with_timelock_expiration: None,

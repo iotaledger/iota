@@ -307,7 +307,7 @@ mod checked {
                 return Ok(self
                     .linkage_view
                     .original_package_id()
-                    .unwrap_or(*package_id));
+                    .unwrap_or(AccountAddress::new(package_id.into_bytes())));
             }
 
             let package = package_for_linkage(&self.linkage_view, package_id)
@@ -1258,7 +1258,7 @@ mod checked {
         } = struct_tag;
 
         // Load the package that the struct is defined in, in storage
-        let defining_id = ObjectID::from_address(*address);
+        let defining_id = ObjectID::new(address.into_bytes());
         let package = package_for_linkage(linkage_view, defining_id)?;
 
         // Set the defining package as the link context while loading the

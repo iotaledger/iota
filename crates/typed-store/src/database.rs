@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::hash::{Digest, HashFunction};
+use iota_common::debug_fatal;
 use iota_macros::fail_point;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
@@ -194,9 +196,10 @@ impl Database {
     {
         match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
+                let keys_vec: Vec<K> = keys.into_iter().collect();
                 let res = db.underlying.batched_multi_get_cf_opt(
                     &cf.rocks_cf(db),
-                    keys,
+                    keys_vec.iter(),
                     // sorted_input
                     false,
                     readopts,
@@ -214,17 +217,6 @@ impl Database {
                 .map(|r| Ok(r.map(GetResult::InMemory)))
                 .collect(),
             _ => unreachable!("typed store invariant violation"),
-        }
-    }
-
-    pub fn create_cf<N: AsRef<str>>(
-        &self,
-        name: N,
-        opts: &rocksdb::Options,
-    ) -> Result<(), rocksdb::Error> {
-        match &self.storage {
-            Storage::Rocks(db) => db.underlying.create_cf(name, opts),
-            Storage::InMemory(_) => Ok(()),
         }
     }
 
@@ -350,16 +342,6 @@ impl Database {
             rocksdb
                 .underlying
                 .compact_range_cf(&rocks_cf(rocksdb, cf.name()), start, end);
-        }
-    }
-
-    pub fn flush(&self) -> Result<(), TypedStoreError> {
-        match &self.storage {
-            Storage::Rocks(db) => db
-                .underlying
-                .flush()
-                .map_err(typed_store_err_from_rocks_err),
-            Storage::InMemory(_) => Ok(()),
         }
     }
 
@@ -962,6 +944,16 @@ impl DBBatch {
                 let k_buf = be_fix_int_ser(k.borrow());
                 let v_buf = bcs::to_bytes(v.borrow()).map_err(typed_store_err_from_bcs_err)?;
                 total += k_buf.len() + v_buf.len();
+                if db.opts.log_value_hash {
+                    let key_hash = default_hash(&k_buf);
+                    let value_hash = default_hash(&v_buf);
+                    debug!(
+                        "Insert to DB table: {:?}, key_hash: {:?}, value_hash: {:?}",
+                        db.cf_name(),
+                        key_hash,
+                        value_hash
+                    );
+                }
                 match (&mut self.batch, &db.column_family) {
                     (StorageWriteBatch::Rocks(b), ColumnFamily::Rocks(name)) => {
                         b.put_cf(&rocks_cf_from_db(&self.database, name)?, k_buf, v_buf)
@@ -1044,9 +1036,21 @@ where
                 .report_metrics(self.cf_name());
         }
         match res {
-            Some(data) => Ok(Some(
-                bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
-            )),
+            Some(data) => {
+                let value = bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err);
+                if value.is_err() {
+                    let key_hash = default_hash(&key_buf);
+                    let value_hash = default_hash(&data);
+                    debug_fatal!(
+                        "Failed to deserialize value from DB table {:?}, key_hash: {:?}, value_hash: {:?}, error: {:?}",
+                        self.cf_name(),
+                        key_hash,
+                        value_hash,
+                        value.as_ref().err().unwrap()
+                    );
+                }
+                Ok(Some(value?))
+            }
             None => Ok(None),
         }
     }
@@ -1121,19 +1125,6 @@ where
                 .write_perf_ctx_metrics
                 .report_metrics(self.cf_name());
         }
-        Ok(())
-    }
-
-    /// This method first drops the existing column family and then creates a
-    /// new one with the same name. The two operations are not atomic and
-    /// hence it is possible to get into a race condition where the column
-    /// family has been dropped but new one is not created yet
-    #[instrument(level = "trace", skip_all, err)]
-    fn unsafe_clear(&self) -> Result<(), TypedStoreError> {
-        let _ = self.db.drop_cf(self.cf_name());
-        self.db
-            .create_cf(self.cf_name(), &crate::rocks::default_db_options().options)
-            .map_err(typed_store_err_from_rocks_err)?;
         Ok(())
     }
 
@@ -1297,4 +1288,10 @@ where
     fn try_catch_up_with_primary(&self) -> Result<(), Self::Error> {
         self.db.try_catch_up_with_primary()
     }
+}
+
+fn default_hash(value: &[u8]) -> Digest<32> {
+    let mut hasher = fastcrypto::hash::Blake2b256::default();
+    hasher.update(value);
+    hasher.finalize()
 }

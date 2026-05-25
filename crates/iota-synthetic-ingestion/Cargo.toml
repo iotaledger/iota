@@ -24,4 +24,8 @@ simulacrum.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
+# external dependencies
 tempfile.workspace = true
+
+# internal dependencies
+iota-common.workspace = true

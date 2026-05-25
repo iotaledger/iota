@@ -83,7 +83,7 @@ use crate::{
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
-        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+        zklogin,
     },
     tx_context::TxContextDigestCostParams,
 };
@@ -97,6 +97,7 @@ mod dynamic_field;
 mod event;
 mod object;
 pub mod object_runtime;
+mod protocol_config;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -160,6 +161,7 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
@@ -211,10 +213,6 @@ pub struct NativesCostTable {
 
     // vdf
     pub vdf_cost_params: VDFCostParams,
-
-    // zklogin
-    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
-    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
 
     // Receive object
     pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
@@ -476,6 +474,15 @@ impl NativesCostTable {
                     .auth_context_digest_cost_base_as_option()
                     .map(Into::into),
             },
+            auth_context_tx_data_bytes_cost_params:
+                auth_context::AuthContextTxDataBytesCostParams {
+                    auth_context_tx_data_bytes_cost_base: protocol_config
+                        .auth_context_tx_data_bytes_cost_base_as_option()
+                        .map(Into::into),
+                    auth_context_tx_data_bytes_cost_per_byte: protocol_config
+                        .auth_context_tx_data_bytes_cost_per_byte_as_option()
+                        .map(Into::into),
+                },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base_as_option()
@@ -678,16 +685,6 @@ impl NativesCostTable {
                     .transfer_receive_object_cost_base_as_option()
                     .unwrap_or(0)
                     .into(),
-            },
-            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: protocol_config
-                    .check_zklogin_id_cost_base_as_option()
-                    .map(Into::into),
-            },
-            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: protocol_config
-                    .check_zklogin_issuer_cost_base_as_option()
-                    .map(Into::into),
             },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config
@@ -941,6 +938,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_digest",
             make_native!(auth_context::native_digest),
+        ),
+        (
+            "auth_context",
+            "native_tx_data_bytes",
+            make_native!(auth_context::native_tx_data_bytes),
         ),
         (
             "auth_context",
@@ -1269,11 +1271,14 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "generate_rand_seed_for_testing",
             make_native!(random::generate_rand_seed_for_testing),
         ),
+        // Deprecated stubs for old bytecode snapshot compatibility.
+        #[allow(deprecated)]
         (
             "zklogin_verified_id",
             "check_zklogin_id_internal",
             make_native!(zklogin::check_zklogin_id_internal),
         ),
+        #[allow(deprecated)]
         (
             "zklogin_verified_issuer",
             "check_zklogin_issuer_internal",
@@ -1283,6 +1288,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "poseidon",
             "poseidon_bn254_internal",
             make_native!(poseidon::poseidon_bn254_internal),
+        ),
+        (
+            "protocol_config",
+            "is_feature_enabled",
+            make_native!(protocol_config::is_feature_enabled),
         ),
         (
             "vdf",

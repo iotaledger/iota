@@ -10,13 +10,11 @@ use std::{
     str::FromStr,
 };
 
-use fastcrypto::encoding::Hex;
 use iota_protocol_config::ProtocolVersion;
 use move_core_types::{
     account_address::AccountAddress,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -30,7 +28,7 @@ use crate::{
 };
 
 #[inline]
-fn to_custom_error<'de, D, E>(e: E) -> D::Error
+pub(crate) fn to_custom_deser_error<'de, D, E>(e: E) -> D::Error
 where
     E: Debug,
     D: Deserializer<'de>,
@@ -39,7 +37,7 @@ where
 }
 
 #[inline]
-fn to_custom_ser_error<S, E>(e: E) -> S::Error
+pub(crate) fn to_custom_ser_error<S, E>(e: E) -> S::Error
 where
     E: Debug,
     S: Serializer,
@@ -98,61 +96,6 @@ where
         } else {
             R::deserialize_as(deserializer)
         }
-    }
-}
-
-/// custom serde for AccountAddress
-pub struct HexAccountAddress;
-
-impl SerializeAs<AccountAddress> for HexAccountAddress {
-    fn serialize_as<S>(value: &AccountAddress, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Hex::serialize_as(value, serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, AccountAddress> for HexAccountAddress {
-    fn deserialize_as<D>(deserializer: D) -> Result<AccountAddress, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if s.starts_with("0x") {
-            AccountAddress::from_hex_literal(&s)
-        } else {
-            AccountAddress::from_hex(&s)
-        }
-        .map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
-/// Serializes a bitmap according to the roaring bitmap on-disk standard.
-/// <https://github.com/RoaringBitmap/RoaringFormatSpec>
-pub struct IotaBitmap;
-
-impl SerializeAs<roaring::RoaringBitmap> for IotaBitmap {
-    fn serialize_as<S>(source: &roaring::RoaringBitmap, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut bytes = vec![];
-
-        source
-            .serialize_into(&mut bytes)
-            .map_err(to_custom_ser_error::<S, _>)?;
-        Bytes::serialize_as(&bytes, serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
-    fn deserialize_as<D>(deserializer: D) -> Result<roaring::RoaringBitmap, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let bytes: Vec<u8> = Bytes::deserialize_as(deserializer)?;
-        roaring::RoaringBitmap::deserialize_from(&bytes[..]).map_err(to_custom_error::<'de, D, _>)
     }
 }
 
@@ -240,12 +183,8 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct BigInt<T>(
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    T,
-)
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct BigInt<T>(#[serde_as(as = "DisplayFromStr")] T)
 where
     T: Display + FromStr,
     <T as FromStr>::Err: Display;
@@ -318,9 +257,8 @@ where
     }
 }
 
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct SequenceNumber(u64);
 
 impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     fn serialize_as<S>(
@@ -330,7 +268,7 @@ impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     where
         S: Serializer,
     {
-        let s = value.value().to_string();
+        let s = value.to_string();
         s.serialize(serializer)
     }
 }
@@ -346,9 +284,9 @@ impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumb
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename = "ProtocolVersion")]
-pub struct AsProtocolVersion(#[schemars(with = "BigInt<u64>")] u64);
+pub struct AsProtocolVersion(u64);
 
 impl SerializeAs<ProtocolVersion> for AsProtocolVersion {
     fn serialize_as<S>(value: &ProtocolVersion, serializer: S) -> Result<S::Ok, S::Error>
@@ -367,5 +305,77 @@ impl<'de> DeserializeAs<'de, ProtocolVersion> for AsProtocolVersion {
     {
         let b = BigInt::<u64>::deserialize(deserializer)?;
         Ok(ProtocolVersion::from(*b))
+    }
+}
+
+/// Serializes and deserializes a RoaringBitmap with its own on-disk standard.
+/// <https://github.com/RoaringBitmap/RoaringFormatSpec>
+pub(crate) struct IotaBitmap;
+
+impl SerializeAs<roaring::RoaringBitmap> for IotaBitmap {
+    fn serialize_as<S>(source: &roaring::RoaringBitmap, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut bytes = vec![];
+
+        source
+            .serialize_into(&mut bytes)
+            .map_err(to_custom_ser_error::<S, _>)?;
+        Bytes::serialize_as(&bytes, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
+    fn deserialize_as<D>(deserializer: D) -> Result<roaring::RoaringBitmap, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = Bytes::deserialize_as(deserializer)?;
+        deserialize_iota_bitmap(&bytes).map_err(to_custom_deser_error::<'de, D, _>)
+    }
+}
+
+// Deserializes a RoaringBitmap.
+// NOTE: roaring 0.11+ validates container key ordering in deserialize_from(),
+// so bitmaps with unsorted/duplicate container keys are already rejected at the
+// deserialization level.
+fn deserialize_iota_bitmap(bytes: &[u8]) -> std::io::Result<roaring::RoaringBitmap> {
+    roaring::RoaringBitmap::deserialize_from(bytes)
+}
+
+#[cfg(test)]
+mod test {
+    use base64::Engine as _;
+
+    use super::*;
+
+    #[test]
+    fn test_iota_bitmap_rejects_unsorted_keys() {
+        // This base64 encodes a malformed roaring bitmap with unsorted/duplicate
+        // container keys. roaring 0.11+ rejects such bitmaps at deserialization.
+        let raw = "OjAAAAoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAAAFoAAABcAAAAXgAAAGAAAABiAAAAZAAAAGYAAABoAAAAagAAAAEAAQABAAEAAQABAAEAAQABAAEA";
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(raw)
+            .unwrap();
+
+        assert!(deserialize_iota_bitmap(&bytes[..]).is_err());
+    }
+
+    #[test]
+    fn test_iota_bitmap_valid_roundtrip() {
+        // Build a valid bitmap, serialize it, then deserialize via our function.
+        let mut original = roaring::RoaringBitmap::new();
+        original.insert(1);
+        original.insert(42);
+        original.insert(100);
+
+        let mut bytes = vec![];
+        original.serialize_into(&mut bytes).unwrap();
+
+        let result = deserialize_iota_bitmap(&bytes[..]).unwrap();
+        assert_eq!(result.len(), 3);
+        let values: Vec<u32> = result.iter().collect();
+        assert_eq!(values, vec![1, 42, 100]);
     }
 }

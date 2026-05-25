@@ -628,7 +628,7 @@ impl Store for RocksDBStore {
         }
         let results = self.read_blocks(refs.as_slice())?;
         let mut blocks = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
@@ -661,7 +661,7 @@ impl Store for RocksDBStore {
         }
         let results = self.read_blocks(refs.as_slices().0)?;
         let mut blocks = vec![];
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
@@ -807,13 +807,13 @@ impl RocksDBStore {
         use typed_store::Map as _;
 
         self.transactions
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
         self.transactions_by_tx_refs
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
         self.transaction_commitments_by_authorities
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
 
         debug!("Deleted all transactions from store");

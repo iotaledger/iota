@@ -7,6 +7,10 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
     TransactionBlockBytes,
+    iota_primitives::{
+        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        TypeTag as TypeTagSchema,
+    },
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -27,14 +31,19 @@ pub trait TransactionBuilder {
     async fn transfer_object(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the ID of the object to be transferred
+        #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
         /// the recipient's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         recipient: IotaAddress,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -45,14 +54,19 @@ pub trait TransactionBuilder {
     async fn transfer_iota(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the IOTA coin object to be used in this transaction
+        #[schemars(with = "ObjectIDSchema")]
         iota_object_id: ObjectID,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
         /// the recipient's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         recipient: IotaAddress,
         /// the amount to be split out and transferred
+        #[schemars(with = "Option<String>")]
         amount: Option<BigInt<u64>>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -66,16 +80,22 @@ pub trait TransactionBuilder {
     async fn pay(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the IOTA coins to be used in this transaction
+        #[schemars(with = "Vec<ObjectIDSchema>")]
         input_coins: Vec<ObjectID>,
         /// the recipients' addresses, the length of this vector must be the same as amounts.
+        #[schemars(with = "Vec<IotaAddressSchema>")]
         recipients: Vec<IotaAddress>,
         /// the amounts to be transferred to recipients, following the same order
+        #[schemars(with = "Vec<String>")]
         amounts: Vec<BigInt<u64>>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -95,14 +115,19 @@ pub trait TransactionBuilder {
     async fn pay_iota(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the IOTA coins to be used in this transaction, including the coin for gas payment.
+        #[schemars(with = "Vec<ObjectIDSchema>")]
         input_coins: Vec<ObjectID>,
         /// the recipients' addresses, the length of this vector must be the same as amounts.
+        #[schemars(with = "Vec<IotaAddressSchema>")]
         recipients: Vec<IotaAddress>,
         /// the amounts to be transferred to recipients, following the same order
+        #[schemars(with = "Vec<String>")]
         amounts: Vec<BigInt<u64>>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -121,12 +146,16 @@ pub trait TransactionBuilder {
     async fn pay_all_iota(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the IOTA coins to be used in this transaction, including the coin for gas payment.
+        #[schemars(with = "Vec<ObjectIDSchema>")]
         input_coins: Vec<ObjectID>,
         /// the recipient address,
+        #[schemars(with = "IotaAddressSchema")]
         recipient: IotaAddress,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -137,20 +166,25 @@ pub trait TransactionBuilder {
     async fn move_call(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the Move package ID, e.g. `0x2`
+        #[schemars(with = "ObjectIDSchema")]
         package_object_id: ObjectID,
         /// the Move module name, e.g. `pay`
         module: String,
         /// the move function name, e.g. `split`
         function: String,
         /// the type arguments of the Move function
+        #[schemars(with = "Vec<TypeTagSchema>")]
         type_arguments: Vec<IotaTypeTag>,
         /// the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/developer/references/iota-api) format
         arguments: Vec<IotaJsonValue>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
         /// Whether this is a Normal transaction or a Dev Inspect Transaction. Default to be `IotaTransactionBlockBuilderMode::Commit` when it's None.
         execution_mode: Option<IotaTransactionBlockBuilderMode>,
@@ -162,14 +196,19 @@ pub trait TransactionBuilder {
     async fn publish(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         /// the compiled bytes of a Move package
+        #[schemars(with = "Vec<Base64Schema>")]
         compiled_modules: Vec<Base64>,
         /// a list of transitive dependency addresses that this set of modules depends on.
+        #[schemars(with = "Vec<ObjectIDSchema>")]
         dependencies: Vec<ObjectID>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -180,14 +219,19 @@ pub trait TransactionBuilder {
     async fn split_coin(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the coin object to be spilt
+        #[schemars(with = "ObjectIDSchema")]
         coin_object_id: ObjectID,
         /// the amounts to split out from the coin
+        #[schemars(with = "Vec<String>")]
         split_amounts: Vec<BigInt<u64>>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -198,14 +242,19 @@ pub trait TransactionBuilder {
     async fn split_coin_equal(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the coin object to be spilt
+        #[schemars(with = "ObjectIDSchema")]
         coin_object_id: ObjectID,
         /// the number of coins to split into
+        #[schemars(with = "String")]
         split_count: BigInt<u64>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -215,14 +264,19 @@ pub trait TransactionBuilder {
     async fn merge_coin(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// the coin object to merge into, this coin will remain after the transaction
+        #[schemars(with = "ObjectIDSchema")]
         primary_coin: ObjectID,
         /// the coin object to be merged, this coin will be destroyed, the balance will be added to `primary_coin`
+        #[schemars(with = "ObjectIDSchema")]
         coin_to_merge: ObjectID,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -232,12 +286,15 @@ pub trait TransactionBuilder {
     async fn batch_transaction(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// list of transaction request parameters
         single_transaction_params: Vec<RPCTransactionRequestParams>,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
         /// Whether this is a regular transaction or a Dev Inspect Transaction
         txn_builder_mode: Option<IotaTransactionBlockBuilderMode>,
@@ -249,16 +306,22 @@ pub trait TransactionBuilder {
     async fn request_add_stake(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// Coin<IOTA> object to stake
+        #[schemars(with = "Vec<ObjectIDSchema>")]
         coins: Vec<ObjectID>,
         /// stake amount
+        #[schemars(with = "Option<String>")]
         amount: Option<BigInt<u64>>,
         /// the validator's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         validator: IotaAddress,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -268,12 +331,16 @@ pub trait TransactionBuilder {
     async fn request_withdraw_stake(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// StakedIota object ID
+        #[schemars(with = "ObjectIDSchema")]
         staked_iota: ObjectID,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
+        #[schemars(with = "Option<ObjectIDSchema>")]
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -284,14 +351,19 @@ pub trait TransactionBuilder {
     async fn request_add_timelocked_stake(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// TimeLock<Balance<IOTA>> object to stake
+        #[schemars(with = "ObjectIDSchema")]
         locked_balance: ObjectID,
         /// the validator's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         validator: IotaAddress,
         /// gas object to be used in this transaction
+        #[schemars(with = "ObjectIDSchema")]
         gas: ObjectID,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
@@ -301,12 +373,16 @@ pub trait TransactionBuilder {
     async fn request_withdraw_timelocked_stake(
         &self,
         /// the transaction signer's IOTA address
+        #[schemars(with = "IotaAddressSchema")]
         signer: IotaAddress,
         /// TimelockedStakedIota object ID
+        #[schemars(with = "ObjectIDSchema")]
         timelocked_staked_iota: ObjectID,
         /// gas object to be used in this transaction
+        #[schemars(with = "ObjectIDSchema")]
         gas: ObjectID,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
+        #[schemars(with = "String")]
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 }

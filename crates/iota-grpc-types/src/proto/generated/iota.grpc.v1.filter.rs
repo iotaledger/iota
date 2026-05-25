@@ -259,7 +259,6 @@ pub enum TransactionKind {
     ProgrammableTransaction = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdateV1 = 4,
     EndOfEpochTransaction = 5,
     RandomnessStateUpdate = 6,
 }
@@ -274,7 +273,6 @@ impl TransactionKind {
             Self::ProgrammableTransaction => "PROGRAMMABLE_TRANSACTION",
             Self::Genesis => "GENESIS",
             Self::ConsensusCommitPrologueV1 => "CONSENSUS_COMMIT_PROLOGUE_V1",
-            Self::AuthenticatorStateUpdateV1 => "AUTHENTICATOR_STATE_UPDATE_V1",
             Self::EndOfEpochTransaction => "END_OF_EPOCH_TRANSACTION",
             Self::RandomnessStateUpdate => "RANDOMNESS_STATE_UPDATE",
         }
@@ -286,7 +284,6 @@ impl TransactionKind {
             "PROGRAMMABLE_TRANSACTION" => Some(Self::ProgrammableTransaction),
             "GENESIS" => Some(Self::Genesis),
             "CONSENSUS_COMMIT_PROLOGUE_V1" => Some(Self::ConsensusCommitPrologueV1),
-            "AUTHENTICATOR_STATE_UPDATE_V1" => Some(Self::AuthenticatorStateUpdateV1),
             "END_OF_EPOCH_TRANSACTION" => Some(Self::EndOfEpochTransaction),
             "RANDOMNESS_STATE_UPDATE" => Some(Self::RandomnessStateUpdate),
             _ => None,

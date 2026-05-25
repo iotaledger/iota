@@ -13,11 +13,11 @@
 //! [`Simulacrum`]: crate::Simulacrum
 
 mod epoch_state;
-pub mod state_reader;
 pub mod store;
 pub mod transaction_executor;
 
 use std::{
+    collections::HashMap,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -29,6 +29,7 @@ use iota_config::{
     genesis, transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -39,12 +40,14 @@ use iota_types::{
     base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
-    digests::ConsensusCommitDigest,
+    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    iota_system_state::{
+        IotaSystemState, IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemState,
+    },
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
     },
@@ -52,7 +55,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{ObjectStore, ReadStore, RestStateReader},
+    storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
     transaction::{
         EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
         VerifiedTransaction,
@@ -192,8 +195,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         transaction: Transaction,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
-        let transaction = transaction
-            .try_into_verified_for_testing(inner.epoch_state.epoch(), &VerifyParams::default())?;
+        let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
 
         let (inner_temporary_store, _, effects, execution_error_opt) =
             inner.epoch_state.execute_transaction(
@@ -563,9 +565,9 @@ impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
 impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_committee(
         &self,
-        _epoch: iota_types::committee::EpochId,
+        epoch: iota_types::committee::EpochId,
     ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
-        todo!()
+        self.with_store(|store| store.try_get_committee(epoch))
     }
 
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
@@ -689,7 +691,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     }
 }
 
-impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for Simulacrum<T, V> {
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for Simulacrum<T, V> {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -718,8 +720,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
         }))
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
-        None
+    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
+        Some(self)
     }
 
     fn get_struct_layout(
@@ -728,6 +730,146 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)
+    }
+}
+
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
+    fn get_system_state_for_epoch(&self, epoch: u64) -> Option<IotaSystemState> {
+        self.with_store(|store| {
+            if let Some(historical_state) = store.get_system_state_by_epoch(epoch) {
+                return Some(historical_state.clone());
+            }
+            let current_system_state = store.get_system_state();
+            if epoch == current_system_state.epoch() {
+                return Some(current_system_state);
+            }
+            None
+        })
+    }
+}
+
+impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
+    fn get_epoch_info(
+        &self,
+        epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
+        Ok(self.with_store(|store| {
+            let start_checkpoint_seq = if epoch != 0 {
+                store
+                    .get_last_checkpoint_of_epoch(epoch - 1)
+                    .map(|seq| Some(seq + 1))
+                    .unwrap_or(None)?
+            } else {
+                0
+            };
+
+            let start_checkpoint = store.get_checkpoint_by_sequence_number(start_checkpoint_seq)?;
+
+            let system_state = self.get_system_state_for_epoch(epoch)?;
+
+            let (end_timestamp_ms, end_checkpoint) =
+                if let Some(next_epoch_state) = self.get_system_state_for_epoch(epoch + 1) {
+                    (
+                        Some(next_epoch_state.epoch_start_timestamp_ms()),
+                        Some(
+                            store
+                                .get_last_checkpoint_of_epoch(epoch)
+                                .expect("last checkpoint of completed epoch should exist"),
+                        ),
+                    )
+                } else {
+                    (None, None)
+                };
+
+            Some(EpochInfo {
+                epoch,
+                protocol_version: system_state.protocol_version(),
+                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
+                end_timestamp_ms,
+                start_checkpoint: start_checkpoint_seq,
+                end_checkpoint,
+                reference_gas_price: system_state.reference_gas_price(),
+                system_state,
+            })
+        }))
+    }
+
+    fn get_transaction_info(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
+        Ok(self.with_store(|store| {
+            let highest_seq = store
+                .get_highest_checkpoint()
+                .map(|cp| *cp.sequence_number())?;
+
+            for seq in (0..=highest_seq).rev() {
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
+                    if let Some(contents) =
+                        store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                    {
+                        if contents
+                            .iter()
+                            .any(|exec_digests| exec_digests.transaction == *digest)
+                        {
+                            // object_types left empty — production GrpcIndexesStore
+                            // populates this from input/output objects but that is
+                            // not needed for the simulacrum test harness.
+                            return Some(TransactionInfo {
+                                checkpoint: *checkpoint.sequence_number(),
+                                object_types: HashMap::new(),
+                            });
+                        }
+                    }
+                }
+            }
+            None
+        }))
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>,
+    > {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: iota_types::base_types::ObjectID,
+        _cursor: Option<iota_types::base_types::ObjectID>,
+    ) -> iota_types::storage::error::Result<
+        Box<
+            dyn Iterator<
+                    Item = Result<
+                        iota_types::storage::DynamicFieldKey,
+                        typed_store_error::TypedStoreError,
+                    >,
+                > + '_,
+        >,
+    > {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
+        Ok(None)
+    }
+
+    fn package_versions_iter(
+        &self,
+        _original_package_id: iota_types::base_types::ObjectID,
+        _cursor: Option<u64>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
+    > {
+        Ok(Box::new(std::iter::empty()))
     }
 }
 
@@ -856,7 +998,7 @@ mod tests {
     #[test]
     fn transfer() {
         let sim = Simulacrum::new();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
         let gas_id = tx.data().transaction_data().gas_data().payment[0].0;

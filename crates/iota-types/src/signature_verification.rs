@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{hash::Hash, sync::Arc};
+use std::hash::Hash;
 
 use iota_sdk_types::crypto::Intent;
 use lru::LruCache;
@@ -11,8 +11,6 @@ use parking_lot::RwLock;
 use prometheus::IntCounter;
 
 use crate::{
-    committee::EpochId,
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::VerifyParams,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -114,9 +112,7 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
 /// be from a checkpoint.
 pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
-    current_epoch: EpochId,
     verify_params: &VerifyParams,
-    zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 ) -> IotaResult {
     let intent_message = txn.intent_message();
     assert_eq!(intent_message.intent, Intent::iota_transaction());
@@ -151,13 +147,7 @@ pub fn verify_sender_signed_data_message_signatures(
 
     // 4. Every signature must be valid.
     for (signer, signature) in present_sigs {
-        signature.verify_authenticator(
-            intent_message,
-            signer,
-            current_epoch,
-            verify_params,
-            zklogin_inputs_cache.clone(),
-        )?;
+        signature.verify_authenticator(intent_message, signer, verify_params)?;
     }
     Ok(())
 }

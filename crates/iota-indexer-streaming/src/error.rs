@@ -19,10 +19,12 @@ pub enum IndexerStreamingError {
     Indexer(String),
     #[error(transparent)]
     Lagged(#[from] BroadcastStreamRecvError),
+    #[error("not found: {0}")]
+    NotFound(String),
 }
 
-impl From<tokio_postgres::Error> for IndexerStreamingError {
-    fn from(error: tokio_postgres::Error) -> Self {
+impl From<diesel::result::Error> for IndexerStreamingError {
+    fn from(error: diesel::result::Error) -> Self {
         IndexerStreamingError::Postgres(error.to_string())
     }
 }

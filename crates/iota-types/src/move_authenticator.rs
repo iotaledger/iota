@@ -4,7 +4,6 @@
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 use enum_dispatch::enum_dispatch;
@@ -12,17 +11,14 @@ use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    committee::EpochId,
     crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
+    digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
     transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
     type_input::TypeInput,
 };
@@ -31,7 +27,7 @@ use crate::{
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     #[serde(flatten)]
     pub(crate) inner: MoveAuthenticatorInner,
@@ -128,14 +124,6 @@ impl MoveAuthenticator {
 }
 
 impl AuthenticatorTrait for MoveAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        self.inner
-            .verify_user_authenticator_epoch(epoch, max_epoch_upper_bound_delta)
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(
@@ -143,13 +131,11 @@ impl AuthenticatorTrait for MoveAuthenticator {
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.inner
-            .verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
+        self.inner.verify_claims(value, author, aux_verify_data)
     }
 }
 
@@ -230,7 +216,7 @@ impl Eq for MoveAuthenticator {}
 /// MoveAuthenticatorInner is an enum that represents the different versions
 /// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MoveAuthenticatorInner {
     V1(MoveAuthenticatorV1),
 }
@@ -312,12 +298,11 @@ impl MoveAuthenticatorInner {
 }
 
 /// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticatorV1 {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
-    #[schemars(with = "Vec<String>")]
     type_arguments: Vec<TypeInput>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
@@ -477,13 +462,6 @@ impl MoveAuthenticatorV1 {
 }
 
 impl AuthenticatorTrait for MoveAuthenticatorV1 {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
     // This function accepts all inputs, as signature verification is performed
     // later on the Move side.
     fn verify_claims<T>(
@@ -491,7 +469,6 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
         _value: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

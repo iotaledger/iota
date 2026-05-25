@@ -167,7 +167,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     println!(
         "Transaction executed. Transaction digest: {}",
-        transaction_response.digest.base58_encode()
+        transaction_response.digest
     );
     println!("{transaction_response}");
     Ok(())

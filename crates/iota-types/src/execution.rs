@@ -12,7 +12,6 @@ use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
-    is_system_package,
     object::{Data, Object, Owner},
     storage::BackingPackageStore,
     transaction::Argument,
@@ -129,7 +128,7 @@ impl ExecutionResultsV1 {
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
                     if self.modified_objects.contains(id) {
-                        debug_assert!(is_system_package(*id));
+                        debug_assert!(id.is_system_package());
                         pkg.increment_version();
                     }
                 }
@@ -146,7 +145,7 @@ impl ExecutionResultsV1 {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
-                        SequenceNumber::new(),
+                        SequenceNumber::default(),
                         "Initial version should be blank before this point for {id:?}",
                     );
                     *initial_shared_version = lamport_version;
@@ -160,7 +159,7 @@ impl ExecutionResultsV1 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));
                     debug_assert!(
-                        *initial_shared_version == SequenceNumber::new()
+                        *initial_shared_version == SequenceNumber::default()
                             || *initial_shared_version == *previous_initial_shared_version
                     );
 
@@ -211,4 +210,16 @@ pub fn is_certificate_denied(
 ) -> bool {
     certificate_deny_set.contains(transaction_digest)
         || get_denied_certificates().contains(transaction_digest)
+}
+
+impl From<&Object> for DynamicallyLoadedObjectMetadata {
+    fn from(object: &Object) -> Self {
+        Self {
+            version: object.version(),
+            digest: object.digest(),
+            owner: *object.owner(),
+            storage_rebate: object.storage_rebate,
+            previous_transaction: object.previous_transaction,
+        }
+    }
 }

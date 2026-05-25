@@ -57,10 +57,10 @@ use iota_storage::{
     verify_checkpoint_range,
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
+    global_state_hash::GlobalStateHash,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
@@ -115,18 +115,18 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
-        // TODO: Enable TLS on this interface with below config, once support is rolled
-        // out to validators.
-        // ```
-        // let tls_config = iota_tls::create_rustls_client_config(
-        //     iota_types::crypto::NetworkPublicKey::from_bytes(&committee_member.network_pubkey_bytes)?,
-        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
-        //     None,
-        // );
-        // ```
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())
+            .unwrap()
+            .rewrite_http_to_https();
+        let tls_config = iota_tls::create_rustls_client_config(
+            iota_types::crypto::NetworkPublicKey::from_bytes(
+                &committee_member.network_pubkey_bytes,
+            )?,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+            None,
+        );
         let channel = net_config
-            .connect_lazy(&net_addr, None)
+            .connect_lazy(&net_addr, Some(tls_config))
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
@@ -282,7 +282,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -500,8 +500,8 @@ async fn get_object_impl(
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version());
+    (resp_version, resp, elapsed)
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
@@ -900,11 +900,11 @@ pub async fn download_formal_snapshot(
             .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         Ok::<(), anyhow::Error>(())
     });
-    let mut root_accumulator = Accumulator::default();
+    let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
-    while let Some((partial_acc, num_objects)) = receiver.recv().await {
+    while let Some((partial_hash, num_objects)) = receiver.recv().await {
         num_live_objects += num_objects;
-        root_accumulator.union(&partial_acc);
+        root_global_state_hash.union(&partial_hash);
     }
     summaries_handle
         .await
@@ -939,7 +939,7 @@ pub async fn download_formal_snapshot(
             );
         match commitment {
             CheckpointCommitment::ECMHLiveObjectSetDigest(consensus_digest) => {
-                let local_digest: ECMHLiveObjectSetDigest = root_accumulator.digest().into();
+                let local_digest: ECMHLiveObjectSetDigest = root_global_state_hash.digest().into();
                 assert_eq!(
                     *consensus_digest, local_digest,
                     "End of epoch {} root state digest {} does not match \
@@ -978,7 +978,7 @@ pub async fn download_formal_snapshot(
 
     setup_db_state(
         epoch,
-        root_accumulator.clone(),
+        root_global_state_hash.clone(),
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,
@@ -1095,17 +1095,6 @@ pub async fn download_db_snapshot(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .for_each(|result| result.expect("Task failed"));
-
-    // The rest index is stored under the name "grpc_indexes" in the snapshot but
-    // must live at "rest_index" on disk so that RestIndexStore can open it.
-    let grpc_indexes_dir = path.join(format!("epoch_{epoch}")).join("grpc_indexes");
-    if grpc_indexes_dir.exists() {
-        fs::rename(
-            &grpc_indexes_dir,
-            path.join(format!("epoch_{epoch}")).join("rest_index"),
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to rename grpc_indexes to rest_index: {e}"))?;
-    }
 
     let store_dir = path.join("store");
     if store_dir.exists() {

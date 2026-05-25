@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
-    ConsensusProtocol,
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     display,
@@ -274,17 +273,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let max_pipeline_delay = parameters.max_pipeline_delay;
 
                 let mut setup: Vec<String> = vec![
-                    match parameters.consensus_protocol {
-                        ConsensusProtocol::Starfish => {
-                            "export CONSENSUS_PROTOCOL=starfish".to_string()
-                        }
-                        ConsensusProtocol::Mysticeti => {
-                            "export CONSENSUS_PROTOCOL=mysticeti".to_string()
-                        }
-                        ConsensusProtocol::SwapEachEpoch => {
-                            "export CONSENSUS_PROTOCOL=swap_each_epoch".to_string()
-                        }
-                    },
                     format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}"),
                     // Set protocol config override to disable validator subsidies for
                     // benchmarks

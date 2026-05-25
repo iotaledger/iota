@@ -36,6 +36,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use test_cluster::TestClusterBuilder;
+
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster
@@ -78,7 +79,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let nft_object = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(nft_move_object),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -153,7 +154,7 @@ async fn query_events_no_events_descending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Sender(IotaAddress::random()),
             None,
             None,
             Some(true),
@@ -171,12 +172,7 @@ async fn query_events_no_events_ascending() {
     let client = cluster.rpc_client();
 
     let indexer_events = client
-        .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
-            None,
-            None,
-            None,
-        )
+        .query_events(EventFilter::Sender(IotaAddress::random()), None, None, None)
         .await
         .unwrap();
 

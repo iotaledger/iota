@@ -16,6 +16,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
@@ -221,7 +222,7 @@ impl HttpRestKVClient {
         // that has non empty bytes, update the cache with the new data and
         // populate the corresponding slot in results at original index
         // position.
-        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing.into_iter()) {
+        for (fetch_result, (key, index)) in fetched_results.into_iter().zip(missing) {
             if let Some(bytes) = fetch_result.filter(|b| !b.is_empty()) {
                 self.cache.insert(key, bytes.clone());
                 results[index] = Some(bytes);
@@ -477,7 +478,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
     ) -> IndexerResult<Vec<Option<Object>>> {
         let keys = object_refs
             .iter()
-            .map(|(object_id, version)| Key::ObjectKey(*object_id, *version))
+            .map(|(object_id, version)| Key::ObjectKey(ObjectKey(*object_id, *version)))
             .collect::<Vec<_>>();
 
         let fetches = self.multi_fetch(keys).await?;

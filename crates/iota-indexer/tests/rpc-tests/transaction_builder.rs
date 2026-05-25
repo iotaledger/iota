@@ -838,7 +838,7 @@ async fn create_cluster_with_timelocked_iota(
     let timelock_iota = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(timelock_iota),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -887,7 +887,11 @@ async fn create_cluster_with_timelocked_iota(
 }
 
 async fn get_validator(client: &HttpClient) -> IotaAddress {
-    let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+    let iota_system_state = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
     match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,

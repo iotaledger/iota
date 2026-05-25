@@ -39,6 +39,7 @@ use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    execution_status::ExecutionFailureStatus,
     gas::GasCostSummary,
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
@@ -69,7 +70,7 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .mutated()
                 .iter()
-                .map(|refe| (refe.reference.to_object_ref(), refe.owner))
+                .map(|refe| (refe.reference, refe.owner))
                 .collect(),
         }
     }
@@ -82,7 +83,7 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .created()
                 .iter()
-                .map(|refe| (refe.reference.to_object_ref(), refe.owner))
+                .map(|refe| (refe.reference, refe.owner))
                 .collect(),
         }
     }
@@ -92,11 +93,9 @@ impl ExecutionEffects {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().deleted().to_vec()
             }
-            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
-                .deleted()
-                .iter()
-                .map(|refe| refe.to_object_ref())
-                .collect(),
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                iota_tx_effects.deleted().to_vec()
+            }
         }
     }
 
@@ -116,7 +115,7 @@ impl ExecutionEffects {
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 let refe = &iota_tx_effects.gas_object();
-                (refe.reference.to_object_ref(), refe.owner)
+                (refe.reference, refe.owner)
             }
         }
     }
@@ -135,6 +134,31 @@ impl ExecutionEffects {
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 iota_tx_effects.status().is_ok()
+            }
+        }
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        match self {
+            ExecutionEffects::CertifiedTransactionEffects(effects, ..) => {
+                match effects.data().status() {
+                    iota_types::execution_status::ExecutionStatus::Success => false,
+                    iota_types::execution_status::ExecutionStatus::Failure {
+                        error:
+                            ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                                ..
+                            }
+                            | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                ..
+                            },
+                        ..
+                    } => true,
+                    _ => false,
+                }
+            }
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                let status = format!("{}", iota_tx_effects.status());
+                status.contains("ExecutionCancelledDueToSharedObjectCongestion")
             }
         }
     }
@@ -420,7 +444,7 @@ impl FullNodeProxy {
             .await?;
         let epoch = resp.epoch;
         let committee_vec = resp.validators;
-        let committee_map = BTreeMap::from_iter(committee_vec.into_iter());
+        let committee_map = BTreeMap::from_iter(committee_vec);
         let committee =
             Committee::new_for_testing_with_normalized_voting_power(epoch, committee_map);
 

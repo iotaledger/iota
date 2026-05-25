@@ -153,8 +153,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ingestion_from_zero() {
-        let ingestion_tempdir = tempfile::tempdir().unwrap();
-        let ingestion_dir = ingestion_tempdir.path().to_path_buf();
+        let tmp_dir = iota_common::tempdir();
+        let ingestion_dir = tmp_dir.path().to_path_buf();
 
         let config = super::Config {
             ingestion_dir: ingestion_dir.clone(),
@@ -175,8 +175,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ingestion_from_non_zero() {
-        let ingestion_tempdir = tempfile::tempdir().unwrap();
-        let ingestion_dir = ingestion_tempdir.path().to_path_buf();
+        let tmp_dir = iota_common::tempdir();
+        let ingestion_dir = tmp_dir.path().to_path_buf();
 
         let config = super::Config {
             ingestion_dir: ingestion_dir.clone(),

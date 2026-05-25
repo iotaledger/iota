@@ -10,7 +10,9 @@ use iota_json_rpc::{
     coin_api::{parse_to_struct_tag, parse_to_type_tag},
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, Page};
+use iota_json_rpc_types::{
+    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
+};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
@@ -145,7 +147,7 @@ impl CoinReadApiServer for CoinReadApi {
             .map_err(Into::into)
     }
 
-    async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
+    async fn get_total_supply(&self, coin_type: String) -> RpcResult<IotaSupply> {
         let coin_struct = parse_to_struct_tag(&coin_type)?;
         if GAS::is_gas(&coin_struct) {
             Ok(Supply {
@@ -154,11 +156,13 @@ impl CoinReadApiServer for CoinReadApi {
                     .spawn_blocking(|this| this.get_latest_iota_system_state())
                     .await?
                     .iota_total_supply(),
-            })
+            }
+            .into())
         } else {
             self.inner
                 .get_total_supply_in_blocking_task(coin_struct)
                 .await
+                .map(Into::into)
                 .map_err(Into::into)
         }
     }

@@ -30,7 +30,7 @@ use iota_genesis_builder::{
 };
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair_from_rng,
@@ -69,7 +69,7 @@ fn populated_genesis_snapshot_matches() {
         name: "0".into(),
         authority_key: authority_key.public().into(),
         protocol_key: protocol_key.public().clone(),
-        account_address: IotaAddress::from(account_key.public()),
+        account_address: address_from_iota_pub_key(account_key.public()),
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
         commission_rate: DEFAULT_COMMISSION_RATE,
@@ -80,7 +80,10 @@ fn populated_genesis_snapshot_matches() {
         image_url: String::new(),
         project_url: String::new(),
     };
-    let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
+    let pop = generate_proof_of_possession(
+        &authority_key,
+        address_from_iota_pub_key(account_key.public()),
+    );
 
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();
@@ -120,10 +123,10 @@ fn network_config_snapshot_matches() {
 
     use iota_swarm_config::network_config_builder::ConfigBuilder;
 
-    let temp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let committee_size = 7;
     let rng = StdRng::from_seed([0; 32]);
-    let mut network_config = ConfigBuilder::new(temp_dir)
+    let mut network_config = ConfigBuilder::new(tmp_dir)
         .committee_size(NonZeroUsize::new(committee_size).unwrap())
         .rng(rng)
         .build();

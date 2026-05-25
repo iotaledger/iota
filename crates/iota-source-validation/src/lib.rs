@@ -118,7 +118,9 @@ impl ValidationMode {
     fn root_address(&self, package: &CompiledPackage) -> Result<Option<AccountAddress>, Error> {
         match self {
             Self::Root { at: Some(addr), .. } => Ok(Some(*addr)),
-            Self::Root { at: None, .. } => Ok(Some(*package.published_at.clone()?)),
+            Self::Root { at: None, .. } => Ok(Some(AccountAddress::new(
+                package.published_at.clone()?.into_bytes(),
+            ))),
             Self::Deps => Ok(None),
         }
     }
@@ -207,9 +209,10 @@ impl ValidationMode {
             }
 
             if root.is_some_and(|r| r == storage_id) {
-                on_chain.on_chain_dependencies = Some(HashSet::from_iter(
-                    linkage_table.into_values().map(|info| *info.upgraded_id),
-                ));
+                on_chain.on_chain_dependencies =
+                    Some(HashSet::from_iter(linkage_table.into_values().map(
+                        |info| AccountAddress::new(info.upgraded_id.into_bytes()),
+                    )));
             }
         }
 
@@ -412,7 +415,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
     async fn pkg_for_address(&self, addr: AccountAddress) -> Result<IotaRawMovePackage, Error> {
         // Move packages are specified with an AccountAddress, but are
         // fetched from a iota network via iota_getObject, which takes an object ID
-        let obj_id = ObjectID::from(addr);
+        let obj_id = ObjectID::new(addr.into_bytes());
 
         // fetch the IOTA object at the address specified for the package in the local
         // resolution table if future packages with a large set of dependency
@@ -470,5 +473,9 @@ fn substitute_root_address(
 
 /// The on-chain addresses for a source package's dependencies
 fn dependency_addresses(package: &CompiledPackage) -> impl Iterator<Item = AccountAddress> + '_ {
-    package.dependency_ids.published.values().map(|id| **id)
+    package
+        .dependency_ids
+        .published
+        .values()
+        .map(|id| AccountAddress::new(id.into_bytes()))
 }

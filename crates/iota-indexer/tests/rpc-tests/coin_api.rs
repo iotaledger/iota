@@ -10,15 +10,15 @@ use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter, IotaObjectRef,
+    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
@@ -27,7 +27,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
@@ -66,12 +68,7 @@ async fn create_addr_and_custom_coins(
         .await
         .unwrap();
 
-    indexer_wait_for_object(
-        indexer_client,
-        coin_object_ref.object_id,
-        coin_object_ref.version,
-    )
-    .await;
+    indexer_wait_for_object(indexer_client, coin_object_ref.0, coin_object_ref.1).await;
 
     (address, keypair, coin_name)
 }
@@ -337,7 +334,7 @@ fn get_all_balances_with_zero_iotas() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, keypair, _) = create_addr_and_custom_coins(cluster, client).await;
-        let coins_dump_address = IotaAddress::random_for_testing_only();
+        let coins_dump_address = IotaAddress::random();
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call
@@ -746,8 +743,13 @@ async fn get_total_supply_fullnode_indexer(
         .rpc_client()
         .get_total_supply(coin_type.clone())
         .await
+        .map(Into::into)
         .ok();
-    let result_indexer = client.get_total_supply(coin_type).await.ok();
+    let result_indexer = client
+        .get_total_supply(coin_type)
+        .await
+        .map(Into::into)
+        .ok();
     (result_fullnode, result_indexer)
 }
 
@@ -810,9 +812,10 @@ pub async fn execute_move_call(
             Some(
                 IotaTransactionBlockResponseOptions::new()
                     .with_effects()
-                    .with_events(),
+                    .with_events()
+                    .with_object_changes(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap())
@@ -824,13 +827,14 @@ async fn mint_trusted_coin(
     address: IotaAddress,
     account_keypair: &IotaKeyPair,
     amount: u64,
-) -> Result<IotaObjectRef, anyhow::Error> {
+) -> Result<ObjectRef, anyhow::Error> {
     let http_client = cluster.rpc_client();
 
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await
-        .unwrap();
+        .unwrap()
+        .into();
     assert_eq!(0, result.value);
 
     let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
@@ -843,7 +847,7 @@ async fn mint_trusted_coin(
         http_client,
         address,
         account_keypair,
-        IOTA_FRAMEWORK_ADDRESS.into(),
+        IOTA_FRAMEWORK_PACKAGE_ID,
         COIN_MODULE_NAME.to_string(),
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
@@ -853,7 +857,7 @@ async fn mint_trusted_coin(
     .await?;
     assert_eq!(tx_response.status_ok(), Some(true));
 
-    let created_coin_obj_ref = tx_response.effects.unwrap().created()[0].reference.clone();
+    let created_coin_obj_ref = tx_response.effects.unwrap().created()[0].reference;
 
     Ok(created_coin_obj_ref)
 }
@@ -900,11 +904,11 @@ async fn create_migrated_coin_manager_coins(
                 .object_id;
 
         let guardian_type = StructTag {
-            address: *package_id,
+            address: AccountAddress::new(package_id.into_bytes()),
             module: Identifier::new("coin_manager_coin").unwrap(),
             name: Identifier::new("Guardian").unwrap(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: *package_id,
+                address: AccountAddress::new(package_id.into_bytes()),
                 module: Identifier::new("coin_manager_coin").unwrap(),
                 name: Identifier::new("COIN_MANAGER_COIN").unwrap(),
                 type_params: vec![],
@@ -947,11 +951,11 @@ async fn create_migrated_coin_manager_coins(
             .unwrap();
 
         let guardian_type = StructTag {
-            address: *package_id,
+            address: AccountAddress::new(package_id.into_bytes()),
             module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
             name: Identifier::new("Guardian").unwrap(),
             type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: *package_id,
+                address: AccountAddress::new(package_id.into_bytes()),
                 module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
                 name: Identifier::new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").unwrap(),
                 type_params: vec![],
@@ -988,7 +992,7 @@ async fn create_migrated_coin_manager_coins(
             http_client,
             address,
             account_keypair,
-            imm_coin_type.address.into(),
+            ObjectID::new(imm_coin_type.address.into_bytes()),
             "immutable_metadata_trusted_coin".to_string(),
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),

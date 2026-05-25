@@ -143,7 +143,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
         self.validator
             .read_objects_for_execution(&CertLockGuard::guard_for_tests(), &tx, &epoch_store)
-            .map(|(tx_input_objects, _, _)| tx_input_objects)
+            .map(|(tx_input_objects, _)| tx_input_objects)
     }
 
     fn prepare_txn(

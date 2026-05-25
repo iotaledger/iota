@@ -21,10 +21,9 @@ use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
-    AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
-    EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
-    PackageVersionIteratorItem, PackageVersionKey, ReadStore, RestIndexes, RestStateReader,
-    TransactionInfo,
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
+    OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
+    PackageVersionKey, ReadStore, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -333,7 +332,7 @@ pub fn get_module(
     module_id: &ModuleId,
 ) -> Result<Option<Vec<u8>>, IotaError> {
     Ok(store
-        .get_package_object(&ObjectID::from(*module_id.address()))?
+        .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
         .and_then(|package| {
             package
                 .move_package()

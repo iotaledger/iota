@@ -587,7 +587,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                     tx_bytes,
                     signatures,
                     Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                    Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
                 )
                 .await?;
 
@@ -694,7 +694,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
             )
             .await?;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -715,7 +715,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
             )
             .await?;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -884,8 +884,8 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random_for_testing_only();
-        let recipient_2 = IotaAddress::random_for_testing_only();
+        let recipient_1 = IotaAddress::random();
+        let recipient_2 = IotaAddress::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -947,7 +947,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1026,8 +1026,8 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random_for_testing_only();
-        let recipient_2 = IotaAddress::random_for_testing_only();
+        let recipient_1 = IotaAddress::random();
+        let recipient_2 = IotaAddress::random();
 
         let gas = cluster
             .fund_address_and_return_gas(

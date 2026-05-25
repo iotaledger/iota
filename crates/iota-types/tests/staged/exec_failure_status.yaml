@@ -38,3 +38,4 @@
 36: ExecutionCancelledDueToRandomnessUnavailable
 37: ExecutionCancelledDueToSharedObjectCongestionV2
 38: InvalidLinkage
+39: BuiltinAuthenticatorVerificationError

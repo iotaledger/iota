@@ -10,7 +10,8 @@ use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
-    StakeStatus, ValidatorApys,
+    IotaSystemStateSummary as IotaSystemStateSummarySchema,
+    IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -183,8 +184,8 @@ impl GovernanceReadApi {
             .exchange_rates(&system_state_summary)
             .await?
             .into_iter()
-            .chain(candidate_rates.into_iter())
-            .chain(pending_rates.into_iter())
+            .chain(candidate_rates)
+            .chain(pending_rates)
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 
@@ -396,10 +397,7 @@ impl GovernanceReadApi {
             self.inactive_validators_exchange_rate(system_state_summary)
         )?;
 
-        Ok(active_rates
-            .into_iter()
-            .chain(inactive_rates.into_iter())
-            .collect())
+        Ok(active_rates.into_iter().chain(inactive_rates).collect())
     }
 
     /// Check for validators in the `Active` state and get its exchange rate
@@ -434,6 +432,7 @@ impl GovernanceReadApi {
                 system_state_summary.inactive_pools_id(),
                 system_state_summary.inactive_pools_size(),
                 |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -482,6 +481,7 @@ impl GovernanceReadApi {
                 system_state_summary.validator_candidates_id(),
                 system_state_summary.validator_candidates_size(),
                 |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -538,6 +538,7 @@ impl GovernanceReadApi {
         table_id: ObjectID,
         validator_size: u64,
         key: F,
+        protocol_version: Option<u64>,
     ) -> Result<Vec<ValidatorTable>, IndexerError>
     where
         F: Fn(DynamicFieldInfo) -> Result<K, IndexerError>,
@@ -555,7 +556,12 @@ impl GovernanceReadApi {
             let validator_candidate = self
                 .inner
                 .spawn_blocking(move |this| {
-                    iota_types::iota_system_state::get_validator_from_table(&this, table_id, &key)
+                    iota_types::iota_system_state::get_validator_from_table(
+                        &this,
+                        table_id,
+                        &key,
+                        protocol_version,
+                    )
                 })
                 .await?;
 
@@ -692,16 +698,16 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         Ok(epoch.committee().map_err(IndexerError::from)?.into())
     }
 
-    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
-        Ok(self.get_latest_iota_system_state().await?)
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
+        Ok(self.get_latest_iota_system_state().await?.into())
     }
 
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
-        Ok(self
-            .get_latest_iota_system_state()
-            .await?
-            .try_into()
-            .map_err(IndexerError::from)?)
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
+        Ok(
+            IotaSystemStateSummaryV1::try_from(self.get_latest_iota_system_state().await?)
+                .map_err(IndexerError::from)?
+                .into(),
+        )
     }
 
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {

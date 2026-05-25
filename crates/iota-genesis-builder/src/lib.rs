@@ -32,7 +32,7 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
@@ -54,7 +54,6 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
-    is_system_package,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
@@ -548,18 +547,11 @@ impl Builder {
             }
         };
 
-        let protocol_config = get_genesis_protocol_config(ProtocolVersion::new(protocol_version));
-
-        if protocol_config.create_authenticator_state_in_genesis() {
-            let authenticator_state = unsigned_genesis.authenticator_state_object().unwrap();
-            assert!(authenticator_state.active_jwks.is_empty());
-        } else {
-            assert!(unsigned_genesis.authenticator_state_object().is_none());
-        }
         assert!(unsigned_genesis.has_randomness_state_object());
 
         assert!(unsigned_genesis.has_coin_deny_list_object());
 
+        let protocol_config = get_genesis_protocol_config(protocol_version.into());
         if protocol_config.create_claim_registry_in_genesis() {
             assert!(unsigned_genesis.has_claim_registry_object());
         } else {
@@ -1046,7 +1038,7 @@ fn create_genesis_context(
     let genesis_transaction_digest = TransactionDigest::new(hash.into());
 
     let tx_context = TxContext::new(
-        &IotaAddress::default(),
+        &IotaAddress::ZERO,
         &genesis_transaction_digest,
         epoch_data,
         0,
@@ -1241,7 +1233,7 @@ fn update_system_packages_from_objects(
         .iter()
         .filter_map(|obj| {
             let pkg = obj.data.try_as_package()?;
-            is_system_package(pkg.id()).then(|| {
+            pkg.id().is_system_package().then(|| {
                 (
                     pkg.id(),
                     pkg.serialized_module_map().values().cloned().collect(),
@@ -1392,7 +1384,7 @@ fn create_genesis_objects(
         )
         .expect("Processing a package should not fail here");
 
-        events.extend(tx_events.data.into_iter());
+        events.extend(tx_events.data);
     }
 
     for object in input_objects {
@@ -1444,7 +1436,8 @@ pub(crate) fn process_package(
                 .iter()
                 .zip(dependency_objects.iter())
                 .all(|(dependency, obj_opt)| obj_opt.is_some()
-                    || to_be_published_addresses.contains(&AccountAddress::from(*dependency)))
+                    || to_be_published_addresses
+                        .contains(&AccountAddress::new(dependency.into_bytes())))
         );
     }
     let loaded_dependencies: Vec<_> = dependencies
@@ -1521,18 +1514,6 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         )?;
-
-        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled
-        // (which only happens in tests).
-        if protocol_config.create_authenticator_state_in_genesis() {
-            builder.move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("authenticator_state").to_owned(),
-                ident_str!("create").to_owned(),
-                vec![],
-                vec![],
-            )?;
-        }
 
         // Create the randomness state_object
         builder.move_call(
@@ -1617,7 +1598,7 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            IOTA_SYSTEM_ADDRESS.into(),
+            ObjectID::SYSTEM_PACKAGE,
             ident_str!("genesis").to_owned(),
             ident_str!("create").to_owned(),
             vec![],
@@ -1866,7 +1847,7 @@ mod test {
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
     use iota_types::{
-        base_types::IotaAddress,
+        base_types::{IotaAddress, address_from_iota_pub_key},
         crypto::{
             AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
             get_key_pair_from_rng,
@@ -1878,8 +1859,8 @@ mod test {
     #[test]
     fn allocation_csv() {
         let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            IotaAddress::random_for_testing_only(),
-            IotaAddress::random_for_testing_only(),
+            IotaAddress::random(),
+            IotaAddress::random(),
         ]);
         let mut output = Vec::new();
 
@@ -1905,7 +1886,7 @@ mod test {
             name: "0".into(),
             authority_key: authority_key.public().into(),
             protocol_key: protocol_key.public().clone(),
-            account_address: IotaAddress::from(account_key.public()),
+            account_address: address_from_iota_pub_key(account_key.public()),
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
@@ -1916,7 +1897,10 @@ mod test {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
+        let pop = generate_proof_of_possession(
+            &authority_key,
+            address_from_iota_pub_key(account_key.public()),
+        );
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

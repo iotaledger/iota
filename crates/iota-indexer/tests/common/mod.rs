@@ -8,7 +8,9 @@ use std::{
     time::Duration,
 };
 
-use diesel::{QueryDsl, RunQueryDsl};
+const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
+
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
@@ -18,8 +20,9 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::IndexerMetrics,
+    models::checkpoints::StoredCheckpoint,
     read_only_blocking,
-    schema::optimistic_transactions,
+    schema::{checkpoints, optimistic_transactions},
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
@@ -45,7 +48,6 @@ use jsonrpsee::{
 };
 use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
-use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
     runtime::Runtime,
@@ -108,7 +110,7 @@ impl SimulacrumTestSetup {
     ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let data_ingestion_path = tempdir().unwrap().keep();
+            let data_ingestion_path = iota_common::tempdir().keep();
 
             let sim = env_initializer(data_ingestion_path.clone());
             let sim = Arc::new(sim);
@@ -205,6 +207,49 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
     indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
 }
 
+/// Wait for the indexer to index a checkpoint from the specified epoch or later
+pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u64) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let blocking_cp = pg_store.blocking_cp();
+            let result = tokio::task::spawn_blocking(move || {
+                read_only_blocking!(&blocking_cp, |conn| {
+                    checkpoints::table
+                        .order(checkpoints::sequence_number.desc())
+                        .first::<StoredCheckpoint>(conn)
+                        .optional()
+                })
+            })
+            .await
+            .expect("task join failed")
+            .expect("failed to get latest checkpoint");
+
+            if let Some(checkpoint) = result {
+                if checkpoint.epoch as u64 >= expected_epoch {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for indexer to index epoch");
+}
+
+/// Force a new epoch and wait for the indexer to index it
+pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestCluster) {
+    // Get the current epoch before forcing a new one
+    let (_, current_epoch) = pg_store
+        .get_available_epoch_range()
+        .await
+        .expect("failed to get current epoch");
+
+    cluster.force_new_epoch().await;
+
+    let expected_epoch = current_epoch + 1;
+    indexer_wait_for_epoch(pg_store, expected_epoch).await;
+}
+
 async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectID,
@@ -271,23 +316,30 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
     pg_store: &PgIndexerStore,
     expected_transactions_count: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    if tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
         loop {
-            let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
-            if optimistic_transactions_count == expected_transactions_count {
+            let count = get_optimistic_transactions_count(pg_store).await;
+            if count == expected_transactions_count {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await
-    .expect("timeout waiting for indexer to prune optimistic transactions");
+    .is_err()
+    {
+        let actual = get_optimistic_transactions_count(pg_store).await;
+        assert_eq!(
+            actual, expected_transactions_count,
+            "timed out waiting for optimistic transactions count"
+        );
+    }
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // check once again, to ensure match was not accidental
-    let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
-    assert_eq!(optimistic_transactions_count, expected_transactions_count);
+    let actual = get_optimistic_transactions_count(pg_store).await;
+    assert_eq!(actual, expected_transactions_count);
 }
 
 /// Wait for the indexer to prune the given checkpoint number
@@ -295,7 +347,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(PRUNING_WAIT_TIMEOUT, async {
         loop {
             let (min, _max) = pg_store
                 .get_available_checkpoint_range()
@@ -507,7 +559,7 @@ pub async fn wait_for_objects_snapshot(
                 .get_latest_object_snapshot_watermark()
                 .await
                 .unwrap()
-                .map(|watermark| watermark.checkpoint_hi_inclusive);
+                .map(|watermark| watermark.max_committed_cp);
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
         } {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -569,7 +621,7 @@ pub async fn publish_test_move_package(
                     .with_object_changes()
                     .with_events(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();

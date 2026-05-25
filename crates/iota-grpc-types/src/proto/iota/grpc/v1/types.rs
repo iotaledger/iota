@@ -47,7 +47,7 @@ impl TryFrom<&Address> for iota_sdk_types::Address {
 impl From<iota_sdk_types::ObjectId> for ObjectId {
     fn from(value: iota_sdk_types::ObjectId) -> Self {
         Self {
-            object_id: value.into_inner().to_vec().into(),
+            object_id: value.into_bytes().to_vec().into(),
         }
     }
 }
@@ -70,7 +70,7 @@ impl From<iota_sdk_types::ObjectReference> for ObjectReference {
     fn from(value: iota_sdk_types::ObjectReference) -> Self {
         Self {
             object_id: Some(value.object_id.into()),
-            version: Some(value.version),
+            version: Some(value.version.as_u64()),
             digest: Some(value.digest.into()),
         }
     }
@@ -102,7 +102,7 @@ impl TryFrom<&ObjectReference> for iota_sdk_types::ObjectReference {
 
         Ok(iota_sdk_types::ObjectReference {
             object_id,
-            version,
+            version: version.into(),
             digest,
         })
     }
@@ -147,6 +147,7 @@ impl ObjectReference {
     /// Get the object version number.
     pub fn object_version(&self) -> Result<iota_sdk_types::Version, TryFromProtoError> {
         self.version
+            .map(Into::into)
             .ok_or_else(|| TryFromProtoError::missing(Self::VERSION_FIELD.name))
     }
 

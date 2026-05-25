@@ -97,7 +97,7 @@ impl PackageHandler {
     ) -> Result<()> {
         if let iota_types::object::Data::Package(p) = &object.data {
             let package_id = p.id();
-            let package_version = p.version().value();
+            let package_version = p.version().as_u64();
             let original_package_id = p.original_package_id();
             let package = MovePackageEntry {
                 package_id: package_id.to_string(),

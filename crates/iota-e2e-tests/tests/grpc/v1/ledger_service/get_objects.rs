@@ -15,6 +15,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -105,7 +106,7 @@ async fn get_objects_readmask_scenarios() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = object_id_from_hex("0x5");
+    let object_id = ObjectID::from_u16(0x5);
 
     // Tests for single-object readmask scenarios
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
@@ -145,7 +146,7 @@ async fn get_objects_readmask_scenarios() {
             &mut ledger_client,
             vec![
                 ObjectRequest::default()
-                    .with_object_ref(ObjectReference::default().with_object_id(object_id.clone())),
+                    .with_object_ref(ObjectReference::default().with_object_id(object_id)),
             ],
             mask,
             None,
@@ -199,7 +200,7 @@ async fn get_objects_with_version() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = object_id_from_hex("0x5");
+    let object_id = ObjectID::from_u16(0x5);
 
     // Request specific version
     let responses = assert_get_objects_request(

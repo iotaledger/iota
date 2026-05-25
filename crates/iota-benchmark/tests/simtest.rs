@@ -156,7 +156,7 @@ mod test {
                 ..Default::default()
             })
             .with_submit_delay_step_override_millis(3000)
-            .with_state_accumulator_callback(Arc::new(|idx| idx % 2 == 0))
+            .with_global_state_hash_v1_enabled_callback(Arc::new(|idx| idx % 2 == 0))
             .build()
             .await
             .into();
@@ -703,7 +703,7 @@ mod test {
             for _ in 0..num_objs {
                 assigned_object_versions.push((
                     ObjectID::random(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                    SequenceNumber::new_congested_with_suggested_gas_price(1_000).unwrap(),
                 ));
             }
             additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));

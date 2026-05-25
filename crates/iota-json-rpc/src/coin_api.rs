@@ -10,7 +10,7 @@ use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
 use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -216,7 +216,7 @@ impl CoinReadApiServer for CoinReadApi {
             let metadata_object = self
                 .internal
                 .find_package_object(
-                    &coin_struct.address.into(),
+                    &ObjectID::new(coin_struct.address.into_bytes()),
                     CoinMetadata::type_(coin_struct.clone()),
                 )
                 .await
@@ -226,7 +226,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let manager_object = self
                         .internal
                         .find_package_object(
-                            &coin_struct.address.into(),
+                            &ObjectID::new(coin_struct.address.into_bytes()),
                             CoinManager::type_(coin_struct),
                         )
                         .await
@@ -257,18 +257,18 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
+    async fn get_total_supply(&self, coin_type: String) -> RpcResult<IotaSupply> {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
 
             if let Some(s) = gas_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
             if let Some(s) = treasury_cap_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
             if let Some(s) = coin_manager_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
 
             Err(IotaRpcInputError::GenericNotFound(format!(
@@ -406,7 +406,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address.into(), TreasuryCap::type_(tag.clone()))
+        .find_package_object(
+            &ObjectID::new(tag.address.into_bytes()),
+            TreasuryCap::type_(tag.clone()),
+        )
         .await
     {
         let data = obj
@@ -429,7 +432,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address.into(), CoinManager::type_(tag.clone()))
+        .find_package_object(
+            &ObjectID::new(tag.address.into_bytes()),
+            CoinManager::type_(tag.clone()),
+        )
         .await
     {
         let cm = CoinManager::try_from(obj).map_err(Error::from)?;
@@ -585,7 +591,7 @@ mod tests {
         utils::create_fake_transaction,
     };
     use mockall::{mock, predicate};
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+    use move_core_types::language_storage::StructTag;
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
@@ -613,6 +619,7 @@ mod tests {
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
+            async fn multi_get_objects(&self, object_keys: &[iota_types::storage::ObjectKey]) -> IotaResult<Vec<Option<Object>>>;
 
             async fn multi_get_transactions_perpetual_checkpoints(
                 &self,
@@ -657,11 +664,11 @@ mod tests {
     }
 
     fn get_test_owner() -> IotaAddress {
-        AccountAddress::ONE.into()
+        IotaAddress::STD
     }
 
     fn get_test_package_id() -> ObjectID {
-        ObjectID::from_hex_literal("0xf").unwrap()
+        ObjectID::from_u16(0xf)
     }
 
     fn get_test_coin_type(package_id: ObjectID) -> String {
@@ -689,9 +696,9 @@ mod tests {
         };
 
         let object_id = if let Some(literal) = id_hex_literal {
-            ObjectID::from_hex_literal(literal).unwrap()
+            ObjectID::from_prefixed_short_hex(literal).unwrap()
         } else {
-            ObjectID::from_hex_literal(default_hex).unwrap()
+            ObjectID::from_prefixed_short_hex(default_hex).unwrap()
         };
 
         Coin {
@@ -1518,7 +1525,10 @@ mod tests {
                 .returning(move |_, _| Ok((create_fake_transaction(), effects_clone.clone())));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
-            let response = coin_read_api.get_total_supply(coin_name.clone()).await;
+            let response = coin_read_api
+                .get_total_supply(coin_name.clone())
+                .await
+                .map(Supply::from);
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
@@ -1562,7 +1572,10 @@ mod tests {
                 unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
-            let response = coin_read_api.get_total_supply(coin_name.clone()).await;
+            let response = coin_read_api
+                .get_total_supply(coin_name.clone())
+                .await
+                .map(Supply::from);
             let error_result = response.unwrap_err();
             assert_eq!(
                 error_result.code(),

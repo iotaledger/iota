@@ -125,8 +125,9 @@ async fn test_transaction_filter_scenarios() {
     // --- Scenario A: Sender filter (sender_1) ---
     // sender_1 did: publish NFT, publish basics, mint NFT = 3 transactions
     let sender_filter = grpc_filter::TransactionFilter::default().with_sender(
-        grpc_filter::AddressFilter::default()
-            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+        grpc_filter::AddressFilter::default().with_address(
+            grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
+        ),
     );
     let count = stream_and_collect(sender_filter).await;
     assert_eq!(count, 3, "Scenario A: sender_1 should have 3 transactions");
@@ -145,7 +146,8 @@ async fn test_transaction_filter_scenarios() {
     let move_call_filter = grpc_filter::TransactionFilter::default().with_command(
         grpc_filter::CommandFilter::default().with_move_call(
             grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                grpc_types::ObjectId::default().with_object_id(nft_package_id.to_vec()),
+                grpc_types::ObjectId::default()
+                    .with_object_id(nft_package_id.into_bytes().to_vec()),
             ),
         ),
     );
@@ -181,8 +183,9 @@ async fn test_transaction_filter_scenarios() {
     let sender_and_publish = grpc_filter::TransactionFilter::default().with_all(
         grpc_filter::AllTransactionFilter::default().with_filters(vec![
             grpc_filter::TransactionFilter::default().with_sender(
-                grpc_filter::AddressFilter::default()
-                    .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+                grpc_filter::AddressFilter::default().with_address(
+                    grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
+                ),
             ),
             grpc_filter::TransactionFilter::default().with_command(
                 grpc_filter::CommandFilter::default()
@@ -208,7 +211,8 @@ async fn test_transaction_filter_scenarios() {
             grpc_filter::TransactionFilter::default().with_command(
                 grpc_filter::CommandFilter::default().with_move_call(
                     grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                        grpc_types::ObjectId::default().with_object_id(basics_package_id.to_vec()),
+                        grpc_types::ObjectId::default()
+                            .with_object_id(basics_package_id.into_bytes().to_vec()),
                     ),
                 ),
             ),

@@ -24,7 +24,6 @@ const-str.workspace = true
 diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
 downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 hex.workspace = true
 http.workspace = true
@@ -50,6 +49,7 @@ uuid.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
+iota-common.workspace = true
 iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
@@ -64,8 +64,9 @@ iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
 iota-names.workspace = true
 iota-network-stack.workspace = true
+iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
-iota-rest-api.workspace = true
+iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
@@ -92,7 +93,7 @@ iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
 
 [features]
-pg_integration = []
+pg_integration = ["iota-indexer/pg_integration"]
 
 [package.metadata.cargo-udeps.ignore]
 development = ["serial_test", "simulacrum"]

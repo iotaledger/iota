@@ -34,7 +34,7 @@ pub mod regular;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -60,6 +60,7 @@ use crate::{
     dag_state::DagState,
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -162,7 +163,18 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) network_client: Arc<C>,
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
+    pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) sync_type: CommitSyncType,
+    /// Present only when `FastCommitSyncer` is constructed (both the
+    /// protocol flag `consensus_fast_commit_sync` and the local flag
+    /// `enable_fast_commit_syncer` are on). The atomic is seeded at
+    /// startup from the durable `DagState::fast_sync_ongoing()` flag so
+    /// that a restart during fast sync correctly pauses regular syncing
+    /// before fast sync's own loop has had a chance to run. After
+    /// startup, fast sync owns the atomic and updates it each schedule
+    /// iteration — the durable flag is not reactive enough for runtime
+    /// gating. `None` on deployments where fast sync is disabled.
+    pub(crate) fast_sync_active: Option<Arc<AtomicBool>>,
 }
 
 impl<C: NetworkClient> Inner<C> {
@@ -295,15 +307,14 @@ pub(crate) fn verify_transactions_with_headers(
         // the ones that were included in the block when it was created.
         let block_header = block_headers
             .get(&block_ref)
-            .expect("header for fetched transactions must exist");
+            .ok_or(ConsensusError::MissingBlockHeader { block_ref })?;
 
         if block_header.transactions_commitment()
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
                 &context,
                 &mut encoder,
-            )
-            .expect("correct computation of the transactions commitment should be successful")
+            )?
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: block_ref.round,
@@ -359,8 +370,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
                 &inner_serialized_transactions,
                 context,
                 &mut encoder,
-            )
-            .expect("correct computation of the transactions commitment should be successful")
+            )?
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: transaction_ref.round,

@@ -103,7 +103,7 @@ impl LiveObject {
     ) -> IndexerResult<Self> {
         let df_kind = extract_df_kind(&object);
         let indexed_object =
-            IndexedObject::from_object(checkpoint_sequence_number, object, df_kind);
+            IndexedObject::from_object(Some(checkpoint_sequence_number), object, df_kind);
         Ok(Self {
             indexed_object,
             transaction_digest,
@@ -146,7 +146,7 @@ impl RemovedObject {
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
             object_id,
-            object_version: object_version.into(),
+            object_version: object_version.as_u64(),
         };
         Self {
             indexed_object,
@@ -235,7 +235,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.version() < version.value(),
+                    existing.version() < version,
                     "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
                     existing.version()
                 );
@@ -256,7 +256,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object().version().value() < version,
+                    existing.object().version() < version,
                     "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                     existing.object().version(),
                 );

@@ -4,20 +4,24 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_types::{iota_serde::IotaTypeTag, object::Owner};
+use iota_types::object::Owner;
 use move_core_types::language_storage::TypeTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
+
+use crate::{iota_owner::OwnerSchema, iota_primitives::TypeTag as TypeTagSchema};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceChange {
     /// Owner of the balance change
+    #[schemars(with = "OwnerSchema")]
+    #[serde_as(as = "OwnerSchema")]
     pub owner: Owner,
-    #[schemars(with = "String")]
-    #[serde_as(as = "IotaTypeTag")]
+    #[schemars(with = "TypeTagSchema")]
+    #[serde_as(as = "TypeTagSchema")]
     pub coin_type: TypeTag,
     /// The amount indicate the balance value changes,
     /// negative amount means spending coin value and positive means receiving

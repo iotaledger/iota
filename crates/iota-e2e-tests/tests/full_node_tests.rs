@@ -1016,7 +1016,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::AddressOwner(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.1]);
+    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.1]).unwrap();
 
     match node
         .state()
@@ -1202,7 +1202,7 @@ async fn test_access_old_object_pruned() {
         .await
         .effects
         .unwrap();
-    let new_gas_version = effects.gas_object().reference.version;
+    let new_gas_version = effects.gas_object().reference.1;
     test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(
@@ -1224,7 +1224,7 @@ async fn test_access_old_object_pruned() {
                     .database_for_testing()
                     .prune_objects_and_compact_for_testing(
                         state.get_checkpoint_store(),
-                        state.rest_index.as_deref(),
+                        state.grpc_indexes_store.as_deref(),
                     )
                     .await;
                 // Make sure the old version of the object is already pruned.

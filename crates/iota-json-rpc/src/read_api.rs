@@ -185,7 +185,7 @@ impl ReadApi {
 
         for (summary_and_sig, content) in checkpoint_summaries_and_signatures
             .into_iter()
-            .zip(contents.into_iter())
+            .zip(contents)
         {
             checkpoints.push(Checkpoint::from((
                 summary_and_sig.0,
@@ -235,9 +235,7 @@ impl ReadApi {
                     |err| debug!(digests=?digests_clone, "Failed to multi get transactions: {:?}", err),
                 )?;
 
-            for ((_digest, cache_entry), txn) in
-                temp_response.iter_mut().zip(transactions.into_iter())
-            {
+            for ((_digest, cache_entry), txn) in temp_response.iter_mut().zip(transactions) {
                 cache_entry.transaction = txn;
             }
         }
@@ -252,9 +250,7 @@ impl ReadApi {
                 .tap_err(
                     |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
                 )?;
-            for ((_digest, cache_entry), e) in
-                temp_response.iter_mut().zip(effects_list.into_iter())
-            {
+            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
                 cache_entry.effects = e;
             }
         }
@@ -266,10 +262,7 @@ impl ReadApi {
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
-        for ((_digest, cache_entry), seq) in temp_response
-            .iter_mut()
-            .zip(checkpoint_seq_list.into_iter())
-        {
+        for ((_digest, cache_entry), seq) in temp_response.iter_mut().zip(checkpoint_seq_list) {
             cache_entry.checkpoint_seq = seq;
         }
 
@@ -301,10 +294,10 @@ impl ReadApi {
 
         // fill cache with the timestamp
         for (_, cache_entry) in temp_response.iter_mut() {
-            if cache_entry.checkpoint_seq.is_some() {
+            if let Some(checkpoint_seq) = &cache_entry.checkpoint_seq {
                 // safe to unwrap because is_some is checked
                 cache_entry.timestamp = *checkpoint_to_timestamp
-                    .get(cache_entry.checkpoint_seq.as_ref().unwrap())
+                    .get(checkpoint_seq)
                     // Safe to unwrap because checkpoint_seq is guaranteed to exist in
                     // checkpoint_to_timestamp
                     .unwrap();
@@ -466,7 +459,7 @@ impl ReadApi {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let resolver = Resolver::new(self.clone());
 
-        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response.into_iter())
+        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response)
             .map(|(_, interim_response)| {
                 convert_to_response(
                     interim_response,
@@ -645,7 +638,7 @@ impl ReadApiServer for ReadApi {
                     ))
                 }
                 PastObjectRead::ObjectDeleted(oref) => {
-                    Ok(IotaPastObjectResponse::ObjectDeleted(oref.into()))
+                    Ok(IotaPastObjectResponse::ObjectDeleted(oref))
                 }
                 PastObjectRead::VersionNotFound(id, seq_num) => {
                     Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num))
@@ -1370,20 +1363,24 @@ async fn convert_to_response<S: PackageStore>(
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
 
-    if opts.show_raw_input && cache.transaction.is_some() {
-        let sender_signed_data = cache.transaction.as_ref().unwrap().data();
-        let raw_tx = bcs::to_bytes(sender_signed_data)
-            .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
-        response.raw_transaction = raw_tx;
+    if opts.show_raw_input {
+        if let Some(transaction) = &cache.transaction {
+            let sender_signed_data = transaction.data();
+            let raw_tx = bcs::to_bytes(sender_signed_data)
+                .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
+            response.raw_transaction = raw_tx;
+        }
     }
 
-    if opts.show_input && cache.transaction.is_some() {
-        let tx_block = IotaTransactionBlock::try_from(
-            cache.transaction.unwrap().into_data(),
-            module_cache,
-            cache.digest,
-        )?;
-        response.transaction = Some(tx_block);
+    if opts.show_input {
+        if let Some(transaction) = cache.transaction {
+            let tx_block = IotaTransactionBlock::try_from(
+                transaction.into_data(),
+                module_cache,
+                cache.digest,
+            )?;
+            response.transaction = Some(tx_block);
+        }
     }
 
     if opts.show_raw_effects {
@@ -1397,14 +1394,12 @@ async fn convert_to_response<S: PackageStore>(
         response.raw_effects = raw_effects;
     }
 
-    if opts.show_effects && cache.effects.is_some() {
-        let native_effects = cache
-            .effects
-            .expect("show_effects should have populated effects");
-        let effects =
-            IotaTransactionBlockEffects::from_native_with_clever_error(native_effects, resolver)
-                .await;
-        response.effects = Some(effects);
+    if opts.show_effects {
+        if let Some(effects) = cache.effects {
+            let effects =
+                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver).await;
+            response.effects = Some(effects);
+        }
     }
 
     response.checkpoint = cache.checkpoint_seq;
@@ -1468,7 +1463,7 @@ fn calculate_checkpoint_numbers(
 impl PackageStore for ReadApi {
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

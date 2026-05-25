@@ -186,7 +186,7 @@ impl IndexedEvent {
             package: event.package_id,
             module: event.transaction_module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: event.type_.address.into(),
+            event_type_package: ObjectID::new(event.type_.address.into_bytes()),
             event_type_module: event.type_.module.to_string(),
             event_type_name: event.type_.name.to_string(),
             bcs: event.contents.clone(),
@@ -229,7 +229,7 @@ impl EventIndex {
             sender: event.sender,
             emit_package: event.package_id,
             emit_module: event.transaction_module.to_string(),
-            type_package: event.type_.address.into(),
+            type_package: ObjectID::new(event.type_.address.into_bytes()),
             type_module: event.type_.module.to_string(),
             type_name: event.type_.name.to_string(),
             type_instantiation,
@@ -247,7 +247,7 @@ impl EventIndex {
         EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             emit_package: ObjectID::random(),
             emit_module: rng.gen::<u64>().to_string(),
             type_package: ObjectID::random(),
@@ -323,14 +323,16 @@ pub enum DynamicFieldKind {
 
 #[derive(Clone, Debug)]
 pub struct IndexedObject {
-    pub checkpoint_sequence_number: CheckpointSequenceNumber,
+    /// The checkpoint at which this object was indexed.
+    /// `None` for objects indexed by the optimistic path (checkpoint unknown).
+    pub checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
     pub object: Object,
     pub df_kind: Option<DynamicFieldType>,
 }
 
 impl IndexedObject {
     pub fn from_object(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
         object: Object,
         df_kind: Option<DynamicFieldType>,
     ) -> Self {
@@ -346,7 +348,7 @@ impl IndexedObject {
 impl IndexedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
-        let random_address = IotaAddress::random_for_testing_only();
+        let random_address = IotaAddress::random();
         IndexedObject {
             checkpoint_sequence_number: rng.gen(),
             object: Object::with_owner_for_testing(random_address),
@@ -441,10 +443,10 @@ impl TxIndex {
 
         let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
         let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let payers = repeat_with(IotaAddress::random_for_testing_only)
+        let payers = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
-        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+        let recipients = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
@@ -466,7 +468,7 @@ impl TxIndex {
             input_objects,
             changed_objects,
             payers,
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             recipients,
             move_calls,
             wrapped_or_deleted_objects,
@@ -777,7 +779,7 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
             timestamp_ms: response.timestamp_ms,
             confirmed_local_execution: response.confirmed_local_execution,
             checkpoint: response.checkpoint,
-            errors: vec![],
+            errors: response.errors,
             raw_effects: if options.show_raw_effects {
                 response.raw_effects
             } else {

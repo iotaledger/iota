@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefForSigning,
     },
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
@@ -97,15 +97,19 @@ pub trait Executor {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -127,14 +131,19 @@ pub trait Executor {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRef,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForSigning,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

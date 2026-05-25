@@ -535,7 +535,7 @@ impl ChannelPool {
             .keep_alive_timeout(config.keepalive_interval)
             .http2_keep_alive_interval(config.keepalive_interval)
             // tcp keepalive is probably unnecessary and is unsupported by msim.
-            .user_agent("mysticeti")
+            .user_agent("starfish")
             .unwrap()
             .tls_config(client_tls_config)
             .unwrap();
@@ -830,8 +830,12 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         &self,
         _request: Request<GetLatestRoundsRequest>,
     ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
+        // This RPC is kept in the service definition for backward compatibility,
+        // but is not supported by Starfish.
         error!("get_latest_rounds() is deprecated in starfish and should not be called");
-        unimplemented!();
+        Err(tonic::Status::unimplemented(
+            "get_latest_rounds is deprecated and not supported",
+        ))
     }
 
     type FetchTransactionsStream =

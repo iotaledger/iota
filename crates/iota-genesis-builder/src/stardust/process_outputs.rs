@@ -682,7 +682,7 @@ fn swap_split_operation<'a>(
             BasicOutputBuilder::from(basic_output)
                 .with_amount(swap_split_amount)
                 .replace_unlock_condition(AddressUnlockCondition::new(Ed25519Address::new(
-                    destination.to_inner(),
+                    destination.into_bytes(),
                 )))
                 .finish()
                 .expect("failed to create basic output during split")

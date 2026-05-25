@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
@@ -59,7 +59,7 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("ConfigKey").to_owned(),
             type_params: vec![],
@@ -80,7 +80,7 @@ struct AddressKey(IotaAddress);
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("AddressKey").to_owned(),
             type_params: vec![],
@@ -106,7 +106,7 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("GlobalPauseKey").to_owned(),
             type_params: vec![],
@@ -125,13 +125,13 @@ pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    auth_input_objects: &Option<CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
         tx_input_objects,
         tx_receiving_objects,
-        auth_input_objects,
+        per_authenticator_input_objects,
     );
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
@@ -310,19 +310,16 @@ where
 fn input_object_coin_types_for_denylist_check(
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    auth_input_objects: &Option<CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
 ) -> BTreeSet<String> {
-    let all_objects = tx_input_objects
-        .inner()
-        .iter_objects()
-        .chain(tx_receiving_objects.iter_objects())
-        .chain(
-            auth_input_objects
-                .as_ref()
-                .map(|auth_input_objects| auth_input_objects.inner().iter_objects())
-                .into_iter()
-                .flatten(),
-        );
+    let all_objects =
+        tx_input_objects
+            .inner()
+            .iter_objects()
+            .chain(tx_receiving_objects.iter_objects())
+            .chain(per_authenticator_input_objects.iter().flat_map(
+                |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
+            ));
     all_objects
         .filter_map(|obj| {
             if obj.is_gas_coin() {

@@ -95,7 +95,7 @@ async fn simulate_transaction_scenarios() {
         .unwrap()
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
-    let fake_recipient = IotaAddress::random_for_testing_only();
+    let fake_recipient = IotaAddress::random();
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();

@@ -437,7 +437,7 @@ fn test_basic_args_linter_top_level() {
         .into_modules();
     let example_package = Object::new_package_for_testing(
         &compiled_modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
@@ -460,7 +460,7 @@ fn test_basic_args_linter_top_level() {
     let foo_id = ObjectID::random();
     let bar_id = ObjectID::random();
     let baz_id = ObjectID::random();
-    let recipient_addr = IotaAddress::random_for_testing_only();
+    let recipient_addr = IotaAddress::random();
 
     let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
     let bar = json!([
@@ -595,7 +595,7 @@ fn test_from_str() {
     assert!(test.0.is_boolean());
 
     // test id without quotes
-    let object_id = ObjectID::random().to_hex_uncompressed();
+    let object_id = ObjectID::random().to_hex();
     let test = IotaJsonValue::from_str(&object_id).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
