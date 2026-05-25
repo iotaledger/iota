@@ -37,7 +37,7 @@ use std::{
 
 use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, VerifiedTransaction},
 };
@@ -254,14 +254,41 @@ pub async fn validate_and_resolve_conflicts(
             if e.is_storage_or_epoch_error() {
                 return Err(e);
             }
-            warn!(
-                ?digest,
-                error = ?e,
-                "UserTransactionV1 failed post-consensus deny checks, dropping"
-            );
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
+            // TEMPORARY (stress-test workaround): `ObjectNotFound` here is a
+            // race between consensus processing and execution catch-up — the
+            // input object exists logically (a producing transaction in an
+            // earlier consensus commit will create it) but that transaction
+            // hasn't executed yet on this validator. The TransactionManager
+            // already waits for `InputKey::VersionedObject` availability
+            // before scheduling execution, so keeping the tx in
+            // `sequenced_transactions` is safe and the wait happens
+            // automatically downstream. Dropping here is non-deterministic
+            // across validators (local execution lag varies) and causes
+            // checkpoint equivocation. Remove this special-case once the
+            // structural fix (execution-watermark gating or consensus-
+            // deterministic version table) lands.
+            if matches!(
+                &e,
+                IotaError::UserInput {
+                    error: UserInputError::ObjectNotFound { .. }
+                }
+            ) {
+                debug!(
+                    ?digest,
+                    "ObjectNotFound during post-consensus validation; keeping tx \
+                     for TransactionManager to defer execution until inputs are ready"
+                );
+                // Fall through to lock acquisition below.
+            } else {
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV1 failed post-consensus deny checks, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
         }
 
         // All checks passed — acquire owned-object locks in local tracking.
