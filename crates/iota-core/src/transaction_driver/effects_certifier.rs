@@ -615,9 +615,11 @@ impl EffectsCertifier {
                     submission_retriable_errors: aggregate_request_errors(vec![]),
                 };
             }
-            if non_retriable_rejected.total_votes() + (total_votes - responded.total_votes())
-                < validity_threshold
-            {
+            // Even if every still-unheard validator rejected non-retriably,
+            // the f+1 threshold can no longer be reached — stop early and let
+            // the caller fall through to the retriable-error path.
+            let unseen_stake = total_votes - responded.total_votes();
+            if non_retriable_rejected.total_votes() + unseen_stake < validity_threshold {
                 break;
             }
         }
