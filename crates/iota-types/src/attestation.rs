@@ -84,8 +84,6 @@ impl AttestedTransaction {
 
 #[cfg(test)]
 mod tests {
-    use bcs;
-
     use super::*;
     use crate::{
         base_types::{IotaAddress, random_object_ref},
