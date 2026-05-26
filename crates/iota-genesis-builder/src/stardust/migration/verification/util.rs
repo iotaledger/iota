@@ -361,18 +361,18 @@ pub(super) fn verify_parent(
     match address {
         Address::Alias(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Alias>().is_err() {
+                if let Err(e) = parent_obj.to_rust::<Alias>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}: {e}"
                     );
                 }
             }
         }
         Address::Nft(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Nft>().is_err() {
+                if let Err(e) = parent_obj.to_rust::<Nft>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}: {e}"
                     );
                 }
             }
