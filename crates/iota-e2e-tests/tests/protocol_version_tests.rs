@@ -66,7 +66,7 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
-    use iota_sdk_types::Identifier;
+    use iota_sdk_types::{Command, Identifier, MoveCall};
     use iota_types::{
         base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
@@ -81,8 +81,8 @@ mod sim_only_tests {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
-            CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
-            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI, TransactionKind,
+            CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData,
+            TransactionDataAPI, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -443,7 +443,7 @@ mod sim_only_tests {
         assert_eq!(
             dev_inspect_call(
                 &cluster,
-                ProgrammableMoveCall {
+                MoveCall {
                     package: iota_extra,
                     module: Identifier::new_unchecked("msim_extra_1"),
                     function: Identifier::new_unchecked("canary"),
@@ -473,7 +473,7 @@ mod sim_only_tests {
     async fn call_canary(cluster: &TestCluster) -> u64 {
         dev_inspect_call(
             cluster,
-            ProgrammableMoveCall {
+            MoveCall {
                 package: ObjectID::SYSTEM,
                 module: Identifier::new_unchecked("msim_extra_1"),
                 function: Identifier::new_unchecked("canary"),
@@ -543,7 +543,7 @@ mod sim_only_tests {
         .reference
     }
 
-    async fn dev_inspect_call(cluster: &TestCluster, call: ProgrammableMoveCall) -> u64 {
+    async fn dev_inspect_call(cluster: &TestCluster, call: MoveCall) -> u64 {
         let client = cluster.rpc_client();
         let sender = cluster.get_address_0();
 

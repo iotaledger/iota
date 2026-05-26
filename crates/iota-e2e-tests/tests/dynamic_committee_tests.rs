@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
+use iota_sdk_types::Command;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -23,7 +24,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, ProgrammableTransaction},
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Command, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -10,7 +10,7 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     iota_serde::TypeName,
-    transaction::{Argument, CallArg, Command},
+    transaction::{Argument, CallArg},
 };
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 // MoveProgrammableMoveCall
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
+/// Mirrors [`iota_sdk_types::MoveCall`] for use in
 /// [`MoveCommand`], substituting [`TypeTag`] for a string in the type arguments
 /// so that the type matches the BCS layout expected by the Move-side
 /// `ptb_command::ProgrammableMoveCall`.
@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{Argument, CallArg, Command, SharedObjectRef},
+        transaction::{Argument, CallArg, SharedObjectRef},
     };
 
     // ── helpers ─────────────────────────────────────────────────────────────

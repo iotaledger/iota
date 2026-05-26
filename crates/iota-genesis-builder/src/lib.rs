@@ -31,7 +31,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Identifier, StructTag,
+    Command, Identifier, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -67,8 +67,7 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, GenesisObject, InputObjectKind, ObjectReadResult,
-        Transaction,
+        CallArg, CheckedInputObjects, GenesisObject, InputObjectKind, ObjectReadResult, Transaction,
     },
 };
 use move_binary_format::CompiledModule;

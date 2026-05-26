@@ -13,7 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -28,7 +28,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;

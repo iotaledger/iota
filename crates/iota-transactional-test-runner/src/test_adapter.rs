@@ -33,7 +33,7 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Command, Identifier, TypeTag};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -62,7 +62,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
+        Argument, CallArg, ProgrammableTransaction, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
     },
     utils::{
@@ -788,10 +788,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
                 let transaction = self.sign_txn(sender, |sender, gas| {
                     let rec_arg = builder.pure(recipient).unwrap();
-                    builder.command(iota_types::transaction::Command::new_transfer_objects(
-                        vec![obj_arg],
-                        rec_arg,
-                    ));
+                    builder.command(Command::new_transfer_objects(vec![obj_arg], rec_arg));
                     let pt = builder.finish();
                     TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
                 });

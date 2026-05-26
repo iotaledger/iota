@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Command, Identifier};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectType},
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -11,7 +11,7 @@ use iota_types::{
     timelock::timelocked_staking::{
         ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 
 use crate::TransactionBuilder;

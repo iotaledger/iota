@@ -21,7 +21,7 @@ use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_types::transaction::Command::Publish`] for the provided package.
+    /// [`iota_sdk_types::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
         sender: IotaAddress,
@@ -61,7 +61,7 @@ impl TransactionBuilder {
     }
 
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
+    /// [`iota_sdk_types::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
         package_id: ObjectID,

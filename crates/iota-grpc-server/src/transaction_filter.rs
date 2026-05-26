@@ -4,13 +4,14 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::Command;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
     object::Owner,
-    transaction::{Command, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 
@@ -479,11 +480,8 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::Identifier;
-    use iota_types::{
-        base_types::ObjectID,
-        transaction::{Argument, Command},
-    };
+    use iota_sdk_types::{Command, Identifier};
+    use iota_types::{base_types::ObjectID, transaction::Argument};
 
     use super::*;
 

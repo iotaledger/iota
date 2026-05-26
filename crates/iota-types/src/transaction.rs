@@ -17,15 +17,15 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
-    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
-    MakeMoveVector, MergeCoins, MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish,
-    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage,
+    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
+    GasPayment as GasData, GenesisObject, GenesisTransaction, ProgrammableTransaction,
+    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
     Transaction as TransactionData, TransactionExpiration, TransactionKind,
-    TransactionV1 as TransactionDataV1, TransferObjects, Upgrade,
+    TransactionV1 as TransactionDataV1,
 };
 use iota_sdk_types::{
-    Digest, Identifier, Input, ObjectId, TypeTag,
+    Command, Digest, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Publish,
+    SplitCoins, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -339,18 +339,18 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
     }
 }
 
-mod programmable_move_call_ext {
+mod move_call_ext {
     pub trait Sealed {}
-    impl Sealed for super::ProgrammableMoveCall {}
+    impl Sealed for super::MoveCall {}
 }
 
-pub trait ProgrammableMoveCallExt: Sized + programmable_move_call_ext::Sealed {
+pub trait MoveCallExt: Sized + move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
-impl ProgrammableMoveCallExt for ProgrammableMoveCall {
+impl MoveCallExt for MoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         let mut packages = BTreeSet::from([self.package]);
         for type_argument in &self.type_arguments {

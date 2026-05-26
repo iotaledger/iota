@@ -225,12 +225,12 @@ pub fn is_auth_context(
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, TypeTag};
+    use iota_sdk_types::{Command, Identifier, TypeTag};
 
     use super::*;
     use crate::{
         base_types::ObjectID,
-        transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+        transaction::{Argument, CallArg, ProgrammableTransaction},
     };
 
     #[test]

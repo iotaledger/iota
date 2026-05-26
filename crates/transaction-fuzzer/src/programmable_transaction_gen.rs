@@ -5,11 +5,11 @@
 use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Command, Identifier};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, ProgrammableTransaction},
 };
 use once_cell::sync::Lazy;
 use proptest::{collection::vec, prelude::*};

@@ -5,11 +5,9 @@
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Command, Identifier, MoveCall};
 use iota_types::{
-    base_types::ObjectID,
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
-    transaction::{Argument, Command, ProgrammableMoveCall},
+    base_types::ObjectID, iota_sdk_types_conversions::type_tag_core_to_sdk, transaction::Argument,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -390,7 +388,7 @@ impl ParsedMoveCall {
     pub fn into_move_call(
         self,
         address_mapping: &impl Fn(&str) -> Option<AccountAddress>,
-    ) -> Result<ProgrammableMoveCall> {
+    ) -> Result<MoveCall> {
         let Self {
             package,
             module,
@@ -409,7 +407,7 @@ impl ParsedMoveCall {
             })
             .collect::<Result<_>>()?;
 
-        Ok(ProgrammableMoveCall {
+        Ok(MoveCall {
             package: ObjectID::new(package.into_bytes()),
             module,
             function,

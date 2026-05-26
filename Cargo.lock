@@ -7832,6 +7832,7 @@ dependencies = [
  "iota-execution",
  "iota-macros",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-types",
  "tracing",
 ]

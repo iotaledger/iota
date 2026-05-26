@@ -10,13 +10,13 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Command, Identifier, MakeMoveVector, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber, is_primitive_type_tag},
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
+    transaction::{Argument, CallArg, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{

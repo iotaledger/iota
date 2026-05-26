@@ -8,12 +8,12 @@ use std::{
 };
 
 use iota_execution::Executor;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Command, MoveCall, TypeTag};
 use iota_types::{
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     sdk_types::utils::write_sep,
-    transaction::{Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction},
+    transaction::{Argument, CallArg, ProgrammableTransaction},
 };
 use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use tabled::{
@@ -210,10 +210,10 @@ impl Display for Pretty<'_, Command> {
     }
 }
 
-impl Display for Pretty<'_, ProgrammableMoveCall> {
+impl Display for Pretty<'_, MoveCall> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(move_call) = self;
-        let ProgrammableMoveCall {
+        let MoveCall {
             package,
             module,
             function,

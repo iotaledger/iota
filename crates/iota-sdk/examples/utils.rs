@@ -25,11 +25,11 @@ use iota_sdk::{
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{Argument, Transaction, TransactionData, TransactionDataAPI},
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Command, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;

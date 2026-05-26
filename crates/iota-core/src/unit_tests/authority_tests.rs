@@ -16,7 +16,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
 use iota_types::{
     base_types::{
         AuthorityName, IotaAddress, TxContext, dbg_addr, dbg_object_id, random_object_ref,
