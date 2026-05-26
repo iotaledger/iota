@@ -2200,14 +2200,23 @@ impl DagState {
                 self.pending_acknowledgments.remove(&last_ack);
             }
         } else {
+            let mut dropped: u64 = 0;
             for ack in self.pending_acknowledgments.iter() {
                 if taken.len() >= limit || ack.round >= clock_round {
                     break;
                 }
                 if exclude.contains(ack.author) {
+                    dropped += 1;
                     continue;
                 }
                 taken.push(*ack);
+            }
+            if dropped > 0 {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .adaptive_ack_acks_dropped
+                    .inc_by(dropped);
             }
             for ack in &taken {
                 self.pending_acknowledgments.remove(ack);
@@ -2651,6 +2660,11 @@ impl DagState {
                 mask.insert(AuthorityIndex::from(auth as u8));
             }
         }
+        self.context
+            .metrics
+            .node_metrics
+            .adaptive_ack_excluded_authorities
+            .set(mask.len() as i64);
         mask
     }
 }

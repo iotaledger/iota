@@ -946,6 +946,26 @@ impl Core {
             }
         }
 
+        // Strong-vote payload metrics: distribution of the `missing` set size,
+        // and per-leader counter when the payload is a blame (non-empty).
+        if let Some(sv) = strong_vote.as_ref() {
+            let node_metrics = &self.context.metrics.node_metrics;
+            node_metrics
+                .strong_vote_missing_authorities
+                .observe(sv.missing.len() as f64);
+            if !sv.missing.is_empty() {
+                let leader = &self
+                    .context
+                    .committee
+                    .authority(sv.leader_authority)
+                    .hostname;
+                node_metrics
+                    .strong_blames_emitted_for_leader
+                    .with_label_values(&[leader])
+                    .inc();
+            }
+        }
+
         self.context
             .metrics
             .node_metrics
@@ -1578,6 +1598,13 @@ impl Core {
             let Some(strong_vote) = block.strong_vote() else {
                 continue;
             };
+            let voter = &self.context.committee.authority(block.author()).hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[voter])
+                .inc();
             dag_state.record_strong_vote_complaint(
                 block.author(),
                 leader_round,
