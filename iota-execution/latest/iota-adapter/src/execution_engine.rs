@@ -16,6 +16,7 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
+    use iota_sdk_types::Identifier;
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -25,9 +26,7 @@ mod checked {
         },
         auth_context::AuthContext,
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{
-            Identifier, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
-        },
+        base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         digests::Digest,

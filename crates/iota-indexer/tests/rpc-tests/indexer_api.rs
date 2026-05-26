@@ -23,9 +23,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,

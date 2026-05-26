@@ -8,8 +8,8 @@ use std::{
 };
 
 use iota_execution::Executor;
+use iota_sdk_types::TypeTag;
 use iota_types::{
-    base_types::TypeTag,
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     sdk_types::utils::write_sep,

@@ -7,11 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber,
-    },
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,

@@ -15,10 +15,11 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -567,6 +568,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
+    use iota_sdk_types::{StructTag, TypeTag};
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -575,7 +577,7 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
+        base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},

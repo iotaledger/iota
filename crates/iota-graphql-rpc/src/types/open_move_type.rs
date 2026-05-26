@@ -295,7 +295,7 @@ mod tests {
     use OpenSignatureBody as S;
     use expect_test::expect;
     use iota_package_resolver::{DatatypeKey, DatatypeRef};
-    use iota_types::base_types::StructTag;
+    use iota_sdk_types::StructTag;
 
     use super::*;
 

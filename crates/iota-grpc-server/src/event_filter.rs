@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_metrics::monitored_scope;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
+    base_types::{IotaAddress, ObjectID},
     event::Event,
 };
 use serde::{Deserialize, Serialize};

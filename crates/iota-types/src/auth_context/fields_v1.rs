@@ -1,13 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::TypeTag;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     iota_serde::TypeName,
     transaction::{Argument, CallArg, Command},
 };
@@ -188,13 +189,11 @@ impl MoveCallArg {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::ObjectReference;
+    use iota_sdk_types::{Identifier, ObjectReference, StructTag, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{
-            Identifier, IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag, TypeTag,
-        },
+        base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
         transaction::{Argument, CallArg, Command, SharedObjectRef},
     };
 

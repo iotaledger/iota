@@ -28,9 +28,10 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::StructTag;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,

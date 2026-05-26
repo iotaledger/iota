@@ -9,13 +9,14 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
+use iota_sdk_types::Identifier;
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
+    base_types::{IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},

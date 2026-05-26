@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, ensure};
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::output as stardust;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,

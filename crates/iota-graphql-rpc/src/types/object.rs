@@ -20,12 +20,10 @@ use iota_indexer::{
     schema::{objects, objects_history, objects_version},
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_types::{
-    base_types::{StructTag, TypeTag},
-    object::{
-        MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
-        bounded_visitor::BoundedVisitor,
-    },
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::object::{
+    MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
+    bounded_visitor::BoundedVisitor,
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};

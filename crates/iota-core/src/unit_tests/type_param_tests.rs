@@ -4,8 +4,9 @@
 
 use std::str::FromStr;
 
+use iota_sdk_types::TypeTag;
 use iota_types::{
-    base_types::{ObjectID, TypeTag},
+    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
 };

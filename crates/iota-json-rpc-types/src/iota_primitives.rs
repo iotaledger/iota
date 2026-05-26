@@ -13,10 +13,8 @@
 //! cannot drift. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
 //! appropriate when the wrapper itself is the serialised value.
 
-use iota_types::{
-    base_types::{StructTag as NativeStructTag, TypeTag as NativeTypeTag},
-    iota_serde::{IotaStructTag, IotaTypeTag},
-};
+use iota_sdk_types::{StructTag as NativeStructTag, TypeTag as NativeTypeTag};
+use iota_types::iota_serde::{IotaStructTag, IotaTypeTag};
 use schemars::{
     JsonSchema,
     schema::{InstanceType, Metadata, NumberValidation, SchemaObject},

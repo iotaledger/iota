@@ -6,10 +6,9 @@
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_types::{
-    base_types::{
-        Identifier, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TypeTag,
-    },
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},

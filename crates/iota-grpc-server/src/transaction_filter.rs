@@ -479,8 +479,9 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::Identifier;
     use iota_types::{
-        base_types::{Identifier, ObjectID},
+        base_types::ObjectID,
         transaction::{Argument, Command},
     };
 

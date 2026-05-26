@@ -16,11 +16,12 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Identifier, StructTag, TypeTag};
     use iota_types::{
         auth_context,
         base_types::{
-            Identifier, IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
+            IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},

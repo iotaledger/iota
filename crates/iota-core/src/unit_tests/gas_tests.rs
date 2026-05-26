@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, dbg_addr},
+    base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},

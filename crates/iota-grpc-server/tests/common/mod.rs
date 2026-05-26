@@ -13,8 +13,9 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag},
+    base_types::{ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},

@@ -26,9 +26,10 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::TypeTag;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::UserInputError,

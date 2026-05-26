@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::StructTag;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -26,7 +27,7 @@ use iota_types::{
             AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1,
         },
     },
-    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},

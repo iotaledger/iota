@@ -10,8 +10,9 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
+    base_types::{IotaAddress, ObjectID},
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };

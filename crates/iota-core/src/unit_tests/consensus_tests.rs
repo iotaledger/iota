@@ -7,8 +7,9 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{ExecutionDigests, Identifier, ObjectID},
+    base_types::{ExecutionDigests, ObjectID},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{

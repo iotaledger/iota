@@ -17,15 +17,14 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::Identifier;
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext, TypeTag,
-    },
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -764,7 +763,7 @@ impl Executor {
 }
 
 mod pt {
-    use iota_types::base_types::Identifier;
+    use iota_sdk_types::{Identifier, StructTag, TypeTag};
 
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;

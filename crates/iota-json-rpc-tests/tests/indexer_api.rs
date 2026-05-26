@@ -13,10 +13,11 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,

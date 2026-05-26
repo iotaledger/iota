@@ -10,11 +10,9 @@ use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
+use iota_sdk_types::{Identifier, TypeTag};
 use iota_types::{
-    base_types::{
-        EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        TypeTag,
-    },
+    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},

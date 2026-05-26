@@ -11,7 +11,7 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        base_types::{Identifier, ObjectID},
+        base_types::ObjectID,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{
@@ -19,7 +19,7 @@ use iota_sdk::{
         },
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, crypto::Intent};
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple

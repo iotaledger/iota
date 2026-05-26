@@ -5,8 +5,9 @@
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, ObjectID},
+    base_types::ObjectID,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     transaction::{Argument, Command, ProgrammableMoveCall},
 };

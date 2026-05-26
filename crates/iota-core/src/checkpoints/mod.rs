@@ -2695,8 +2695,9 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
+    use iota_sdk_types::Identifier;
     use iota_types::{
-        base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
+        base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,

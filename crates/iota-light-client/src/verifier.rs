@@ -283,8 +283,9 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
+    use iota_sdk_types::{Identifier, StructTag};
     use iota_types::{
-        base_types::{Identifier, IotaAddress, StructTag},
+        base_types::IotaAddress,
         event::Event,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };

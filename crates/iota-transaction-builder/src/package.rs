@@ -6,8 +6,9 @@ use std::result::Result;
 
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

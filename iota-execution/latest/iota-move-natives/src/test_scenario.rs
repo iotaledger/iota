@@ -11,8 +11,9 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,

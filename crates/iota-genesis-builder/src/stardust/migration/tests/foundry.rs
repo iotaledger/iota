@@ -3,12 +3,13 @@
 
 use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::output::{
     AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     coin::CoinMetadata,
     coin_manager::CoinManager,
     object::Object,

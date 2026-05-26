@@ -13,9 +13,12 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Identifier, TypeTag,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},

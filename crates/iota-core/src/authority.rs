@@ -44,7 +44,10 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    StructTag, TypeTag,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -63,7 +66,7 @@ use iota_types::{
     },
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TypeTag, VersionNumber,
+        SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},

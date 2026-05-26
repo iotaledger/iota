@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, TypeTag},
+    base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,

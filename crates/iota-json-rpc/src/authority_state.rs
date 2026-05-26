@@ -19,13 +19,12 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{
-        IotaAddress, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag, TypeTag,
-    },
+    base_types::{IotaAddress, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
