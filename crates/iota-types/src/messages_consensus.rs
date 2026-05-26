@@ -249,8 +249,8 @@ pub enum ConsensusTransactionKind {
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
     UserTransactionV1(Box<Transaction>),
-    /// Attested user transaction. Carries a gas attestation produced either by
-    /// the proposing validator or a registered third-party attestor.
+    /// Attested user transaction. Carries the transaction together with
+    /// the attested data and the identity of the attestor that produced it.
     UserTransactionV2(Box<AttestedTransaction>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
