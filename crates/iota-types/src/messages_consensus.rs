@@ -657,8 +657,8 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::UserTransactionV1(tx) => {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
             }
-            ConsensusTransactionKind::UserTransactionV2(attested) => {
-                ConsensusTransactionKey::UserTransaction(*attested.digest())
+            ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
+                ConsensusTransactionKey::UserTransaction(*attested_tx.digest())
             }
         }
     }
