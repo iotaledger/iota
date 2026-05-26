@@ -39,7 +39,7 @@ strum_macros.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net", "signal"] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
