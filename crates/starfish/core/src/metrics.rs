@@ -49,6 +49,19 @@ const NUM_BUCKETS: &[f64] = &[
     1_000_000.0,
 ];
 
+/// Integer-aligned buckets for committee-size-bounded counts (e.g. the size
+/// of a strong-blame set). Each cumulative bucket `le=N.5` captures exactly
+/// the integer value N — so 0 and 1 land in different buckets, which is what
+/// `histogram_quantile` / heatmap visualisations need to distinguish a clean
+/// strong vote (`missing.len() == 0`) from a single-authority blame
+/// (`missing.len() == 1`). Boundaries cover the full `AuthorityIndex: u8`
+/// range; fine-grained at the low end where the common case lives, coarser
+/// for outliers.
+const COMMITTEE_COUNT_BUCKETS: &[f64] = &[
+    0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 12.5, 15.5, 20.5, 30.5, 50.5, 100.5,
+    256.5,
+];
+
 const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9,
     1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5,
@@ -1151,7 +1164,7 @@ impl NodeMetrics {
             strong_vote_missing_authorities: register_histogram_with_registry!(
                 "strong_vote_missing_authorities",
                 "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
-                NUM_BUCKETS.to_vec(),
+                COMMITTEE_COUNT_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             strong_blames_emitted_for_leader: register_int_counter_vec_with_registry!(
