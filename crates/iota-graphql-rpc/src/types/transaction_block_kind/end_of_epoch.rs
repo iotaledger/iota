@@ -161,14 +161,6 @@ impl ChangeEpochTransactionV2 {
     }
 }
 
-/// System transaction for creating the on-chain state used by zkLogin.
-#[derive(SimpleObject, Clone, PartialEq, Eq)]
-pub(crate) struct AuthenticatorStateCreateTransaction {
-    /// A workaround to define an empty variant of a GraphQL union.
-    #[graphql(name = "_")]
-    dummy: Option<bool>,
-}
-
 /// System transaction for creating the `ClaimRegistry` singleton on networks
 /// that were deployed before the ClaimRegistry was introduced.
 #[derive(SimpleObject, Clone, PartialEq, Eq)]
@@ -176,13 +168,6 @@ pub(crate) struct ClaimRegistryCreateTransaction {
     /// A workaround to define an empty variant of a GraphQL union.
     #[graphql(name = "_")]
     dummy: Option<bool>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct AuthenticatorStateExpireTransaction {
-    pub native: NativeAuthenticatorStateExpireTransaction,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
 }
 
 pub(crate) type CTxn = JsonCursor<ConsistentIndexCursor>;

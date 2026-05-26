@@ -6,27 +6,28 @@ processed 4 tasks
 init:
 A: object(0,0)
 
-task 1, lines 11-28:
+task 1, lines 11-29:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5586000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5897600, storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 30-31:
-//# programmable --sender A --inputs object(0x10) 0u8 x"7f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928"
-//> custom_account::account::create(Input(0), Input(1), Input(2));
+task 2, lines 31-33:
+//# programmable --sender A --inputs object(0x10) x"7f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928"
+//> iota::signature_scheme::ed25519();
+//> custom_account::account::create(Input(0), Result(0), Input(1));
 created: object(2,0), object(2,1)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000010, object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5251600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5251600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 33:
+task 3, line 35:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
 Contents: custom_account::account::Account {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,0),
+            bytes: A,
         },
     },
 }

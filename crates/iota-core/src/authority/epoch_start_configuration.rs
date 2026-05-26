@@ -311,10 +311,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV3 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
         self.randomness_obj_initial_shared_version
     }
