@@ -1553,7 +1553,7 @@ impl Loader<HistoricalKey> for Db {
         // be a `WrappedOrDeleted` tombstone) or `objects_backward_history`.
         //
         // Only `ACTIVE` rows from `objects_backward_history` are joined
-        // (`bh.object_status = {active}`) because they are the only rows that
+        // (`bh.object_status = $3`) because they are the only rows that
         // carry the real `(object_id, object_version)`. The other two statuses
         // use placeholder versions, so matching on them by `(object_id,
         // object_version)` could by chance return incorrect row (with
@@ -1575,12 +1575,11 @@ impl Loader<HistoricalKey> for Db {
         // `cp_sequence_number` (the checkpoint at which the version was
         // committed), used by the in-memory `checkpoint_viewed_at` filter
         // below.
-        let sql = format!(
-            "SELECT \
+        let sql = "SELECT \
                 v.object_id, \
                 v.object_version, \
                 v.cp_sequence_number AS checkpoint_sequence_number, \
-                COALESCE(co.object_status, bh.object_status, {wrapped_or_deleted}::int2) AS object_status, \
+                COALESCE(co.object_status, bh.object_status, $4::int2) AS object_status, \
                 COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                 COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                 COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1602,20 +1601,22 @@ impl Loader<HistoricalKey> for Db {
             LEFT JOIN objects_backward_history bh \
                    ON bh.object_id = v.object_id \
                   AND bh.object_version = v.object_version \
-                  AND bh.object_status = {active} \
+                  AND bh.object_status = $3 \
             WHERE co.object_id IS NOT NULL \
                OR bh.object_id IS NOT NULL \
                OR v.cp_sequence_number >= COALESCE(\
                       (SELECT min_available_cp FROM watermarks \
-                       WHERE entity = '{BACKWARD_HISTORY_WATERMARK_ENTITY}'), 0)"
-        );
+                       WHERE entity = $5), 0)";
 
         let objects: Vec<StoredHistoryObject> = self
             .execute(move |conn| {
                 conn.results(move || {
-                    diesel::sql_query(&sql)
+                    diesel::sql_query(sql)
                         .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                         .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
+                        .bind::<sql_types::SmallInt, _>(active)
+                        .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
+                        .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
                 })
             })
             .await
