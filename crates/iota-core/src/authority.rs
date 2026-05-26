@@ -5494,13 +5494,11 @@ impl AuthorityState {
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().map_err(|e| {
-                    IotaError::ObjectDeserialization {
-                        error: format!(
-                            "Failed to deserialize AuthenticatorFunctionRefV1 field for account {auth_account_object_id}: {e}"
-                        ),
-                    }
-                })?;
+                field_move_object.to_rust().ok_or(
+                    UserInputError::InvalidAuthenticatorFunctionRefField {
+                        account_object_id: auth_account_object_id,
+                    },
+                )?;
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,

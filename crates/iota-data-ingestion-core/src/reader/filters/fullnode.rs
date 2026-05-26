@@ -118,13 +118,6 @@ impl TransactionFilter {
         Self::default()
     }
 
-    /// Converts this filter into the underlying proto type.
-    ///
-    /// This is useful when passing the filter to the gRPC client.
-    pub fn into_proto(self) -> proto::TransactionFilter {
-        self.0
-    }
-
     /// Pushes a leaf into self via implicit `AND`, flattening when self is
     /// already an `All`.
     fn and_with(self, leaf: proto::TransactionFilter) -> Self {
