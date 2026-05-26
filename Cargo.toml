@@ -436,7 +436,6 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-# Using SDK commit with MoveStruct::to_rust returning Result<T, bcs::Error>
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "a6e168bb6b5d68de7555d056a44cc9387a17c25c", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
