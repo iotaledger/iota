@@ -244,17 +244,10 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    #[serde(skip_serializing_if = "is_false")]
-    enable_jwk_consensus_updates: bool,
-
     // If true, the ClaimRegistry singleton is created (or already exists).
     // Used to gate genesis creation and epoch-change creation for existing networks.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_registry: bool,
-
-    // If true, multisig containing zkLogin sig is accepted.
-    #[serde(skip_serializing_if = "is_false")]
-    accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
