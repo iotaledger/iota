@@ -24,6 +24,17 @@ const SECP256K1_PK: vector<u8> =
 const SECP256R1_PK: vector<u8> =
     x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
 
+// Minimal BCS-encoded MultiSigPublicKey: 1 Ed25519 signer (ED25519_PK), weight=1, threshold=1.
+// Layout: ULEB128(num_signers=1) | ULEB128(tag=0 Ed25519) | 32-byte key | u8(weight=1) | u16-LE(threshold=1)
+// address = Blake2b256([0x03] || pk)
+const MULTISIG_PK: vector<u8> =
+    x"0100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
+
+// Passkey uses a 33-byte compressed secp256r1 (P-256) public key — same wire format as Secp256r1.
+// address = Blake2b256([0x06] || pk)
+const PASSKEY_PK: vector<u8> =
+    x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -123,6 +134,58 @@ fun test_claim_secp256r1_happy_path() {
             &mut registry,
             signature_scheme::secp256r1(),
             SECP256R1_PK,
+            ctx,
+        );
+        assert!(claim_registry::is_claimed(&registry, sender));
+        uid.delete();
+        test_scenario::return_shared(registry);
+    };
+
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_claim_multisig_happy_path() {
+    let mut scenario = setup();
+    let sender = claim_registry::derive_address_for_testing(
+        signature_scheme::multisig(),
+        &MULTISIG_PK,
+    );
+
+    scenario.next_tx(sender);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        let uid = claim_registry::claim(
+            &mut registry,
+            signature_scheme::multisig(),
+            MULTISIG_PK,
+            ctx,
+        );
+        assert!(claim_registry::is_claimed(&registry, sender));
+        uid.delete();
+        test_scenario::return_shared(registry);
+    };
+
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_claim_passkey_happy_path() {
+    let mut scenario = setup();
+    let sender = claim_registry::derive_address_for_testing(
+        signature_scheme::passkey(),
+        &PASSKEY_PK,
+    );
+
+    scenario.next_tx(sender);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        let uid = claim_registry::claim(
+            &mut registry,
+            signature_scheme::passkey(),
+            PASSKEY_PK,
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
