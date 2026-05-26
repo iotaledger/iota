@@ -162,7 +162,7 @@ pub(super) fn verify_foundry_output(
             .and_then(|obj| {
                 verify_shared_object(obj, "coin manager").map(|_| {
                     obj.to_rust::<CoinManager>()
-                        .map_err(|_| anyhow!("expected a coin manager"))
+                        .map_err(|e| anyhow!("expected a coin manager: {e}"))
                 })?
             })
     })?;

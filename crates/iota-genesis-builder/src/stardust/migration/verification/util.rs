@@ -436,7 +436,7 @@ impl NativeTokenKind for Field<String, Balance> {
 
     fn from_object(obj: &Object) -> Result<Self> {
         obj.to_rust::<Field<String, Balance>>()
-            .map_err(|_| anyhow!("expected a native token field, found {:?}", obj.type_()))
+            .map_err(|e| anyhow!("expected a native token field, found {:?}: {e}", obj.type_()))
     }
 }
 

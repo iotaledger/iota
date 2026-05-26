@@ -54,7 +54,7 @@ pub(super) fn verify_basic_output(
                     .ok_or_else(|| anyhow!("missing timelock object"))
             })?
             .to_rust::<TimeLock<Balance>>()
-            .map_err(|_| anyhow!("invalid timelock object"))?;
+            .map_err(|e| anyhow!("invalid timelock object: {e}"))?;
 
         // Locked timestamp
         let output_timelock_timestamp =
@@ -133,7 +133,7 @@ pub(super) fn verify_basic_output(
         })?;
         let created_output = created_output_obj
             .to_rust::<MoveBasicOutput>()
-            .map_err(|_| anyhow!("invalid basic output object"))?;
+            .map_err(|e| anyhow!("invalid basic output object: {e}"))?;
 
         // Owner
         // If there is an expiration unlock condition, the output is shared.
