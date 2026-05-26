@@ -131,3 +131,7 @@ pub fn extract_auth_fun_refs(
         },
     )
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/authenticator_function_tests.rs"]
+mod authenticator_function_tests;
