@@ -7619,6 +7619,7 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-test-transaction-builder",
  "iota-types",
