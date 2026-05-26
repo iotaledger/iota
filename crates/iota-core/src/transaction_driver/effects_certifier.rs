@@ -1017,7 +1017,7 @@ mod tests {
         let client = agg.authority_clients.get(name).unwrap();
         client
             .authority_client()
-            .set_get_tx_status_result(Ok(vec![(digest, update)]));
+            .stub_tx_status(Ok(vec![(digest, update)]));
     }
 
     fn options() -> SubmitTransactionOptions {

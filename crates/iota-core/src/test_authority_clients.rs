@@ -316,7 +316,7 @@ pub struct MockAuthorityApi {
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
     handle_capability_notification_result:
         Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
-    get_tx_status_result: Arc<Mutex<Option<GetTxStatusResult>>>,
+    tx_status_stub: Arc<Mutex<Option<GetTxStatusResult>>>,
 }
 
 impl MockAuthorityApi {
@@ -326,7 +326,7 @@ impl MockAuthorityApi {
             count,
             handle_object_info_request_result: None,
             handle_capability_notification_result: None,
-            get_tx_status_result: Arc::new(Mutex::new(None)),
+            tx_status_stub: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -341,8 +341,13 @@ impl MockAuthorityApi {
         self.handle_capability_notification_result = Some(result);
     }
 
-    pub fn set_get_tx_status_result(&self, result: GetTxStatusResult) {
-        *self.get_tx_status_result.lock().unwrap() = Some(result);
+    /// Override the response returned by `get_tx_status` for subsequent
+    /// calls. Uses interior mutability because the mock is typically already
+    /// wrapped in an `Arc` (inside `SafeClient`) by the time a test wants to
+    /// configure it, so a `&mut self` setter (as used by the siblings above)
+    /// is not reachable.
+    pub fn stub_tx_status(&self, response: GetTxStatusResult) {
+        *self.tx_status_stub.lock().unwrap() = Some(response);
     }
 }
 
@@ -370,7 +375,7 @@ impl ValidatorV2API for MockAuthorityApi {
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         tokio::time::sleep(self.delay).await;
-        match self.get_tx_status_result.lock().unwrap().clone() {
+        match self.tx_status_stub.lock().unwrap().clone() {
             Some(result) => result,
             None => unimplemented!(),
         }
