@@ -1780,7 +1780,10 @@ impl FromStr for GenericSignature {
 
 // Types for randomness generation
 //
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessSignature = fastcrypto_tbls::types::Signature;
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPartialSignature = fastcrypto_tbls::tbls::PartialSignature<RandomnessSignature>;
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPrivateKey =
     fastcrypto_tbls::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;

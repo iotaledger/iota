@@ -2,16 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::Arc;
 use std::{
     collections::hash_map::DefaultHasher,
     fmt::{Debug, Formatter},
     hash::{Hash, Hasher},
-    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use byteorder::{BigEndian, ReadBytesExt};
-use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
+use fastcrypto::hash::HashFunction;
+#[cfg(not(target_arch = "wasm32"))]
+use fastcrypto::{error::FastCryptoResult, groups::bls12381};
+#[cfg(not(target_arch = "wasm32"))]
 use fastcrypto_tbls::dkg_v1;
 use iota_sdk_types::crypto::IntentScope;
 pub use iota_sdk_types::{
@@ -359,16 +363,19 @@ impl MisbehaviorObservationsV1 {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedDkgMessage {
     V1(dkg_v1::Message<bls12381::G2Element, bls12381::G2Element>),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VersionedDkgConfirmation {
     V1(dkg_v1::Confirmation<bls12381::G2Element>),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Debug for VersionedDkgMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -383,6 +390,7 @@ impl Debug for VersionedDkgMessage {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl VersionedDkgMessage {
     pub fn sender(&self) -> u16 {
         match self {
@@ -410,6 +418,7 @@ impl VersionedDkgMessage {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl VersionedDkgConfirmation {
     pub fn sender(&self) -> u16 {
         match self {
@@ -493,6 +502,7 @@ impl ConsensusTransaction {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new_randomness_dkg_message(
         authority: AuthorityName,
         versioned_message: &VersionedDkgMessage,
@@ -507,6 +517,7 @@ impl ConsensusTransaction {
             kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, message),
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new_randomness_dkg_confirmation(
         authority: AuthorityName,
         versioned_confirmation: &VersionedDkgConfirmation,

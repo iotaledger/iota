@@ -8,8 +8,11 @@ use iota_sdk_types::crypto::Intent;
 use lru::LruCache;
 use nonempty::NonEmpty;
 use parking_lot::RwLock;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::IntCounter;
 
+#[cfg(target_arch = "wasm32")]
+use crate::metrics::StubIntCounter as IntCounter;
 use crate::{
     error::{IotaError, IotaResult},
     signature::VerifyParams,

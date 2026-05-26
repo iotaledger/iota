@@ -10,7 +10,14 @@
 )]
 
 use base_types::{IotaAddress, ObjectID, SequenceNumber};
+#[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
+#[cfg(target_arch = "wasm32")]
+pub mod multiaddr {
+    pub use crate::wasm_multiaddr::Multiaddr;
+}
+#[cfg(target_arch = "wasm32")]
+mod wasm_multiaddr;
 pub use iota_sdk_types as sdk_types;
 use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::{

@@ -685,6 +685,7 @@ impl TxContext {
     }
 
     // Generate a random TxContext for testing.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn random_for_testing_only() -> Self {
         Self::new(
             &IotaAddress::random(),
