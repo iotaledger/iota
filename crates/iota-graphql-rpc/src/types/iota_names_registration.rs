@@ -469,7 +469,7 @@ impl IotaNames {
         let field: Field<NativeIotaAddress, NativeName> = object
             .native
             .to_rust()
-            .map_err(|_| Error::Internal("Malformed IOTA-Names Name".to_string()))?;
+            .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
 
         let name = Name(field.value);
 

@@ -5497,8 +5497,7 @@ impl AuthorityState {
                 field_move_object.to_rust().map_err(|e| {
                     IotaError::ObjectDeserialization {
                         error: format!(
-                            "Failed to deserialize AuthenticatorFunctionRefV1 field for account {}: {}",
-                            auth_account_object_id, e
+                            "Failed to deserialize AuthenticatorFunctionRefV1 field for account {auth_account_object_id}: {e}"
                         ),
                     }
                 })?;
