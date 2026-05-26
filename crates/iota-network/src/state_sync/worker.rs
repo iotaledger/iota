@@ -68,8 +68,7 @@ where
                 let prev_checkpoint = store
                     .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
                     .context(format!(
-                        "Missing previous checkpoint {} in store",
-                        prev_checkpoint_seq_num
+                        "Missing previous checkpoint {prev_checkpoint_seq_num} in store",
                     ))?;
 
                 verify_checkpoint(&prev_checkpoint, store, certified_checkpoint)
