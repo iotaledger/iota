@@ -64,12 +64,15 @@ typed-store-error.workspace = true
 # Dependencies that don't compile to wasm32 (networking, metrics, consensus).
 # Gated with target cfg so non-wasm builds are unchanged.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
 anemo.workspace = true
 fastcrypto-tbls.workspace = true
-iota-network-stack.workspace = true
 prometheus.workspace = true
-starfish-config.workspace = true
 tonic.workspace = true
+
+# internal dependencies
+iota-network-stack.workspace = true
+starfish-config.workspace = true
 
 [dev-dependencies]
 # external dependencies
