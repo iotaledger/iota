@@ -902,7 +902,7 @@ impl IndexerReader {
 
     fn multi_get_transactions_with_sequence_numbers(
         &self,
-        tx_sequence_numbers: Vec<i64>,
+        tx_sequence_numbers: &[i64],
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
     ) -> Result<Vec<StoredTransaction>, IndexerError> {
@@ -1483,7 +1483,7 @@ impl IndexerReader {
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
         .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+        self.multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
             tx_sequence_numbers,
             options,
             Some(is_descending),
@@ -1534,7 +1534,7 @@ impl IndexerReader {
         ))
     }
 
-    async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+    async fn multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
         &self,
         tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1542,14 +1542,66 @@ impl IndexerReader {
         is_descending: Option<bool>,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking(move |this| {
-                this.multi_get_transactions_with_sequence_numbers(
-                    tx_sequence_numbers,
-                    is_descending,
-                )
+            .spawn_blocking({
+                let tx_sequence_numbers = tx_sequence_numbers.clone();
+                move |this| {
+                    this.multi_get_transactions_with_sequence_numbers(
+                        &tx_sequence_numbers,
+                        is_descending,
+                    )
+                }
             })
             .await?;
-        self.stored_transaction_to_transaction_block(stored_txes, options)
+
+        let fetched_transactions = match self
+            .fallback_reader()
+            .filter(|_| stored_txes.len() != tx_sequence_numbers.len())
+        {
+            Some(fallback_reader) => {
+                // pre-allocate results with None. Found transactions will replace None with
+                // Some(tx).
+                let mut results: Vec<Option<StoredTransaction>> =
+                    vec![None; tx_sequence_numbers.len()];
+
+                // each entry is a tuple of (key, original_index) so we can merge fetched data
+                // back into the correct position in the results vector.
+                let mut tx_seq_to_index = tx_sequence_numbers
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, seq)| (seq, idx))
+                    .collect::<HashMap<i64, usize>>();
+
+                for tx in stored_txes {
+                    if let Some(i) = tx_seq_to_index.remove(&tx.tx_sequence_number) {
+                        results[i] = Some(tx);
+                    }
+                }
+
+                let missing_tx_digests = self
+                    .db()
+                    .resolve_tx_sequence_numbers_to_digests(
+                        tx_seq_to_index.keys().copied().collect(),
+                    )
+                    .await?;
+
+                let historical_transactions = fallback_reader
+                    .transactions(&missing_tx_digests)
+                    .await?
+                    .into_iter()
+                    .flatten();
+
+                for tx in historical_transactions {
+                    if let Some(i) = tx_seq_to_index.remove(&tx.tx_sequence_number) {
+                        results[i] = Some(tx);
+                    }
+                }
+
+                results.into_iter().flatten().collect()
+            }
+            None => stored_txes,
+        };
+
+        self.stored_transaction_to_transaction_block(fetched_transactions, options)
             .await
     }
 
@@ -3071,6 +3123,31 @@ impl<'a> DBReader<'a> {
                 .optional()
         })
         .map(Option::flatten)
+    }
+
+    /// Resolve transaction sequence numbers to their corresponding digests.
+    async fn resolve_tx_sequence_numbers_to_digests(
+        &self,
+        tx_sequence_numbers: Vec<i64>,
+    ) -> Result<Vec<TransactionDigest>, IndexerError> {
+        let pool = self.main_reader.get_pool();
+
+        let rows = run_query_async!(&pool, |conn| {
+            tx_digests::table
+                .filter(tx_digests::tx_sequence_number.eq_any(tx_sequence_numbers))
+                .select(tx_digests::tx_digest)
+                .load::<Vec<u8>>(conn)
+        })?;
+
+        rows.into_iter()
+            .map(|bytes| {
+                TransactionDigest::from_bytes(&bytes).map_err(|e| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "unable to convert {bytes:?} as tx_digest: {e}",
+                    ))
+                })
+            })
+            .collect()
     }
 }
 
