@@ -395,7 +395,7 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "6ae9cff32716a61fa9f9e15797a8826a753764f6" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "2703c07e9df9711cc3079b1bfee36dce54868d63" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
 iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "2703c07e9df9711cc3079b1bfee36dce54868d63" }
 iota-http = { path = "crates/iota-http" }
