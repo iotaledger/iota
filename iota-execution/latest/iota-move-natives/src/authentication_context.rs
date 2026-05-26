@@ -154,7 +154,8 @@ impl AuthenticationContext {
 
     /// Returns a `Value` containing the sender's authenticator function info as
     /// a Move `Option`. Returns `None` if the sender did not use a
-    /// [`MoveAuthenticator`] signature.
+    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// signature.
     pub fn sender_authenticator_function_info_v1_ref(
         &mut self,
         authenticator_function_info_v1_type_layout: MoveTypeLayout,
@@ -186,7 +187,8 @@ impl AuthenticationContext {
 
     /// Returns a `Value` containing the sponsor's authenticator function info
     /// as a Move `Option`. Returns `None` if the sponsor did not use a
-    /// [`MoveAuthenticator`] signature or the transaction is unsponsored.
+    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// signature or the transaction has no sponsor.
     pub fn sponsor_authenticator_function_info_v1_ref(
         &mut self,
         authenticator_function_info_v1_type_layout: MoveTypeLayout,
