@@ -159,7 +159,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         // not requested in the mask".
         let events = source.events.clone().unwrap_or_default();
 
-        Self::merge(self, events.clone(), mask)?;
+        Self::merge(self, &events, mask)?;
 
         if mask
             .subtree(Self::EVENTS_FIELD.name)

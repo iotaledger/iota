@@ -1362,7 +1362,7 @@ impl Merge<CheckpointTransactionWithContext>
             // events vec — to distinguish between "no events" and "events
             // not requested in the mask".
             self.events = Some(grpc_transaction::TransactionEvents::merge_from(
-                source.transaction.events.unwrap_or_default(),
+                &source.transaction.events.unwrap_or_default(),
                 &submask,
             )?);
         }
