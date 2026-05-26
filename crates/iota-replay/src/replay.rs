@@ -2166,7 +2166,8 @@ fn load_authenticator_function_ref(
         .to_rust()
         .map_err(|_| ReplayEngineError::GeneralError {
             err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}"),
+                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}"
+            ),
         })?;
 
     Ok(AuthenticatorFunctionRefForExecution::new_v1(
