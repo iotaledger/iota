@@ -53,8 +53,14 @@ echo
 echo "=== Verifying built images match HEAD ($HEAD_REV) ==="
 if ! verify_all; then
   echo
-  echo "=== Stale image(s) detected — pruning BuildKit cache and rebuilding once ==="
-  docker builder prune -f
+  echo "=== Stale image(s) detected — pruning cache mounts and rebuilding once ==="
+  # Only prune `--mount=type=cache` data (cargo target, cargo registry, cargo git).
+  # The plain layer cache (Debian base, apt steps, etc.) is preserved so other
+  # users on this shared Docker daemon don't pay a from-scratch rebuild cost when
+  # our verifier fires on a tag revert. This narrow prune is sufficient because
+  # the staleness path is always BuildKit's cargo cache mount serving outdated
+  # compilation output — not stale Dockerfile layers.
+  docker builder prune -f --filter type=exec.cachemount
   build_all
   echo
   echo "=== Re-verifying after prune+rebuild ==="
