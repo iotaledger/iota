@@ -312,7 +312,13 @@ impl CoreThread {
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
                     if !self.fast_sync_ongoing {
-                        self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
+                        // The locally stored last proposed block may already be at a higher
+                        // round than the synced `round` (e.g. after a crash where the block
+                        // was persisted but not yet broadcast). Passing `Round::MAX` defers
+                        // the actual round choice to the threshold clock inside `Core`, so
+                        // we always propose at the highest available round instead of
+                        // skipping the call because `last_proposed_round() >= round + 1`.
+                        self.core.new_block(Round::MAX, ReasonToCreateBlock::KnownLastBlock)?;
                     }
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
