@@ -436,9 +436,8 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-# Using SDK PR #1166 commit (MoveStruct::to_rust returning Result)
-# TODO: Update to merged commit once iotaledger/iota-rust-sdk#1166 is merged
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "6ae9cff32716a61fa9f9e15797a8826a753764f6", default-features = false }
+# Using SDK commit with MoveStruct::to_rust returning Result<T, bcs::Error>
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "2703c07e9df9711cc3079b1bfee36dce54868d63", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
