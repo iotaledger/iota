@@ -329,7 +329,7 @@ impl CheckpointReaderActor {
                 Some(self.current_checkpoint_number),
                 None,
                 Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
-                self.fullnode_transaction_filter.clone().map(Into::into),
+                self.fullnode_transaction_filter.clone().map(|f| f.0),
                 None,
             )
             .await
@@ -345,7 +345,10 @@ impl CheckpointReaderActor {
             .transpose()?
             .flatten()
         {
-            let checkpoint = grpc_checkpoint.checkpoint_data()?.try_into()?;
+            let checkpoint = grpc_checkpoint
+                .checkpoint_data()?
+                .try_into()
+                .expect("CheckpointData conversion is infallible");
             let size = bcs::serialized_size(&checkpoint)?;
             self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
                 .await?;
