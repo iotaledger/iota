@@ -4,15 +4,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use iota_sdk_types::effects::{
-    ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
-    TransactionEffects, TransactionEffectsV1, UnchangedSharedKind,
-};
 use iota_sdk_types::{
     Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, Owner, UnchangedSharedObject,
     Version, crypto::Intent,
 };
-use serde::{Deserialize, Serialize};
+pub use iota_sdk_types::{
+    effects::{
+        ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
+        TransactionEffects, TransactionEffectsV1, UnchangedSharedKind,
+    },
+    events::TransactionEvents,
+};
 pub use test_effects_builder::TestEffectsBuilder;
 use tracing::instrument;
 
@@ -25,7 +27,6 @@ use crate::{
     },
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     error::IotaResult,
-    event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     storage::WriteKind,
@@ -627,17 +628,6 @@ impl TransactionEffectsExt for TransactionEffects {
             wrapped_object_count: self.wrapped().len(),
             dependency_count: self.dependencies().len(),
         }
-    }
-}
-
-#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Default)]
-pub struct TransactionEvents {
-    pub data: Vec<Event>,
-}
-
-impl TransactionEvents {
-    pub fn digest(&self) -> TransactionEventsDigest {
-        TransactionEventsDigest::new(default_hash(self))
     }
 }
 

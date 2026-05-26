@@ -288,7 +288,6 @@ impl AuthorityStore {
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
@@ -336,7 +335,6 @@ impl AuthorityStore {
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
                     let events_iter = events
-                        .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
@@ -429,7 +427,7 @@ impl AuthorityStore {
             .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
             .map_ok(|(_, event)| event)
             .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents { data }))
+        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
     }
 
     pub fn multi_get_events(
@@ -922,7 +920,6 @@ impl AuthorityStore {
         // Continue writing events into the old table for now keyed off of events digest
         let event_digest = events.digest();
         let events = events
-            .data
             .iter()
             .enumerate()
             .map(|(i, e)| ((event_digest, i), e));

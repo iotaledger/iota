@@ -9,7 +9,7 @@ use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::Transac
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
-    effects::{TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -168,7 +168,7 @@ impl OptimisticTransactionExecutor {
         // all fields should be Some, the only exception should be `checkpoint` &
         // `timestamp` fields which are always None.
         let effects = executed_transaction.effects()?.effects()?;
-        let events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let events = executed_transaction.events()?.events()?;
         let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
 

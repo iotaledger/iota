@@ -14,8 +14,8 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use futures::{
-    FutureExt, StreamExt,
-    future::{Either, join_all, select},
+    StreamExt,
+    future::{Either, join_all},
     stream::FuturesUnordered,
 };
 use iota_common::{
@@ -70,6 +70,7 @@ use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map,
@@ -620,8 +621,9 @@ pub struct AuthorityPerEpochStore {
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
-    /// This is used to notify all epoch specific tasks that epoch has ended.
-    epoch_alive_notify: NotifyOnce,
+    /// Cancellation token used to signal epoch termination to all in-flight
+    /// tasks.
+    epoch_alive_token: CancellationToken,
 
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
@@ -1013,7 +1015,7 @@ impl AuthorityPerEpochStore {
             .load_reconfig_state()
             .expect("Load reconfig state at initialization cannot fail");
 
-        let epoch_alive_notify = NotifyOnce::new();
+        let epoch_alive_token = CancellationToken::new();
         let pending_consensus_transactions = tables.get_all_pending_consensus_transactions()?;
         let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
             .iter()
@@ -1099,7 +1101,7 @@ impl AuthorityPerEpochStore {
             parent_path: parent_path.to_path_buf(),
             db_options,
             reconfig_state_mem: RwLock::new(reconfig_state),
-            epoch_alive_notify,
+            epoch_alive_token,
             user_certs_closed_notify: NotifyOnce::new(),
             epoch_alive: tokio::sync::RwLock::new(true),
             consensus_notify_read: NotifyRead::new(),
@@ -2424,18 +2426,31 @@ impl AuthorityPerEpochStore {
                 .map(|(i, reg)| async move { (i, reg.await) })
                 .collect();
 
+            // Drain notifications until either every pending registration has
+            // resolved or the deadline expires.
+            //
+            // `biased;` polls branches in source order, so a notification that
+            // is already ready always wins over a deadline that fires in the
+            // same poll — we'd rather report inclusion than time out at the
+            // boundary.
+            //
+            // We match `Some`/`None` explicitly instead of using `else => break`
+            // because `else` only fires when *all* named branches are disabled.
+            // With `Some(...) = in_flight.next()` and a still-pending `deadline`,
+            // a `Ready(None)` from an empty `in_flight` disables only that one
+            // branch — the loop would then park on `deadline` and wait the full
+            // timeout even though every notification had already resolved.
             loop {
                 tokio::select! {
-                    Some((i, seq_and_ts)) = in_flight.next() => {
-                        results[i] = Some(seq_and_ts);
+                    biased;
+                    next_result = in_flight.next() => {
+                        match next_result {
+                            Some((i, seq_and_ts)) => results[i] = Some(seq_and_ts),
+                            // All pending registrations resolved before the deadline.
+                            None => break,
+                        }
                     }
-                    () = &mut deadline => {
-                        break;
-                    }
-                    else => {
-                        // All futures completed before the deadline.
-                        break;
-                    }
+                    () = &mut deadline => break,
                 }
             }
         }
@@ -2723,10 +2738,8 @@ impl AuthorityPerEpochStore {
 
     /// Notify epoch is terminated, can only be called once on epoch store
     pub async fn epoch_terminated(&self) {
-        // Notify interested tasks that epoch has ended
-        self.epoch_alive_notify
-            .notify()
-            .expect("epoch_terminated called twice on same epoch store");
+        // Signal all in-flight tasks that epoch has ended.
+        self.epoch_alive_token.cancel();
         // This `write` acts as a barrier - it waits for futures executing in
         // `within_alive_epoch` to terminate before we can continue here
         debug!("Epoch terminated - waiting for pending tasks to complete");
@@ -2736,7 +2749,7 @@ impl AuthorityPerEpochStore {
 
     /// Waits for the notification about epoch termination
     pub async fn wait_epoch_terminated(&self) {
-        self.epoch_alive_notify.wait().await
+        self.epoch_alive_token.cancelled().await
     }
 
     /// This function executes given future until epoch_terminated is called
@@ -2753,11 +2766,12 @@ impl AuthorityPerEpochStore {
         if !*guard {
             return Err(());
         }
-        let terminated = self.wait_epoch_terminated().boxed();
-        let f = f.boxed();
-        match select(terminated, f).await {
-            Either::Left((_, _f)) => Err(()),
-            Either::Right((result, _)) => Ok(result),
+        // The hot path here -- epoch is alive, future resolves first -- is now a
+        // single atomic load inside CancellationToken's `cancelled()` future,
+        // instead of mutex + Arc clone + two `.boxed()` heap allocations per call.
+        tokio::select! {
+            _ = self.epoch_alive_token.cancelled() => Err(()),
+            result = f => Ok(result),
         }
     }
 

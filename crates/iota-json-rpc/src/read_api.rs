@@ -956,9 +956,8 @@ impl ReadApiServer for ReadApi {
                     .pop()
                     .flatten();
                 Ok(match events {
-                    Some(events) => events
-                        .data
-                        .into_iter()
+                    Some(mut events) => events
+                        .drain(..)
                         .enumerate()
                         .map(|(seq, e)| {
                             let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
@@ -1274,10 +1273,8 @@ fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
                 output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
-            _ if !escaped => {
-                if in_braces {
-                    var_name.push(ch);
-                }
+            _ if !escaped && in_braces => {
+                var_name.push(ch);
             }
             _ => {}
         }

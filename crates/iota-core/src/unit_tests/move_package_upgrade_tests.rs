@@ -1269,8 +1269,7 @@ async fn test_upgraded_types_in_one_txn() {
     let mut events = runner
         .authority_state
         .get_transaction_events(effects.transaction_digest())
-        .unwrap()
-        .data;
+        .unwrap();
     events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
     assert!(events.len() == 2);
     assert_eq!(events[0].type_, e1_type);

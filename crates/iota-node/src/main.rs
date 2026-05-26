@@ -82,6 +82,7 @@ fn main() {
     let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
+        .with_disable_span_latency(true)
         .init();
 
     drop(metrics_rt);

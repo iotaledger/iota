@@ -476,7 +476,7 @@ impl GrpcReader {
                             if should_collect_events {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
-                                    for raw_event in &tx_events.data {
+                                    for raw_event in &tx_events.0 {
                                         // Apply event filter if present
                                         if let Some(ref evt_filter) = event_filter {
                                             if !evt_filter.matches_event(raw_event) {
@@ -899,7 +899,7 @@ impl GrpcReader {
 
             if let Some(ref evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
-                    for event in &tx_events.data {
+                    for event in &tx_events.0 {
                         if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
@@ -1362,7 +1362,7 @@ impl Merge<CheckpointTransactionWithContext>
             // events vec — to distinguish between "no events" and "events
             // not requested in the mask".
             self.events = Some(grpc_transaction::TransactionEvents::merge_from(
-                source.transaction.events.unwrap_or_default(),
+                &source.transaction.events.unwrap_or_default(),
                 &submask,
             )?);
         }

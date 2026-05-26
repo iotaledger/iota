@@ -2063,7 +2063,7 @@ impl TransactionCacheRead for WritebackCache {
         tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         fn map_events(events: TransactionEvents) -> Option<TransactionEvents> {
-            if events.data.is_empty() {
+            if events.is_empty() {
                 None
             } else {
                 Some(events)

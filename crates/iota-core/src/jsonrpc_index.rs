@@ -704,7 +704,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_order,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, _)| ((sequence, i), (event_digest, *digest, timestamp_ms))),
@@ -712,7 +711,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_by_move_module,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| {
@@ -728,7 +726,7 @@ impl IndexStore {
         )?;
         batch.insert_batch(
             &self.tables.event_by_sender,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.sender, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -737,7 +735,7 @@ impl IndexStore {
         )?;
         batch.insert_batch(
             &self.tables.event_by_move_event,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.type_.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -747,7 +745,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_time,
-            events.data.iter().enumerate().map(|(i, _)| {
+            events.iter().enumerate().map(|(i, _)| {
                 (
                     (timestamp_ms, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -757,7 +755,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_event_module,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (
                         ModuleId::new(
@@ -1766,7 +1764,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,
@@ -1808,7 +1806,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,

@@ -626,8 +626,8 @@ mod tests {
         // Take only the blocks of round 2 and try to accept them
         let round_2_block_headers = dag_builder
             .block_headers
-            .into_iter()
-            .filter_map(|(_, block_header)| (block_header.round() == 2).then_some(block_header))
+            .into_values()
+            .filter_map(|block_header| (block_header.round() == 2).then_some(block_header))
             .collect::<Vec<VerifiedBlockHeader>>();
 
         // WHEN
@@ -976,8 +976,8 @@ mod tests {
         // Take only the blocks of round 2 and try to accept them
         let round_2_block_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_headers)| {
+            .values()
+            .filter_map(|block_headers| {
                 (block_headers.round() == 2).then_some(block_headers.clone())
             })
             .collect::<Vec<VerifiedBlockHeader>>();
@@ -1019,8 +1019,8 @@ mod tests {
 
         let round_3_block_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_header)| {
+            .values()
+            .filter_map(|block_header| {
                 (block_header.round() == 3).then_some(block_header.reference())
             })
             .collect::<Vec<BlockRef>>();
@@ -1082,10 +1082,8 @@ mod tests {
 
         let round_1_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_header)| {
-                (block_header.round() == 1).then_some(block_header.clone())
-            })
+            .values()
+            .filter_map(|block_header| (block_header.round() == 1).then_some(block_header.clone()))
             .collect::<Vec<_>>();
 
         // Get full blocks with transactions for round 2

@@ -163,9 +163,7 @@ impl<'backing> TemporaryStore<'backing> {
             input_objects: self.input_objects,
             mutable_inputs: self.mutable_input_refs,
             written: results.written_objects,
-            events: TransactionEvents {
-                data: results.user_events,
-            },
+            events: TransactionEvents(results.user_events),
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
@@ -311,7 +309,7 @@ impl<'backing> TemporaryStore<'backing> {
             lamport_version,
             object_changes,
             gas_coin,
-            if inner.events.data.is_empty() {
+            if inner.events.is_empty() {
                 None
             } else {
                 Some(inner.events.digest())

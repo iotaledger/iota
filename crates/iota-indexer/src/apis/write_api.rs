@@ -29,9 +29,7 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
@@ -143,7 +141,7 @@ impl WriteApi {
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
-        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let tx_events = executed_transaction.events()?.events()?;
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
@@ -262,7 +260,7 @@ impl WriteApi {
             .transpose()?
             .unwrap_or_default();
 
-        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let tx_events = executed_transaction.events()?.events()?;
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect

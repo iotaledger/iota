@@ -447,7 +447,7 @@ mod simtests {
             ),
             contents: vec![],
         };
-        TransactionEvents { data: vec![event] }
+        TransactionEvents(vec![event])
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]

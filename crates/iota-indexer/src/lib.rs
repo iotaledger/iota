@@ -55,7 +55,7 @@ pub async fn build_json_rpc_server(
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
 
-    let fullnode_grpc_client = GrpcClient::new(&config.rpc_client_url).await?;
+    let fullnode_grpc_client = GrpcClient::new(&config.rpc_client_url)?;
     // Register common modules
     builder.register_module(IndexerApi::new(
         reader.clone(),

@@ -113,7 +113,7 @@ impl EventHandler {
         events: &TransactionEvents,
         state: &mut State,
     ) -> Result<()> {
-        for (idx, event) in events.data.iter().enumerate() {
+        for (idx, event) in events.iter().enumerate() {
             let Event {
                 package_id,
                 module,

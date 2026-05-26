@@ -413,7 +413,7 @@ impl TestCheckpointDataBuilder {
         } = self.checkpoint_builder.next_transaction.take().unwrap();
 
         let sender = Self::derive_address(sender_idx);
-        let events = events.map(|events| TransactionEvents { data: events });
+        let events = events.map(TransactionEvents);
         let events_digest = events.as_ref().map(|events| events.digest());
 
         let mut pt_builder = ProgrammableTransactionBuilder::new();
@@ -596,7 +596,7 @@ impl TestCheckpointDataBuilder {
             None
         };
 
-        let transaction_events = events.map(|events| TransactionEvents { data: events });
+        let transaction_events = events.map(TransactionEvents);
 
         let effects = TransactionEffects::new_empty_v1(*end_of_epoch_tx.digest());
 
@@ -1042,7 +1042,7 @@ mod tests {
         assert!(tx.effects.events_digest().is_some());
 
         // Verify the transaction has a single event
-        assert_eq!(tx.events.as_ref().unwrap().data.len(), 1);
+        assert_eq!(tx.events.as_ref().unwrap().len(), 1);
     }
 
     #[test]

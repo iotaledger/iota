@@ -562,11 +562,9 @@ impl<S: PackageStore> Resolver<S> {
                 Command::MakeMoveVector(MakeMoveVector {
                     type_: Some(tag),
                     elements,
-                }) => {
-                    if is_primitive_type_tag(tag) {
-                        for elem in elements {
-                            register_type(elem, tag)?;
-                        }
+                }) if is_primitive_type_tag(tag) => {
+                    for elem in elements {
+                        register_type(elem, tag)?;
                     }
                 }
                 _ => { /* nop */ }

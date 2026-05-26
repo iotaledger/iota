@@ -185,7 +185,7 @@ pub async fn main() -> Result<()> {
             );
 
             if let Some(events) = &events {
-                for event in &events.data {
+                for event in &events.0 {
                     let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
@@ -243,7 +243,7 @@ pub async fn main() -> Result<()> {
                 if let Some(tx_events) = &tx.events {
                     let tx_digest = *tx.transaction.digest();
                     // TODO: make sure this is the correct way to get the event sequence number
-                    for (event_seq, event) in tx_events.data.iter().cloned().enumerate() {
+                    for (event_seq, event) in tx_events.iter().cloned().enumerate() {
                         let event_id = (tx_digest, event_seq as u64).into();
                         if event_ids.contains(&event_id) {
                             event_ids_map.remove(&event_id);

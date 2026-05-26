@@ -259,7 +259,7 @@ impl Scenario {
 
     pub fn with_events(&mut self) {
         let mut events: TransactionEvents = Default::default();
-        events.data.push(random_event());
+        events.push(random_event());
 
         let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
             .with_events_digest(events.digest())

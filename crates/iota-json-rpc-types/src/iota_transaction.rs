@@ -1197,15 +1197,14 @@ pub struct IotaTransactionBlockEvents {
 
 impl IotaTransactionBlockEvents {
     pub fn try_from(
-        events: TransactionEvents,
+        mut events: TransactionEvents,
         tx_digest: TransactionDigest,
         timestamp_ms: Option<u64>,
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
-                .into_iter()
+                .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
                     let layout = resolver.get_annotated_layout(&event.type_)?;
@@ -1218,15 +1217,14 @@ impl IotaTransactionBlockEvents {
     // TODO: this is only called from the indexer. Remove this once indexer moves to
     // its own resolver.
     pub fn try_from_using_module_resolver(
-        events: TransactionEvents,
+        mut events: TransactionEvents,
         tx_digest: TransactionDigest,
         timestamp_ms: Option<u64>,
         resolver: &impl GetModule,
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
-                .into_iter()
+                .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
                     let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
