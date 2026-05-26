@@ -152,8 +152,9 @@ pub async fn validate_and_resolve_conflicts(
         {
             warn!(
                 ?digest,
+                kind = if attestation.is_some() { "UserTransactionV2" } else { "UserTransactionV1" },
                 error = ?e,
-                "UserTransactionV1 failed validity_check post-consensus, dropping"
+                "user transaction failed validity_check post-consensus, dropping"
             );
             dropped.push((digest, e));
             keep[i] = false;
