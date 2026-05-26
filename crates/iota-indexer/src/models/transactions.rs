@@ -457,19 +457,20 @@ pub fn stored_events_to_events(
 }
 
 pub async fn tx_events_to_iota_tx_events(
-    tx_events: TransactionEvents,
+    mut tx_events: TransactionEvents,
     package_resolver: &Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
     timestamp: Option<u64>,
 ) -> Result<IotaTransactionBlockEvents, IndexerError> {
     let mut iota_event_futures = vec![];
-    let tx_events_data_len = tx_events.len();
-    for tx_event in tx_events.0.clone() {
+
+    for tx_event in tx_events.iter() {
         let package_resolver_clone = package_resolver.clone();
+        let event_type = tx_event.type_.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
-                .type_layout(TypeTag::Struct(Box::new(tx_event.type_)))
+                .type_layout(TypeTag::Struct(Box::new(event_type)))
                 .await
         }));
     }
@@ -492,10 +493,9 @@ pub async fn tx_events_to_iota_tx_events(
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(tx_events_data_len == event_move_datatype_layouts.len());
+    assert!(tx_events.len() == event_move_datatype_layouts.len());
     let iota_events = tx_events
-        .0
-        .into_iter()
+        .drain(..)
         .enumerate()
         .zip(event_move_datatype_layouts)
         .map(|((seq, tx_event), move_datatype_layout)| {

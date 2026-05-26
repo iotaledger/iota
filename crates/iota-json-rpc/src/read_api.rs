@@ -956,9 +956,8 @@ impl ReadApiServer for ReadApi {
                     .pop()
                     .flatten();
                 Ok(match events {
-                    Some(events) => events
-                        .0
-                        .into_iter()
+                    Some(mut events) => events
+                        .drain(..)
                         .enumerate()
                         .map(|(seq, e)| {
                             let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
