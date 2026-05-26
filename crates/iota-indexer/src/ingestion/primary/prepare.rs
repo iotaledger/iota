@@ -391,7 +391,7 @@ impl PrimaryWorker {
         let tx = sender_signed_data.transaction_data();
         let events = events
             .as_ref()
-            .map(|events| events.0.clone())
+            .map(|events| events.clone())
             .unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
