@@ -2765,7 +2765,6 @@ impl ProtocolConfig {
                     cfg.tx_context_gas_budget_cost_base = Some(30);
                     cfg.tx_context_ids_created_cost_base = Some(30);
                     cfg.tx_context_replace_cost_base = Some(30);
-                    cfg.feature_flags.enable_claim_registry = true;
                 }
                 24 => {
                     // Switch consensus protocol to Starfish in all networks.
