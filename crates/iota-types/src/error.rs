@@ -539,9 +539,6 @@ pub enum IotaError {
         actual: starfish_config::AuthorityIndex,
     },
 
-    #[error("Explicit attestation is not supported in the current protocol version")]
-    ExplicitAttestationNotSupported,
-
     #[error("Unexpected message.")]
     UnexpectedMessage,
 

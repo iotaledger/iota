@@ -178,7 +178,9 @@ pub async fn validate_and_resolve_conflicts(
                     }
                 }
                 // Reject Explicit variant as not yet implemented.
-                Attestation::Explicit { .. } => Some(IotaError::ExplicitAttestationNotSupported),
+                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
+                    error: "Explicit attestation not yet supported".into(),
+                }),
             };
             if let Some(e) = error {
                 warn!(

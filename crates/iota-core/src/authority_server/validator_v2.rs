@@ -230,8 +230,8 @@ impl ValidatorService {
                 let state_for_attest = state.clone();
                 let epoch_store_for_attest = epoch_store.clone();
                 let (result, verified_tx) = tokio::task::spawn_blocking(move || {
-                    let result = state_for_attest
-                        .attest_transaction(&verified_tx, &epoch_store_for_attest);
+                    let result =
+                        state_for_attest.attest_transaction(&verified_tx, &epoch_store_for_attest);
                     (result, verified_tx)
                 })
                 .await

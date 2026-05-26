@@ -63,8 +63,9 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     if self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
-                            error: "CertifiedTransaction not allowed when white-flag flow is enabled"
-                                .into(),
+                            error:
+                                "CertifiedTransaction not allowed when white-flag flow is enabled"
+                                    .into(),
                         });
                     }
                     cert_batch.push(certificate.as_ref());
@@ -457,9 +458,9 @@ mod tests {
                 // Gated behind `enable_white_flag_flow`, and additionally
                 // rejected once `enable_validator_attestation` is on (V2 takes
                 // over).
-                ConsensusTransactionKind::UserTransactionV1(_) => Some(
-                    config.enable_white_flag_flow() && !config.enable_validator_attestation(),
-                ),
+                ConsensusTransactionKind::UserTransactionV1(_) => {
+                    Some(config.enable_white_flag_flow() && !config.enable_validator_attestation())
+                }
 
                 // Gated behind `enable_validator_attestation`.
                 ConsensusTransactionKind::UserTransactionV2(_) => {
