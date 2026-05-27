@@ -21,22 +21,23 @@ The effect of pruning a table depends on its role and the queries it backs:
 
 - **Point lookups** (`transactions`, `events`, `checkpoints`) - direct lookup of a transaction by digest, an event by digest, etc. Trying to fetch an old digest whose data has been pruned will result in an error, unless a KV Store fallback is configured. For point-lookup tables, configuring a fallback lets the data be served for both pruned and unpruned ranges.
 - **Filtered queries** (`tx_*`, `event_*`) - list transactions or events by attribute (sender, recipient, emitter package, etc.). Pruned transactions/events will be omitted from the result, with no explicit error returned. This case cannot be handled by the fallback service.
+- **Historical object tables** (`objects_history`, `objects_backward_history`) - back queries that read past versions of objects (e.g., consistent reads at a checkpoint, dynamic-field state at a specific point in time). Pruning shortens the time range over which such historical-state queries can be served; queries that target a checkpoint older than the retained range will fail or return missing data.
 - **Optimistic tables** (`optimistic_transactions`) - Data in those tables is needed only for short periods of time and doesn't need long retention. It can be safely pruned with no side effects on data availability, as long as current and previous epochs are kept.
 
 The subsections below cover sizing and retention guidance, how to enable pruning, the configuration file format, the schedule on which deletions happen, how to monitor pruner progress, how to reclaim disk space, and a full inventory of prunable and non-prunable tables.
 
 ### Sizing and retention
 
-Assuming a sustained 100 user TPS, the predicted DB size at typical retention windows is:
+Assuming a sustained 500 user TPS, the predicted DB size at typical retention windows is:
 
 | Retention | DB size |
 | ---: | ---: |
-| 2 days  | ~320 GB |
-| 7 days  | ~625 GB |
-| 30 days | ~2.0 TB |
-| 1 year  | ~22 TB  |
+| 2 days  | ~485 GB |
+| 7 days  | ~1.2 TB |
+| 30 days | ~4.5 TB |
+| 1 year  | ~52 TB  |
 
-We recommend **30 epochs of retention** as a default for all tables, and **2 epochs** for `optimistic_transactions`.
+We recommend **30 epochs of retention** as a default for all tables, and **2 epochs** for `objects_history` (the indexer's built-in default), `objects_backward_history`, and `optimistic_transactions`.
 
 ### Enabling pruning
 
@@ -111,12 +112,11 @@ Enabling pruning on a previously unpruned indexer — or shortening retention on
 
 What pruning does guarantee is bounded growth going forward: pruned tables stop accumulating data past the configured retention window.
 
-To recover the existing on-disk footprint, run a compaction tool against the database (for example `REINDEX TABLE CONCURRENTLY`, `VACUUM FULL`, [`pg_repack`](https://reorg.github.io/pg_repack/), or [`pg_squeeze`](https://github.com/cybertec-postgresql/pg_squeeze)). The IOTA Indexer does not invoke these itself.
+To recover the existing on-disk footprint, run a compaction tool against the database (for example [`VACUUM FULL`](https://www.postgresql.org/docs/18/routine-vacuuming.html#VACUUM-FOR-SPACE-RECOVERY), [`REINDEX TABLE CONCURRENTLY`](https://www.postgresql.org/docs/18/sql-reindex.html#SQL-REINDEX-CONCURRENTLY), [`pg_repack`](https://reorg.github.io/pg_repack/), or [`pg_squeeze`](https://github.com/cybertec-postgresql/pg_squeeze)). Each option has different operational caveats — `VACUUM FULL` holds an `ACCESS EXCLUSIVE` lock for the full table rewrite, while the others run online but need temporary disk space. Review the linked Postgres docs before running any of these against a live database. The IOTA Indexer does not invoke these itself.
 
 To prevent pruned tables from re-bloating over time, autovacuum must run aggressively enough to keep up with the pruner's deletes. The following per-table autovacuum settings are a good starting point for every prunable table:
 
 ```
-autovacuum_enabled             = on
 vacuum_index_cleanup           = on
 autovacuum_vacuum_scale_factor = 0.01
 autovacuum_vacuum_cost_limit   = 500
@@ -138,12 +138,4 @@ Tables not listed here are never pruned by the indexer.
 
 ### Non-prunable tables
 
-Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. Their combined footprint is currently **~200 GB**.
-
-The largest contributors on current mainnet are:
-
-| Table              | Approx. size on mainnet |
-| ------------------ | ----------------------- |
-| `objects_version`  | ~127 GB                 |
-| `objects_snapshot` | ~29 GB                  |
-| `objects`          | ~16 GB                  |
+Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
