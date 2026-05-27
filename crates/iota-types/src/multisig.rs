@@ -54,7 +54,7 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
-        let mut weight_sum: u16 = 0;
+        let mut weight_sum: ThresholdUnit = 0;
         let digest = intent_message.signing_digest();
         let verifier = MultisigVerifier::new();
 
@@ -115,7 +115,11 @@ impl AuthenticatorTrait for MultiSig {
                     ),
                 });
             } else {
-                weight_sum += member.weight() as u16
+                weight_sum = weight_sum
+                    .checked_add(member.weight() as ThresholdUnit)
+                    .ok_or(IotaError::InvalidSignature {
+                        error: "Weight overflow".to_string(),
+                    })?;
             }
         }
 
