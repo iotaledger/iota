@@ -1077,3 +1077,121 @@ async fn test_dropped_tx_does_not_acquire_locks() {
     assert!(user_tx_digests.contains(verified_tx3.digest()));
     assert!(user_tx_digests.contains(verified_tx4.digest()));
 }
+
+/// Companion to the test above: a double-spend *loser* (dropped by the lock
+/// conflict check) must be **excluded** from checkpoint roots.
+///
+/// This guards against an over-broad fix that simply seeds roots from the full
+/// sequenced set: such a fix would include the never-executed loser as a root,
+/// and the checkpoint builder would then block forever waiting for its effects.
+/// Only the winner of the owned-object conflict may appear in the roots.
+#[tokio::test]
+async fn double_spend_loser_excluded_from_checkpoint_roots() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    // One owned object spent by both transactions, plus a distinct gas object each
+    // so the only conflict is on `object_id`.
+    let object_id = ObjectID::random();
+    let gas_a = ObjectID::random();
+    let gas_b = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_a, sender),
+        Object::with_id_owner_for_testing(gas_b, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_a_ref = authority
+        .get_object(&gas_a)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_b_ref = authority
+        .get_object(&gas_b)
+        .await
+        .unwrap()
+        .compute_object_reference();
+
+    // Two transactions spending the same owned object — a double spend.
+    let tx_winner = make_transfer_object_transaction(
+        object_ref,
+        gas_a_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let tx_loser = make_transfer_object_transaction(
+        object_ref,
+        gas_b_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let winner_digest = *epoch_store
+        .verify_transaction(tx_winner.clone())
+        .unwrap()
+        .digest();
+    let loser_digest = *epoch_store
+        .verify_transaction(tx_loser.clone())
+        .unwrap()
+        .digest();
+    assert_ne!(winner_digest, loser_digest);
+
+    // The first occurrence in the commit wins the lock; the second conflicts.
+    let seq = |tx: iota_types::transaction::Transaction| {
+        SequencedConsensusTransaction::new_test(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                epoch_store.verify_transaction(tx).unwrap().into(),
+            )),
+            tracking_id: Default::default(),
+        })
+    };
+    authority
+        .epoch_store_for_testing()
+        .process_consensus_transactions_for_tests(
+            vec![seq(tx_winner), seq(tx_loser)],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            // skip_consensus_commit_prologue_in_test
+            true,
+            &authority,
+        )
+        .await
+        .unwrap();
+
+    let all_roots: Vec<TransactionKey> = authority
+        .epoch_store_for_testing()
+        .get_pending_checkpoints(None)
+        .unwrap()
+        .into_iter()
+        .flat_map(|(_, cp)| cp.roots().clone())
+        .collect();
+
+    assert!(
+        all_roots.contains(&TransactionKey::Digest(winner_digest)),
+        "conflict winner {winner_digest:?} should be a checkpoint root; roots = {all_roots:?}"
+    );
+    assert!(
+        !all_roots.contains(&TransactionKey::Digest(loser_digest)),
+        "double-spend loser {loser_digest:?} must NOT be a checkpoint root; roots = {all_roots:?}"
+    );
+}
