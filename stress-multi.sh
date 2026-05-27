@@ -517,6 +517,36 @@ REJECT_RATE_MEAN=$(awk -v t="$TOTAL_REJ" -v w="$WINDOW" 'BEGIN{printf "%.2f", t/
 # follow-up that would give a more accurate number here.
 ADMIT_LAT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(validator_service_tx_verification_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 [ -z "$ADMIT_LAT_P99" ] && ADMIT_LAT_P99=0
+# Wall-clock time the submit_semaphore permit is held per tx
+# (acquire-success → drop). Drives interval sizing for burst sweeps:
+# interval ≲ p99 → bursts overlap, interval ≫ p99 → drain between bursts.
+PERMIT_HOLD_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_HOLD_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+[ -z "$PERMIT_HOLD_P50" ] && PERMIT_HOLD_P50=0
+[ -z "$PERMIT_HOLD_P99" ] && PERMIT_HOLD_P99=0
+# Stability of in-flight depth over the spam window. stddev/mean
+# gives the coefficient of variation (CV) at analysis time —
+# graduated should keep CV lower than binary since it paces
+# admission smoothly instead of slamming + releasing.
+INFLIGHT_STDDEV=$(prom_scalar "stddev_over_time((max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"})))[${WINDOW}s:1s])")
+INFLIGHT_MEAN=$(prom_scalar "avg_over_time((max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"})))[${WINDOW}s:1s])")
+[ -z "$INFLIGHT_STDDEV" ] && INFLIGHT_STDDEV=0
+[ -z "$INFLIGHT_MEAN" ] && INFLIGHT_MEAN=0
+# Fraction of the spam window in-flight sat above 75% of max_pending.
+# Reveals "system was choked for 8 of 15s" runs that look fine on
+# mean/p50 alone. Reads max_pending from the validator yaml since
+# stress-multi doesn't otherwise know it.
+val_max_pending_txs=$(grep -E "^[[:space:]]*max-pending-transactions:" \
+  "$SCRIPT_DIR/dev-tools/iota-private-network/configs/validator-common.yaml" 2>/dev/null \
+  | awk -F: '{print $2}' | xargs)
+sat_thresh=$(( ${val_max_pending_txs:-1000} * 75 / 100 ))
+SATURATION_75PCT=$(prom_scalar "avg_over_time(((max(sum by (host) (sequencing_certificate_inflight{host=~\"validator.*\"}))) > bool ${sat_thresh})[${WINDOW}s:1s])")
+[ -z "$SATURATION_75PCT" ] && SATURATION_75PCT=0
+# End-to-end consensus cert sequencing latency (post-permit-acquire
+# through ack). Different from admit_lat_p99 (verification only).
+# Tail behavior here is what users feel.
+CONSENSUS_LAT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+[ -z "$CONSENSUS_LAT_P99" ] && CONSENSUS_LAT_P99=0
 
 # Time-series captures for post-hoc analysis (e.g. plotting cliff vs ramp,
 # inspecting queue-depth shape during a burst). One JSON per metric, saved
@@ -599,6 +629,12 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "reject_rate_max:        $REJECT_RATE_MAX"
   echo "reject_rate_mean:       $REJECT_RATE_MEAN"
   echo "admit_lat_p99:          $ADMIT_LAT_P99"
+  echo "permit_hold_p50:        $PERMIT_HOLD_P50"
+  echo "permit_hold_p99:        $PERMIT_HOLD_P99"
+  echo "inflight_stddev:        $INFLIGHT_STDDEV"
+  echo "inflight_mean:          $INFLIGHT_MEAN"
+  echo "saturation_75pct:       $SATURATION_75PCT"
+  echo "consensus_lat_p99:      $CONSENSUS_LAT_P99"
   echo "spammer_proc_count:     $N_SPAMMER"
   echo "honest_proc_count:      $HONEST_PROC_COUNT"
   echo "spammer_success:        $SPAMMER_SUCCESS"

@@ -325,10 +325,19 @@ for i in $(seq 1 $ITERS); do
     r_sem=$(grep '^reject_semaphore:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     useful_tps=$(grep '^useful_tps:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     admit_p99=$(grep '^admit_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    permit_hold_p50=$(grep '^permit_hold_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    permit_hold_p99=$(grep '^permit_hold_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    inflight_stddev=$(grep '^inflight_stddev:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    inflight_mean=$(grep '^inflight_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    saturation_75pct=$(grep '^saturation_75pct:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    consensus_lat_p99=$(grep '^consensus_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     spammer_success=$(grep '^spammer_success:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
 
     : "${peak:=0}"; : "${ratio:=0}"; : "${r_prev:=0}"; : "${r_grad_react:=0}"
     : "${r_max:=0}"; : "${r_sem:=0}"; : "${useful_tps:=0}"; : "${admit_p99:=0}"
+    : "${permit_hold_p50:=0}"; : "${permit_hold_p99:=0}"
+    : "${inflight_stddev:=0}"; : "${inflight_mean:=0}"; : "${saturation_75pct:=0}"
+    : "${consensus_lat_p99:=0}"
     : "${spammer_success:=0}"
 
     ok=$(echo "$exits" | awk '{for(j=1;j<=NF;j++) if($j!="0"){print 0; exit} print 1}')
@@ -339,7 +348,9 @@ for i in $(seq 1 $ITERS); do
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")
     peak=0; ratio=0; r_prev=0; r_grad_react=0; r_max=0; r_sem=0
-    useful_tps=0; admit_p99=0; spammer_success=0; spammer_fp=0; ok=0; exits=""
+    useful_tps=0; admit_p99=0; permit_hold_p50=0; permit_hold_p99=0
+    inflight_stddev=0; inflight_mean=0; saturation_75pct=0; consensus_lat_p99=0
+    spammer_success=0; spammer_fp=0; ok=0; exits=""
     failed=1
   fi
 
@@ -355,6 +366,9 @@ for i in $(seq 1 $ITERS); do
   SPAM_OFFERED="$SPAMMER_OFFERED" \
   VAL_MAX_PENDING="$val_max_pending" VAL_SEM_CAP="$val_sem_cap" VAL_START_PCT="$val_start_pct" \
   R_PEAK="$peak" R_RATIO="$ratio" R_USEFUL_TPS="$useful_tps" R_ADMIT_LAT_P99="$admit_p99" \
+  R_PERMIT_HOLD_P50="$permit_hold_p50" R_PERMIT_HOLD_P99="$permit_hold_p99" \
+  R_INFLIGHT_STDDEV="$inflight_stddev" R_INFLIGHT_MEAN="$inflight_mean" \
+  R_SATURATION_75PCT="$saturation_75pct" R_CONSENSUS_LAT_P99="$consensus_lat_p99" \
   R_SPAMMER_SUCCESS="$spammer_success" R_SPAMMER_FP="$spammer_fp" \
   R_REJ_PREV="$r_prev" R_REJ_REACT="$r_grad_react" R_REJ_MAX="$r_max" R_REJ_SEM="$r_sem" \
   R_EXIT_CODES="$exits" R_OK="$ok" \
@@ -409,6 +423,12 @@ rec = {
     "ratio_peak_over_sem": f("R_RATIO"),
     "useful_tps": f("R_USEFUL_TPS"),
     "admit_lat_p99": f("R_ADMIT_LAT_P99"),
+    "permit_hold_p50": f("R_PERMIT_HOLD_P50"),
+    "permit_hold_p99": f("R_PERMIT_HOLD_P99"),
+    "inflight_stddev": f("R_INFLIGHT_STDDEV"),
+    "inflight_mean": f("R_INFLIGHT_MEAN"),
+    "saturation_75pct": f("R_SATURATION_75PCT"),
+    "consensus_lat_p99": f("R_CONSENSUS_LAT_P99"),
     "spammer_success": i("R_SPAMMER_SUCCESS"),
     "spammer_first_pass_pct": f("R_SPAMMER_FP"),
     "reject_grad_preventive": i("R_REJ_PREV"),
@@ -435,7 +455,7 @@ print(json.dumps(rec))
   else
     echo ">>> RESULT: iter=$i pct=$val_start_pct max=$val_max_pending sem=$val_sem_cap"
     echo "    spammer: offered=$SPAMMER_OFFERED success=$spammer_success first_pass=${spammer_fp}%"
-    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]"
+    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]"
   fi
 
   # Per-iter cleanup: keep last 2 multi-* dirs, drop older ones.

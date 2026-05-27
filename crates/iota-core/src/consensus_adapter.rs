@@ -79,6 +79,7 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_processed: IntCounterVec,
     pub sequencing_in_flight_semaphore_wait: IntGauge,
     pub sequencing_in_flight_submissions: IntGauge,
+    pub sequencing_submit_permit_hold_duration: Histogram,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
 }
@@ -174,6 +175,15 @@ impl ConsensusAdapterMetrics {
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
                 "Number of transactions actively submitting to consensus (post-semaphore permit). Capped at submit_semaphore size.",
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_permit_hold_duration: register_histogram_with_registry!(
+                "sequencing_submit_permit_hold_duration",
+                "Wall-clock time a submit_semaphore permit is held: from \
+                 acquire-success until drop. Approximates per-tx admission \
+                 cost on the validator's pre-consensus path.",
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -874,6 +884,13 @@ impl ConsensusAdapter {
                 .count_in_flight(&self.metrics.sequencing_in_flight_semaphore_wait)
                 .await
                 .expect("Consensus adapter does not close semaphore");
+            // Permit hold timer starts AFTER acquire-success (excludes wait time, which
+            // is already captured by sequencing_in_flight_semaphore_wait).
+            let permit_held_start = std::time::Instant::now();
+            let permit_hold_metric = self.metrics.sequencing_submit_permit_hold_duration.clone();
+            let _permit_hold_observer = scopeguard::guard((), move |_| {
+                permit_hold_metric.observe(permit_held_start.elapsed().as_secs_f64());
+            });
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
