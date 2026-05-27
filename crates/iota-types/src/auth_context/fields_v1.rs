@@ -56,7 +56,7 @@ pub struct MoveProgrammableMoveCall {
 // MoveCommand
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::Command`], substituting [`TypeTag`] for
+/// Mirrors [`iota_sdk_types::Command`], substituting [`TypeTag`] for
 /// a string in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
