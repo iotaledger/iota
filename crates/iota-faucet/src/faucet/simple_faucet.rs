@@ -553,7 +553,7 @@ impl SimpleFaucet {
             GasCoinResponse::UnknownGasCoin(coin_id) => {
                 self.recycle_gas_coin(coin_id, uuid).await;
                 Err(FaucetError::FullnodeReading(format!(
-                    "unknown gas coin {coin_id:?}"
+                    "unknown gas coin {coin_id}"
                 )))
             }
 
@@ -699,7 +699,7 @@ impl SimpleFaucet {
             .await
             .map_err(|e| {
                 anyhow::anyhow!(
-                    "failed to build PayIota transaction for coin {coin_id:?}, with err {e:?}"
+                    "failed to build PayIota transaction for coin {coin_id}, with err {e}"
                 )
             })
     }

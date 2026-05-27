@@ -9,7 +9,7 @@ use iota_types::{
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
-    effects::{SignedTransactionEffects, TransactionEffectsAPI},
+    effects::{SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,

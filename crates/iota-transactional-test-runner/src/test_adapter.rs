@@ -240,6 +240,8 @@ impl AdapterInitConfig {
         }
         if let Some(enable) = move_auth {
             protocol_config.set_enable_move_authentication_for_testing(enable);
+            protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
+            protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");
@@ -661,10 +663,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     self.executor.try_get_latest_checkpoint_sequence_number()?;
                 offchain_reader
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
-                    .await;
-
-                offchain_reader
-                    .wait_for_objects_snapshot_catchup(Duration::from_secs(180))
                     .await;
 
                 if let Some(checkpoint_to_prune) = wait_for_checkpoint_pruned {
@@ -1435,7 +1433,7 @@ impl IotaTestAdapter {
                     "abstract: account must be an object representing the abstract account"
                 ));
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         };
 
         Ok((
@@ -1903,7 +1901,9 @@ impl IotaTestAdapter {
                     "Transaction Effects Status: {error}\n{execution_msg}",
                 )))
             }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         }
     }
 

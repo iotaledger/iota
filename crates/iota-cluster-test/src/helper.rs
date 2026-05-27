@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::bail;
-use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
+use iota_json_rpc_types::{
+    BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
+};
 use iota_sdk::IotaClient;
 use iota_types::{
     base_types::{ObjectID, TypeTag},
-    error::IotaObjectResponseError,
     gas_coin::GasCoin,
     object::Owner,
     parse_iota_type_tag,

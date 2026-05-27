@@ -71,12 +71,12 @@ async fn main() {
             if options.type_ == "tx" {
                 let tx = kv.multi_get_tx(&digests).await.unwrap();
                 for (digest, tx) in digests.iter().zip(tx.iter()) {
-                    println!("fetched tx: {digest:?} {tx:?}");
+                    println!("fetched tx: {digest} {tx:?}");
                 }
             } else {
                 let fx = kv.multi_get_fx_by_tx_digest(&digests).await.unwrap();
                 for (digest, fx) in digests.iter().zip(fx.iter()) {
-                    println!("fetched fx: {digest:?} {fx:?}");
+                    println!("fetched fx: {digest} {fx:?}");
                 }
             }
         }
@@ -111,7 +111,7 @@ async fn main() {
             for (digest, ckpt) in digests.iter().zip(ckpts.2.iter()) {
                 // populate digest before printing
                 ckpt.as_ref().map(|c| c.digest());
-                println!("fetched ckpt summary: {digest:?} {ckpt:?}");
+                println!("fetched ckpt summary: {digest} {ckpt:?}");
             }
         }
 

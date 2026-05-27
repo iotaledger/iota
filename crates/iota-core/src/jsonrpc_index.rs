@@ -524,7 +524,7 @@ impl IndexStore {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
                 let coin_type_tag = object.coin_type_opt().unwrap_or_else(|| {
                     panic!(
-                        "object_id: {obj_id:?} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                        "object_id: {obj_id} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest}"
                     )
                 });
                 let map = balance_changes.entry(*owner).or_default();
@@ -561,12 +561,12 @@ impl IndexStore {
             let obj = written_coins.get(obj_id)?;
             let coin_type_tag = obj.coin_type_opt().cloned().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let map = balance_changes.entry(*owner).or_default();

@@ -8,6 +8,7 @@
 mod tests;
 
 pub mod reader;
+pub mod restore;
 pub mod uploader;
 mod writer;
 

@@ -187,11 +187,11 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Shared(SharedObjectRef {
-                    object_id: counter_id,
-                    initial_shared_version: counter_initial_shared_version,
-                    mutable: true,
-                }),
+                CallArg::Shared(SharedObjectRef::new(
+                    counter_id,
+                    counter_initial_shared_version,
+                    true,
+                )),
                 CallArg::Pure(0u64.to_le_bytes().to_vec()),
             ],
         )

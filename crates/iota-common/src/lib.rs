@@ -9,8 +9,6 @@ pub mod random_util;
 pub mod stream_ext;
 pub mod sync;
 pub mod try_iterator_ext;
-
-pub use iota_types::scoring_metrics;
 pub use random_util::tempdir;
 
 #[inline(always)]

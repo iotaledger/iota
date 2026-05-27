@@ -24,9 +24,16 @@ services:
     ports:
       - 9000
       - 9184
+      - 50051
       - target: 8084
         published: 8084
         protocol: udp
+    healthcheck:
+      test: "iota-tool grpc-health-check --address http://localhost:50051"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   indexer:
     build:
@@ -48,8 +55,10 @@ services:
         protocol: tcp
       - 9184
     depends_on:
-      - postgres
-      - fullnode
+      postgres:
+        condition: service_started
+      fullnode:
+        condition: service_healthy
 
   postgres:
     image: postgres:15

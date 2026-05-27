@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Test that available range is correctly updated per objects_snapshot catching up
+// Test that `availableRange` reports the backward-diff retention window:
+// `first = max(backward-history watermark, latest - lookback)`, `last = latest`.
+// In this test the watermark sits at 0 (migration ran before any checkpoint
+// committed; no pruner advances it) and `latest` never reaches the lookback
+// threshold, so the range is always `(0, latest)`.
 
 //# init --protocol-version 4 --simulator --objects-snapshot-min-checkpoint-lag 2
 

@@ -11,7 +11,7 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     committee::EpochId,
     digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     global_state_hash::GlobalStateHash,
     in_memory_storage::InMemoryStorage,

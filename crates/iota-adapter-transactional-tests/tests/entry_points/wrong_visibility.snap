@@ -12,19 +12,19 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 29:
 //# run Test::M::t2
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Can only call `entry` or `public` functions"), command: Some(0) } }
+Execution Error: NonEntryFunctionInvoked: Non Entry Function Invoked. Move Call must start with an entry function; caused by: Can only call `entry` or `public` functions; at command index: 0
 
 task 3, line 31:
 //# run Test::M::t3
 Error: Transaction Effects Status: Non Entry Function Invoked. Move Call must start with an entry function
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: NonEntryFunctionInvoked, source: Some("Can only call `entry` or `public` functions"), command: Some(0) } }
+Execution Error: NonEntryFunctionInvoked: Non Entry Function Invoked. Move Call must start with an entry function; caused by: Can only call `entry` or `public` functions; at command index: 0
 
 task 4, line 33:
 //# run Test::M::t4 --args 0
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }
+Execution Error: InvalidPublicFunctionReturnType: Invalid public Move function signature. Unsupported return type for return value 0; at command index: 0
 
 task 5, line 35:
 //# run Test::M::t5 --args 0
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }
+Execution Error: InvalidPublicFunctionReturnType: Invalid public Move function signature. Unsupported return type for return value 0; at command index: 0

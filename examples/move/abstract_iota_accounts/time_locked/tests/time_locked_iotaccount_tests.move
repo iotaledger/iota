@@ -361,10 +361,12 @@ fun create_public_key_account_for_testing(
 }
 
 fun create_auth_context_for_testing(): AuthContext {
-    auth_context::new_with_tx_inputs(
+    auth_context::new_for_testing(
         b"00000000000000000000000000000000",
         vector::empty(),
         vector::empty(),
         vector[],
+        b"00000000000000000000000000000000",
+        option::none(),
     )
 }

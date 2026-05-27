@@ -25,7 +25,7 @@ use iota_types::{
     base_types::{AuthorityName, IotaAddress, ObjectRef, TransactionDigest},
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     messages_grpc::HandleTransactionResponse,

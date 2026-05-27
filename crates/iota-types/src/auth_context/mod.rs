@@ -12,7 +12,9 @@ use move_core_types::{
 use serde::Serialize;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, digests::MoveAuthenticatorDigest, transaction::ProgrammableTransaction,
+    IOTA_FRAMEWORK_ADDRESS,
+    digests::{Digest, MoveAuthenticatorDigest},
+    transaction::ProgrammableTransaction,
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -34,9 +36,9 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 ///
 /// Typical use:
 /// ```move
-/// public fun authenticate(account: &Account, signature: &vector<u8>, auth_ctx: &AuthContext, , ctx: &TxContext) {
+/// public fun authenticate(account: &Account, signature: &vector<u8>, auth_ctx: &AuthContext, ctx: &TxContext) {
 ///     assert!(ed25519::ed25519_verify(signature, &account.pub_key, ctx.digest()), EEd25519VerificationFailed);
-///     
+///
 ///     assert!(is_authorized(&extract_function_key(&auth_ctx)), EUnauthorized);
 ///     ...
 /// }
@@ -47,6 +49,15 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
+    /// The sender's auth digest. For [`MoveAuthenticator`] signatures equals
+    /// [`MoveAuthenticator::digest()`]; for others Blake2b256 of the
+    /// serialized (flag-prefixed) signature bytes.
+    sender_auth_digest: Digest,
+    /// The sponsor's auth digest, present only for sponsored transactions.
+    /// For [`MoveAuthenticator`] signatures equals
+    /// [`MoveAuthenticator::digest()`]; for others Blake2b256 of the
+    /// serialized (flag-prefixed) signature bytes.
+    sponsor_auth_digest: Option<Digest>,
     /// The authentication input objects or primitive values
     tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
@@ -58,11 +69,15 @@ pub struct AuthContext {
 impl AuthContext {
     pub fn new_from_components(
         auth_digest: MoveAuthenticatorDigest,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         ptb: &ProgrammableTransaction,
         tx_data_bytes: Vec<u8>,
     ) -> Self {
         Self {
             auth_digest,
+            sender_auth_digest,
+            sponsor_auth_digest,
             tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
             tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
             tx_data_bytes,
@@ -72,14 +87,36 @@ impl AuthContext {
     pub fn new_for_testing() -> Self {
         Self {
             auth_digest: MoveAuthenticatorDigest::default(),
+            sender_auth_digest: Digest::default(),
+            sponsor_auth_digest: None,
             tx_inputs: Vec::new(),
             tx_commands: Vec::new(),
             tx_data_bytes: Vec::new(),
         }
     }
 
+    /// Returns the MoveAuthenticator digest.
     pub fn digest(&self) -> &MoveAuthenticatorDigest {
         &self.auth_digest
+    }
+
+    /// Returns the sender's auth digest. For
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signatures equals
+    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
+    pub fn sender_auth_digest(&self) -> &Digest {
+        &self.sender_auth_digest
+    }
+
+    /// Returns the sponsor's auth digest for sponsored transactions, `None`
+    /// otherwise. For
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signatures equals
+    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
+    pub fn sponsor_auth_digest(&self) -> Option<&Digest> {
+        self.sponsor_auth_digest.as_ref()
     }
 
     pub fn tx_inputs(&self) -> &Vec<MoveCallArg> {
@@ -144,11 +181,15 @@ impl AuthContext {
         tx_inputs: Vec<MoveCallArg>,
         tx_commands: Vec<MoveCommand>,
         tx_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
         self.tx_commands = tx_commands;
         self.tx_data_bytes = tx_data_bytes;
+        self.sender_auth_digest = sender_auth_digest;
+        self.sponsor_auth_digest = sponsor_auth_digest;
     }
 }
 
@@ -193,6 +234,11 @@ mod tests {
 
     #[test]
     fn auth_context_new_from_components() {
+        let auth_digest = MoveAuthenticatorDigest::new([1u8; 32]);
+        let sender_auth_digest = Digest::new([2u8; 32]);
+        let sponsor_auth_digest = Some(Digest::new([3u8; 32]));
+        let tx_data_bytes = vec![0xde, 0xad, 0xbe, 0xef];
+
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
             commands: vec![Command::new_move_call(
@@ -205,18 +251,36 @@ mod tests {
             )],
         };
 
-        let ctx =
-            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb, vec![]);
+        let ctx = AuthContext::new_from_components(
+            auth_digest,
+            sender_auth_digest,
+            sponsor_auth_digest,
+            &ptb,
+            tx_data_bytes.clone(),
+        );
 
+        // auth_digest
+        assert_eq!(ctx.digest(), &auth_digest);
+
+        // sender_auth_digest
+        assert_eq!(ctx.sender_auth_digest(), &sender_auth_digest);
+
+        // sponsor_auth_digest
+        assert_eq!(ctx.sponsor_auth_digest(), sponsor_auth_digest.as_ref());
+
+        // tx_inputs: one Pure input
         assert_eq!(ctx.tx_inputs().len(), 1);
-        assert_eq!(ctx.tx_commands().len(), 1);
-
         assert!(matches!(ctx.tx_inputs()[0], MoveCallArg::Pure(_)));
 
+        // tx_commands: one MoveCall command
+        assert_eq!(ctx.tx_commands().len(), 1);
         let MoveCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
             panic!("expected MoveCall");
         };
         assert_eq!(call.type_arguments, vec![TypeTag::U8]);
+
+        // tx_data_bytes
+        assert_eq!(ctx.tx_data_bytes(), &tx_data_bytes);
     }
 
     #[test]
@@ -235,6 +299,8 @@ mod tests {
             vec![MoveCallArg::Pure(vec![1])],
             vec![],
             vec![],
+            Digest::default(),
+            None,
         );
         let non_empty_bytes = ctx.to_bcs_bytes();
 

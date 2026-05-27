@@ -326,9 +326,8 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
-    ]];
+    let expected =
+        expect![[r#"Dependency object does not exist or was deleted: Object <id> does not exist"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = IotaAddress::random();
@@ -342,9 +341,8 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     // <id> below may refer to either the package_root or dependent package `b`
     // (the check reports the first missing object nondeterministically)
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
-    ]];
+    let expected =
+        expect![[r#"Dependency object does not exist or was deleted: Object <id> does not exist"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = IotaAddress::random();
@@ -356,9 +354,8 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
-    ]];
+    let expected =
+        expect![[r#"Dependency object does not exist or was deleted: Object <id> does not exist"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())

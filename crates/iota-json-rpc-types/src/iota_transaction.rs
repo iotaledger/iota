@@ -617,37 +617,16 @@ impl IotaTransactionBlockKind {
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        Ok(match tx {
-            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
-                objects: g.objects.iter().map(GenesisObject::id).collect(),
-                events: g
-                    .events
-                    .into_iter()
-                    .enumerate()
-                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
-                    .collect(),
-            }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
-                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    sub_dag_index: p.sub_dag_index,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                    consensus_determined_version_assignments: p
-                        .consensus_determined_version_assignments
-                        .into(),
-                })
-            }
-            TransactionKind::Programmable(p) => Self::ProgrammableTransaction(
+        match tx {
+            TransactionKind::Programmable(p) => Ok(Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
                     package_resolver,
                 )
                 .await?,
-            ),
-            tx => Self::try_from_inner(tx, tx_digest)?,
-        })
+            )),
+            tx => Self::try_from_inner(tx, tx_digest),
+        }
     }
 
     pub fn transaction_count(&self) -> usize {
@@ -1031,10 +1010,13 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
                 inner.status = clever_status;
                 inner.into()
             }
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1051,7 +1033,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
     fn from(native: T) -> Self {
         Self {
             status: native.status().clone().into(),
-            executed_epoch: native.executed_epoch(),
+            executed_epoch: native.epoch(),
             modified_at_versions: native
                 .modified_at_versions()
                 .into_iter()
@@ -1613,7 +1595,9 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error} in command {idx}"),
             },
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1918,8 +1902,8 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                     })
                     .collect(),
             ),
-            _ => unreachable!(
-                "a new ConsensusDeterminedVersionAssignments variant was added and needs to be handled"
+            _ => unimplemented!(
+                "a new ConsensusDeterminedVersionAssignments enum variant was added and needs to be handled"
             ),
         }
     }

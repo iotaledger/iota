@@ -686,7 +686,7 @@ pub async fn make_object_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<ObjectEntry>> =
         Box::new(ObjectHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
@@ -712,7 +712,7 @@ pub async fn make_event_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<EventEntry>> =
         Box::new(EventHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
@@ -809,7 +809,7 @@ pub async fn make_dynamic_field_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::DynamicField).await?;
-    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<DynamicFieldEntry>> = Box::new(DynamicFieldHandler::new(
         &config.package_cache_path,
         grpc_client,
@@ -837,7 +837,7 @@ pub async fn make_wrapped_object_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::WrappedObject).await?;
-    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<WrappedObjectEntry>> = Box::new(
         WrappedObjectHandler::new(&config.package_cache_path, grpc_client),
     );

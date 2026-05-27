@@ -31,7 +31,7 @@ impl RpcError {
     /// Add context to an existing error
     pub fn with_context<T: std::fmt::Display>(mut self, context: T) -> Self {
         self.message = Some(match self.message {
-            Some(existing) => format!("{}: {}", context, existing),
+            Some(existing) => format!("{context}: {existing}"),
             None => context.to_string(),
         });
         self

@@ -15,7 +15,6 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     global_state_hash::GlobalStateHash,
     iota_system_state::{IotaSystemState, get_iota_system_state},
-    message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},

@@ -28,7 +28,7 @@ use iota_types::{
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
@@ -1568,20 +1568,6 @@ impl CheckpointBuilder {
                 }
             }
 
-            if self
-                .epoch_store
-                .protocol_config()
-                .calculate_validator_scores()
-            {
-                // We update the validator scores based on the information contained in the
-                // Scorer. We choose this point in time to do so because we must guarantee that
-                // scores are up to date right before the epoch changes. It also provides a good
-                // update periodicity: updating scores each time a report is received could be
-                // too frequent and not needed, since scores are not used during the epoch
-                // (except for monitoring purposes, which does not need to be 100% exact)
-                self.epoch_store.scorer.update_scores();
-            }
-
             let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
@@ -1592,7 +1578,7 @@ impl CheckpointBuilder {
                     .protocol_config()
                     .pass_calculated_validator_scores_to_advance_epoch()
                 {
-                    self.epoch_store.scorer.current_scores()
+                    self.epoch_store.scoreboard.current_scores()
                 } else {
                     // Give everyone in the committee the max score
                     vec![MAX_SCORE; self.epoch_store.committee().num_members()]
@@ -1810,7 +1796,7 @@ impl CheckpointBuilder {
                 }
 
                 // Skip roots already included in checkpoints or roots from previous epochs
-                if tx_included || effect.executed_epoch() < self.epoch_store.epoch() {
+                if tx_included || effect.epoch() < self.epoch_store.epoch() {
                     continue;
                 }
 
@@ -1847,7 +1833,7 @@ impl CheckpointBuilder {
                 .map(|(opt, digest)| match opt {
                     Some(x) => x,
                     None => panic!(
-                        "Can not find effect for transaction {digest:?}, however transaction that depend on it was already executed"
+                        "Can not find effect for transaction {digest}, however transaction that depend on it was already executed"
                     ),
                 })
                 .collect::<Vec<_>>();
@@ -2172,7 +2158,7 @@ impl CheckpointSignatureAggregator {
                 .into_iter()
                 .sorted_by_key(|(_, (_, stake))| -(*stake as i64))
                 .map(|(digest, (_authorities, total_stake))| {
-                    format!("{digest:?} (total stake: {total_stake})")
+                    format!("{digest} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
             error!(
@@ -2349,8 +2335,8 @@ async fn diagnose_split_brain(
             let other_validator = name.concise();
             format!(
                 "Checkpoint: {seq_number:?}\n\
-                Local validator (original): {local_validator:?}, digest: {local_digest:?}\n\
-                Other validator (modified): {other_validator:?}, digest: {other_digest:?}\n\n\
+                Local validator (original): {local_validator:?}, digest: {local_digest}\n\
+                Other validator (modified): {other_validator:?}, digest: {other_digest}\n\n\
                 Summary Diff: \n{summary_patch}\n\n\
                 Contents Diff: \n{contents_patch}\n\n\
                 Transactions Diff: \n{transactions_patch}\n\n\
@@ -2712,7 +2698,10 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        effects::{TransactionEffects, TransactionEvents},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
+            TransactionEvents,
+        },
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
         object,
@@ -3069,12 +3058,11 @@ mod tests {
     fn e(
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::default();
-        *effects.transaction_digest_mut_for_testing() = transaction_digest;
+        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
-        *effects.gas_cost_summary_mut_for_testing() = gas_used;
+        *effects.gas_cost_summary_mut_for_testing() = gas_cost_summary;
         effects
     }
 
@@ -3083,10 +3071,10 @@ mod tests {
         state: Arc<AuthorityState>,
         digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
-        gas_used: GasCostSummary,
+        gas_cost_summary: GasCostSummary,
     ) {
         let epoch_store = state.epoch_store_for_testing();
-        let effects = e(digest, dependencies, gas_used);
+        let effects = e(digest, dependencies, gas_cost_summary);
         store.insert(digest, effects);
         epoch_store
             .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)

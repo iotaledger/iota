@@ -142,6 +142,35 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
+    #[error("Too many commit votes in the block: {count} > {max}")]
+    TooManyCommitVotes { count: usize, max: usize },
+
+    #[error(
+        "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
+    )]
+    InvalidAcknowledgmentRound { acknowledgment: Round, block: Round },
+
+    #[error(
+        "Acknowledgment is older than gc_depth: block {block}, acknowledgment {acknowledgment}, gc_depth {gc_depth}"
+    )]
+    AcknowledgmentRoundTooOld {
+        acknowledgment: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error(
+        "Ancestor is older than gc_depth: block {block}, ancestor {ancestor}, gc_depth {gc_depth}"
+    )]
+    AncestorRoundTooOld {
+        ancestor: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
     #[error("Merkle tree has no root (empty shard list)")]
     EmptyMerkleTree,
 
@@ -317,6 +346,22 @@ pub(crate) enum ConsensusError {
     // rollout phase.
     #[error("Fast commit sync is not enabled in the current protocol version")]
     FastCommitSyncNotEnabled,
+
+    #[error(
+        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongShardVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
+
+    #[error(
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongCommitVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
 }
 
 impl ConsensusError {

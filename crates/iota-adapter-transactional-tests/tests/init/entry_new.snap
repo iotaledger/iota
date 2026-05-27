@@ -6,8 +6,8 @@ processed 3 tasks
 task 1, lines 9-18:
 //# publish
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m. 'init' cannot be 'entry'"), command: Some(0) } }
+Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: _::m. 'init' cannot be 'entry'; at command index: 0
 
 task 2, line 19:
 //# run test::m::init
-Error: Error checking transaction input objects: Dependent package not found on-chain: ObjectId("0x0000000000000000000000000000000000000000000000000000000000000000")
+Error: Error checking transaction input objects: Dependent package not found on-chain: 0x0000000000000000000000000000000000000000000000000000000000000000

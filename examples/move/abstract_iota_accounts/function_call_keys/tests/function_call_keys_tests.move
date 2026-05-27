@@ -616,7 +616,14 @@ fun create_tx_context_for_testing(sender: address, digest: vector<u8>): TxContex
 
 /// Build an AuthContext for tests.
 fun create_auth_context_with_commands_for_testing(cmds: vector<Command>): AuthContext {
-    auth_context::new_with_tx_inputs(b"00000000000000000000000000000000", vector::empty(), cmds, vector[])
+    auth_context::new_for_testing(
+        b"00000000000000000000000000000000",
+        vector::empty(),
+        cmds,
+        vector[],
+        b"00000000000000000000000000000000",
+        option::none(),
+    )
 }
 
 fun public_key_for_testing(): vector<u8> { b"42" }

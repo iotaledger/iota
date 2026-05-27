@@ -1,6 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_grpc_client::{ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
@@ -133,7 +134,10 @@ async fn get_transactions_scenarios() {
 
     // Test: invalid read mask causes deserialization error
     let result = client
-        .get_transactions(&[digest1], Some("transaction.digest"))
+        .get_transactions(
+            &[digest1],
+            Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
+        )
         .await;
 
     let transactions = result.expect("request should work");

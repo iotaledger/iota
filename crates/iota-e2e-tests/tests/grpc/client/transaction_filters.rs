@@ -10,6 +10,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointTransactionField};
 use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
 use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
@@ -93,7 +94,10 @@ async fn test_transaction_filter_scenarios() {
                 .stream_checkpoints(
                     Some(0),
                     Some(latest_seq),
-                    Some("transactions.transaction.bcs,transactions.effects.bcs"),
+                    Some(ReadMask::from(&[
+                        CheckpointTransactionField::TRANSACTION_BCS,
+                        CheckpointTransactionField::EFFECTS_BCS,
+                    ])),
                     Some(tx_filter),
                     None,
                 )

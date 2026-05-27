@@ -158,7 +158,9 @@ impl TransactionInputLoader {
             match input {
                 InputObjectKind::MovePackage(id) => {
                     let package = self.cache.try_get_package_object(id)?.unwrap_or_else(|| {
-                        panic!("Executable transaction {tx_key:?} depends on non-existent package {id:?}")
+                        panic!(
+                            "Executable transaction {tx_key:?} depends on non-existent package {id}"
+                        )
                     });
 
                     results[i] = Some(ObjectReadResult {
@@ -196,7 +198,7 @@ impl TransactionInputLoader {
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
-                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
                     if version.is_cancelled() {
                         // Do not need to fetch shared object for cancelled transaction.

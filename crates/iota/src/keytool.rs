@@ -462,7 +462,7 @@ impl KeyToolCommand {
 
                 if let Some(tx_bytes) = tx_bytes {
                     let tx_bytes = Base64::decode(&tx_bytes)
-                        .map_err(|e| anyhow!("Invalid base64 tx bytes: {:?}", e))?;
+                        .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
                     let res = s.verify_authenticator(
@@ -473,7 +473,7 @@ impl KeyToolCommand {
 
                     match res {
                         Ok(()) => output.sig_verify_result = "OK".to_string(),
-                        Err(e) => output.sig_verify_result = format!("{e:?}"),
+                        Err(e) => output.sig_verify_result = e.to_string(),
                     };
                 };
 

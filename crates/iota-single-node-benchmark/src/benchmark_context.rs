@@ -118,11 +118,11 @@ impl BenchmarkContext {
         let mut new_gas_objects = HashMap::new();
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );
@@ -189,10 +189,10 @@ impl BenchmarkContext {
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );

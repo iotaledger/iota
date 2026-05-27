@@ -1100,7 +1100,7 @@ impl IndexerReader {
         // NULL  — not ready yet (missing, older version, or not finalized)
         let query = format!(
             "WITH \
-               input_objects(id, version) AS (VALUES {}), \
+               input_objects(id, version) AS (VALUES {values_clause}), \
                max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints), \
                matches AS ( \
                  SELECT \
@@ -1117,8 +1117,7 @@ impl IndexerReader {
                WHEN COUNT(*) FILTER (WHERE finalized_in_cp IS NOT NULL \
                  AND finalized_in_cp > (SELECT max_sn FROM max_chk)) > 0 THEN NULL \
                ELSE TRUE \
-             END AS result FROM matches",
-            values_clause
+             END AS result FROM matches"
         );
 
         #[derive(QueryableByName)]

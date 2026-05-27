@@ -149,8 +149,8 @@ impl GenericTransactionRef {
 impl fmt::Display for GenericTransactionRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            GenericTransactionRef::BlockRef(b) => write!(f, "{}", b),
-            GenericTransactionRef::TransactionRef(t) => write!(f, "{}", t),
+            GenericTransactionRef::BlockRef(b) => write!(f, "{b}"),
+            GenericTransactionRef::TransactionRef(t) => write!(f, "{t}"),
         }
     }
 }

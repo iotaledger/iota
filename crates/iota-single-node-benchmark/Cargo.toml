@@ -8,7 +8,6 @@ publish = false
 [dependencies]
 # external dependencies
 async-trait.workspace = true
-bcs.workspace = true
 clap.workspace = true
 futures.workspace = true
 once_cell.workspace = true

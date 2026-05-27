@@ -11,7 +11,7 @@ use iota_types::{
     },
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{Digest, TransactionDigest},
     effects::TransactionEffects,
     error::ExecutionError,
     execution::{ExecutionResult, TypeLayoutStore},
@@ -110,6 +110,8 @@ pub trait Executor {
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -144,6 +146,8 @@ pub trait Executor {
         authenticated_transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         transaction_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

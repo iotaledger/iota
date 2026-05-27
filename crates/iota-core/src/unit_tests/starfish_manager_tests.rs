@@ -234,7 +234,6 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
     let highest_handled = commit_consumer_monitor.highest_handled_commit();
     assert_eq!(
         highest_handled, 10,
-        "Expected highest handled commit to be 10, got {}",
-        highest_handled
+        "Expected highest handled commit to be 10, got {highest_handled}"
     );
 }

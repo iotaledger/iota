@@ -89,11 +89,7 @@ impl ProgrammableTransactionBuilder {
                         id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: id,
-                        initial_shared_version: v2,
-                        mutable: mut1 || mut2,
-                    })
+                    CallArg::Shared(SharedObjectRef::new(id, v2, mut1 || mut2))
                 }
                 _ => {
                     anyhow::ensure!(
@@ -117,7 +113,7 @@ impl ProgrammableTransactionBuilder {
             CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
                 self.obj(call_arg)
             }
-            _ => unimplemented!("a new CallArg variant was added and needs to be handled"),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 

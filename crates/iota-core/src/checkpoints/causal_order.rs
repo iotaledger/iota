@@ -227,7 +227,7 @@ impl InsertState {
 mod tests {
     use iota_types::{
         base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
-        effects::TransactionEffects,
+        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
     };
 
     use super::*;
@@ -306,8 +306,7 @@ mod tests {
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::default();
-        *effects.transaction_digest_mut_for_testing() = transaction_digest;
+        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
         effects
     }

@@ -10,8 +10,8 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
     TransactionBlockBytes,
 };
@@ -20,7 +20,6 @@ use iota_move_build::BuildConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     digests::TransactionDigest,
-    error::IotaObjectResponseError,
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,

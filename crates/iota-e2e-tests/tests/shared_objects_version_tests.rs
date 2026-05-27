@@ -208,11 +208,11 @@ impl TestEnvironment {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Shared(SharedObjectRef {
-                    object_id: counter,
+                vec![CallArg::Shared(SharedObjectRef::new(
+                    counter,
                     initial_shared_version,
-                    mutable: true,
-                })],
+                    true,
+                ))],
             )
             .await?;
 

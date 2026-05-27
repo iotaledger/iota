@@ -81,14 +81,20 @@ impl Balance {
         coin_type: TypeTag,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<Balance>, Error> {
+        let max_available_range = db.max_available_range;
         let stored: Option<StoredBalance> = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
-                };
+                }
 
                 conn.result(move || {
-                    balance_query(address, Some(coin_type.clone()), range).into_boxed()
+                    balance_query(address, Some(coin_type.clone()), checkpoint_viewed_at)
+                        .into_boxed()
                 })
                 .optional()
             })
@@ -113,16 +119,22 @@ impl Balance {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_available_range = db.max_available_range;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
-                };
+                }
 
                 let result = page.paginate_raw_query::<StoredBalance>(
                     conn,
                     checkpoint_viewed_at,
-                    balance_query(address, None, range),
+                    balance_query(address, None, checkpoint_viewed_at),
                 )?;
 
                 Ok(Some(result))
@@ -207,69 +219,92 @@ impl TryFrom<StoredBalance> for Balance {
     }
 }
 
-/// Query the database for a `page` of coin balances. Each balance represents
-/// the total balance for a particular coin type, owned by `address`. This
-/// function is meant to be called within a thunk and returns a RawQuery that
-/// can be converted into a BoxedSqlQuery with `.into_boxed()`.
+/// Builds the aggregating SQL that totals each coin type's balance for
+/// `address` at `checkpoint_viewed_at`, using the backward-diff tables.
+///
+/// The consistent set of objects at `checkpoint_viewed_at` is the union of two
+/// disjoint sources:
+///
+/// * Source A — `checkpointed_objects` rows for objects that have not changed
+///   since `checkpoint_viewed_at` (no `objects_backward_history` entry with
+///   `superseded_at_checkpoint > checkpoint_viewed_at`).
+/// * Source B — `objects_backward_history` rows for the version of each object
+///   current at `checkpoint_viewed_at`: the earliest version whose
+///   `superseded_at_checkpoint > checkpoint_viewed_at`. Synthetic rows
+///   (`NotYetCreated`, `WrappedOrDeleted`) drop out automatically — they carry
+///   NULL `owner_id`/`coin_type`, so the owner+coin filter excludes them.
+///
+/// Each object can match at most one source: A only returns objects that
+/// did not change after `checkpoint_viewed_at`, while B only returns objects
+/// that did. So `UNION ALL` already gives one row per `object_id` — no
+/// dedup needed before aggregation.
 fn balance_query(
     address: IotaAddress,
     coin_type: Option<TypeTag>,
-    range: AvailableRange,
+    checkpoint_viewed_at: u64,
 ) -> RawQuery {
-    // Construct the filtered inner query - apply the same filtering criteria to
-    // both objects_snapshot and objects_history tables.
-    let mut snapshot_objs = query!("SELECT * FROM objects_snapshot");
-    snapshot_objs = filter(snapshot_objs, address, coin_type.clone());
+    let checkpoint_viewed_at = checkpoint_viewed_at as i64;
 
-    // Additionally filter objects_history table for results between the available
-    // range, or checkpoint_viewed_at, if provided.
-    let mut history_objs = query!("SELECT * FROM objects_history");
-    history_objs = filter(history_objs, address, coin_type);
-    history_objs = filter!(
-        history_objs,
-        format!(
-            r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
-            range.first, range.last
-        )
+    let checkpointed = filter(
+        query!("SELECT object_id, coin_balance, coin_type FROM checkpointed_objects"),
+        address,
+        coin_type.clone(),
+    );
+    let changed = query!(format!(
+        "SELECT DISTINCT object_id FROM objects_backward_history \
+         WHERE superseded_at_checkpoint > {checkpoint_viewed_at}"
+    ));
+    let source_a = filter!(
+        query!(
+            r#"SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type
+               FROM ({}) candidates
+               LEFT JOIN ({}) changed ON candidates.object_id = changed.object_id"#,
+            checkpointed,
+            changed
+        ),
+        "changed.object_id IS NULL"
     );
 
-    // Combine the two queries, and select the most recent version of each object.
-    let candidates = query!(
-        r#"SELECT DISTINCT ON (object_id) * FROM (({}) UNION ALL ({})) o"#,
-        snapshot_objs,
-        history_objs
-    )
-    .order_by("object_id")
-    .order_by("object_version DESC");
-
-    // Objects that fulfill the filtering criteria may not be the most recent
-    // version available. Left join the candidates table on newer to filter out
-    // any objects that have a newer version.
-    let mut newer = query!("SELECT object_id, object_version FROM objects_history");
-    newer = filter!(
-        newer,
-        format!(
-            r#"checkpoint_sequence_number BETWEEN {} AND {}"#,
-            range.first, range.last
-        )
+    let mut history = filter(
+        query!(
+            "SELECT object_id, object_version, coin_balance, coin_type \
+             FROM objects_backward_history"
+        ),
+        address,
+        coin_type,
     );
-    let final_ = query!(
+    // NotYetCreated and WrappedOrDeleted rows are already excluded above by
+    // `filter`'s `coin_type IS NOT NULL` / `owner_id = ...` clauses, since
+    // `from_empty` leaves those columns NULL.
+    history = filter!(
+        history,
+        format!("superseded_at_checkpoint > {checkpoint_viewed_at}")
+    );
+    let oldest = query!(format!(
+        "SELECT object_id, MIN(object_version) AS min_version \
+         FROM objects_backward_history \
+         WHERE superseded_at_checkpoint > {checkpoint_viewed_at} \
+         GROUP BY object_id"
+    ));
+    let source_b = query!(
+        r#"SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type
+           FROM ({}) candidates
+           JOIN ({}) oldest ON candidates.object_id = oldest.object_id
+               AND candidates.object_version = oldest.min_version"#,
+        history,
+        oldest
+    );
+
+    query!(
         r#"SELECT
             CAST(SUM(coin_balance) AS TEXT) as balance,
             COUNT(*) as count,
             coin_type
-        FROM ({}) candidates
-        LEFT JOIN ({}) newer
-        ON (
-            candidates.object_id = newer.object_id
-            AND candidates.object_version < newer.object_version
-        )"#,
-        candidates,
-        newer
-    );
-
-    // Additionally for balance's query, group coins by coin_type.
-    filter!(final_, "newer.object_version IS NULL").group_by("coin_type")
+        FROM (({}) UNION ALL ({})) candidates"#,
+        source_a,
+        source_b
+    )
+    .group_by("coin_type")
 }
 
 /// Applies the filtering criteria for balances to the input `RawQuery` and

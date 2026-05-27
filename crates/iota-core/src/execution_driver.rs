@@ -123,11 +123,11 @@ pub async fn execution_process(
                 &epoch_store_clone,
             ) {
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {
-                    warn!("Could not execute transaction {digest:?} because validator is halted at epoch end. certificate={certificate:?}");
+                    warn!("Could not execute transaction {digest} because validator is halted at epoch end. certificate={certificate:?}");
                     return;
                 }
                 Err(e) => {
-                    fatal!("Failed to execute certified transaction {digest:?}! error={e} certificate={certificate:?}");
+                    fatal!("Failed to execute certified transaction {digest}! error={e} certificate={certificate:?}");
                 }
                 _ => (),
             }

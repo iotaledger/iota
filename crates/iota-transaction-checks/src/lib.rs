@@ -393,8 +393,7 @@ mod checked {
                     Owner::Address(_) => {
                         debug_assert!(
                             false,
-                            "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
-                            object_ref, object
+                            "Receiving object {object_ref:?} is invalid but we expect it should be valid. {object:?}"
                         );
                         error!(
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",

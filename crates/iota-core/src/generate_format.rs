@@ -12,8 +12,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, Identifier, IotaAddress, ObjectDigest, ObjectID, StructTag,
-        TransactionDigest, TransactionEffectsDigest, TypeTag,
+        self, ExecutionData, Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID,
+        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -22,8 +22,8 @@ use iota_types::{
     },
     digests::ConsensusCommitDigest,
     effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEvents,
-        UnchangedSharedKind,
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
+        TransactionEvents, UnchangedSharedKind,
     },
     event::Event,
     execution_status::{
@@ -114,10 +114,10 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &iota_sdk_types::MoveObjectType::from(StructTag::new(
-                iota_sdk_types::Address::ZERO,
-                iota_sdk_types::Identifier::from_static("m"),
-                iota_sdk_types::Identifier::from_static("T"),
+            &MoveObjectType::from(StructTag::new(
+                IotaAddress::ZERO,
+                Identifier::from_static("m"),
+                Identifier::from_static("T"),
                 Vec::new(),
             )),
         )
@@ -126,21 +126,21 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &iota_sdk_types::MoveObjectType::from(StructTag::new_gas_coin()),
+            &MoveObjectType::from(StructTag::new_gas_coin()),
         )
         .unwrap();
     // StakedIota (variant 2)
     tracer
         .trace_value(
             &mut samples,
-            &iota_sdk_types::MoveObjectType::from(StructTag::new_staked_iota()),
+            &MoveObjectType::from(StructTag::new_staked_iota()),
         )
         .unwrap();
     // Coin (variant 3) - non-IOTA coin
     tracer
         .trace_value(
             &mut samples,
-            &iota_sdk_types::MoveObjectType::from(StructTag::new_coin(TypeTag::Bool)),
+            &MoveObjectType::from(StructTag::new_coin(TypeTag::Bool)),
         )
         .unwrap();
 
@@ -332,11 +332,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Shared(SharedObjectRef {
-                object_id: ObjectID::ZERO,
-                initial_shared_version: 1u64.into(),
-                mutable: false,
-            }),
+            &CallArg::Shared(SharedObjectRef::new(ObjectID::ZERO, 1u64.into(), false)),
         )
         .unwrap();
     tracer
@@ -564,7 +560,7 @@ fn get_registry() -> Result<Registry> {
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
     let sample_transaction = Transaction::new(sender_data.clone());
-    let sample_effects = TransactionEffects::default();
+    let sample_effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),
         effects: sample_effects.clone(),

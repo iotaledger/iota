@@ -15,7 +15,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
     TransactionFilter,
@@ -31,7 +31,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::{IotaObjectResponseError, UserInputError},
+    error::UserInputError,
     event::EventID,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
@@ -200,7 +200,7 @@ impl<R: ReadApiServer> IndexerApi<R> {
 
 #[async_trait]
 impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn get_owned_objects(
         &self,
         address: IotaAddress,
@@ -434,7 +434,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_fields(
         &self,
         parent_object_id: ObjectID,
@@ -468,7 +468,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_field_object(
         &self,
         parent_object_id: ObjectID,
@@ -482,7 +482,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_field_object_v2(
         &self,
         parent_object_id: ObjectID,
@@ -566,7 +566,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
         let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
 
@@ -596,7 +596,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         Ok(Some(name))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: IotaAddress,

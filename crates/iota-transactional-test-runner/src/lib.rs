@@ -254,7 +254,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let active_validators = match system_state_summary {
             IotaSystemStateSummary::V1(inner) => inner.active_validators,
             IotaSystemStateSummary::V2(inner) => inner.active_validators,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         Ok(active_validators

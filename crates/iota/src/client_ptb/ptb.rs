@@ -96,51 +96,65 @@ impl std::fmt::Display for PTBCommandResult {
 
 /// Result of extracting auth arguments from the initial PTB args.
 struct ExtractedAuthArgs {
-    /// The auth call arguments (values for `--auth-call-args`).
+    /// The auth call arguments for the sender (values for `--auth-call-args`).
     auth_call_args: Option<Vec<String>>,
-    /// The auth type arguments (values for `--auth-type-args`).
+    /// The auth type arguments for the sender (values for `--auth-type-args`).
     auth_type_args: Option<Vec<String>>,
+    /// The auth call arguments for the gas sponsor (values for
+    /// `--sponsor-auth-call-args`).
+    sponsor_auth_call_args: Option<Vec<String>>,
+    /// The auth type arguments for the gas sponsor (values for
+    /// `--sponsor-auth-type-args`).
+    sponsor_auth_type_args: Option<Vec<String>>,
     /// The remaining args after auth arguments are removed.
     remaining_args: Vec<String>,
 }
 
-/// Extracts `--auth-call-args` and `--auth-type-args` from the given args.
+/// Extracts `--auth-call-args`, `--auth-type-args`, `--sponsor-auth-call-args`
+/// and `--sponsor-auth-type-args` from the given args.
 fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
     let mut auth_call_args = None;
     let mut auth_type_args = None;
+    let mut sponsor_auth_call_args = None;
+    let mut sponsor_auth_type_args = None;
     let mut remaining_args = Vec::new();
     let mut iter = args.iter().peekable();
 
     while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--auth-call-args" | "--auth-type-args" => {
-                let mut values = Vec::new();
-                while let Some(next) = iter.peek() {
-                    if next.starts_with("--") {
-                        break;
-                    }
-                    values.push(iter.next().unwrap().clone());
-                }
-
-                if arg == "--auth-call-args" {
-                    if auth_call_args.is_some() {
-                        bail!("Duplicate --auth-call-args found");
-                    }
-                    auth_call_args = Some(values);
-                } else {
-                    if auth_type_args.is_some() {
-                        bail!("Duplicate --auth-type-args found");
-                    }
-                    auth_type_args = Some(values);
-                }
+        let slot = match arg.as_str() {
+            "--auth-call-args" => &mut auth_call_args,
+            "--auth-type-args" => &mut auth_type_args,
+            "--sponsor-auth-call-args" => &mut sponsor_auth_call_args,
+            "--sponsor-auth-type-args" => &mut sponsor_auth_type_args,
+            _ => {
+                remaining_args.push(arg.clone());
+                continue;
             }
-            _ => remaining_args.push(arg.clone()),
+        };
+
+        if slot.is_some() {
+            bail!("Duplicate {arg} found");
         }
+
+        let mut values = Vec::new();
+        while let Some(next) = iter.peek() {
+            if next.starts_with("--") {
+                break;
+            }
+            values.push(iter.next().unwrap().clone());
+        }
+
+        if values.is_empty() {
+            bail!("{arg} requires at least one value");
+        }
+        *slot = Some(values);
     }
 
     Ok(ExtractedAuthArgs {
         auth_call_args,
         auth_type_args,
+        sponsor_auth_call_args,
+        sponsor_auth_type_args,
         remaining_args,
     })
 }
@@ -156,6 +170,8 @@ impl PTB {
         let extracted = extract_auth_args(&self.args)?;
         let auth_call_args = extracted.auth_call_args;
         let auth_type_args = extracted.auth_type_args;
+        let sponsor_auth_call_args = extracted.sponsor_auth_call_args;
+        let sponsor_auth_type_args = extracted.sponsor_auth_type_args;
 
         if extracted.remaining_args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
@@ -274,6 +290,8 @@ impl PTB {
             display: self.display,
             auth_call_args,
             auth_type_args,
+            sponsor_auth_call_args,
+            sponsor_auth_type_args,
         };
 
         let gas_payment = client.transaction_builder().input_refs(&gas).await?;
@@ -529,9 +547,37 @@ pub fn ptb_description() -> clap::Command {
             \n --transfer-objects sender \"[upgrade_cap]\""
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
-            --"upgrade" <MOVE_PACKAGE_PATH>
+            --"upgrade" <PACKAGE_AND_CAP>
             "Upgrade the Move package. It takes as input the folder where the package exists."
-        ).value_hint(ValueHint::DirPath))
+        ).long_help(
+            "Upgrade the Move package. All three upgrade steps (authorize, execute, commit) \
+            are performed in a single command.\
+            \n\nExamples:\
+            \n --upgrade \"./my_package\" @upgrade_cap_id"
+        ).value_names(["MOVE_PACKAGE_PATH", "UPGRADE_CAP"]).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"compile-upgrade" <PACKAGE_AND_CAP>
+            "Compile a Move package for upgrade without executing any transaction commands."
+        ).long_help(
+            "Compile a Move package for upgrade. Returns the package digest as a pure value \
+            (vector<u8>) that can be assigned to a variable and passed to a custom authorize \
+            function. Stores the compiled package data internally for a subsequent \
+            --execute-upgrade command.\
+            \n\nExamples:\
+            \n --compile-upgrade \"./my_package\" @upgrade_cap_id\
+            \n --assign package_digest"
+        ).value_names(["MOVE_PACKAGE_PATH", "UPGRADE_CAP"]).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"execute-upgrade" <UPGRADE_TICKET>
+            "Execute the system upgrade using previously compiled package data."
+        ).long_help(
+            "Execute the system upgrade step. Must be preceded by --compile-upgrade in the \
+            same PTB. Takes the upgrade ticket (from an authorize call) as argument and \
+            returns the upgrade receipt.\
+            \n\nExamples:\
+            \n --execute-upgrade ticket\
+            \n --assign receipt"
+        ))
         .arg(arg!(
             --"preview"
             "Instead of executing the transaction, preview its PTB commands."
@@ -577,10 +623,18 @@ pub fn ptb_description() -> clap::Command {
         ))
         .arg(arg!(
             --"auth-call-args"
-            "Auth input objects or primitive values for the Move authenticate function"
+            "Auth input objects or primitive values for the Move authenticate function of the sender"
         ))
         .arg(arg!(
             --"auth-type-args"
-            "Auth type arguments for the Move authenticate function"
+            "Auth type arguments for the Move authenticate function of the sender"
+        ))
+        .arg(arg!(
+            --"sponsor-auth-call-args"
+            "Auth input objects or primitive values for the Move authenticate function of the gas sponsor"
+        ))
+        .arg(arg!(
+            --"sponsor-auth-type-args"
+            "Auth type arguments for the Move authenticate function of the gas sponsor"
         ))
 }

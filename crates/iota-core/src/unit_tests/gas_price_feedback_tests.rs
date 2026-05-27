@@ -292,19 +292,19 @@ impl GasPriceFeedbackTester {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
         let arg1 = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: self.shared_counter_1.object_id,
-                initial_shared_version: self.shared_counter_1.version,
-                mutable: counter_1_mutable,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                self.shared_counter_1.object_id,
+                self.shared_counter_1.version,
+                counter_1_mutable,
+            )))
             .unwrap();
 
         let arg2 = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: self.shared_counter_2.object_id,
-                initial_shared_version: self.shared_counter_2.version,
-                mutable: counter_2_mutable,
-            }))
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                self.shared_counter_2.object_id,
+                self.shared_counter_2.version,
+                counter_2_mutable,
+            )))
             .unwrap();
 
         if counter_1_mutable && counter_2_mutable {
@@ -353,11 +353,11 @@ impl GasPriceFeedbackTester {
         };
 
         let arg = txn_builder
-            .obj(CallArg::Shared(SharedObjectRef {
-                object_id: counter.object_id,
-                initial_shared_version: counter.version,
+            .obj(CallArg::Shared(SharedObjectRef::new(
+                counter.object_id,
+                counter.version,
                 mutable,
-            }))
+            )))
             .unwrap();
 
         if mutable {

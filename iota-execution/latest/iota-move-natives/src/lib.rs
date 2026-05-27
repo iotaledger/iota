@@ -941,6 +941,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "auth_context",
+            "native_sender_auth_digest",
+            make_native!(auth_context::native_sender_auth_digest),
+        ),
+        (
+            "auth_context",
+            "native_sponsor_auth_digest",
+            make_native!(auth_context::native_sponsor_auth_digest),
+        ),
+        (
+            "auth_context",
             "native_tx_data_bytes",
             make_native!(auth_context::native_tx_data_bytes),
         ),

@@ -190,6 +190,17 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     Ok(cap.span.wrap(ParsedPTBCommand::Upgrade(src, cap)))
                 }),
 
+                L(T::Command, A::EXECUTE_UPGRADE) => command!({
+                    let ticket = try_!(self.parse_argument());
+                    Ok(ticket.span.wrap(ParsedPTBCommand::ExecuteUpgrade(ticket)))
+                }),
+
+                L(T::CompileUpgrade, src) => command!({
+                    let src = sp.wrap(src.to_owned());
+                    let cap = try_!(self.parse_argument());
+                    Ok(cap.span.wrap(ParsedPTBCommand::CompileUpgrade(src, cap)))
+                }),
+
                 L(T::Command, s) => {
                     let possibles = find_did_you_means(s, COMMANDS.iter().copied())
                         .into_iter()

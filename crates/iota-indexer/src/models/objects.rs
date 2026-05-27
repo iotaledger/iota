@@ -17,7 +17,9 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{objects, objects_history, objects_snapshot},
+    schema::{
+        checkpointed_objects, objects, objects_backward_history, objects_history, objects_snapshot,
+    },
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -343,6 +345,54 @@ pub(crate) struct StoredDeletedHistoryObject {
     pub object_version: i64,
     pub object_status: i16,
     pub checkpoint_sequence_number: i64,
+}
+
+/// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
+///
+/// Mirrors `objects_snapshot` schema (includes `object_status` and
+/// `checkpoint_sequence_number`). Used as the base table for backward-diff
+/// consistent views, avoiding race conditions with optimistic indexing.
+/// Stores both active and wrapped/deleted objects.
+#[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
+#[diesel(table_name = checkpointed_objects, primary_key(object_id))]
+pub struct StoredCheckpointedObject {
+    pub object_id: Vec<u8>,
+    pub object_version: i64,
+    pub object_status: i16,
+    pub object_digest: Option<Vec<u8>>,
+    pub checkpoint_sequence_number: i64,
+    pub owner_type: Option<i16>,
+    pub owner_id: Option<Vec<u8>>,
+    pub object_type: Option<String>,
+    pub object_type_package: Option<Vec<u8>>,
+    pub object_type_module: Option<String>,
+    pub object_type_name: Option<String>,
+    pub serialized_object: Option<Vec<u8>>,
+    pub coin_type: Option<String>,
+    pub coin_balance: Option<i64>,
+    pub df_kind: Option<i16>,
+}
+
+impl From<&StoredObjectSnapshot> for StoredCheckpointedObject {
+    fn from(o: &StoredObjectSnapshot) -> Self {
+        Self {
+            object_id: o.object_id.clone(),
+            object_version: o.object_version,
+            object_status: o.object_status,
+            object_digest: o.object_digest.clone(),
+            checkpoint_sequence_number: o.checkpoint_sequence_number,
+            owner_type: o.owner_type,
+            owner_id: o.owner_id.clone(),
+            object_type: o.object_type.clone(),
+            object_type_package: o.object_type_package.clone(),
+            object_type_module: o.object_type_module.clone(),
+            object_type_name: o.object_type_name.clone(),
+            serialized_object: o.serialized_object.clone(),
+            coin_type: o.coin_type.clone(),
+            coin_balance: o.coin_balance,
+            df_kind: o.df_kind,
+        }
+    }
 }
 
 impl From<IndexedObject> for StoredObject {
@@ -704,6 +754,97 @@ mod tests {
             None => {
                 panic!("object_type should not be none");
             }
+        }
+    }
+}
+
+/// Status of an object in the backward history table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackwardHistoryObjectStatus {
+    /// The object existed and was active before being superseded.
+    Active = 0,
+    /// The object was wrapped or deleted (no data available).
+    WrappedOrDeleted = 1,
+    /// The object did not exist yet (it was created in this checkpoint).
+    NotYetCreated = 2,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
+#[diesel(table_name = objects_backward_history, primary_key(superseded_at_checkpoint, object_id, object_version))]
+pub struct StoredBackwardHistoryObject {
+    pub object_id: Vec<u8>,
+    pub object_version: i64,
+    pub object_status: i16,
+    pub object_digest: Option<Vec<u8>>,
+    pub superseded_at_checkpoint: i64,
+    pub owner_type: Option<i16>,
+    pub owner_id: Option<Vec<u8>>,
+    pub object_type: Option<String>,
+    pub object_type_package: Option<Vec<u8>>,
+    pub object_type_module: Option<String>,
+    pub object_type_name: Option<String>,
+    pub serialized_object: Option<Vec<u8>>,
+    pub coin_type: Option<String>,
+    pub coin_balance: Option<i64>,
+    pub df_kind: Option<i16>,
+}
+
+impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
+    type Error = IndexerError;
+
+    /// Builds a backward history entry for an active object.
+    ///
+    /// Reuses `StoredHistoryObject::try_from(IndexedObject)` for field
+    /// conversion, then maps `checkpoint_sequence_number` to
+    /// `superseded_at_checkpoint` and sets the status to `Active`.
+    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
+        let h = StoredHistoryObject::try_from(o)?;
+        Ok(Self {
+            object_id: h.object_id,
+            object_version: h.object_version,
+            object_status: BackwardHistoryObjectStatus::Active as i16,
+            object_digest: h.object_digest,
+            superseded_at_checkpoint: h.checkpoint_sequence_number,
+            owner_type: h.owner_type,
+            owner_id: h.owner_id,
+            object_type: h.object_type,
+            object_type_package: h.object_type_package,
+            object_type_module: h.object_type_module,
+            object_type_name: h.object_type_name,
+            serialized_object: h.serialized_object,
+            coin_type: h.coin_type,
+            coin_balance: h.coin_balance,
+            df_kind: h.df_kind,
+        })
+    }
+}
+
+impl StoredBackwardHistoryObject {
+    /// Builds a backward history entry with no object data.
+    ///
+    /// Used for `NotYetCreated` and `WrappedOrDeleted` statuses.
+    pub fn from_empty(
+        object_id: ObjectID,
+        object_version: i64,
+        status: BackwardHistoryObjectStatus,
+        superseded_at_checkpoint: i64,
+    ) -> Self {
+        Self {
+            object_id: object_id.as_bytes().to_vec(),
+            object_version,
+            object_status: status as i16,
+            object_digest: None,
+            superseded_at_checkpoint,
+            owner_type: None,
+            owner_id: None,
+            object_type: None,
+            object_type_package: None,
+            object_type_module: None,
+            object_type_name: None,
+            serialized_object: None,
+            coin_type: None,
+            coin_balance: None,
+            df_kind: None,
         }
     }
 }

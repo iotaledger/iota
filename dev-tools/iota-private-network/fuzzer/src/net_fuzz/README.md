@@ -18,7 +18,7 @@ For environment setup and end-to-end usage examples, see
 - `checks`: best-effort verification helpers for disruptions.
 - `scenarios`: composable, higher-level orchestration. Returns `ScenarioResult`
   for logging and reporting.
-- `spammer`: manages the `stress-benchmark` container from `iota-tools`.
+- `spammer`: manages the `stress-benchmark` container from `iotaledger/stress`.
 - `metrics`: minimal Prometheus parsing utilities used by stress scripts
   (`*_stress`. Some helpers are placeholders.
 - `cli` / `__main__`: entry point for `python -m net_fuzz`.

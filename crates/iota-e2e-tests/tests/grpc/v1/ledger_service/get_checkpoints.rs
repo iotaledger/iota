@@ -4,6 +4,10 @@
 use std::time::Duration;
 
 use futures::StreamExt;
+use iota_grpc_client::{
+    ReadMask,
+    read_mask_fields::{CheckpointEventField, CheckpointResponseField},
+};
 use iota_grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_CHECKPOINT_READ_MASK,
@@ -642,7 +646,11 @@ async fn test_event_filtering() {
 
     // get the latest checkpoint sequence number
     let latest_checkpoint_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
+        .get_checkpoint_latest(
+            Some(ReadMask::from(CheckpointResponseField::ALL)),
+            None,
+            None,
+        )
         .await
         .expect("Failed to get latest checkpoint")
         .body()
@@ -653,7 +661,7 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some("events"),
+            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(sender_filter),
         )
@@ -700,7 +708,7 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some("events"),
+            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(nft_filter),
         )
@@ -745,7 +753,7 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some("events"),
+            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(any_filter),
         )

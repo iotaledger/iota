@@ -12,7 +12,10 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{Identifier, MoveObjectType, StructTag, TypeTag};
+pub use iota_sdk_types::{
+    Identifier, MoveObjectType, ObjectId as ObjectID, ObjectReference as ObjectRef, StructTag,
+    TypeTag, Version as SequenceNumber,
+};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -29,7 +32,7 @@ use crate::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
     },
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     id::RESOLVED_IOTA_ID,
@@ -50,10 +53,6 @@ pub use crate::{
 #[cfg(test)]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
-
-pub use iota_sdk_types::{
-    ObjectId as ObjectID, ObjectReference as ObjectRef, Version as SequenceNumber,
-};
 
 pub type TxSequenceNumber = u64;
 

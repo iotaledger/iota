@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // The custom NFT module is obtained from a Move example in the docs.
     // It is the same used in the Nft migration example.
     let custom_nft_package_id =
-        publish_custom_nft_package(sender, &mut keystore, &iota_client).await?;
+        publish_custom_nft_package(&iota_client, &mut keystore, sender).await?;
 
     // Get a gas coin
     let gas_coin = iota_client

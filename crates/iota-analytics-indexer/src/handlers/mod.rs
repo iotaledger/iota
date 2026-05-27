@@ -9,7 +9,7 @@ use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
     base_types::{ObjectID, StructTag, TypeTag},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
     transaction::{SenderSignedData, TransactionDataAPI},

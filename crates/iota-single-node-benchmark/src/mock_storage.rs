@@ -83,7 +83,7 @@ impl InMemoryObjectStore {
                             error: "Shared object versions should have been assigned.".to_string(),
                         })?;
                     let version = shared_version_assignments.get(id).unwrap_or_else(|| {
-                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
 
                     self.try_get_object_by_key(id, *version)?
