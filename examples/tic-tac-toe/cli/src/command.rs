@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_types::base_types::{IotaAddress};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 
 use crate::{
     client::{Client, Connection},

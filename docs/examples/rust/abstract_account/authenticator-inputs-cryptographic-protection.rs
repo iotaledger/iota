@@ -27,8 +27,7 @@ use iota_sdk::{
         transaction::{Argument, Transaction},
     },
 };
-use iota_sdk_types::ObjectId;
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,

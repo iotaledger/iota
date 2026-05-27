@@ -5,13 +5,13 @@
 //! output. In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
-use iota_sdk_types::ObjectId;
 use anyhow::anyhow;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions},
-    types::{stardust::output::BasicOutput},
+    types::stardust::output::BasicOutput,
 };
+use iota_sdk_types::ObjectId;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

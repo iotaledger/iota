@@ -23,8 +23,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::ObjectId;
-use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs

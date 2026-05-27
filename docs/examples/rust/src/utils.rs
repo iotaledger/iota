@@ -27,8 +27,7 @@ use iota_sdk::{
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::ObjectId;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{ObjectId, crypto::Intent};
 use iota_types::{
     move_package,
     transaction::{ProgrammableTransaction, TransactionDataAPI},

@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
 use std::fmt;
 
-use iota_types::base_types::{IotaAddress};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
