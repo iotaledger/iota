@@ -22,12 +22,13 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        base_types::{Identifier, ObjectID, TypeTag},
+        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{Argument, Transaction},
     },
 };
+use iota_sdk_types::{Identifier, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,

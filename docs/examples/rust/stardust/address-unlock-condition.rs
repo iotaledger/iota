@@ -18,7 +18,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::{Identifier, ObjectID, TypeTag},
+        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
@@ -28,7 +28,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
