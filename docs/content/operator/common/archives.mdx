@@ -31,9 +31,9 @@ It is important to prevent pruning until the corresponding data is uploaded. To 
 
 ```yaml
 state-archive-read-config:
-    # Use https://checkpoints.mainnet.iota.io for mainnet
-    # Use https://checkpoints.testnet.iota.io for testnet
-    - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.io"
+    # Use https://checkpoints.mainnet.iota.cafe for mainnet
+    # Use https://checkpoints.testnet.iota.cafe for testnet
+    - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.cafe"
       concurrency: 5
 ```
 
@@ -45,9 +45,9 @@ To enable your node to fallback to an archive in case of lag, add this to your `
   <TabItem value="s3" label="Amazon S3">
     ```yaml
     state-archive-read-config:
-      # Use https://checkpoints.mainnet.iota.io for mainnet
-      # Use https://checkpoints.testnet.iota.io for testnet
-      - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.io"
+      # Use https://checkpoints.mainnet.iota.cafe for mainnet
+      # Use https://checkpoints.testnet.iota.cafe for testnet
+      - ingestion-url: "https://checkpoints.<mainnet|testnet>.iota.cafe"
         concurrency: 5
     ```
   </TabItem>
