@@ -2912,7 +2912,8 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {
                 // TODO: make sure that UserTransactionV2 blocks don't pass
-                //  validation if the validator-attestation feature flag is not set
+                //  validation if the validator-attestation feature flag is not
+                // set
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),

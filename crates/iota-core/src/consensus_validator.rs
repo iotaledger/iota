@@ -287,6 +287,7 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
     use iota_types::{
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
@@ -296,6 +297,7 @@ mod tests {
         object::Object,
         signature::GenericSignature,
     };
+    use starfish_config::AuthorityIndex;
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
@@ -526,6 +528,19 @@ mod tests {
                     }),
                     0,
                 ),
+            ),
+            (
+                "UserTransactionV2",
+                ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
+                    signed_tx.clone(),
+                    Attestation::Validator {
+                        payload: AttestationData::V1 {
+                            estimated_computation_cost: 0,
+                            object_versions: vec![],
+                        },
+                        attestor_index: AuthorityIndex::new_for_test(0),
+                    },
+                ))),
             ),
             (
                 "UserTransactionV1",
