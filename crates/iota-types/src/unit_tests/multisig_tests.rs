@@ -20,10 +20,12 @@ use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
     base_types::IotaAddress,
     crypto::{Ed25519IotaSignature, IotaSignatureInner},
-    multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, MultisigMember},
+    multisig::{MultiSig, MultisigMember},
     signature::GenericSignature,
     utils::multisig_keys,
 };
+
+pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 
 #[test]
 fn test_combine_sigs() {

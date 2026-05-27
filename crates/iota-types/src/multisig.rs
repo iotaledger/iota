@@ -23,9 +23,6 @@ use crate::{
 #[path = "unit_tests/multisig_tests.rs"]
 mod multisig_tests;
 
-pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
-pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
-
 impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
