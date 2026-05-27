@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 
-#[cfg(not(target_arch = "wasm32"))]
 use anemo::{
     PeerId,
     types::{PeerAffinity, PeerInfo},
@@ -12,9 +11,7 @@ use anemo::{
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::ProtocolVersion;
 use serde::{Deserialize, Serialize};
-#[cfg(not(target_arch = "wasm32"))]
 use starfish_config::{Authority, Committee as ConsensusCommittee};
-#[cfg(not(target_arch = "wasm32"))]
 use tracing::{error, warn};
 
 use crate::{
@@ -36,11 +33,8 @@ pub trait EpochStartSystemStateTrait {
     fn get_validator_addresses(&self) -> Vec<IotaAddress>;
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_consensus_committee(&self) -> ConsensusCommittee;
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
     fn get_active_validators(&self) -> Vec<AuthorityPublicKey>;
@@ -230,7 +224,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         Committee::new(self.epoch, voting_rights)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_consensus_committee(&self) -> ConsensusCommittee {
         let mut authorities: Vec<Authority> = Vec::with_capacity(self.committee_validators.len());
 
@@ -271,7 +264,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         ConsensusCommittee::new(self.epoch as starfish_config::Epoch, authorities)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.committee_validators
             .iter()
@@ -298,7 +290,6 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .collect()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
         self.committee_validators
             .iter()
@@ -389,17 +380,14 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.get_iota_committee()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_consensus_committee(&self) -> ConsensusCommittee {
         self.v1.get_consensus_committee()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
         self.v1.get_validator_as_p2p_peers(excluding_self)
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
         self.v1.get_authority_names_to_peer_ids()
     }

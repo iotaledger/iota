@@ -14,6 +14,10 @@ use super::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::{
+    EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
+};
 use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
@@ -26,9 +30,6 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
-    },
     multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
@@ -553,6 +554,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .collect())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState {
         let committee_validators: Vec<EpochStartValidatorInfoV1> = self
             .validators
