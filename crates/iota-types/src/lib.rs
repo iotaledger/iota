@@ -72,13 +72,13 @@ pub mod iota_system_state;
 pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
+// Consensus message types (and the gRPC API types that carry them) are
+// node-only and pull in fastcrypto-tbls / tonic, which don't build on wasm32.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_consensus;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_grpc;
 pub mod messages_safe_client;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod metrics;
-#[cfg(target_arch = "wasm32")]
-#[path = "wasm_metrics.rs"]
 pub mod metrics;
 pub mod mock_checkpoint_builder;
 pub mod move_authenticator;
