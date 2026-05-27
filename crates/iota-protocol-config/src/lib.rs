@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 27;
+pub const MAX_PROTOCOL_VERSION: u64 = 28;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -148,6 +148,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on testnet and devnet:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+// Version 28: Move authenticator contracts can now inspect which authenticator
+//             function the sender and sponsor used during transaction execution
+//             via new AuthContext accessors.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2819,7 +2822,8 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
-
+                }
+                28 => {
                     // AuthenticatorFunctionInfoV1 max BCS size:
                     // package (32) + module_name (128) + function_name (128) = 288 bytes = 9 ×
                     // digest. auth_context_digest_cost_base = 30 for 32 bytes →
