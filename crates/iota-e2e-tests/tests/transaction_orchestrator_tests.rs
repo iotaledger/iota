@@ -331,11 +331,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         include_auxiliary_data: false,
     };
     let response = orchestrator
-        .execute_transaction_v1(
-            request,
-            ExecuteTransactionRequestType::WaitForEffectsCert,
-            None,
-        )
+        .execute_transaction_v1(request, false, None)
         .await?;
     let fx = &response.effects.effects;
 
@@ -537,11 +533,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         include_auxiliary_data: false,
     };
     let response = orchestrator
-        .execute_transaction_v1(
-            request,
-            ExecuteTransactionRequestType::WaitForEffectsCert,
-            None,
-        )
+        .execute_transaction_v1(request, false, None)
         .await?;
     let fx = &response.effects.effects;
 

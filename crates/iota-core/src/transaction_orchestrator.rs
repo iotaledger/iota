@@ -460,29 +460,29 @@ where
         response: &mut ExecuteTransactionResponseV1,
         metrics: &TransactionOrchestratorMetrics,
     ) {
-        let cache = validator_state.get_transaction_cache_reader();
-
-        let cache_effects = match cache.try_get_executed_effects(&tx_digest) {
-            Ok(Some(e)) => e,
-            Ok(None) => {
-                warn!(
-                    ?tx_digest,
-                    "reconcile_effects_from_cache: local execution succeeded but effects \
-                     are not yet in the cache"
-                );
-                return;
-            }
+        let rebuilt = match Self::build_response_from_cache(
+            validator_state,
+            tx_digest,
+            checkpoint_seq,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        ) {
+            Ok(r) => r,
             Err(e) => {
-                warn!(
-                    ?tx_digest,
-                    "reconcile_effects_from_cache: failed to read executed effects: {e:?}"
-                );
+                // Leave `response` as-is; the safety guard at the end of
+                // `execute_transaction_block` will reject the still-uncertified
+                // finality and surface a client-facing error.
+                warn!(?tx_digest, "reconcile_effects_from_cache: {e}");
                 return;
             }
         };
 
+        // Compare driver-returned vs cache-authoritative views before
+        // overwriting, so byzantine-submitter divergences show up in logs and
+        // metrics rather than being silently discarded by the overwrite.
         let td_digest = response.effects.effects.digest();
-        let cache_digest = cache_effects.digest();
+        let cache_digest = rebuilt.effects.effects.digest();
         if td_digest != cache_digest {
             warn!(
                 ?tx_digest,
@@ -492,75 +492,16 @@ where
                  on effects digest — using cache (possible byzantine submitter)"
             );
         }
-
-        // Gate each reconciled field on whether the caller actually asked for
-        // it, not on what the submitter happened to populate. A byzantine
-        // submitter could otherwise censor a field by returning `None` and
-        // we'd skip the cache check.
-        if include_events {
-            match cache.try_get_events(&tx_digest) {
-                Ok(Some(events)) => response.events = Some(events),
-                Ok(None) => {
-                    // The cache (authoritative after
-                    // `wait_for_checkpoint_inclusion`) says this tx emitted
-                    // no events. If the submitter claimed otherwise, log +
-                    // bump a metric; either way trust the cache.
-                    if response.events.is_some() {
-                        warn!(
-                            ?tx_digest,
-                            "reconcile_effects_from_cache: submitter claimed events but \
-                             cache has none — discarding (possible byzantine submitter)"
-                        );
-                        metrics.skip_effect_cert_events_cache_miss.inc();
-                    }
-                    response.events = None;
-                }
-                Err(e) => {
-                    // Storage error reading events — cannot trust the
-                    // submitter's copy either. Fail closed via the safety
-                    // guard.
-                    warn!(
-                        ?tx_digest,
-                        "reconcile_effects_from_cache: failed to read events: {e:?}"
-                    );
-                    return;
-                }
-            }
+        if include_events && response.events.is_some() && rebuilt.events.is_none() {
+            warn!(
+                ?tx_digest,
+                "reconcile_effects_from_cache: submitter claimed events but cache has \
+                 none — discarding (possible byzantine submitter)"
+            );
+            metrics.skip_effect_cert_events_cache_miss.inc();
         }
 
-        // Re-derive input/output objects from the cache-authoritative effects.
-        // The submitter's copies came from a single validator and cannot be
-        // trusted any more than the effects themselves. On storage failure,
-        // fail closed via the safety guard rather than leak the submitter's
-        // values.
-        if include_input_objects {
-            match validator_state.get_transaction_input_objects(&cache_effects) {
-                Ok(objs) => response.input_objects = Some(objs),
-                Err(e) => {
-                    warn!(
-                        ?tx_digest,
-                        "reconcile_effects_from_cache: failed to derive input objects: {e:?}"
-                    );
-                    return;
-                }
-            }
-        }
-        if include_output_objects {
-            match validator_state.get_transaction_output_objects(&cache_effects) {
-                Ok(objs) => response.output_objects = Some(objs),
-                Err(e) => {
-                    warn!(
-                        ?tx_digest,
-                        "reconcile_effects_from_cache: failed to derive output objects: {e:?}"
-                    );
-                    return;
-                }
-            }
-        }
-
-        let epoch = cache_effects.epoch();
-        response.effects.effects = cache_effects;
-        response.effects.finality_info = EffectsFinalityInfo::Checkpointed(epoch, checkpoint_seq);
+        *response = rebuilt;
     }
 
     /// Build a skip-effect-certification response entirely from the local
@@ -654,7 +595,7 @@ where
     pub async fn execute_transaction_v1(
         &self,
         request: ExecuteTransactionRequestV1,
-        request_type: ExecuteTransactionRequestType,
+        skip_certification: bool,
         client_addr: Option<SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
@@ -667,10 +608,6 @@ where
             epoch_store
                 .verify_transaction(request.transaction.clone())
                 .map_err(QuorumDriverError::InvalidUserSignature)?;
-            let skip_certification = matches!(
-                request_type,
-                ExecuteTransactionRequestType::WaitForLocalExecution
-            );
             return self
                 .submit_with_transaction_driver(
                     td.clone(),
@@ -1487,10 +1424,10 @@ where
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
-        request_type: ExecuteTransactionRequestType,
+        skip_certification: bool,
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        self.execute_transaction_v1(request, request_type, client_addr)
+        self.execute_transaction_v1(request, skip_certification, client_addr)
             .await
     }
 

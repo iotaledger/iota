@@ -275,21 +275,12 @@ pub async fn execute_transactions(
         .filter(|&ms| ms > 0)
         .map(|ms| Duration::from_millis(ms.min(config.max_checkpoint_inclusion_timeout_ms)));
 
-    // If the client has opted into waiting for checkpoint inclusion, we can
-    // skip the 2f+1 effects certification — the subsequent
-    // `wait_for_checkpoint_inclusion` call below provides finality instead.
-    // Otherwise, preserve the default certification behavior.
-    let request_type = if checkpoint_timeout.is_some() {
-        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution
-    } else {
-        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForEffectsCert
-    };
+    // If the client opted into waiting for checkpoint inclusion, the
+    // subsequent `wait_for_checkpoint_inclusion` call below provides
+    // finality, so we instruct the executor to skip its 2f+1 effects
+    // certification. Otherwise the executor performs the full certification.
+    let skip_certification = checkpoint_timeout.is_some();
 
-    // Execute each transaction sequentially, collecting per-item results and
-    // digests for successful executions. `RebuildCtx` is populated for items
-    // whose response carries uncertified single-validator data (finality =
-    // `UncertifiedSingleValidator`) — those must be rebuilt from the local
-    // cache after checkpoint inclusion before being returned to the client.
     // Drive the per-tx executions concurrently so a slow validator submission
     // on one item doesn't stall the rest of the batch. Results are collected
     // back into per-index slots so the response order matches the request
@@ -306,7 +297,6 @@ pub async fn execute_transactions(
     // data and must be rebuilt from cache after checkpoint inclusion.
     let mut successful_digests: Vec<(usize, TransactionDigest, Option<RebuildCtx>)> = Vec::new();
     let read_mask_ref = &read_mask;
-    let request_type_ref = &request_type;
     let mut driver_futs: FuturesUnordered<_> = request
         .transactions
         .iter()
@@ -318,7 +308,7 @@ pub async fn execute_transactions(
                 config,
                 item,
                 read_mask_ref,
-                request_type_ref.clone(),
+                skip_certification,
             )
             .await;
             (i, result)
@@ -560,7 +550,7 @@ async fn execute_single_transaction(
     config: &iota_config::node::GrpcApiConfig,
     item: &ExecuteTransactionItem,
     read_mask: &FieldMaskTree,
-    request_type: iota_types::quorum_driver_types::ExecuteTransactionRequestType,
+    skip_certification: bool,
 ) -> Result<(TransactionDigest, ExecutedTransaction, Option<RebuildCtx>), RpcError> {
     let sdk_transaction = parse_transaction_proto(item.transaction.as_ref())?;
 
@@ -625,7 +615,7 @@ async fn execute_single_transaction(
         output_objects,
         auxiliary_data: _,
     } = executor
-        .execute_transaction(exec_request, request_type, None)
+        .execute_transaction(exec_request, skip_certification, None)
         .await
         .map_err(RpcError::from)?;
 

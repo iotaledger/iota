@@ -14,8 +14,7 @@ use crate::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
-        QuorumDriverError,
+        ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
     transaction::TransactionData,
 };
@@ -27,7 +26,7 @@ pub trait TransactionExecutor: Send + Sync {
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
-        request_type: ExecuteTransactionRequestType,
+        skip_certification: bool,
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError>;
 
