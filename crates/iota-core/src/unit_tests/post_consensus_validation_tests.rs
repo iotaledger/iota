@@ -4,6 +4,8 @@
 //! Unit tests for post-consensus transaction validation and owned-object
 //! conflict resolution.
 
+use std::sync::Arc;
+
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
@@ -11,14 +13,17 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::IotaError,
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::VerifiedTransaction,
+    transaction::{TransactionKey, VerifiedTransaction},
 };
 
 use crate::{
     authority::authority_tests::init_state_with_objects_and_object_basics,
-    consensus_handler::VerifiedSequencedConsensusTransaction, post_consensus_validation,
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
+    post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
 
@@ -994,5 +999,125 @@ async fn test_dropped_tx_does_not_acquire_locks() {
     assert!(
         !locks.contains_key(&gas1.compute_object_reference()),
         "gas1 should not be locked since tx2 was dropped"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoint-root regression test (issue #11649)
+// ---------------------------------------------------------------------------
+
+/// Regression test for the white-flag checkpoint fork observed in the
+/// double-spend stress test (#11649).
+///
+/// A validator that lags through an epoch boundary executes a transaction via
+/// state-sync (from an already-certified checkpoint) *before* its own consensus
+/// handler processes the commit that sequenced that transaction. When the
+/// commit is finally processed, the post-consensus "already-executed" check
+/// (Check #1) silently drops the transaction, so it is excluded from the
+/// locally-built checkpoint `roots`. The rest of the committee included it, so
+/// the local checkpoint forks and the node panics with
+/// "Local checkpoint fork detected".
+///
+/// Invariant under test: a committee-sequenced transaction that this node has
+/// executed must still appear in the pending checkpoint roots, regardless of
+/// whether it was executed via its own consensus or via state-sync.
+///
+/// This test FAILS on the buggy code (the tx is missing from roots) and passes
+/// once the already-executed transaction is kept in the checkpoint roots.
+///
+/// Single-process and fully deterministic, so it uses `#[tokio::test]` rather
+/// than `#[sim_test]` — it does not need the deterministic simulator.
+#[tokio::test]
+async fn already_executed_tx_must_remain_in_checkpoint_roots() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let tx_digest = *verified_tx.digest();
+
+    // Simulate state-sync winning the race: execute the transaction locally via
+    // the checkpoint execution path (as a lagging node catching up would),
+    // *before* the consensus handler processes the commit that sequenced it.
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        verified_tx.clone(),
+        epoch_store.epoch(),
+        /* checkpoint */ 1,
+    );
+    authority
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(
+        authority
+            .get_transaction_cache_reader()
+            .try_is_tx_already_executed(&tx_digest)
+            .unwrap(),
+        "precondition: transaction should be marked executed after state-sync execution"
+    );
+
+    // Now the committee's consensus delivers the same transaction. Process the
+    // commit exactly as the consensus handler would, which builds the pending
+    // checkpoint for this commit.
+    let seq_tx = SequencedConsensusTransaction::new_test(ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+        tracking_id: Default::default(),
+    });
+    authority
+        .epoch_store_for_testing()
+        .process_consensus_transactions_for_tests(
+            vec![seq_tx],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            /* skip_consensus_commit_prologue_in_test */ true,
+            &authority,
+        )
+        .await
+        .unwrap();
+
+    // The transaction must still be a checkpoint root on this node, otherwise
+    // its locally-built checkpoint diverges from the committee's certified one.
+    let all_roots: Vec<TransactionKey> = authority
+        .epoch_store_for_testing()
+        .get_pending_checkpoints(None)
+        .unwrap()
+        .into_iter()
+        .flat_map(|(_, cp)| cp.roots().clone())
+        .collect();
+
+    assert!(
+        all_roots.contains(&TransactionKey::Digest(tx_digest)),
+        "already-executed transaction {tx_digest:?} was dropped from checkpoint roots \
+         (fork bug #11649); roots = {all_roots:?}"
     );
 }
