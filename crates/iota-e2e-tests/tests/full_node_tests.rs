@@ -14,7 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -25,7 +25,7 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -917,7 +917,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
 
 async fn get_obj_read_from_node(
     node: &IotaNodeHandle,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
         Ok((obj_ref, object, layout))
@@ -928,7 +928,7 @@ async fn get_obj_read_from_node(
 
 async fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
-    object_id: ObjectID,
+    object_id: ObjectId,
     seq_num: SequenceNumber,
 ) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let PastObjectRead::VersionFound(obj_ref, object, layout) =
@@ -1274,7 +1274,7 @@ async fn transfer_coin(
     context: &WalletContext,
 ) -> Result<
     (
-        ObjectID,
+        ObjectId,
         IotaAddress,
         IotaAddress,
         TransactionDigest,

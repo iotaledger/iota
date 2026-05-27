@@ -14,10 +14,10 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,
@@ -38,7 +38,7 @@ use crate::{errors::IndexerError, read::IndexerReader};
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 
-type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
+type ValidatorTable = (IotaAddress, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -100,7 +100,7 @@ impl GovernanceReadApi {
 
     async fn get_stakes_by_ids(
         &self,
-        ids: Vec<ObjectID>,
+        ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, IndexerError> {
         let mut stakes = vec![];
         for stored_object in self.inner.multi_get_objects_in_blocking_task(ids).await? {
@@ -498,7 +498,7 @@ impl GovernanceReadApi {
     /// dynamic fields within specific Move tables.
     ///
     /// To retrieve validator status information, this function utilizes the
-    /// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify
+    /// corresponding `table_id` (an `ObjectId` value) and a `limit` to specify
     /// the number of records to fetch. Both the `table_id` and `limit` can
     /// be obtained from `IotaSystemStateSummary` in the caller.
     /// Additionally, keys are extracted from the table `DynamicFieldInfo`
@@ -536,7 +536,7 @@ impl GovernanceReadApi {
     /// ```
     async fn validator_summary_from_system_state<K, F>(
         &self,
-        table_id: ObjectID,
+        table_id: ObjectId,
         validator_size: u64,
         key: F,
         protocol_version: Option<u64>,
@@ -654,7 +654,7 @@ fn stake_status(
 impl GovernanceReadApiServer for GovernanceReadApi {
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes_by_ids(staked_iota_ids)
             .await
@@ -667,7 +667,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
 
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         let stakes = self
             .inner

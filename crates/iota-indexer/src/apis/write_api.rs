@@ -25,9 +25,10 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_protocol_config::Chain;
+use iota_sdk_types::ObjectId;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
@@ -551,7 +552,7 @@ impl TxObjectResolver {
 
     async fn get_past_object_read_with_retry(
         &self,
-        id: ObjectID,
+        id: ObjectId,
         version: SequenceNumber,
     ) -> IndexerResult<PastObjectRead> {
         let backoff = backoff::ExponentialBackoff {
@@ -609,7 +610,7 @@ impl ObjectProvider for TxObjectResolver {
 
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
         // try in-memory cache first
@@ -628,7 +629,7 @@ impl ObjectProvider for TxObjectResolver {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         // try exact version in cache

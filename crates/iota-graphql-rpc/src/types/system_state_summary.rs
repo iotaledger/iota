@@ -5,8 +5,9 @@
 use std::collections::BTreeMap;
 
 use async_graphql::*;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::IotaAddress as NativeIotaAddress,
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary as NativeSystemStateSummary, IotaValidatorSummary,
     },
@@ -33,13 +34,13 @@ pub(crate) struct NativeStateValidatorInfo {
     pub at_risk_validators: Vec<(NativeIotaAddress, u64)>,
     pub validator_report_records: Vec<(NativeIotaAddress, Vec<NativeIotaAddress>)>,
     pub pending_removals: Vec<u64>,
-    pub pending_active_validators_id: ObjectID,
+    pub pending_active_validators_id: ObjectId,
     pub pending_active_validators_size: u64,
-    pub staking_pool_mappings_id: ObjectID,
+    pub staking_pool_mappings_id: ObjectId,
     pub staking_pool_mappings_size: u64,
-    pub inactive_pools_id: ObjectID,
+    pub inactive_pools_id: ObjectId,
     pub inactive_pools_size: u64,
-    pub validator_candidates_id: ObjectID,
+    pub validator_candidates_id: ObjectId,
     pub validator_candidates_size: u64,
 }
 

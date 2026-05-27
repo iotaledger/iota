@@ -14,8 +14,9 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
@@ -105,7 +106,7 @@ impl Genesis {
         &self.objects
     }
 
-    pub fn object(&self, id: ObjectID) -> Option<Object> {
+    pub fn object(&self, id: ObjectId) -> Option<Object> {
         self.objects.iter().find(|o| o.id() == id).cloned()
     }
 
@@ -172,7 +173,7 @@ impl Genesis {
         let clock = self
             .objects()
             .iter()
-            .find(|o| o.id() == ObjectID::CLOCK)
+            .find(|o| o.id() == ObjectId::CLOCK)
             .expect("clock must always exist")
             .data
             .as_struct_opt()
@@ -290,7 +291,7 @@ impl UnsignedGenesis {
         &self.objects
     }
 
-    pub fn object(&self, id: ObjectID) -> Option<Object> {
+    pub fn object(&self, id: ObjectId) -> Option<Object> {
         self.objects.iter().find(|o| o.id() == id).cloned()
     }
 
@@ -328,13 +329,13 @@ impl UnsignedGenesis {
 
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
-            .get_object(&ObjectID::RANDOMNESS_STATE)
+            .get_object(&ObjectId::RANDOMNESS_STATE)
             .is_some()
     }
 
     pub fn has_bridge_object(&self) -> bool {
         self.objects()
-            .get_object(&ObjectID::GENESIS_BRIDGE)
+            .get_object(&ObjectId::GENESIS_BRIDGE)
             .is_some()
     }
 

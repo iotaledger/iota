@@ -7,7 +7,8 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tracing::warn;
@@ -48,16 +49,16 @@ pub struct IotaNamesOptions {
     pub package_address: IotaAddress,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
     pub payments_package_address: IotaAddress,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
-    pub registry_id: ObjectID,
+    pub registry_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
     #[arg(long = "iota-names-reverse-registry-id")]
-    pub reverse_registry_id: ObjectID,
+    pub reverse_registry_id: ObjectId,
 }
 
 impl From<IotaNamesOptions> for IotaNamesConfig {

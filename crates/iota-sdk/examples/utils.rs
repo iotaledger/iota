@@ -20,7 +20,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::IotaAddress,
         crypto::SignatureScheme::ED25519,
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -29,7 +29,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Command, crypto::Intent};
+use iota_sdk_types::{Command, ObjectId, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
@@ -157,7 +157,7 @@ pub async fn request_tokens_from_faucet(
         let owner = client
             .read_api()
             .get_object_with_options(
-                ObjectID::from_str(&coin_id)?,
+                ObjectId::from_str(&coin_id)?,
                 IotaObjectDataOptions::new().with_owner(),
             )
             .await?;

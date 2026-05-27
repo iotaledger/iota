@@ -50,9 +50,10 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, ObjectID, TxContext},
+        base_types::{IotaAddress, TxContext},
         id::UID,
         object::{Object, Owner},
         stardust::{
@@ -69,7 +70,7 @@ mod tests {
     };
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = NftOutput {
             id,
@@ -103,7 +104,7 @@ mod tests {
     }
 
     fn alias_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = AliasOutput {
             id,
@@ -134,7 +135,7 @@ mod tests {
     }
 
     fn basic_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let output = BasicOutput {
             id,
@@ -171,7 +172,7 @@ mod tests {
     }
 
     fn timelock(balance: u64) -> anyhow::Result<Object> {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(balance);
         let expiration_timestamp_ms = 10;
         let label = None;

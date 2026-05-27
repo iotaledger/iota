@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
-use iota_sdk_types::{Command, Identifier};
+use iota_sdk_types::{Command, Identifier, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectType},
+    base_types::{IotaAddress, ObjectType},
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::timelocked_staking::{
@@ -21,10 +21,10 @@ impl TransactionBuilder {
     pub async fn request_add_stake(
         &self,
         signer: IotaAddress,
-        mut coins: Vec<ObjectID>,
+        mut coins: Vec<ObjectId>,
         amount: impl Into<Option<u64>>,
         validator: IotaAddress,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -65,7 +65,7 @@ impl TransactionBuilder {
                 builder.pure(validator).unwrap(),
             ];
             builder.command(Command::new_move_call(
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 Identifier::IOTA_SYSTEM_MODULE,
                 ADD_STAKE_MUL_COIN_FUN_NAME,
                 vec![],
@@ -86,8 +86,8 @@ impl TransactionBuilder {
     pub async fn request_withdraw_stake(
         &self,
         signer: IotaAddress,
-        staked_iota: ObjectID,
-        gas: impl Into<Option<ObjectID>>,
+        staked_iota: ObjectId,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let staked_iota = self.get_object_ref(staked_iota).await?;
@@ -97,7 +97,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            ObjectID::SYSTEM,
+            ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
             WITHDRAW_STAKE_FUN_NAME,
             vec![],
@@ -115,9 +115,9 @@ impl TransactionBuilder {
     pub async fn request_add_timelocked_stake(
         &self,
         signer: IotaAddress,
-        locked_balance: ObjectID,
+        locked_balance: ObjectId,
         validator: IotaAddress,
-        gas: ObjectID,
+        gas: ObjectId,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -143,7 +143,7 @@ impl TransactionBuilder {
                 builder.pure(validator)?,
             ];
             builder.command(Command::new_move_call(
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 ADD_TIMELOCKED_STAKE_FUN_NAME,
                 vec![],
@@ -164,8 +164,8 @@ impl TransactionBuilder {
     pub async fn request_withdraw_timelocked_stake(
         &self,
         signer: IotaAddress,
-        timelocked_staked_iota: ObjectID,
-        gas: ObjectID,
+        timelocked_staked_iota: ObjectId,
+        gas: ObjectId,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let timelocked_staked_iota = self.get_object_ref(timelocked_staked_iota).await?;
@@ -175,7 +175,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            ObjectID::SYSTEM,
+            ObjectId::SYSTEM,
             Identifier::TIMELOCKED_STAKING_MODULE,
             WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
             vec![],

@@ -10,9 +10,9 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
@@ -143,7 +143,7 @@ pub struct IotaMoveModuleId {
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
     #[schemars(with = "ObjectIDSchema")]
-    pub package: ObjectID,
+    pub package: ObjectId,
     /// The module name to which the function belongs.
     pub module: String,
     /// The function name.
@@ -158,7 +158,7 @@ impl FromStr for MoveFunctionName {
             iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
                 error: e.to_string(),
             })?;
-        let package = ObjectID::new(module.address().into_bytes());
+        let package = ObjectId::new(module.address().into_bytes());
         Ok(Self {
             package,
             module: module.name().to_string(),
@@ -424,7 +424,7 @@ pub enum IotaMoveValue {
     String(String),
     UID {
         #[schemars(with = "ObjectIDSchema")]
-        id: ObjectID,
+        id: ObjectId,
     },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
@@ -704,7 +704,7 @@ fn try_convert_type(
             let id = values.remove("id").cloned().map(IotaMoveValue::from);
             if let Some(IotaMoveValue::Address(address)) = id {
                 return Some(IotaMoveValue::UID {
-                    id: ObjectID::from(address),
+                    id: ObjectId::from(address),
                 });
             }
         }

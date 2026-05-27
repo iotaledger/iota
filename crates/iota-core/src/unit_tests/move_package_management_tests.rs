@@ -7,7 +7,7 @@ use std::{fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_move::manage_package::ManagePackage;
 use iota_move_build::BuildConfig;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 
 #[tokio::test]
 async fn test_manage_package_update() {
@@ -30,8 +30,8 @@ async fn test_manage_package_update() {
         .update_lock_file_toolchain_version(&path, "0.0.1".into())
         .expect("Could not update lock file");
 
-    let original_id = ObjectID::from_short_hex("0xa").unwrap();
-    let latest_id = ObjectID::from_short_hex("0xb").unwrap();
+    let original_id = ObjectId::from_short_hex("0xa").unwrap();
+    let latest_id = ObjectId::from_short_hex("0xb").unwrap();
 
     let manage_package = ManagePackage {
         environment: "mainnet".to_string(),

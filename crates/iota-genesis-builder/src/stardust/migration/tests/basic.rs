@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::{
     TransactionId,
     address::{AliasAddress, Ed25519Address},
@@ -18,7 +19,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     stardust::{coin_type::CoinType, output::BASIC_OUTPUT_MODULE_NAME},
 };
 
@@ -66,7 +67,7 @@ fn basic_simple_coin_id() {
         .unwrap()
         .coin()
         .unwrap();
-    let expected_object_id = ObjectID::new(header.output_id().hash());
+    let expected_object_id = ObjectId::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
 }
 
@@ -116,7 +117,7 @@ fn basic_simple_coin_id_with_expired_timelock() {
             .get(&header.output_id())
             .unwrap();
         let migrated_object_id = created_objects.coin().unwrap();
-        let expected_object_id = ObjectID::new(header.output_id().hash());
+        let expected_object_id = ObjectId::new(header.output_id().hash());
         assert_eq!(expected_object_id, *migrated_object_id);
         // No output should have been created.
         assert!(created_objects.output().is_err())
@@ -154,7 +155,7 @@ fn basic_id() {
         .unwrap()
         .output()
         .unwrap();
-    let expected_object_id = ObjectID::new(header.output_id().hash());
+    let expected_object_id = ObjectId::new(header.output_id().hash());
     assert_eq!(expected_object_id, *migrated_object_id);
 }
 
@@ -241,7 +242,7 @@ fn basic_simple_coin_migration_with_native_tokens() {
         .unwrap()
         .coin()
         .unwrap();
-    let expected_gas_coin_id = ObjectID::new(basic_output_id.hash());
+    let expected_gas_coin_id = ObjectId::new(basic_output_id.hash());
     assert_eq!(
         created_gas_coin_id, &expected_gas_coin_id,
         "unexpected gas coin id"

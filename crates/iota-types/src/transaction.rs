@@ -74,7 +74,7 @@ pub const GAS_PRICE_FOR_SYSTEM_TX: u64 = 1;
 
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 
-const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
+const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
@@ -157,7 +157,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
             | Self::ChangeEpochV3(_)
             | Self::ChangeEpochV4(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::SYSTEM_STATE,
+                    id: ObjectId::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -316,8 +316,8 @@ impl CallArgExt for CallArg {
     }
 }
 
-// Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
+// Add package IDs, `ObjectId`, for types defined in modules.
+fn add_type_tag_packages(packages: &mut BTreeSet<ObjectId>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
@@ -332,7 +332,7 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
             | TypeTag::Signer => (),
             TypeTag::Vector(inner) => stack.push(inner),
             TypeTag::Struct(struct_tag) => {
-                packages.insert(ObjectID::new(struct_tag.address().into_bytes()));
+                packages.insert(ObjectId::new(struct_tag.address().into_bytes()));
                 stack.extend(struct_tag.type_params().iter())
             }
         }
@@ -576,7 +576,7 @@ pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Seal
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
 
@@ -652,7 +652,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectID::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -679,7 +679,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         })
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         self.commands
             .iter()
             .filter_map(|command| match command {
@@ -736,7 +736,7 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     /// Returns the objects received by this transaction.
     fn receiving_objects(&self) -> Vec<ObjectRef>;
     /// Return the metadata of each of the input objects for the transaction.
@@ -786,7 +786,7 @@ impl TransactionKindExt for TransactionKind {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
-                SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+                SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
             ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
@@ -797,7 +797,7 @@ impl TransactionKindExt for TransactionKind {
             }
             Self::RandomnessStateUpdate(update) => {
                 Either::Left(Either::Left(iter::once(SharedObjectRef::new(
-                    ObjectID::RANDOMNESS_STATE,
+                    ObjectId::RANDOMNESS_STATE,
                     update.randomness_obj_initial_shared_version,
                     true,
                 ))))
@@ -810,7 +810,7 @@ impl TransactionKindExt for TransactionKind {
         }
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         match &self {
             Self::Programmable(pt) => pt.move_calls(),
             _ => vec![],
@@ -839,7 +839,7 @@ impl TransactionKindExt for TransactionKind {
             }
             Self::ConsensusCommitPrologueV1(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::CLOCK,
+                    id: ObjectId::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -853,7 +853,7 @@ impl TransactionKindExt for TransactionKind {
             }
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::RANDOMNESS_STATE,
+                    id: ObjectId::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 }]
@@ -1002,7 +1002,7 @@ pub trait TransactionDataAPI {
 
     /// Returns a list of Move calls as `(package_id, module_name,
     /// function_name)` tuples.
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
 
     /// Returns all input objects required by this transaction.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
@@ -1091,7 +1091,7 @@ pub trait TransactionDataAPI {
     /// gas payment coin.
     fn new_move_call(
         sender: IotaAddress,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1105,7 +1105,7 @@ pub trait TransactionDataAPI {
     /// gas payment coins.
     fn new_move_call_with_gas_coins(
         sender: IotaAddress,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1203,7 +1203,7 @@ pub trait TransactionDataAPI {
         sender: IotaAddress,
         gas_payment: ObjectRef,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1213,9 +1213,9 @@ pub trait TransactionDataAPI {
     fn new_upgrade(
         sender: IotaAddress,
         gas_payment: ObjectRef,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         upgrade_capability_and_owner: (ObjectRef, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
@@ -1323,7 +1323,7 @@ impl TransactionDataAPI for TransactionData {
         self.kind().shared_input_objects().collect()
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
+    fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)> {
         self.kind().move_calls()
     }
 
@@ -1419,7 +1419,7 @@ impl TransactionDataAPI for TransactionData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
                 objects: vec![ObjectRef::new(
-                    ObjectID::ZERO,
+                    ObjectId::ZERO,
                     SequenceNumber::default(),
                     ObjectDigest::MIN,
                 )],
@@ -1502,7 +1502,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_move_call(
         sender: IotaAddress,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1526,7 +1526,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_move_call_with_gas_coins(
         sender: IotaAddress,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -1688,7 +1688,7 @@ impl TransactionDataAPI for TransactionData {
         sender: IotaAddress,
         gas_payment: ObjectRef,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1704,9 +1704,9 @@ impl TransactionDataAPI for TransactionData {
     fn new_upgrade(
         sender: IotaAddress,
         gas_payment: ObjectRef,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         (upgrade_capability, capability_owner): (ObjectRef, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
@@ -1734,7 +1734,7 @@ impl TransactionDataAPI for TransactionData {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("authorize_upgrade"),
                 vec![],
@@ -1743,7 +1743,7 @@ impl TransactionDataAPI for TransactionData {
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("commit_upgrade"),
                 vec![],
@@ -2682,19 +2682,19 @@ pub type TrustedCertificate = TrustedEnvelope<SenderSignedData, AuthorityStrongQ
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum InputObjectKind {
     // A Move package, must be immutable.
-    MovePackage(ObjectID),
+    MovePackage(ObjectId),
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(ObjectRef),
     // A Move object that's shared and mutable.
     SharedMoveObject {
-        id: ObjectID,
+        id: ObjectId,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
 }
 
 impl InputObjectKind {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             Self::MovePackage(id) => *id,
             Self::ImmOrOwnedMoveObject(object_ref) => object_ref.object_id,
@@ -2894,7 +2894,7 @@ impl ObjectReadResult {
         }
     }
 
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.input_object_kind.object_id()
     }
 
@@ -3077,7 +3077,7 @@ impl InputObjects {
 
     // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectID>, SequenceNumber)> {
+    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, SequenceNumber)> {
         let mut contains_cancelled = false;
         let mut cancel_reason = None;
         let mut cancelled_objects = Vec::new();
@@ -3138,7 +3138,7 @@ impl InputObjects {
             .collect()
     }
 
-    pub fn mutable_inputs(&self) -> BTreeMap<ObjectID, (VersionDigest, Owner)> {
+    pub fn mutable_inputs(&self) -> BTreeMap<ObjectId, (VersionDigest, Owner)> {
         self.objects
             .iter()
             .filter_map(
@@ -3227,7 +3227,7 @@ impl InputObjects {
         )
     }
 
-    pub fn into_object_map(self) -> BTreeMap<ObjectID, Object> {
+    pub fn into_object_map(self) -> BTreeMap<ObjectId, Object> {
         self.objects
             .into_iter()
             .filter_map(|o| o.as_object().map(|object| (o.id(), object.clone())))
@@ -3239,7 +3239,7 @@ impl InputObjects {
     }
 
     // If it contains then it returns the ObjectReadResult
-    pub fn find_object_id_mut(&mut self, object_id: ObjectID) -> Option<&mut ObjectReadResult> {
+    pub fn find_object_id_mut(&mut self, object_id: ObjectId) -> Option<&mut ObjectReadResult> {
         self.objects.iter_mut().find(|o| o.id() == object_id)
     }
 

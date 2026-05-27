@@ -18,9 +18,9 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     event::EventID,
@@ -51,7 +51,7 @@ impl IndexerApi {
         &self,
         address: IotaAddress,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
@@ -105,7 +105,7 @@ impl IndexerApi {
 
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -206,7 +206,7 @@ impl IndexerApiServer for IndexerApi {
         &self,
         address: IotaAddress,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         let limit = cap_page_limit(limit);
@@ -316,8 +316,8 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_fields(
         &self,
-        parent_object_id: ObjectID,
-        cursor: Option<ObjectID>,
+        parent_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
         let limit = cap_page_limit(limit);
@@ -341,7 +341,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(
@@ -354,7 +354,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn get_dynamic_field_object_v2(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -406,7 +406,7 @@ impl IndexerApiServer for IndexerApi {
             .try_fold(HashMap::new(), |mut map, res| {
                 let obj = res?;
                 map.insert(obj.id(), obj.try_into()?);
-                Ok::<HashMap<ObjectID, NameRecord>, IndexerError>(map)
+                Ok::<HashMap<ObjectId, NameRecord>, IndexerError>(map)
             })?;
 
         // Extract the name record for the provided name
@@ -484,7 +484,7 @@ impl IndexerApiServer for IndexerApi {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

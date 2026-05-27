@@ -18,8 +18,9 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::IotaAddress,
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
         transaction::{CallArg, Transaction, TransactionDataAPI},
@@ -841,7 +842,7 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 "coin",
                 "split",
                 vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],

@@ -4,11 +4,11 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    base_types::{IotaAddress, SequenceNumber, TxContext},
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, MoveObjectExt, Object, Owner},
@@ -93,7 +93,7 @@ pub fn try_from_stardust(
         return Err(VestedRewardError::NativeTokensNotSupported);
     }
 
-    let id = UID::new(ObjectID::new(output_id.hash()));
+    let id = UID::new(ObjectId::new(output_id.hash()));
     let locked = Balance::new(basic_output.amount());
 
     // We already checked the existence of the timelock unlock condition at this
@@ -142,6 +142,7 @@ pub fn to_genesis_object(
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_types::ObjectId;
     use iota_stardust_types::block::{
         address::Ed25519Address,
         output::{
@@ -154,7 +155,6 @@ mod tests {
     };
     use iota_types::{
         balance::Balance,
-        base_types::ObjectID,
         id::UID,
         timelock::{
             label::label_struct_tag_to_string,
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn timelock_ser_deser_roundtrip() {
-        let id = UID::new(ObjectID::random());
+        let id = UID::new(ObjectId::random());
         let balance = Balance::new(100);
         let expiration_timestamp_ms = 10;
         let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

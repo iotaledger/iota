@@ -7,10 +7,11 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use futures::FutureExt;
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::ObjectId;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     digests::TransactionDigest,
     object::{Object, Owner},
     storage::{InputKey, MarkerValue, ObjectKey},
@@ -95,7 +96,7 @@ async fn create_passthrough_cache() -> Arc<PassthroughCache> {
 
 async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestCache) {
     let canceled_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::CANCELLED_READ,
     };
     let receiving_keys = HashSet::new();
@@ -108,7 +109,7 @@ async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestC
     assert_eq!(result.len(), 1);
 
     let congested_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
     };
 
@@ -119,7 +120,7 @@ async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestC
     assert_eq!(result.len(), 1);
 
     let randomness_unavailable_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::RANDOMNESS_UNAVAILABLE,
     };
 
@@ -131,7 +132,7 @@ async fn test_immediate_return_canceled_shared_impl(cache: &impl NotifyReadTestC
 }
 
 async fn test_immediate_return_cached_object_impl(cache: &impl NotifyReadTestCache) {
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let object = Object::with_id_owner_version_for_testing(object_id, version, Owner::Immutable);
 
@@ -170,7 +171,7 @@ async fn test_immediate_return_cached_package_impl(cache: &impl NotifyReadTestCa
 }
 
 async fn test_immediate_return_shared_deleted_impl(cache: &impl NotifyReadTestCache) {
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let epoch_id = 0;
 
@@ -198,7 +199,7 @@ async fn test_immediate_return_shared_deleted_impl(cache: &impl NotifyReadTestCa
 }
 
 async fn test_wait_for_object_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
 
     let input_keys = vec![InputKey::VersionedObject {
@@ -294,7 +295,7 @@ async fn test_wait_for_package_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
 }
 
 async fn test_wait_for_shared_deleted_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let epoch_id = 0;
 
@@ -328,7 +329,7 @@ async fn test_wait_for_shared_deleted_impl<C: NotifyReadTestCache>(cache: Arc<C>
 }
 
 async fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCache) {
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let requested_version = SequenceNumber::from(1);
     let higher_version = SequenceNumber::from(2);
     let object = Object::with_id_owner_version_for_testing(

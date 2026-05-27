@@ -6,8 +6,9 @@ use std::{sync::Arc, time::Duration};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_config::node::ExecutionCacheTypeAtomicU8;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{EpochId, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
@@ -112,21 +113,21 @@ impl ProxyCache {
 }
 
 impl ObjectCacheRead for ProxyCache {
-    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn try_get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         delegate_method!(self.try_get_package_object(package_id))
     }
 
-    fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]) {
+    fn force_reload_system_packages(&self, system_package_ids: &[ObjectId]) {
         delegate_method!(self.force_reload_system_packages(system_package_ids))
     }
 
-    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn try_get_object(&self, id: &ObjectId) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_get_object(id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_get_object_by_key(object_id, version))
@@ -141,7 +142,7 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_object_exists_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<bool> {
         delegate_method!(self.try_object_exists_by_key(object_id, version))
@@ -153,21 +154,21 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Option<ObjectRef>> {
         delegate_method!(self.try_get_latest_object_ref_or_tombstone(object_id))
     }
 
     fn try_get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         delegate_method!(self.try_get_latest_object_or_tombstone(object_id))
     }
 
     fn try_find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         delegate_method!(self.try_find_object_lt_or_eq_version(object_id, version))
@@ -181,7 +182,7 @@ impl ObjectCacheRead for ProxyCache {
         delegate_method!(self.try_get_lock(obj_ref, epoch_store))
     }
 
-    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectRef> {
         delegate_method!(self._try_get_live_objref(object_id))
     }
 
@@ -195,7 +196,7 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_marker_value(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
@@ -204,7 +205,7 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_latest_marker(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
         delegate_method!(self.try_get_latest_marker(object_id, epoch_id))

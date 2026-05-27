@@ -7,9 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
@@ -77,27 +76,27 @@ fn get_owner_address(object: &Object) -> Option<String> {
 // defined in the transaction data.
 // Input objects include coins and shared.
 struct InputObjectTracker {
-    shared: BTreeSet<ObjectID>,
-    coins: BTreeSet<ObjectID>,
-    input: BTreeSet<ObjectID>,
+    shared: BTreeSet<ObjectId>,
+    coins: BTreeSet<ObjectId>,
+    input: BTreeSet<ObjectId>,
 }
 
 impl InputObjectTracker {
     fn new(txn: &SenderSignedData) -> Self {
-        let shared: BTreeSet<ObjectID> = txn
+        let shared: BTreeSet<ObjectId> = txn
             .shared_input_objects()
             .into_iter()
             .map(|shared_io| shared_io.object_id)
             .collect();
         let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectID> = tx_data
+        let coins: BTreeSet<ObjectId> = tx_data
             .gas()
             .iter()
             .map(|obj_ref| obj_ref.object_id)
             .collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
-        let input: BTreeSet<ObjectID> = txn
+        let input: BTreeSet<ObjectId> = txn
             .input_objects()
             .expect("input objects must be valid")
             .into_iter()
@@ -110,7 +109,7 @@ impl InputObjectTracker {
         }
     }
 
-    fn get_input_object_kind(&self, object_id: &ObjectID) -> Option<InputObjectKind> {
+    fn get_input_object_kind(&self, object_id: &ObjectId) -> Option<InputObjectKind> {
         if self.coins.contains(object_id) {
             Some(InputObjectKind::GasCoin)
         } else if self.shared.contains(object_id) {
@@ -127,25 +126,25 @@ impl InputObjectTracker {
 // Build sets of object ids for created, mutated and deleted objects as reported
 // in the transaction effects.
 struct ObjectStatusTracker {
-    created: BTreeSet<ObjectID>,
-    mutated: BTreeSet<ObjectID>,
-    deleted: BTreeSet<ObjectID>,
+    created: BTreeSet<ObjectId>,
+    mutated: BTreeSet<ObjectId>,
+    deleted: BTreeSet<ObjectId>,
 }
 
 impl ObjectStatusTracker {
     fn new(effects: &TransactionEffects) -> Self {
-        let created: BTreeSet<ObjectID> = effects
+        let created: BTreeSet<ObjectId> = effects
             .created()
             .iter()
             .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
-        let mutated: BTreeSet<ObjectID> = effects
+        let mutated: BTreeSet<ObjectId> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
             .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
-        let deleted: BTreeSet<ObjectID> = effects
+        let deleted: BTreeSet<ObjectId> = effects
             .all_tombstones()
             .into_iter()
             .map(|(id, _)| id)
@@ -157,7 +156,7 @@ impl ObjectStatusTracker {
         }
     }
 
-    fn get_object_status(&self, object_id: &ObjectID) -> Option<ObjectStatus> {
+    fn get_object_status(&self, object_id: &ObjectId) -> Option<ObjectStatus> {
         if self.mutated.contains(object_id) {
             Some(ObjectStatus::Mutated)
         } else if self.deleted.contains(object_id) {
@@ -189,7 +188,7 @@ async fn get_move_struct<T: PackageStore>(
 
 #[derive(Debug, Default)]
 pub struct WrappedStruct {
-    object_id: Option<ObjectID>,
+    object_id: Option<ObjectId>,
     struct_tag: Option<StructTag>,
 }
 
@@ -237,7 +236,7 @@ fn parse_struct_field(
                     if let Some(MoveValue::Address(address) | MoveValue::Signer(address)) =
                         id_values.get("bytes").cloned()
                     {
-                        curr_struct.object_id = Some(ObjectID::new(address.into_bytes()))
+                        curr_struct.object_id = Some(ObjectId::new(address.into_bytes()))
                     }
                 }
             } else if "0x1::option::Option" == struct_name {
@@ -285,8 +284,7 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
-    use iota_sdk_types::StructTag;
-    use iota_types::base_types::ObjectID;
+    use iota_sdk_types::{ObjectId, StructTag};
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},
@@ -326,7 +324,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_short_hex("0x300")?)
+            Some(ObjectId::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs.get("$.principal").unwrap().struct_tag,
@@ -377,7 +375,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_short_hex("0x300")?)
+            Some(ObjectId::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs

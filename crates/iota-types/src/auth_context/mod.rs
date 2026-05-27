@@ -225,13 +225,10 @@ pub fn is_auth_context(
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Command, Identifier, TypeTag};
+    use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
 
     use super::*;
-    use crate::{
-        base_types::ObjectID,
-        transaction::{Argument, CallArg, ProgrammableTransaction},
-    };
+    use crate::transaction::{Argument, CallArg, ProgrammableTransaction};
 
     #[test]
     fn auth_context_new_from_components() {
@@ -243,7 +240,7 @@ mod tests {
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
             commands: vec![Command::new_move_call(
-                ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001")
+                ObjectId::from_prefixed_short_hex("0x0000000000000000000000000000000000000001")
                     .unwrap(),
                 Identifier::new_unchecked("mod"),
                 Identifier::new_unchecked("fun"),

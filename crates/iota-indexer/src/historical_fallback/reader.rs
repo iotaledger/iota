@@ -13,8 +13,9 @@ use std::collections::HashMap;
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
@@ -96,7 +97,7 @@ impl HistoricalFallbackReader {
             .all_changed_objects()
             .into_iter()
             .map(|(object_ref, _owner, _kind)| (object_ref.object_id, object_ref.version))
-            .collect::<Vec<(ObjectID, SequenceNumber)>>();
+            .collect::<Vec<(ObjectId, SequenceNumber)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(
             self.client.multi_get_objects(&input_object_keys, false),
@@ -344,7 +345,7 @@ impl HistoricalFallbackReader {
     /// - If `true`, it finds the latest version before the given one.
     pub(crate) async fn objects(
         &self,
-        object_refs: &[(ObjectID, SequenceNumber)],
+        object_refs: &[(ObjectId, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<StoredObject>>> {
         let stored_objects = self

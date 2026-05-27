@@ -4,12 +4,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
+    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
@@ -810,7 +811,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct TransactionInfo {
     pub checkpoint: u64,
-    pub object_types: HashMap<ObjectID, ObjectType>,
+    pub object_types: HashMap<ObjectId, ObjectType>,
 }
 
 impl TransactionInfo {
@@ -852,7 +853,7 @@ pub struct EpochInfo {
 #[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub type_: MoveObjectType,
 }
@@ -863,7 +864,7 @@ pub struct OwnedObjectCursor {
     pub object_type_identifier: u64,
     pub object_type_params: u64,
     pub inverted_balance: Option<u64>,
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
 }
 
 pub type OwnedObjectIteratorItem =
@@ -873,12 +874,12 @@ pub type DynamicFieldIteratorItem = Result<DynamicFieldKey, TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
-    pub parent: ObjectID,
-    pub field_id: ObjectID,
+    pub parent: ObjectId,
+    pub field_id: ObjectId,
 }
 
 impl DynamicFieldKey {
-    pub fn new<P: Into<ObjectID>>(parent: P, field_id: ObjectID) -> Self {
+    pub fn new<P: Into<ObjectId>>(parent: P, field_id: ObjectId) -> Self {
         Self {
             parent: parent.into(),
             field_id,
@@ -889,20 +890,20 @@ impl DynamicFieldKey {
 /// Coin info including optional regulated coin metadata.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+    pub coin_metadata_object_id: Option<ObjectId>,
+    pub treasury_object_id: Option<ObjectId>,
+    pub regulated_coin_metadata_object_id: Option<ObjectId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PackageVersionKey {
-    pub original_package_id: ObjectID,
+    pub original_package_id: ObjectId,
     pub version: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct PackageVersionInfo {
-    pub storage_id: ObjectID,
+    pub storage_id: ObjectId,
 }
 
 pub type PackageVersionIteratorItem =

@@ -1847,11 +1847,8 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_sdk_types::{Identifier, StructTag, TypeTag};
-    use iota_types::{
-        base_types::{ObjectID, random_object_ref},
-        error::IotaResult,
-    };
+    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
 
@@ -3198,8 +3195,8 @@ mod tests {
         IotaAddress::from_str(a).unwrap()
     }
 
-    fn obj_id(a: &str) -> ObjectID {
-        ObjectID::from_str(a).unwrap()
+    fn obj_id(a: &str) -> ObjectId {
+        ObjectId::from_str(a).unwrap()
     }
 
     fn datakey(a: &str, m: &'static str, n: &'static str) -> DatatypeKey {

@@ -13,8 +13,9 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
 };
 use jsonrpsee::http_client::HttpClient;
@@ -35,10 +36,10 @@ pub async fn call_test_fn(
     store: &PgIndexerStore,
     sender: iota_types::base_types::IotaAddress,
     keypair: &IotaKeyPair,
-    package_id: ObjectID,
+    package_id: ObjectId,
     function: &str,
     arguments: Vec<IotaJsonValue>,
-    gas: Option<ObjectID>,
+    gas: Option<ObjectId>,
 ) -> iota_json_rpc_types::IotaTransactionBlockResponse {
     let resp = execute_move_call(
         client,
@@ -77,7 +78,7 @@ pub async fn call_test_fn(
 }
 
 /// Extract the first created object ID from a transaction response.
-pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> ObjectID {
+pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> ObjectId {
     resp.object_changes
         .as_ref()
         .unwrap()
@@ -92,7 +93,7 @@ pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse
 /// Extract the version of an unwrapped object from a transaction response.
 fn unwrapped_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> SequenceNumber {
     resp.object_changes
         .as_ref()
@@ -112,7 +113,7 @@ fn unwrapped_version(
 /// Extract the version of an unwrapped-then-deleted object from effects.
 fn unwrapped_then_deleted_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> SequenceNumber {
     resp.effects
         .as_ref()

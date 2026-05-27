@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::ObjectID,
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
     layout_resolver::LayoutResolver,
@@ -59,7 +58,7 @@ impl LayoutResolver for TypeLayoutResolver<'_, '_> {
 }
 
 impl BackingPackageStore for NullIotaResolver<'_> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
     }
 }

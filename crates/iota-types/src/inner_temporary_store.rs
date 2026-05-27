@@ -7,13 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, VersionDigest},
+    base_types::{SequenceNumber, VersionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
@@ -22,20 +22,20 @@ use crate::{
     storage::{BackingPackageStore, InputKey, PackageObject},
 };
 
-pub type WrittenObjects = BTreeMap<ObjectID, Object>;
-pub type ObjectMap = BTreeMap<ObjectID, Object>;
+pub type WrittenObjects = BTreeMap<ObjectId, Object>;
+pub type ObjectMap = BTreeMap<ObjectId, Object>;
 pub type TxCoins = (ObjectMap, WrittenObjects);
 
 #[derive(Debug, Clone)]
 pub struct InnerTemporaryStore {
     pub input_objects: ObjectMap,
-    pub mutable_inputs: BTreeMap<ObjectID, (VersionDigest, Owner)>,
+    pub mutable_inputs: BTreeMap<ObjectId, (VersionDigest, Owner)>,
     // All the written objects' sequence number should have been updated to the lamport version.
     pub written: WrittenObjects,
-    pub loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+    pub loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     pub events: TransactionEvents,
     pub binary_config: BinaryConfig,
-    pub runtime_packages_loaded_from_db: BTreeMap<ObjectID, PackageObject>,
+    pub runtime_packages_loaded_from_db: BTreeMap<ObjectId, PackageObject>,
     pub lamport_version: SequenceNumber,
 }
 
@@ -119,7 +119,7 @@ where
         let obj = self
             .temp_store
             .written
-            .get(&ObjectID::new(id.address().into_bytes()));
+            .get(&ObjectId::new(id.address().into_bytes()));
         if let Some(o) = obj {
             if let Some(p) = o.data.as_package_opt() {
                 return Ok(Some(Arc::new(p.deserialize_module(
@@ -133,7 +133,7 @@ where
 }
 
 impl BackingPackageStore for InnerTemporaryStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(self
             .written
             .get(package_id)
@@ -158,7 +158,7 @@ where
     P: BackingPackageStore,
     F: BackingPackageStore,
 {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         if let Some(package) = self.primary.get_package_object(package_id)? {
             Ok(Some(package))
         } else {

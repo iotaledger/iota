@@ -8,8 +8,9 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::TransactionDigest,
     committee::Committee,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
@@ -60,7 +61,7 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -179,7 +180,7 @@ pub async fn get_verified_effects_and_events(
 /// which is signed by the previous committee.
 pub async fn get_verified_checkpoint(
     config: &Config,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
@@ -294,7 +295,7 @@ mod tests {
 
     fn random_event() -> Event {
         Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(

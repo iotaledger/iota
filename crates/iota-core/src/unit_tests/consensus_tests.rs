@@ -7,9 +7,9 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID},
+    base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -42,7 +42,7 @@ pub fn test_gas_objects() -> Vec<Object> {
     thread_local! {
         static GAS_OBJECTS: Vec<Object> = (0..4)
             .map(|_| {
-                let gas_object_id = ObjectID::random();
+                let gas_object_id = ObjectId::random();
                 let (owner, _) = deterministic_random_account_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
@@ -76,7 +76,7 @@ pub async fn test_certificates(
 
         let data = TransactionData::new_move_call(
             sender,
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static(module),
             Identifier::from_static(function),
             // type_args

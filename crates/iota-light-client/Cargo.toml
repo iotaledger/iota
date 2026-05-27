@@ -43,6 +43,7 @@ iota-graphql-rpc-client.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
@@ -50,9 +51,6 @@ telemetry-subscribers.workspace = true
 # external dependencies
 roaring.workspace = true
 tempfile.workspace = true
-
-# internal dependencies
-iota-sdk-types.workspace = true
 
 [lints]
 workspace = true

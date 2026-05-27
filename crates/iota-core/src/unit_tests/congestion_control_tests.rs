@@ -9,8 +9,9 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
@@ -51,7 +52,7 @@ struct TestSetup {
     sender: IotaAddress,
     sender_key: AccountKeyPair,
     package: ObjectRef,
-    gas_object_id: ObjectID,
+    gas_object_id: ObjectId,
 }
 
 impl TestSetup {
@@ -84,7 +85,7 @@ impl TestSetup {
             .build()
             .await;
 
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         setup_authority_state
             .insert_genesis_object(gas_object.clone())
@@ -181,7 +182,7 @@ impl TestSetup {
     // objects passed in `objects`.
     async fn create_genesis_objects_for_new_authority_state(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Vec<Object> {
         let mut genesis_objects = Vec::new();
         genesis_objects.push(TestSetup::convert_to_genesis_obj(
@@ -214,8 +215,8 @@ async fn commit_and_execute_transaction(
     package: &ObjectRef,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
-    shared_objects: &[(ObjectID, SequenceNumber)],
+    gas_object_id: &ObjectId,
+    shared_objects: &[(ObjectId, SequenceNumber)],
     owned_object: &ObjectRef,
     gas_units: u64,
 ) -> (Transaction, TransactionEffects) {

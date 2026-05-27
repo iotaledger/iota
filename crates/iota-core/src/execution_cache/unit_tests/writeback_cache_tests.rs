@@ -15,10 +15,10 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, random_object_ref},
+    base_types::{IotaAddress, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
@@ -53,7 +53,7 @@ impl AssertInserted for bool {
 
 fn random_event() -> Event {
     Event {
-        package_id: ObjectID::random(),
+        package_id: ObjectId::random(),
         module: Identifier::new("test").unwrap(),
         sender: IotaAddress::random(),
         type_: StructTag::new(
@@ -74,8 +74,8 @@ pub(crate) struct Scenario {
     pub epoch_store: Arc<AuthorityPerEpochStore>,
     pub cache: Arc<WritebackCache>,
 
-    id_map: BTreeMap<u32, ObjectID>,
-    objects: BTreeMap<ObjectID, Object>,
+    id_map: BTreeMap<u32, ObjectId>,
+    objects: BTreeMap<ObjectId, Object>,
     outputs: TransactionOutputs,
     transactions: BTreeSet<TransactionDigest>,
 
@@ -186,7 +186,7 @@ impl Scenario {
     }
 
     fn new_object() -> Object {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
@@ -212,8 +212,8 @@ impl Scenario {
             .unwrap()
     }
 
-    fn new_child(owner: ObjectID) -> Object {
-        let id = ObjectID::random();
+    fn new_child(owner: ObjectId) -> Object {
+        let id = ObjectId::random();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Object(owner),
@@ -522,7 +522,7 @@ impl Scenario {
         }
     }
 
-    pub fn obj_id(&self, short_id: u32) -> ObjectID {
+    pub fn obj_id(&self, short_id: u32) -> ObjectId {
         *self.id_map.get(&short_id).expect("no such id")
     }
 
@@ -1218,7 +1218,7 @@ async fn latest_object_cache_race_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let owner = IotaAddress::random();
 
     // a writer thread that keeps writing new versions
@@ -1404,7 +1404,7 @@ async fn concurrent_latest_object_cache_race_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let owner = IotaAddress::random();
 
     // write a new version on request
@@ -1507,10 +1507,10 @@ async fn concurrent_latest_object_cache_collision_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let mk_object_id = |i: usize| -> ObjectID {
+    let mk_object_id = |i: usize| -> ObjectId {
         let mut obj_id = [0_u8; 32];
         obj_id[0..8].copy_from_slice(&i.to_le_bytes());
-        ObjectID::new(obj_id)
+        ObjectId::new(obj_id)
     };
     // these two object ids have the same hash within MonotonicCache
     let object1_id = mk_object_id(166);
@@ -1526,7 +1526,7 @@ async fn concurrent_latest_object_cache_collision_test() {
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;
     let mut write2_version = OBJECT_START_VERSION;
-    let mut writer = |object_id: ObjectID| {
+    let mut writer = |object_id: ObjectId| {
         let (write_version, owner) = if object_id == object1_id {
             (&mut write1_version, owner1)
         } else {
@@ -1544,7 +1544,7 @@ async fn concurrent_latest_object_cache_collision_test() {
     };
 
     // invalidate the cache on request
-    let invalidator = |object_id: ObjectID| {
+    let invalidator = |object_id: ObjectId| {
         cache.cached.object_by_id_cache.invalidate(&object_id);
     };
 

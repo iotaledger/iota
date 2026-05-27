@@ -507,14 +507,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 impl ObjectStore for CheckpointSummaryFileStore {
     fn try_get_object(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
         _: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()

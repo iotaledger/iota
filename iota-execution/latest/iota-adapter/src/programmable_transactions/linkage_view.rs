@@ -8,8 +8,8 @@ use std::{
     str::FromStr,
 };
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
     move_package::{MovePackage, MovePackageExt, TypeOrigin, UpgradeInfo},
     storage::{BackingPackageStore, PackageObject, get_module},
@@ -39,20 +39,20 @@ pub struct LinkageView<'state> {
     /// Runtime ID and Defining ID are invariant between across link contexts.
     ///
     /// Cache is keyed first by the Runtime ID of the type's module, and then
-    /// the type's identifier. The value is the ObjectID/Address of the
+    /// the type's identifier. The value is the ObjectId/Address of the
     /// package that introduced the type.
     type_origin_cache: RefCell<HashMap<ModuleId, HashMap<Identifier, AccountAddress>>>,
     /// Cache of past package addresses that have been the link context -- if a
     /// package is in this set, then we will not try to load its type origin
     /// table when setting it as a context (again).
-    past_contexts: RefCell<HashSet<ObjectID>>,
+    past_contexts: RefCell<HashSet<ObjectId>>,
 }
 
 #[derive(Debug)]
 pub struct LinkageInfo {
     storage_id: AccountAddress,
     runtime_id: AccountAddress,
-    link_table: BTreeMap<ObjectID, UpgradeInfo>,
+    link_table: BTreeMap<ObjectId, UpgradeInfo>,
 }
 
 pub struct SavedLinkage(LinkageInfo);
@@ -78,7 +78,7 @@ impl<'state> LinkageView<'state> {
 
     /// Indicates whether this `LinkageView` has had its context set to match
     /// the linkage in `context`.
-    pub fn has_linkage(&self, context: ObjectID) -> bool {
+    pub fn has_linkage(&self, context: ObjectId) -> bool {
         self.linkage_info
             .as_ref()
             .is_some_and(|l| l.storage_id.as_ref() == context.as_bytes())
@@ -179,12 +179,12 @@ impl<'state> LinkageView<'state> {
     }
 
     /// Adds a type origin to the cache, associating the given `ModuleId` and
-    /// struct identifier (`Identifier`) with the provided defining `ObjectID`.
+    /// struct identifier (`Identifier`) with the provided defining `ObjectId`.
     fn add_type_origin(
         &self,
         runtime_id: ModuleId,
         struct_: Identifier,
-        defining_id: ObjectID,
+        defining_id: ObjectId,
     ) -> Result<(), ExecutionError> {
         let mut cache = self.type_origin_cache.borrow_mut();
         let module_cache = cache.entry(runtime_id.clone()).or_default();
@@ -233,7 +233,7 @@ impl<'state> LinkageView<'state> {
             ));
         }
 
-        let runtime_id = ObjectID::new(module_id.address().into_bytes());
+        let runtime_id = ObjectId::new(module_id.address().into_bytes());
         let Some(upgrade) = linkage.link_table.get(&runtime_id) else {
             invariant_violation!(
                 "Missing linkage for {runtime_id} in context {}, runtime_id is {}",
@@ -269,7 +269,7 @@ impl<'state> LinkageView<'state> {
             return Ok(ModuleId::new(cached, runtime_id.name().to_owned()));
         }
 
-        let storage_id = ObjectID::new(self.relocate(runtime_id)?.address().into_bytes());
+        let storage_id = ObjectId::new(self.relocate(runtime_id)?.address().into_bytes());
         let Some(package) = self.resolver.get_package_object(&storage_id)? else {
             invariant_violation!("Missing dependent package in store: {storage_id}",)
         };
@@ -349,7 +349,7 @@ impl ModuleResolver for LinkageView<'_> {
 }
 
 impl BackingPackageStore for LinkageView<'_> {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.resolver.get_package_object(package_id)
     }
 }

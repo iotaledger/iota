@@ -6,15 +6,14 @@ use iota_framework::BuiltInFramework;
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
-use iota_types::{
-    IOTA_SYSTEM_ADDRESS, base_types::ObjectID, digests::TransactionDigest, object::Object,
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{IOTA_SYSTEM_ADDRESS, digests::TransactionDigest, object::Object};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
 async fn test_additional_objects() {
     // Test the ability to add additional objects into genesis for test clusters
-    let id = ObjectID::random();
+    let id = ObjectId::random();
     let cluster = TestClusterBuilder::new()
         .with_objects([Object::immutable_with_id_for_testing(id)])
         .build()
@@ -31,7 +30,7 @@ async fn test_package_override() {
     let framework_ref = {
         let default_cluster = TestClusterBuilder::new().build().await;
         let client = default_cluster.rpc_client();
-        let obj = client.get_object(ObjectID::SYSTEM, None).await.unwrap();
+        let obj = client.get_object(ObjectId::SYSTEM, None).await.unwrap();
 
         if let Some(obj) = obj.data {
             obj.object_ref()
@@ -41,7 +40,7 @@ async fn test_package_override() {
     };
 
     let modified_ref = {
-        let mut framework_modules = BuiltInFramework::get_package_by_id(&ObjectID::SYSTEM)
+        let mut framework_modules = BuiltInFramework::get_package_by_id(&ObjectId::SYSTEM)
             .modules()
             .to_vec();
 
@@ -58,8 +57,8 @@ async fn test_package_override() {
             &framework_modules,
             TransactionDigest::GENESIS_MARKER,
             [
-                BuiltInFramework::get_package_by_id(&ObjectID::STD).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&ObjectID::FRAMEWORK).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectId::STD).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectId::FRAMEWORK).genesis_move_package(),
             ],
         )
         .unwrap();
@@ -70,7 +69,7 @@ async fn test_package_override() {
             .await;
 
         let client = modified_cluster.rpc_client();
-        let obj = client.get_object(ObjectID::SYSTEM, None).await.unwrap();
+        let obj = client.get_object(ObjectId::SYSTEM, None).await.unwrap();
 
         if let Some(obj) = obj.data {
             obj.object_ref()

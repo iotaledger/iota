@@ -1,14 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Command, TypeTag};
+use iota_sdk_types::{Command, ObjectId, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     iota_serde::TypeName,
     transaction::{Argument, CallArg},
 };
@@ -44,7 +44,7 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveProgrammableMoveCall {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
     #[serde_as(as = "Vec<TypeName>")]
@@ -67,12 +67,12 @@ pub enum MoveCommand {
     TransferObjects(Vec<Argument>, Argument),
     SplitCoins(Argument, Vec<Argument>),
     MergeCoins(Argument, Vec<Argument>),
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
+    Publish(Vec<Vec<u8>>, Vec<ObjectId>),
     MakeMoveVec(
         #[serde_as(as = "Option<TypeName>")] Option<TypeTag>,
         Vec<Argument>,
     ),
-    Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
+    Upgrade(Vec<Vec<u8>>, Vec<ObjectId>, ObjectId, Argument),
 }
 
 impl From<&Command> for MoveCommand {
@@ -130,7 +130,7 @@ impl MoveCommand {
 pub enum MoveObjectArg {
     ImmOrOwnedObject(ObjectRef),
     SharedObject {
-        id: ObjectID,
+        id: ObjectId,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
@@ -193,14 +193,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, ObjectDigest, SequenceNumber},
         transaction::{Argument, CallArg, SharedObjectRef},
     };
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    fn obj_id() -> ObjectID {
-        ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
+    fn obj_id() -> ObjectId {
+        ObjectId::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
     fn obj_ref() -> ObjectReference {

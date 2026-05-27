@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::ObjectID,
     error::{ExecutionError, IotaError},
     execution_status::{ExecutionFailureStatus, MoveLocation},
 };
@@ -46,7 +45,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
             });
             ExecutionFailureStatus::MoveAbort {
                 location: MoveLocation {
-                    package: ObjectID::new(abort_location_id.address().into_bytes()),
+                    package: ObjectId::new(abort_location_id.address().into_bytes()),
                     module: Identifier::new_unchecked(abort_location_id.name().as_str()),
                     function,
                     instruction,
@@ -73,7 +72,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                             module.identifier_at(fhandle.name).to_string()
                         });
                         Some(MoveLocation {
-                            package: ObjectID::new(id.address().into_bytes()),
+                            package: ObjectId::new(id.address().into_bytes()),
                             module: Identifier::new_unchecked(id.name().as_str()),
                             function,
                             instruction,

@@ -18,10 +18,10 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, random_object_ref},
+    base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
@@ -37,8 +37,8 @@ use prost::Message;
 
 /// Create a large object (~`padding_bytes` extra) so that a small number of
 /// objects exceeds the 1 MB minimum message size.
-fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
-    let id = ObjectID::random();
+fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
+    let id = ObjectId::random();
     let (owner, _) = get_key_pair::<AccountKeyPair>();
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);

@@ -7,7 +7,8 @@ use iota_json_rpc_types::{
     iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides access to coin-related data such as coins owned by an address,
@@ -28,7 +29,7 @@ pub trait CoinReadApi {
         coin_type: Option<String>,
         /// optional paging cursor
         #[schemars(with = "Option<ObjectIDSchema>")]
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;
@@ -44,7 +45,7 @@ pub trait CoinReadApi {
         owner: IotaAddress,
         /// optional paging cursor
         #[schemars(with = "Option<ObjectIDSchema>")]
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,
     ) -> RpcResult<CoinPage>;

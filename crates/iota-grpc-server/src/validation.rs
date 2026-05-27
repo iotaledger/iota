@@ -6,10 +6,11 @@ use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     v1::{
         error_reason::ErrorReason,
-        types::{Address, ObjectId},
+        types::{Address, ObjectId as ProtoObjectId},
     },
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use prost_types::FieldMask;
 
 use crate::error::RpcError;
@@ -29,11 +30,11 @@ pub(crate) fn validate_read_mask<M: MessageFields>(
 }
 
 /// Validate and extract a required `ObjectId` proto field as an internal
-/// `ObjectID`.
+/// `ObjectId`.
 pub(crate) fn require_object_id(
-    field: &Option<ObjectId>,
+    field: &Option<ProtoObjectId>,
     field_name: &str,
-) -> Result<ObjectID, RpcError> {
+) -> Result<ObjectId, RpcError> {
     field
         .as_ref()
         .ok_or_else(|| {
@@ -116,7 +117,7 @@ pub(crate) fn page_token_mismatch() -> RpcError {
         .into()
 }
 
-/// Convert an `ObjectID` to a gRPC `ObjectId` proto.
-pub(crate) fn object_id_proto(id: &ObjectID) -> ObjectId {
-    ObjectId::default().with_object_id(id.into_bytes().to_vec())
+/// Convert an `ObjectId` to a gRPC `ObjectId` proto.
+pub(crate) fn object_id_proto(id: &ObjectId) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
 }

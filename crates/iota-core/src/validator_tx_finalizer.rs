@@ -293,10 +293,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
+    use iota_sdk_types::ObjectId;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, ObjectID, TransactionDigest},
+        base_types::{AuthorityName, IotaAddress, TransactionDigest},
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -674,7 +675,7 @@ mod tests {
         state: &Arc<AuthorityState>,
         sender: IotaAddress,
         keypair: &AccountKeyPair,
-        gas_object_id: ObjectID,
+        gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
         let gas_object_ref = state
             .get_object(&gas_object_id)

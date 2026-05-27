@@ -21,8 +21,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
     iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -76,7 +77,7 @@ impl ReadApi {
         &self,
         address: IotaAddress,
         query: impl Into<Option<IotaObjectResponseQuery>>,
-        cursor: impl Into<Option<ObjectID>>,
+        cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<ObjectsPage> {
         Ok(self
@@ -86,7 +87,7 @@ impl ReadApi {
             .await?)
     }
 
-    /// Get the dynamic fields owned by the given [ObjectID].
+    /// Get the dynamic fields owned by the given [ObjectId].
     /// Results are paginated.
     ///
     /// If the field is a dynamic field, this method returns the ID of the Field
@@ -102,7 +103,7 @@ impl ReadApi {
     ///
     /// use iota_sdk::{
     ///     IotaClientBuilder,
-    ///     types::base_types::{IotaAddress, ObjectID},
+    ///     types::base_types::{IotaAddress, ObjectId},
     /// };
     ///
     /// #[tokio::main]
@@ -132,8 +133,8 @@ impl ReadApi {
     /// ```
     pub async fn get_dynamic_fields(
         &self,
-        object_id: ObjectID,
-        cursor: impl Into<Option<ObjectID>>,
+        object_id: ObjectId,
+        cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<DynamicFieldPage> {
         Ok(self
@@ -147,7 +148,7 @@ impl ReadApi {
     /// object ID and field name.
     pub async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
     ) -> IotaRpcResult<IotaObjectResponse> {
         Ok(self
@@ -161,7 +162,7 @@ impl ReadApi {
     /// object ID and field name with options.
     pub async fn get_dynamic_field_object_v2(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: impl Into<Option<IotaObjectDataOptions>>,
     ) -> IotaRpcResult<IotaObjectResponse> {
@@ -187,7 +188,7 @@ impl ReadApi {
     /// use iota_sdk::{
     ///     IotaClientBuilder,
     ///     rpc_types::IotaObjectDataOptions,
-    ///     types::base_types::{IotaAddress, ObjectID},
+    ///     types::base_types::{IotaAddress, ObjectId},
     /// };
     ///
     /// #[tokio::main]
@@ -230,7 +231,7 @@ impl ReadApi {
     /// ```
     pub async fn try_get_parsed_past_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         options: IotaObjectDataOptions,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
@@ -254,7 +255,7 @@ impl ReadApi {
     /// use iota_sdk::{
     ///     IotaClientBuilder,
     ///     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
-    ///     types::base_types::{IotaAddress, ObjectID},
+    ///     types::base_types::{IotaAddress, ObjectId},
     /// };
     ///
     /// #[tokio::main]
@@ -376,7 +377,7 @@ impl ReadApi {
     /// ```
     pub async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> IotaRpcResult<IotaObjectResponse> {
         Ok(self.api.http.get_object(object_id, Some(options)).await?)
@@ -433,7 +434,7 @@ impl ReadApi {
     /// ```
     pub async fn multi_get_object_with_options(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: IotaObjectDataOptions,
     ) -> IotaRpcResult<Vec<IotaObjectResponse>> {
         Ok(self
@@ -444,7 +445,7 @@ impl ReadApi {
     }
 
     /// Get a [bcs] serialized object's bytes by object ID.
-    pub async fn get_move_object_bcs(&self, object_id: ObjectID) -> IotaRpcResult<Vec<u8>> {
+    pub async fn get_move_object_bcs(&self, object_id: ObjectId) -> IotaRpcResult<Vec<u8>> {
         let resp = self
             .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
             .await?
@@ -644,7 +645,7 @@ impl ReadApi {
     /// Get move modules by package ID, keyed by name.
     pub async fn get_normalized_move_modules_by_package(
         &self,
-        package: ObjectID,
+        package: ObjectId,
     ) -> IotaRpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         Ok(self
             .api
@@ -733,7 +734,7 @@ impl ReadApi {
     /// Get an object by ID before the given version.
     pub async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
         Ok(self
@@ -763,7 +764,7 @@ impl ReadApi {
     pub async fn iota_names_find_all_registration_nfts(
         &self,
         address: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> IotaRpcResult<ObjectsPage> {

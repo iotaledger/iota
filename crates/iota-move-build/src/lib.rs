@@ -17,8 +17,9 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     error::{IotaError, IotaResult},
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
@@ -90,7 +91,7 @@ pub mod test_utils {
 pub struct CompiledPackage {
     pub package: MoveCompiledPackage,
     /// Address the package is recorded as being published at.
-    pub published_at: Result<ObjectID, PublishedAtError>,
+    pub published_at: Result<ObjectId, PublishedAtError>,
     /// The dependency IDs of this package
     pub dependency_ids: PackageDependencies,
     /// The bytecode modules that this package depends on (both directly and
@@ -139,7 +140,7 @@ impl BuildConfig {
 
     pub fn new_for_testing_replace_addresses<I, S>(dep_original_addresses: I) -> Self
     where
-        I: IntoIterator<Item = (S, ObjectID)>,
+        I: IntoIterator<Item = (S, ObjectId)>,
         S: Into<String>,
     {
         let mut build_config = Self::new_for_testing();
@@ -495,7 +496,7 @@ impl CompiledPackage {
     /// Return the set of Object IDs corresponding to this package's transitive
     /// dependencies' storage package IDs (where to load those packages
     /// on-chain).
-    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectID> {
+    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().copied().collect()
     }
 
@@ -695,7 +696,7 @@ impl CompiledPackage {
         })
     }
 
-    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectID> {
+    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().cloned().collect()
     }
 
@@ -704,7 +705,7 @@ impl CompiledPackage {
     pub fn find_immediate_deps_pkgs_to_keep(
         &self,
         with_unpublished_deps: bool,
-    ) -> Result<BTreeMap<Symbol, ObjectID>, anyhow::Error> {
+    ) -> Result<BTreeMap<Symbol, ObjectId>, anyhow::Error> {
         // Start from the root modules (or all modules if with_unpublished_deps is true
         // as we need to include modules with 0x0 address)
         let root_modules: Vec<_> = if with_unpublished_deps {
@@ -836,7 +837,7 @@ impl PackageHooks for IotaPackageHooks {
 #[derive(Debug, Clone)]
 pub struct PackageDependencies {
     /// Set of published dependencies (name and address).
-    pub published: BTreeMap<Symbol, ObjectID>,
+    pub published: BTreeMap<Symbol, ObjectId>,
     /// Set of unpublished dependencies (name).
     pub unpublished: BTreeSet<Symbol>,
     /// Set of dependencies with invalid `published-at` addresses.
@@ -844,7 +845,7 @@ pub struct PackageDependencies {
     /// Set of dependencies that have conflicting `published-at` addresses. The
     /// key refers to the package, and the tuple refers to the address in
     /// the (Move.lock, Move.toml) respectively.
-    pub conflicting: BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    pub conflicting: BTreeMap<Symbol, (ObjectId, ObjectId)>,
 }
 
 /// Partition packages in `resolution_graph` into one of four groups:
@@ -856,7 +857,7 @@ pub struct PackageDependencies {
 pub fn gather_published_ids(
     resolution_graph: &ResolvedGraph,
     chain_id: Option<String>,
-) -> (Result<ObjectID, PublishedAtError>, PackageDependencies) {
+) -> (Result<ObjectId, PublishedAtError>, PackageDependencies) {
     let root = resolution_graph.root_package();
 
     let mut published = BTreeMap::new();
@@ -903,7 +904,7 @@ pub fn gather_published_ids(
     )
 }
 
-pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, PublishedAtError> {
+pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectId, PublishedAtError> {
     let Some(value) = manifest
         .package
         .custom_properties
@@ -912,7 +913,7 @@ pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, Publ
         return Err(PublishedAtError::NotPresent);
     };
 
-    ObjectID::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
+    ObjectId::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
 }
 
 pub fn check_unpublished_dependencies(unpublished: &BTreeSet<Symbol>) -> Result<(), IotaError> {
@@ -966,7 +967,7 @@ pub fn check_invalid_dependencies(invalid: &BTreeMap<Symbol, String>) -> Result<
 }
 
 pub fn check_conflicting_addresses(
-    conflicting: &BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    conflicting: &BTreeMap<Symbol, (ObjectId, ObjectId)>,
     dump_bytecode_base64: bool,
 ) -> Result<(), IotaError> {
     if conflicting.is_empty() {

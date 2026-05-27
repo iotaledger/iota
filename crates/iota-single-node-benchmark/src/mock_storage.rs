@@ -8,9 +8,10 @@ use std::{
 };
 
 use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
+use iota_sdk_types::ObjectId;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    base_types::{EpochId, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{EpochId, SequenceNumber, VersionNumber},
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
@@ -29,13 +30,13 @@ use prometheus::core::{Atomic, AtomicU64};
 // InMemoryCache is ready.
 #[derive(Clone)]
 pub(crate) struct InMemoryObjectStore {
-    objects: Arc<RwLock<HashMap<ObjectID, Object>>>,
+    objects: Arc<RwLock<HashMap<ObjectId, Object>>>,
     package_cache: Arc<PackageObjectCache>,
     num_object_reads: Arc<AtomicU64>,
 }
 
 impl InMemoryObjectStore {
-    pub(crate) fn new(objects: HashMap<ObjectID, Object>) -> Self {
+    pub(crate) fn new(objects: HashMap<ObjectId, Object>) -> Self {
         Self {
             objects: Arc::new(RwLock::new(objects)),
             package_cache: PackageObjectCache::new(),
@@ -115,7 +116,7 @@ impl InMemoryObjectStore {
 impl ObjectStore for InMemoryObjectStore {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.num_object_reads.inc_by(1);
         Ok(self.objects.read().unwrap().get(object_id).cloned())
@@ -123,7 +124,7 @@ impl ObjectStore for InMemoryObjectStore {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
@@ -137,7 +138,7 @@ impl ObjectStore for InMemoryObjectStore {
 }
 
 impl BackingPackageStore for InMemoryObjectStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.package_cache.get_package_object(package_id, self)
     }
 }
@@ -145,8 +146,8 @@ impl BackingPackageStore for InMemoryObjectStore {
 impl ChildObjectResolver for InMemoryObjectStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         Ok(self.try_get_object(child)?.and_then(|o| {
@@ -160,8 +161,8 @@ impl ChildObjectResolver for InMemoryObjectStore {
 
     fn get_object_received_at_version(
         &self,
-        _owner: &ObjectID,
-        _receiving_object_id: &ObjectID,
+        _owner: &ObjectId,
+        _receiving_object_id: &ObjectId,
         _receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {

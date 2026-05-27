@@ -16,7 +16,7 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-    use iota_sdk_types::{Command, Identifier};
+    use iota_sdk_types::{Command, Identifier, ObjectId};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -26,7 +26,7 @@ mod checked {
         },
         auth_context::AuthContext,
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
+        base_types::{IotaAddress, SequenceNumber, TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         digests::Digest,
@@ -175,11 +175,11 @@ mod checked {
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
         tx_ctx: Rc<RefCell<TxContext>>,
-        mutable_inputs: &HashSet<ObjectID>,
+        mutable_inputs: &HashSet<ObjectId>,
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
@@ -708,7 +708,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -796,7 +796,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1050,7 +1050,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1375,7 +1375,7 @@ mod checked {
             .input(CallArg::pure(&params.storage_charge))
             .unwrap();
         let storage_charges = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1387,7 +1387,7 @@ mod checked {
             .input(CallArg::pure(&params.computation_charge))
             .unwrap();
         let computation_charges = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1433,7 +1433,7 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            ObjectID::SYSTEM,
+            ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
             ADVANCE_EPOCH_FUNCTION_NAME,
             vec![],
@@ -1442,7 +1442,7 @@ mod checked {
 
         // Step 3: Destroy the storage rebates.
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             vec![GAS::type_tag()],
@@ -1888,7 +1888,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::CLOCK_MODULE,
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
@@ -1933,13 +1933,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::RANDOM_MODULE,
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
                     CallArg::Shared(SharedObjectRef::new(
-                        ObjectID::RANDOMNESS_STATE,
+                        ObjectId::RANDOMNESS_STATE,
                         update.randomness_obj_initial_shared_version,
                         true,
                     )),

@@ -12,9 +12,9 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
@@ -34,9 +34,9 @@ impl TransactionBuilder {
     pub async fn select_gas(
         &self,
         signer: IotaAddress,
-        input_gas: impl Into<Option<ObjectID>>,
+        input_gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-        input_objects: Vec<ObjectID>,
+        input_objects: Vec<ObjectId>,
         gas_price: u64,
     ) -> Result<ObjectRef, anyhow::Error> {
         if gas_budget < gas_price {
@@ -87,7 +87,7 @@ impl TransactionBuilder {
     }
 
     /// Get the object references for a list of object IDs
-    pub async fn input_refs(&self, obj_ids: &[ObjectID]) -> Result<Vec<ObjectRef>, anyhow::Error> {
+    pub async fn input_refs(&self, obj_ids: &[ObjectId]) -> Result<Vec<ObjectRef>, anyhow::Error> {
         let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
         let obj_refs = join_all(handles)
             .await
@@ -96,11 +96,11 @@ impl TransactionBuilder {
         Ok(obj_refs)
     }
 
-    /// Resolve a provided [`ObjectID`] to the required [`CallArg`] for a
+    /// Resolve a provided [`ObjectId`] to the required [`CallArg`] for a
     /// given move module.
     async fn get_object_arg(
         &self,
-        id: ObjectID,
+        id: ObjectId,
         is_mutable_ref: bool,
         view: &CompiledModule,
         arg_type: &SignatureToken,
@@ -182,7 +182,7 @@ impl TransactionBuilder {
     pub async fn resolve_and_checks_json_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module_ident: &Identifier,
         function_ident: &Identifier,
         type_args: &[TypeTag],
@@ -221,7 +221,7 @@ impl TransactionBuilder {
     pub async fn resolve_and_check_call_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: &Identifier,
         function: &Identifier,
         type_args: &[TypeTag],
@@ -284,7 +284,7 @@ impl TransactionBuilder {
     pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module_ident: &Identifier,
         function_ident: &Identifier,
         type_args: &[TypeTag],
@@ -353,7 +353,7 @@ impl TransactionBuilder {
     /// `CallArg::Object` entry.
     pub async fn resolve_and_check_json_args_to_call_args(
         &self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: &Identifier,
         function: &Identifier,
         type_args: &[TypeTag],
@@ -390,18 +390,18 @@ impl TransactionBuilder {
     }
 
     /// Get the latest object ref for an object.
-    pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
+    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectRef> {
         // TODO: we should add retrial to reduce the transaction building error rate
         self.get_object_ref_and_type(object_id)
             .await
             .map(|(oref, _)| oref)
     }
 
-    /// Helper function to get the latest ObjectRef (ObjectID, SequenceNumber,
-    /// ObjectDigest) and ObjectType for a provided ObjectID.
+    /// Helper function to get the latest ObjectRef (ObjectId, SequenceNumber,
+    /// ObjectDigest) and ObjectType for a provided ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> anyhow::Result<(ObjectRef, ObjectType)> {
         let object = self
             .0
@@ -412,8 +412,8 @@ impl TransactionBuilder {
         Ok((object.object_ref(), object.object_type()?))
     }
 
-    /// Helper function to get a Move Package for a provided ObjectID.
-    async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+    /// Helper function to get a Move Package for a provided ObjectId.
+    async fn fetch_move_package(&self, package_id: ObjectId) -> Result<MovePackage, anyhow::Error> {
         let object = self
             .0
             .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())

@@ -23,11 +23,10 @@ use iota_primitives::{
     SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
-    base_types::ObjectID,
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
 };
@@ -59,7 +58,7 @@ mod iota_system_state_summary;
 mod iota_transaction;
 mod object_changes;
 
-pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectID>;
+pub type DynamicFieldPage = Page<IotaDynamicFieldInfo, ObjectId>;
 
 /// `next_cursor` points to the last item in the page;
 /// Reading with `next_cursor` will start from the next item after `next_cursor`
@@ -193,7 +192,7 @@ pub struct IotaDynamicFieldInfo {
     pub type_: DynamicFieldType,
     pub object_type: String,
     #[schemars(with = "ObjectIDSchema")]
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: iota_types::base_types::SequenceNumber,
     #[schemars(with = "Base58Schema")]

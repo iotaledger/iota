@@ -15,9 +15,10 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{IotaAddress, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -530,7 +531,7 @@ mod checked {
             return Err(UserInputError::ObjectInputArityViolation);
         }
 
-        let gas_coins: HashSet<ObjectID> =
+        let gas_coins: HashSet<ObjectId> =
             HashSet::from_iter(transaction.gas().iter().map(|obj_ref| obj_ref.object_id));
         for object in objects.iter() {
             let input_object_kind = object.input_object_kind;
@@ -645,7 +646,7 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::CLOCK,
+                id: ObjectId::CLOCK,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
@@ -655,24 +656,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectID::CLOCK,
+                        object_id: ObjectId::CLOCK,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::AUTHENTICATOR_STATE,
+                id: ObjectId::AUTHENTICATOR_STATE,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: ObjectID::AUTHENTICATOR_STATE,
+                        object_id: ObjectId::AUTHENTICATOR_STATE,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: ObjectID::RANDOMNESS_STATE,
+                id: ObjectId::RANDOMNESS_STATE,
                 mutable: true,
                 ..
             } => {
@@ -682,7 +683,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: ObjectID::RANDOMNESS_STATE,
+                        object_id: ObjectId::RANDOMNESS_STATE,
                     });
                 }
             }

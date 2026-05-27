@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_types::{
-    base_types::ObjectID, full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI,
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI};
 use tokio::sync::Mutex;
 
 use crate::{FileType, handlers::AnalyticsHandler, tables::MoveCallEntry};
@@ -85,7 +84,7 @@ impl MoveCallHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         transaction_digest: String,
-        move_calls: &[(&ObjectID, &str, &str)],
+        move_calls: &[(&ObjectId, &str, &str)],
         state: &mut State,
     ) {
         for (package, module, function) in move_calls.iter() {

@@ -6,9 +6,9 @@ use std::result::Result;
 
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -26,7 +26,7 @@ impl TransactionBuilder {
         &self,
         sender: IotaAddress,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -42,8 +42,8 @@ impl TransactionBuilder {
         &self,
         sender: IotaAddress,
         compiled_modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        gas: impl Into<Option<ObjectID>>,
+        dep_ids: Vec<ObjectId>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
@@ -64,10 +64,10 @@ impl TransactionBuilder {
     /// [`iota_sdk_types::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        upgrade_capability: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        upgrade_capability: ObjectId,
         upgrade_policy: u8,
         digest: Vec<u8>,
     ) -> Result<TransactionKind, anyhow::Error> {
@@ -105,7 +105,7 @@ impl TransactionBuilder {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("authorize_upgrade"),
                 vec![],
@@ -114,7 +114,7 @@ impl TransactionBuilder {
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::PACKAGE_MODULE,
                 Identifier::from_static("commit_upgrade"),
                 vec![],
@@ -131,12 +131,12 @@ impl TransactionBuilder {
     pub async fn upgrade(
         &self,
         sender: IotaAddress,
-        package_id: ObjectID,
+        package_id: ObjectId,
         compiled_modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        upgrade_capability: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        upgrade_capability: ObjectId,
         upgrade_policy: u8,
-        gas: impl Into<Option<ObjectID>>,
+        gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.0.get_reference_gas_price().await?;
