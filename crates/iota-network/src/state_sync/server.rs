@@ -25,7 +25,7 @@ use super::{PeerHeights, PeerStateSyncInfo, StateSync, StateSyncMessage};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum GetCheckpointSummaryRequest {
-    Latest,
+    Reserved0, /// Reserved0, unused placeholder (formerly `Latest`, issue #11472)
     ByDigest(CheckpointDigest),
     BySequenceNumber(CheckpointSequenceNumber),
 }
@@ -101,15 +101,18 @@ where
         Ok(Response::new(()))
     }
 
-    /// Gets a checkpoint summary by digest or sequence number, or get the
-    /// latest one.
+    /// Gets a checkpoint summary by digest or sequence number.
     async fn get_checkpoint_summary(
         &self,
         request: Request<GetCheckpointSummaryRequest>,
     ) -> Result<Response<Option<Checkpoint>>, Status> {
         let checkpoint = match request.inner() {
-            GetCheckpointSummaryRequest::Latest => {
-                self.store.try_get_highest_synced_checkpoint().map(Some)
+            // Reserved0 (formerly `Latest`): no longer served, see the variant docs.
+            GetCheckpointSummaryRequest::Reserved0 => {
+                return Err(Status::new_with_message(
+                    StatusCode::BadRequest,
+                    "GetCheckpointSummaryRequest::Reserved is not a valid request",
+                ));
             }
             GetCheckpointSummaryRequest::ByDigest(digest) => {
                 self.store.try_get_checkpoint_by_digest(digest)
