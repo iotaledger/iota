@@ -12,10 +12,8 @@ use iota_grpc_types::{
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
     },
 };
-use iota_types::{
-    base_types::{ObjectID, TypeTag},
-    dynamic_field::visitor as DFV,
-};
+use iota_sdk_types::TypeTag;
+use iota_types::{base_types::ObjectID, dynamic_field::visitor as DFV};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 

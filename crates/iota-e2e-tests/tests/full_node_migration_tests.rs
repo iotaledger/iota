@@ -26,10 +26,10 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
     balance::Balance,
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,

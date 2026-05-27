@@ -249,7 +249,7 @@ mod tests {
             let context = Arc::new(context);
             let dag_state = Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(crate::storage::mem_store::MemStore::new(context.clone())),
+                Arc::new(crate::storage::mem_store::MemStore::new()),
             )));
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
@@ -279,7 +279,7 @@ mod tests {
         ) -> Arc<RwLock<DagState>> {
             let selective_dag_state = Arc::new(RwLock::new(DagState::new(
                 self.context.clone(),
-                Arc::new(MemStore::new(self.context.clone())),
+                Arc::new(MemStore::new()),
             )));
 
             let mut state = selective_dag_state.write();

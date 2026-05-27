@@ -5,8 +5,9 @@
 use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{StructTag, TransactionDigest},
+    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,

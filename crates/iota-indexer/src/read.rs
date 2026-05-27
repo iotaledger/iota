@@ -30,10 +30,11 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,

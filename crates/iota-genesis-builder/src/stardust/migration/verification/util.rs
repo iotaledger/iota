@@ -4,13 +4,14 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::{
     address::Address,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
@@ -361,18 +362,18 @@ pub(super) fn verify_parent(
     match address {
         Address::Alias(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Alias>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Alias>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}: {e}"
                     );
                 }
             }
         }
         Address::Nft(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Nft>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Nft>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}: {e}"
                     );
                 }
             }
@@ -435,8 +436,12 @@ impl NativeTokenKind for Field<String, Balance> {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.to_rust::<Field<String, Balance>>()
-            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
+        obj.to_rust::<Field<String, Balance>>().map_err(|e| {
+            anyhow!(
+                "expected a native token field, found {:?}: {e}",
+                obj.type_()
+            )
+        })
     }
 }
 

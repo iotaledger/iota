@@ -26,9 +26,10 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::TypeTag;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::UserInputError,
@@ -581,7 +582,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
 
         let name = field_reverse_record_object
             .to_rust::<Field<IotaAddress, Name>>()
-            .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
+            .map_err(|e| Error::Unexpected(format!("malformed Object {reverse_record_id}: {e}")))?
             .value;
 
         let name = name.to_string();

@@ -16,8 +16,9 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, StructTag, TypeTag, VersionNumber},
+    base_types::{ObjectID, VersionNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{

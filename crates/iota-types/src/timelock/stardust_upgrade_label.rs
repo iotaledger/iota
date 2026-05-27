@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{Identifier, IotaAddress, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
+
+use crate::base_types::IotaAddress;
 
 pub const STARDUST_UPGRADE_MODULE_NAME: Identifier =
     Identifier::from_static("stardust_upgrade_label");

@@ -59,7 +59,7 @@ fn new_rocksdb_teststore(consensus_fast_commit_sync: bool) -> TestStore {
     context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
-        RocksDBStore::new(temp_dir.path().to_str().unwrap(), Arc::new(context)),
+        RocksDBStore::new(temp_dir.path().to_str().unwrap()),
         temp_dir,
         consensus_fast_commit_sync,
     ))
@@ -71,10 +71,7 @@ fn new_mem_teststore(consensus_fast_commit_sync: bool) -> TestStore {
         .protocol_config
         .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
     context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-    TestStore::Mem(
-        MemStore::new(Arc::from(context.clone())),
-        consensus_fast_commit_sync,
-    )
+    TestStore::Mem(MemStore::new(), consensus_fast_commit_sync)
 }
 
 #[rstest]
@@ -281,7 +278,7 @@ async fn scan_block_headers(
                         .map(|b| b.verified_transactions.clone())
                         .collect(),
                 ),
-            context,
+            context.clone(),
         )
         .unwrap();
     {
@@ -303,7 +300,7 @@ async fn scan_block_headers(
 
     {
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None, context.clone())
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
         assert_eq!(
@@ -312,7 +309,7 @@ async fn scan_block_headers(
         );
 
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None, context)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 0);
     }

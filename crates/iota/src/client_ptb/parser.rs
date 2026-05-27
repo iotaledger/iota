@@ -4,7 +4,8 @@
 
 use std::iter::Peekable;
 
-use iota_types::base_types::{Identifier, ObjectID};
+use iota_sdk_types::Identifier;
+use iota_types::base_types::ObjectID;
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},

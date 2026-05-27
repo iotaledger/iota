@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use iota_sdk_types::{Identifier, TypeTag};
 use iota_stardust_types::block::{
     address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
@@ -24,7 +25,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,

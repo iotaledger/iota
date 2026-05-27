@@ -18,9 +18,10 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Identifier, StructTag, TypeTag};
     use iota_types::{
         balance::Balance,
-        base_types::{Identifier, IotaAddress, ObjectID, StructTag, TxContext, TypeTag},
+        base_types::{IotaAddress, ObjectID, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,

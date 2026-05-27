@@ -4,10 +4,11 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::StructTag;
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, MoveObjectExt, Object, Owner},

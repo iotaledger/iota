@@ -1,12 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TransactionDigest, TypeTag,
-    },
+    base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
     object::{Data, Object, Owner},

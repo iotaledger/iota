@@ -267,11 +267,12 @@ pub struct AuthContextData {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{Command, Identifier, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{Identifier, ObjectID, TypeTag},
-        transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+        base_types::ObjectID,
+        transaction::{Argument, CallArg, ProgrammableTransaction},
     };
 
     #[test]

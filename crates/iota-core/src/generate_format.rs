@@ -7,13 +7,13 @@ use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use iota_sdk_types::{
-    ChangeEpoch,
+    ChangeEpoch, Command, Identifier, StructTag, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID,
-        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
+        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, ObjectID,
+        TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -43,7 +43,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
+        Argument, CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
         Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
     },
@@ -87,7 +87,7 @@ fn get_registry() -> Result<Registry> {
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
     // containing them are traced.
-    let sdk_identifier = iota_types::base_types::Identifier::from_static("sample_identifier");
+    let sdk_identifier = iota_sdk_types::Identifier::from_static("sample_identifier");
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();

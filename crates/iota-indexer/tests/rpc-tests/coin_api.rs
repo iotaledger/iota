@@ -15,9 +15,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,

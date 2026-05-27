@@ -1225,7 +1225,7 @@ mod tests {
         let byzantine_index = AuthorityIndex::new_for_test(3);
         let (context, _key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Set up DAG with blocks from all validators.
@@ -1432,7 +1432,7 @@ mod tests {
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let context = Arc::new(context);
         let final_round: Round = MAX_ROUND_GAP_FOR_USEFUL_PARTS / 2;
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Report useful info to connection knowledge corresponding to to_whom_index

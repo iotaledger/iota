@@ -19,11 +19,12 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag,
-        TransactionDigest, TxSequenceNumber, TypeTag,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
+        TransactionDigest, TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},

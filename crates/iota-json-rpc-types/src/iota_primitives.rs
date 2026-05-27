@@ -13,10 +13,8 @@
 //! cannot drift. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
 //! appropriate when the wrapper itself is the serialised value.
 
-use iota_types::{
-    base_types::{StructTag as NativeStructTag, TypeTag as NativeTypeTag},
-    iota_serde::{IotaStructTag, IotaTypeTag},
-};
+use iota_sdk_types::{StructTag as NativeStructTag, TypeTag as NativeTypeTag};
+use iota_types::iota_serde::{IotaStructTag, IotaTypeTag};
 use schemars::{
     JsonSchema,
     schema::{InstanceType, Metadata, NumberValidation, SchemaObject},
@@ -252,7 +250,7 @@ impl JsonSchema for GenericSignature {
 }
 
 /// A schema type that defines the JSON representation of a Move
-/// [`StructTag`](iota_types::base_types::StructTag) as a string, and
+/// [`StructTag`](iota_sdk_types::StructTag) as a string, and
 /// provides a string serialization usable via `#[serde_as]`.
 pub struct StructTag;
 
@@ -296,7 +294,7 @@ impl<'de> DeserializeAs<'de, NativeStructTag> for StructTag {
 }
 
 /// A schema type that defines the JSON representation of a Move
-/// [`TypeTag`](iota_types::base_types::TypeTag) as a string, and
+/// [`TypeTag`](iota_sdk_types::TypeTag) as a string, and
 /// provides a string serialization usable via `#[serde_as]`.
 pub struct TypeTag;
 

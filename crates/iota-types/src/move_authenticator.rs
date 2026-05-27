@@ -9,12 +9,12 @@ use std::{
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_types::{TypeTag, crypto::IntentMessage};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -450,7 +450,7 @@ impl MoveAuthenticatorV1 {
         // Type arguments validity check.
         //
         // Each type argument is checked for validity in the same way as it is done for
-        // `ProgrammableMoveCall`.
+        // `MoveCall`.
         let mut type_arguments_count = 0;
         self.type_arguments().iter().try_for_each(|type_arg| {
             crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)

@@ -14,9 +14,10 @@ use iota_grpc_client::{
 };
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
+use iota_sdk_types::{Identifier, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
+    base_types::{IotaAddress, ObjectID, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,

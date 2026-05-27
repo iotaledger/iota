@@ -17,15 +17,14 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{Command, Identifier};
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext, TypeTag,
-    },
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -41,8 +40,8 @@ use iota_types::{
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
     transaction::{
-        Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, InputObjects,
-        ObjectReadResult, ProgrammableTransaction,
+        Argument, CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
+        ProgrammableTransaction,
     },
 };
 use move_vm_runtime_latest::move_vm::MoveVM;
@@ -484,7 +483,7 @@ impl Executor {
         written.remove(&bag_object.id());
         let field_ids = written
             .iter()
-            .filter_map(|(id, object)| object.to_rust::<Field<String, Balance>>().map(|_| *id))
+            .filter_map(|(id, object)| object.to_rust::<Field<String, Balance>>().ok().map(|_| *id))
             .collect();
         // Save the modified coins
         self.store.finish(written);
@@ -764,7 +763,7 @@ impl Executor {
 }
 
 mod pt {
-    use iota_types::base_types::Identifier;
+    use iota_sdk_types::{Identifier, StructTag, TypeTag};
 
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;

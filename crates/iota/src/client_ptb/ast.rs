@@ -4,7 +4,8 @@
 
 use std::fmt;
 
-use iota_types::base_types::{Identifier, ObjectID, TypeTag};
+use iota_sdk_types::{Identifier, TypeTag};
+use iota_types::base_types::ObjectID;
 use move_core_types::{
     parsing::{
         address::{NumericalAddress, ParsedAddress},

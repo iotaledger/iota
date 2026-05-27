@@ -42,7 +42,7 @@ use std::{
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
-use iota_sdk_types::{Identifier, Version};
+use iota_sdk_types::{Identifier, StructTag, TypeTag, Version};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
@@ -51,8 +51,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IotaAddress, TypeTag,
-    base_types::{ObjectID, SequenceNumber, StructTag},
+    IotaAddress,
+    base_types::{ObjectID, SequenceNumber},
     collection_types::{Entry, VecMap},
     derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},

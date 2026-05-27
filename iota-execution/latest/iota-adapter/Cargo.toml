@@ -25,6 +25,7 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-latest" }
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 iota-verifier = { path = "../iota-verifier", package = "iota-verifier-latest" }
 move-binary-format.workspace = true

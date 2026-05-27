@@ -655,8 +655,9 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{Identifier, StructTag, TypeTag};
     use iota_types::{
-        base_types::{Identifier, IotaAddress, StructTag, TypeTag},
+        base_types::IotaAddress,
         digests::TransactionDigest,
         gas_coin::GasCoin,
         object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},

@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::StructTag;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -27,7 +28,7 @@ use iota_types::{
         },
     },
     auth_context::AuthContextData,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -2196,9 +2197,9 @@ fn load_authenticator_function_ref(
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
         .to_rust()
-        .ok_or_else(|| ReplayEngineError::GeneralError {
+        .map_err(|e| ReplayEngineError::GeneralError {
             err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}"
+                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
             ),
         })?;
 
