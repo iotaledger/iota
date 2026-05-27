@@ -1559,51 +1559,35 @@ impl IndexerReader {
             .filter(|_| stored_txes.len() != tx_sequence_numbers.len())
         {
             Some(fallback_reader) => {
-                // pre-allocate results with None. Found transactions will replace None with
-                // Some(tx).
-                let mut results: Vec<Option<StoredTransaction>> =
-                    vec![None; tx_sequence_numbers.len()];
+                let found: HashSet<i64> =
+                    stored_txes.iter().map(|tx| tx.tx_sequence_number).collect();
+                let missing_seqs: Vec<i64> = tx_sequence_numbers
+                    .iter()
+                    .copied()
+                    .filter(|s| !found.contains(s))
+                    .collect();
 
-                match is_descending {
-                    Some(true) => tx_sequence_numbers.sort_unstable_by_key(|&s| Reverse(s)),
-                    Some(false) => tx_sequence_numbers.sort_unstable(),
-                    None => {}
-                }
-
-                // each entry is a tuple of (key, original_index) so we can merge fetched data
-                // back into the correct position in the results vector.
-                let mut tx_seq_to_index = tx_sequence_numbers
-                    .into_iter()
-                    .enumerate()
-                    .map(|(idx, seq)| (seq, idx))
-                    .collect::<HashMap<i64, usize>>();
-
-                for tx in stored_txes {
-                    if let Some(i) = tx_seq_to_index.remove(&tx.tx_sequence_number) {
-                        results[i] = Some(tx);
-                    }
-                }
-
-                let missing_tx_digests = self
+                let missing_digests = self
                     .db()
-                    .resolve_tx_sequence_numbers_to_digests(
-                        tx_seq_to_index.keys().copied().collect(),
-                    )
+                    .resolve_tx_sequence_numbers_to_digests(missing_seqs)
                     .await?;
 
-                let historical_transactions = fallback_reader
-                    .transactions(&missing_tx_digests)
+                let historical = fallback_reader
+                    .transactions(&missing_digests)
                     .await?
                     .into_iter()
                     .flatten();
 
-                for tx in historical_transactions {
-                    if let Some(i) = tx_seq_to_index.remove(&tx.tx_sequence_number) {
-                        results[i] = Some(tx);
-                    }
+                let mut merged: Vec<StoredTransaction> =
+                    stored_txes.into_iter().chain(historical).collect();
+
+                match is_descending {
+                    Some(true) => merged.sort_unstable_by_key(|tx| Reverse(tx.tx_sequence_number)),
+                    Some(false) => merged.sort_unstable_by_key(|tx| tx.tx_sequence_number),
+                    None => {}
                 }
 
-                results.into_iter().flatten().collect()
+                merged
             }
             None => stored_txes,
         };
