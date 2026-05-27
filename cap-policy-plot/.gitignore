@@ -1,0 +1,5 @@
+# Track only the script; everything else here is derived from
+# cap-policy-sweep.jsonl (gitignored) and the plot venv.
+*
+!.gitignore
+!plot.py
