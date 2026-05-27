@@ -6,8 +6,10 @@
 # can't see on its own.
 #
 # Does, in order:
-#   1. Rebuild the iota-node docker image (skipped with --no-rebuild)
-#   2. Tear down any running private network, clean data directories
+#   1. Tear down any running private network, clean data directories
+#   2. Rebuild the iota-node docker image (skipped with --no-rebuild) — done
+#      after teardown so the build doesn't compete with old validator
+#      containers for CPU/memory
 #   3. Re-bootstrap the private network with benchmark gas accounts
 #   4. Apply per-validator YAML overrides (asymmetric delays) BEFORE bring-up
 #      so containers load the right config on first start
@@ -152,26 +154,31 @@ rebuild_image() {
   (cd "$DOCKER_NODE" && ./build.sh -t iota-node)
 }
 
-# --- 1. rebuild iota-node image ---------------------------------------------
+# --- 1. teardown + clean ------------------------------------------------------
+# Do this BEFORE the rebuild so the running validator containers don't compete
+# with cargo for CPU/memory while the docker build is in progress. With a
+# Docker Desktop memory budget of ~8 GB, four validators eating ~600 MB each
+# can starve the release-mode rustc + linker pass and turn a 30-min rebuild
+# into a multi-hour swap-thrashing one.
 
-if [[ $NO_REBUILD -eq 0 ]]; then
-  echo "==> [1/10] Rebuilding iota-node docker image..."
-  rebuild_image
-else
-  echo "==> [1/10] Skipping docker image rebuild (--no-rebuild)"
-fi
-
-# --- 2. teardown + clean ------------------------------------------------------
-
-echo "==> [2/10] Tearing down existing private network..."
+echo "==> [1/10] Tearing down existing private network..."
 (cd "$PRIVNET" && docker compose down -v 2>&1 | tail -5) || true
 
-echo "==> [3/10] Wiping ./data (host bind-mounted state)..."
+echo "==> [2/10] Wiping ./data (host bind-mounted state)..."
 # Try without sudo first (macOS / well-formed Linux); only escalate if that fails
 # due to a legacy root-owned dir (left by a prior `sudo ./bootstrap.sh` on macOS).
 if ! rm -rf "$PRIVNET/data" 2>/dev/null; then
   echo "    rm failed (likely root-owned residue from a previous sudo bootstrap); retrying with sudo..."
   sudo rm -rf "$PRIVNET/data"
+fi
+
+# --- 2. rebuild iota-node image (after teardown so the build has all RAM/CPU) ---
+
+if [[ $NO_REBUILD -eq 0 ]]; then
+  echo "==> [3/10] Rebuilding iota-node docker image..."
+  rebuild_image
+else
+  echo "==> [3/10] Skipping docker image rebuild (--no-rebuild)"
 fi
 
 # --- 3. bootstrap (regenerates per-validator YAML) ---------------------------
