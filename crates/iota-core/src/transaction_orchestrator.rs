@@ -744,7 +744,29 @@ where
         Ok(result)
     }
 
-    /// Submit a transaction using the TransactionDriver (white flag flow).
+    /// Submit a transaction via the TransactionDriver (white flag flow).
+    ///
+    /// When `skip_certification` is true, `drive_transaction` internally:
+    /// 1. Submits to a single validator and fetches effects (no 2f+1
+    ///    broadcast).
+    /// 2. On post-submit effects-fetch failure, runs
+    ///    `corroborate_single_validator_error`: broadcasts `GetTxStatus` to the
+    ///    committee and aggregates non-retriable rejections.
+    ///    - f+1 stake confirming non-retriable rejection →
+    ///      `RejectedByValidators` (terminal).
+    ///    - Inconclusive → `SubmittedButFetchFailed` (retriable).
+    /// 3. The driver's outer retry loop reissues submission on retriable errors
+    ///    (including `SubmittedButFetchFailed`) up to
+    ///    `WAIT_FOR_FINALITY_TIMEOUT`. The wasted retry on honest-validator
+    ///    transient fetch failures is the cost of guarding against a Byzantine
+    ///    submitter that may not have propagated the tx; see the TODO in
+    ///    `corroborate_single_validator_error` for the planned distinction.
+    /// 4. On retry exhaustion, returns `TimeoutWithLastRetriableError`.
+    ///
+    /// The caller (gRPC `execute_transactions` or `execute_transaction_block`)
+    /// is responsible for `wait_for_checkpoint_inclusion` and the
+    /// cache-rebuild gate that prevents uncertified single-validator data
+    /// from reaching the client.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(

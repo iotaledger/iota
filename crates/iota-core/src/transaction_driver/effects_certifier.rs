@@ -503,6 +503,17 @@ impl EffectsCertifier {
     ///   classified retriable, so the outer `drive_transaction` loop reissues
     ///   submission; the bad feedback deprioritizes the suspect in the next
     ///   `RequestRetrier`'s ranking.
+    ///
+    /// TODO: this returns `SubmittedButFetchFailed` (retriable) for every
+    /// inconclusive outcome, which makes the driver reissue submission even
+    /// when the initial validator was honest and just had a transient fetch
+    /// failure — in that case the tx is still in consensus and would land in a
+    /// checkpoint without our help. A future improvement would split the
+    /// inconclusive bucket: an f+1 "unknown to validator" majority signals
+    /// "tx wasn't disseminated, try another validator" (retriable), while a
+    /// mix of seen-and-executed responses signals "in flight, just wait for
+    /// checkpoint" (non-retriable; the gRPC handler then rebuilds from cache
+    /// or returns `DeadlineExceeded`).
     #[instrument(level = "debug", skip_all, fields(tx_digest = ?tx_digest, initial_validator = ?initial_validator))]
     async fn corroborate_single_validator_error<A>(
         &self,

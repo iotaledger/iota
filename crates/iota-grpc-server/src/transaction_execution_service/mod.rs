@@ -7,6 +7,7 @@ mod transaction;
 
 use std::{sync::Arc, time::Duration};
 
+use futures::stream::{FuturesUnordered, StreamExt as _};
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
@@ -289,29 +290,48 @@ pub async fn execute_transactions(
     // whose response carries uncertified single-validator data (finality =
     // `UncertifiedSingleValidator`) — those must be rebuilt from the local
     // cache after checkpoint inclusion before being returned to the client.
-    let mut transaction_results = Vec::with_capacity(request.transactions.len());
+    // Drive the per-tx executions concurrently so a slow validator submission
+    // on one item doesn't stall the rest of the batch. Results are collected
+    // back into per-index slots so the response order matches the request
+    // order regardless of completion order. The post-batch
+    // `wait_for_checkpoint_inclusion` + `finalize_item` gate still applies
+    // unchanged — uncertified single-validator data is never returned to the
+    // client without checkpoint corroboration (or a `DeadlineExceeded` error
+    // in its place).
+    let mut transaction_results: Vec<ExecuteTransactionResult> = (0..request.transactions.len())
+        .map(|_| ExecuteTransactionResult::default())
+        .collect();
     // For each successful execution: (index, digest, rebuild_ctx). `rebuild_ctx`
     // is `Some` only when the response carried uncertified single-validator
     // data and must be rebuilt from cache after checkpoint inclusion.
     let mut successful_digests: Vec<(usize, TransactionDigest, Option<RebuildCtx>)> = Vec::new();
-    for (i, item) in request.transactions.iter().enumerate() {
-        let result = match execute_single_transaction(
-            reader,
-            executor,
-            config,
-            item,
-            &read_mask,
-            request_type.clone(),
-        )
-        .await
-        {
+    let read_mask_ref = &read_mask;
+    let request_type_ref = &request_type;
+    let mut driver_futs: FuturesUnordered<_> = request
+        .transactions
+        .iter()
+        .enumerate()
+        .map(|(i, item)| async move {
+            let result = execute_single_transaction(
+                reader,
+                executor,
+                config,
+                item,
+                read_mask_ref,
+                request_type_ref.clone(),
+            )
+            .await;
+            (i, result)
+        })
+        .collect();
+    while let Some((i, result)) = driver_futs.next().await {
+        transaction_results[i] = match result {
             Ok((digest, tx, rebuild_ctx)) => {
                 successful_digests.push((i, digest, rebuild_ctx));
                 ExecuteTransactionResult::default().with_executed_transaction(tx)
             }
             Err(error) => ExecuteTransactionResult::default().with_error(error.into_status_proto()),
         };
-        transaction_results.push(result);
     }
 
     // Optionally wait for checkpoint inclusion, then finalize each successful
