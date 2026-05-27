@@ -43,7 +43,7 @@ set -uo pipefail
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-ITERS="${ITERS:-10}"
+ITERS="${ITERS:-50}"
 
 # Validator-side load-shedding policy knobs. Each is OPTIONAL — if set,
 # the script patches the corresponding field in validator-common.yaml
