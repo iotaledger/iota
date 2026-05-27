@@ -426,7 +426,9 @@ impl Core {
             .block_manager
             .try_accept_block_headers(block_headers, source);
 
-        if !accepted_block_headers.is_empty() {
+        if !accepted_block_headers.is_empty()
+            && self.context.protocol_config.consensus_starfish_speed()
+        {
             self.record_strong_vote_complaints(
                 &mut self.dag_state.write(),
                 &accepted_block_headers,
@@ -1573,15 +1575,12 @@ impl Core {
 
     /// Records strong-vote complaints from each freshly-accepted block into
     /// DagState's per-leader-round hint tables. Caller passes a write-locked
-    /// DagState. No-op when the StarfishSpeed flag is off.
+    /// DagState. Called only when Starfish-Speed flag is on.
     fn record_strong_vote_complaints(
         &self,
         dag_state: &mut DagState,
         blocks: &[VerifiedBlockHeader],
     ) {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            return;
-        }
         let own_index = self.context.own_index;
         for block in blocks {
             // Use the producer's pinned leader (in the strong-vote payload),
