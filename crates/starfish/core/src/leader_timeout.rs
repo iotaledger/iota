@@ -64,7 +64,11 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             stop,
             new_block_receiver: signals_receivers.block_broadcast_receiver(),
             new_round_receiver: signals_receivers.new_round_receiver(),
-            leader_timeout: context.parameters.leader_timeout,
+            leader_timeout: if context.protocol_config.consensus_starfish_speed() {
+                Duration::from_millis(200)
+            } else {
+                context.parameters.leader_timeout
+            },
             min_block_delay: context.parameters.min_block_delay,
             soft_leader_timeout: context.parameters.soft_leader_timeout,
             starfish_speed_enabled: context.protocol_config.consensus_starfish_speed(),
