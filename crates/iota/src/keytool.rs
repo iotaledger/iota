@@ -783,7 +783,7 @@ impl KeyToolCommand {
                 }
                 let members = pks
                     .into_iter()
-                    .zip(weights.into_iter())
+                    .zip(weights)
                     .map(|(pk, w)| MultisigMember::new(pk, w))
                     .collect();
                 let multisig_pk = MultiSigPublicKey::new(members, threshold)?;
