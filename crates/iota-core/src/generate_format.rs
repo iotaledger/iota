@@ -560,10 +560,9 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        // TODO conversion could be removed at some point
+        // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
         vec![GenericSignature::Signature(
             Signature::Ed25519IotaSignature(
-                // TODO check if flag needed or not
                 Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
             ),
         )],
