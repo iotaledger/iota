@@ -942,10 +942,11 @@ impl ConsensusOutputQuarantine {
                         .collect::<Vec<_>>(),
                 ),
                 SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::UserTransactionV2(a),
+                    kind: ConsensusTransactionKind::UserTransactionV2(attested_tx),
                     ..
                 }) => Some(
-                    a.transaction
+                    attested_tx
+                        .transaction
                         .shared_input_objects()
                         .into_iter()
                         .map(|obj| obj.object_id)

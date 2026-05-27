@@ -2907,7 +2907,7 @@ impl AuthorityPerEpochStore {
                 //  validation if the protocol feature flag is not set
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV2(_a),
+                kind: ConsensusTransactionKind::UserTransactionV2(_attested_tx),
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
