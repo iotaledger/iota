@@ -72,6 +72,13 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_status: IntCounterVec,
     pub sequencing_certificate_inflight: IntGaugeVec,
     pub sequencing_acknowledge_latency: HistogramVec,
+    /// Time `submit_inner` spent waiting on `status_waiter.await` — i.e., from
+    /// the moment the transaction's containing block was acknowledged by the
+    /// consensus engine, until consensus reported the block as `Sequenced` or
+    /// `GarbageCollected`. Long tails here indicate that own-blocks are not
+    /// being committed by the network (typically because quorum can't be
+    /// formed), independent of the iota-core submission pipeline.
+    pub sequencing_status_wait_seconds: HistogramVec,
     pub sequencing_certificate_latency: HistogramVec,
     pub sequencing_certificate_authority_position: Histogram,
     pub sequencing_certificate_positions_moved: Histogram,
@@ -125,6 +132,14 @@ impl ConsensusAdapterMetrics {
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
                 &["retry", "tx_type"],
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            sequencing_status_wait_seconds: register_histogram_vec_with_registry!(
+                "sequencing_status_wait_seconds",
+                "Time submit_inner spent at status_waiter.await between consensus_client.submit ack and the Sequenced/GarbageCollected status arriving.",
+                &["tx_type", "outcome"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -867,7 +882,19 @@ impl ConsensusAdapter {
                         )
                         .await;
 
-                    match status_waiter.await {
+                    let status_wait_start = Instant::now();
+                    let status_result = status_waiter.await;
+                    let status_outcome = match &status_result {
+                        Ok(BlockStatusInternal::Sequenced) => "sequenced",
+                        Ok(BlockStatusInternal::GarbageCollected) => "garbage_collected",
+                        Err(_) => "error",
+                    };
+                    self.metrics
+                        .sequencing_status_wait_seconds
+                        .with_label_values(&[tx_type, status_outcome])
+                        .observe(status_wait_start.elapsed().as_secs_f64());
+
+                    match status_result {
                         Ok(BlockStatusInternal::Sequenced) => {
                             self.metrics
                                 .sequencing_certificate_status

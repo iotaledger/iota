@@ -299,7 +299,18 @@ pub struct AuthorityMetrics {
     pub(crate) authority_load_shedding_source: IntGaugeVec,
     pub authority_overload_notifications_sent_total: IntCounter,
     pub(crate) authority_overload_notifications_received_total: IntCounterVec,
+    /// Per-peer percentage currently held in this validator's overload
+    /// notification map. Resets when the per-epoch store is rebuilt at
+    /// epoch boundary and is refreshed every consensus commit from the live
+    /// map, so a stale value cannot linger past the epoch in which it was
+    /// advertised.
+    pub(crate) authority_overload_notification_current_percentage: IntGaugeVec,
     pub(crate) authority_quorum_load_shedding_percentage: IntGauge,
+    /// Identity gauge exposing this validator's own `concise()` authority
+    /// id. Always 1; the label is the value of interest. Lets dashboards
+    /// join on `from_authority` to translate concise ids back to readable
+    /// host names.
+    pub authority_self_identity: IntGaugeVec,
     pub(crate) post_consensus_load_shedding_dropped_transactions_total: IntCounter,
     pub(crate) overload_signal_txn_ready_rate_tps: IntGauge,
     pub(crate) overload_signal_execution_rate_tps: IntGauge,
@@ -588,9 +599,21 @@ impl AuthorityMetrics {
                 &["from_authority"],
                 registry)
                 .unwrap(),
+            authority_overload_notification_current_percentage: register_int_gauge_vec_with_registry!(
+                "authority_overload_notification_current_percentage",
+                "Per-peer percentage currently held in the local overload notification map. Refreshed every consensus commit; resets to 0 at epoch boundary when the per-epoch store is rebuilt.",
+                &["from_authority"],
+                registry)
+                .unwrap(),
             authority_quorum_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_quorum_load_shedding_percentage",
                 "Stake-weighted 2f+1 percentile load-shedding percentage applied to the most recent consensus commit.",
+                registry)
+                .unwrap(),
+            authority_self_identity: register_int_gauge_vec_with_registry!(
+                "authority_self_identity",
+                "Identity gauge whose `concise` label is this validator's own concise authority id. Always 1.",
+                &["concise"],
                 registry)
                 .unwrap(),
             post_consensus_load_shedding_dropped_transactions_total: register_int_counter_with_registry!(

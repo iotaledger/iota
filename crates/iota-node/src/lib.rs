@@ -308,6 +308,15 @@ impl IotaNode {
         let poll_interval = config.authority_overload_config.overload_monitor_interval;
         let authority_name = state.name;
 
+        // Publish the host -> concise-id mapping so dashboards can join on
+        // `from_authority` to translate received-notification labels back to
+        // a readable host name.
+        state
+            .metrics
+            .authority_self_identity
+            .with_label_values(&[&authority_name.concise().to_string()])
+            .set(1);
+
         Some(spawn_monitored_task!(async move {
             let mut last_notified_percentage: u32 = state
                 .overload_info
