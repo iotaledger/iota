@@ -185,6 +185,7 @@ impl Ref {
 }
 
 impl<Loc, Lbl: Ord> Edge<Loc, Lbl> {
+    #[allow(dead_code)]
     pub(crate) fn check_invariants(&self) {
         #[cfg(debug_assertions)]
         {
