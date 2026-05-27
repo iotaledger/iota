@@ -323,7 +323,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid signature was given to the function")
+            .contains("Insufficient weight=0 threshold=2")
     );
 
     // 6. multisig two dup sigs fails to execute.
