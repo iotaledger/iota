@@ -20,7 +20,8 @@
 //!
 //! 1. Non-`UserTransactionV1` — pass through unchanged.
 //! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — silent drop.
+//! 3. Already executed — **retained** as a committee-agreed winner (registers
+//!    its locks, skips re-validation); not dropped. See issue #11649.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
 //!    with error. Cheap; performed before expensive checks.
@@ -35,6 +36,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::fatal;
 use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult},
@@ -58,11 +60,12 @@ use crate::{
 /// conflicts in a single pass.
 ///
 /// For each `UserTransactionV1` in consensus order:
-/// - Runs deduplication, already-executed check, structural validity, lock
-///   conflict check, and deny checks (deny list, gas, ownership, coin deny
-///   list, Move authenticator).
+/// - Runs deduplication, structural validity, lock conflict check, and deny
+///   checks (deny list, gas, ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
+/// - An already-executed transaction is **retained** (not dropped): it registers
+///   its owned-object locks and skips re-validation. See issue #11649.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -77,8 +80,8 @@ use crate::{
 ///
 /// `Ok((dropped, locks))` where:
 /// - `dropped` — `(digest, error)` for every semantically-invalid or
-///   lock-conflicting transaction. Silent drops (duplicates, already-executed)
-///   are **not** included.
+///   lock-conflicting transaction. Silent drops (duplicates) are **not**
+///   included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
 pub async fn validate_and_resolve_conflicts(
@@ -119,12 +122,48 @@ pub async fn validate_and_resolve_conflicts(
 
         let digest = *transaction.digest();
 
-        // Check #1: Already executed — silent dedup.
+        // Check #1: Already executed (typically by state-sync before this node's
+        // consensus handler reached the commit). It is a committee-agreed winner, so
+        // keep it in the sequence to flow into checkpoint roots like on every other
+        // validator (dropping it forks — issue #11649). Register its owned-object
+        // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
+        // `TransactionManager::enqueue` suppresses the re-execution.
         if authority_state
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&digest)?
         {
-            keep[i] = false;
+            // Byte-based, so safe even though the inputs are already consumed.
+            let owned_inputs = extract_owned_input_objects(tx)?;
+            for obj_ref in &owned_inputs {
+                // A winner cannot be out-locked: an executed tx owns its inputs. A lock
+                // held by a different tx is a consistency violation, not a conflict.
+                let existing_lock = match current_commit_locks
+                    .get(obj_ref)
+                    .copied()
+                    .or_else(|| epoch_store.get_quarantined_owned_object_lock(obj_ref))
+                {
+                    Some(lock) => Some(lock),
+                    None => epoch_store.tables()?.get_locked_transaction(obj_ref)?,
+                };
+                if let Some(other) = existing_lock {
+                    if other != digest {
+                        fatal!(
+                            "already-executed transaction {:?} has owned input {:?} \
+                             locked by a different transaction {:?}",
+                            digest,
+                            obj_ref,
+                            other,
+                        );
+                    }
+                }
+                current_commit_locks.insert(*obj_ref, digest);
+            }
+            debug!(
+                ?digest,
+                num_owned_inputs = owned_inputs.len(),
+                "Transaction already executed; retained as checkpoint root, skipping re-validation"
+            );
+            // keep[i] stays true so the transaction remains in the sequence.
             continue;
         }
 
