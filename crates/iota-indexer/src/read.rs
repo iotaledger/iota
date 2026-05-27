@@ -1537,7 +1537,7 @@ impl IndexerReader {
 
     async fn multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
         &self,
-        mut tx_sequence_numbers: Vec<i64>,
+        tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
