@@ -299,8 +299,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (host, from_authority) (rate(authority_overload_notifications_received_total[30s]))",
-          "legendFormat": "{{host}} <- {{from_authority}}",
+          "expr": "sum by (host, peer_host) (rate(authority_overload_notifications_received_total[30s]) * on(from_authority) group_left(peer_host) label_replace(label_replace(authority_self_identity, \"from_authority\", \"$1\", \"concise\", \"(.*)\"), \"peer_host\", \"$1\", \"host\", \"(.*)\"))",
+          "legendFormat": "{{host}} <- {{peer_host}}",
           "refId": "A"
         }
       ],
@@ -609,6 +609,289 @@
         }
       ],
       "title": "Writeback cache pending count (raw signal)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Validator-1's view of the load-shedding percentage each peer last broadcast via OverloadNotificationV1, broken down by originating authority. Use this to confirm that a slowed peer's overload signal is reaching the rest of the network. Series appear only after a peer has actually broadcast a notification \u2014 at idle the panel will read \"no data\".",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 96
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "authority_overload_notification_current_percentage{host=\"validator-1\"} * on(from_authority) group_left(peer_host) label_replace(label_replace(authority_self_identity, \"from_authority\", \"$1\", \"concise\", \"(.*)\"), \"peer_host\", \"$1\", \"host\", \"(.*)\")",
+          "legendFormat": "from {{peer_host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Current load-shedding % held by validator-1 for each peer (resets at epoch boundary)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tasks queued at submit_semaphore.acquire().await — they have entered submit_and_wait_inner and logged 'Submitting' but have not yet been granted a permit, so they have not called sender.send() on the consensus_input mpsc channel. These submissions are blocked until in-flight submissions release their permits. Rising values indicate the submission semaphore is exhausted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 104
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sequencing_in_flight_semaphore_wait",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Submit semaphore wait queue (tasks blocked at submit_semaphore.acquire)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Tasks past the submit semaphore but not yet completed submit_and_wait_inner. Each holds a semaphore permit until it completes. With the default config max_pending_transactions=20000 and 4 validators, the semaphore has 10000 permits — this gauge hitting 10000 means the semaphore is fully consumed and new submissions queue at acquire (visible in the previous panel).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 112
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sequencing_in_flight_submissions",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "In-flight submissions (semaphore permits held, awaiting completion)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Depth of the bounded mpsc 'consensus_input' channel between iota-core's consensus_adapter and starfish's TransactionConsumer. Hard cap: 2000. Items enter via sender.send() and are pulled by the block proposer's next() each round. Backpressure here would mean iota-core submitting faster than starfish can drain into block proposals.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 120
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitored_channel_inflight{name=\"consensus_input\"}",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "consensus_input mpsc channel depth (iota-core → starfish, cap 2000)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Depth of the 'consensus_output' channel from starfish's commit_observer to iota-core's ConsensusHandler. Commits queue here when consensus produces sub-DAGs faster than ConsensusHandler can run process_consensus_transactions_and_commit_boundary. A rising value means ConsensusHandler is falling behind; downstream effect is that consensus_messages_processed_notify fires later, which delays processed_waiter.await resolution and prevents submit_semaphore permits from being released.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 128
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "monitored_channel_inflight{name=\"consensus_output\"}",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "consensus_output channel depth (starfish → ConsensusHandler backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Count of this validator's own blocks that have been proposed (ack fired to submitter) but not yet observed in a committed sub-DAG. Reflects the depth of the outbound-block queue waiting for consensus commit. Grows when consensus falls behind committing this validator's blocks (e.g. quorum-pressure scenarios with multiple slow validators); drains when notify_own_transactions_status fires Sequenced for the block_ref.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 136
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "consensus_own_blocks_pending_commit",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Own blocks pending commit (status_waiter subscribers)",
       "type": "timeseries"
     }
   ],
