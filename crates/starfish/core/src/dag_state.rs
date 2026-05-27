@@ -2491,7 +2491,7 @@ mod test {
     async fn test_get_block_header() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
         let own_index = AuthorityIndex::new_for_test(0);
 
@@ -2609,7 +2609,7 @@ mod test {
         // Initialize DagState.
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context, store);
 
         // Populate DagState.
@@ -2772,7 +2772,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test block headers for round 1 ~ 10
@@ -2842,7 +2842,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test block headers for round 1 ~ 10
@@ -2916,7 +2916,7 @@ mod test {
         context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test block headers for authority 0
@@ -2954,7 +2954,7 @@ mod test {
     async fn test_get_block_headers_in_cache_or_store() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test block headers for round 1 ~ 10
@@ -3058,7 +3058,7 @@ mod test {
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks and commits for round 1 ~ 10
@@ -3260,7 +3260,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = 5;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
@@ -3402,7 +3402,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
@@ -3548,7 +3548,7 @@ mod test {
         context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
@@ -3593,7 +3593,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -3652,7 +3652,7 @@ mod test {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
@@ -3718,7 +3718,7 @@ mod test {
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
         // Create test blocks for round 1 ~ 10
@@ -3820,7 +3820,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         let future_timestamp = context.clock.timestamp_utc_ms() + 100_000;
@@ -3852,7 +3852,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test blocks and commits for round 1 ~ 200
@@ -4044,7 +4044,7 @@ mod test {
         context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         let authority_to_skip = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 2) as u8);
@@ -4137,7 +4137,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         let num_rounds: u32 = 200;
@@ -4205,7 +4205,7 @@ mod test {
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         let num_rounds: u32 = 200;
@@ -4258,7 +4258,7 @@ mod test {
     async fn test_accept_block_not_panics_when_timestamp_is_ahead() {
         // GIVEN
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
@@ -4275,7 +4275,7 @@ mod test {
     async fn test_skip_acknowledgments_all_empty_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context, store);
 
         // Create test blocks for round 1 ~ 10
@@ -4303,7 +4303,7 @@ mod test {
     async fn test_skip_acknowledgments_some_contain_transactions() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut encoder = create_encoder(&context);
         let mut dag_state = DagState::new(context.clone(), store);
 
@@ -4355,7 +4355,7 @@ mod test {
             .set_consensus_block_restrictions_for_testing(true);
         let gc_depth = context.protocol_config.gc_depth();
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
 
         // The threshold is driven by `last_known_quorum_commit_index`,
@@ -4383,7 +4383,7 @@ mod test {
 
         // Field defaults to GENESIS_COMMIT_INDEX (= 0): saturating sub gives 0,
         // pivot = (1, MIN), so all index >= 1 are kept (no real eviction).
-        let mut unset = DagState::new(context.clone(), Arc::new(MemStore::new(context)));
+        let mut unset = DagState::new(context, Arc::new(MemStore::new()));
         let votes: Vec<CommitRef> = (1..=10)
             .map(|i| CommitRef::new(i, CommitDigest::MIN))
             .collect();
@@ -4397,8 +4397,7 @@ mod test {
             .protocol_config
             .set_consensus_block_restrictions_for_testing(false);
         let context_off = Arc::new(context_off);
-        let mut dag_state_off =
-            DagState::new(context_off.clone(), Arc::new(MemStore::new(context_off)));
+        let mut dag_state_off = DagState::new(context_off, Arc::new(MemStore::new()));
         dag_state_off.set_last_known_quorum_commit_index(1_000);
         let votes: Vec<CommitRef> = (1..=10)
             .map(|i| CommitRef::new(i, CommitDigest::MIN))

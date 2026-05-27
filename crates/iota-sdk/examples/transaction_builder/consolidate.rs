@@ -15,11 +15,10 @@ use iota_sdk::{
     types::{
         base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{
-            Argument, CallArg, Command, TransactionData, TransactionDataAPI, TransactionKind,
-        },
+        transaction::{Argument, CallArg, TransactionData, TransactionDataAPI, TransactionKind},
     },
 };
+use iota_sdk_types::Command;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]

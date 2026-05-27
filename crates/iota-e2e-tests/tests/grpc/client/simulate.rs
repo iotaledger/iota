@@ -7,13 +7,13 @@ use iota_grpc_client::{
 };
 use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
-use iota_sdk_types::Transaction;
+use iota_sdk_types::{Command, Transaction};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use tonic::Code;
 

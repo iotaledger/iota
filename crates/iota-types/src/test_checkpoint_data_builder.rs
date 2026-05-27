@@ -706,10 +706,12 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_types::Command;
+
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {

@@ -6,7 +6,7 @@ use async_graphql::*;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::{models::display::StoredDisplay, schema::display};
 use iota_json_rpc_types::IotaMoveValue;
-use iota_types::base_types::TypeTag;
+use iota_sdk_types::TypeTag;
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 
 use crate::{

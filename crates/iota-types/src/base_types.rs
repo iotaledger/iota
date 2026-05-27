@@ -12,9 +12,9 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 pub use iota_sdk_types::{
-    Identifier, MoveObjectType, ObjectId as ObjectID, ObjectReference as ObjectRef, StructTag,
-    TypeTag, Version as SequenceNumber,
+    MoveObjectType, ObjectId as ObjectID, ObjectReference as ObjectRef, Version as SequenceNumber,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;

@@ -4,9 +4,10 @@
 
 use std::collections::HashMap;
 
+use iota_sdk_types::Identifier;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef, Transaction},
 };

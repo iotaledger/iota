@@ -44,7 +44,10 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    StructTag, TypeTag,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -63,7 +66,7 @@ use iota_types::{
     },
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TypeTag, VersionNumber,
+        SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
@@ -1261,7 +1264,7 @@ impl AuthorityState {
         // We could be re-executing a previously executed but uncommitted transaction,
         // perhaps after restarting with a new binary. In this situation, if
         // we have published an effects signature, we must be sure not to
-        // equivocate. TODO: read from cache instead of DB
+        // equivocate.
         let expected_effects_digest =
             expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
@@ -5494,11 +5497,11 @@ impl AuthorityState {
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().ok_or(
+                field_move_object.to_rust().map_err(|_| {
                     UserInputError::InvalidAuthenticatorFunctionRefField {
                         account_object_id: auth_account_object_id,
-                    },
-                )?;
+                    }
+                })?;
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,

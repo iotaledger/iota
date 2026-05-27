@@ -979,7 +979,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store: Arc<dyn Store> = Arc::new(MemStore::new(context.clone()));
+        let store: Arc<dyn Store> = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
@@ -1102,7 +1102,7 @@ mod tests {
             let block_verifier = Arc::new(NoopBlockVerifier {});
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
             let network_client = Arc::new(FakeNetworkClient::default());
-            let store: Arc<dyn Store> = Arc::new(MemStore::new(context.clone()));
+            let store: Arc<dyn Store> = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
             let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
             let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));

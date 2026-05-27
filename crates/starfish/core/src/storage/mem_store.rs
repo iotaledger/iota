@@ -31,7 +31,6 @@ use crate::{
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
-    context: Arc<Context>,
 }
 
 struct Inner {
@@ -52,7 +51,7 @@ struct Inner {
 }
 
 impl MemStore {
-    pub(crate) fn new(context: Arc<Context>) -> Self {
+    pub(crate) fn new() -> Self {
         MemStore {
             inner: RwLock::new(Inner {
                 transactions: BTreeMap::new(),
@@ -66,7 +65,6 @@ impl MemStore {
                 voting_block_headers: BTreeMap::new(),
                 fast_sync_ongoing: false,
             }),
-            context,
         }
     }
 }
@@ -205,13 +203,17 @@ impl Store for MemStore {
 
     // TODO: Do we need this method or will DAGState always try to read both headers
     // and transactions separately?
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(
+        &self,
+        refs: &[BlockRef],
+        context: Arc<Context>,
+    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Ensure we have a read lock on the inner state across reading both headers and
         // transactions reads
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
+        let tx_refs = if context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {
@@ -268,6 +270,7 @@ impl Store for MemStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let inner = self.inner.read();
         let mut refs = vec![];
@@ -277,7 +280,7 @@ impl Store for MemStore {
         )) {
             refs.push(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slice())?;
+        let results = self.read_blocks(refs.as_slice(), context)?;
         let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -292,6 +295,7 @@ impl Store for MemStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = VecDeque::new();
@@ -316,7 +320,7 @@ impl Store for MemStore {
         // when the VecDeque ring buffer wraps; otherwise trailing entries would be
         // silently dropped.
         let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice)?;
+        let results = self.read_blocks(refs_slice, context)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(

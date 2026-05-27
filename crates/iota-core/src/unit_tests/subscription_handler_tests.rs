@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::IotaMoveStruct;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
-    base_types::{Identifier, ObjectID, StructTag},
-    gas_coin::GasCoin,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    base_types::ObjectID, gas_coin::GasCoin, iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{

@@ -1779,7 +1779,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -1865,7 +1865,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -1960,7 +1960,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2048,7 +2048,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2186,7 +2186,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2269,7 +2269,7 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
 
         let network_client = Arc::new(FakeNetworkClient::default());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2464,7 +2464,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2631,7 +2631,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2814,7 +2814,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -3143,7 +3143,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3285,7 +3285,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3449,7 +3449,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3646,7 +3646,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -3872,7 +3872,7 @@ mod tests {
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
         ));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 

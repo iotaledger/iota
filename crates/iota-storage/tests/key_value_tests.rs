@@ -379,12 +379,10 @@ mod simtests {
         routing::get,
     };
     use iota_macros::sim_test;
+    use iota_sdk_types::{Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
-    use iota_types::{
-        base_types::{Identifier, IotaAddress, StructTag},
-        event::Event,
-    };
+    use iota_types::{base_types::IotaAddress, event::Event};
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 

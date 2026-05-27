@@ -1007,7 +1007,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
@@ -1131,7 +1131,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_pending_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
         let num_authorities: u8 = 4;

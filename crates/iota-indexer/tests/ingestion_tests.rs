@@ -35,10 +35,8 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_types::{
-        base_types::{IotaAddress, StructTag},
-        effects::TransactionEffectsAPI,
-    };
+    use iota_sdk_types::StructTag;
+    use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
 

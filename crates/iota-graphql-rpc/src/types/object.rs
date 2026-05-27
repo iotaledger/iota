@@ -20,18 +20,16 @@ use iota_indexer::{
     schema::{objects, objects_history, objects_version},
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_types::{
-    base_types::{StructTag, TypeTag},
-    object::{
-        MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
-        bounded_visitor::BoundedVisitor,
-    },
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::object::{
+    MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
+    bounded_visitor::BoundedVisitor,
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backward_view::{HistoricalFilter, consistent, historical},
+    backward_view::{BACKWARD_HISTORY_WATERMARK_ENTITY, HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
@@ -1537,37 +1535,89 @@ impl Loader<HistoricalKey> for Db {
     type Error = Error;
 
     async fn load(&self, keys: &[HistoricalKey]) -> Result<HashMap<HistoricalKey, Object>, Error> {
-        use objects_history::dsl as h;
-        use objects_version::dsl as v;
-
         if keys.is_empty() {
             return Ok(HashMap::new());
         }
 
-        let id_versions: BTreeSet<_> = keys
+        let (ids, versions): (Vec<Vec<u8>>, Vec<i64>) = keys
             .iter()
             .map(|key| (key.id.into_vec(), key.version as i64))
-            .collect();
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .unzip();
+
+        let active = NativeObjectStatus::Active as i16;
+        let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
+
+        // For each `(object_id, object_version)` pair, locate the row content
+        // in `checkpointed_objects` (current state of the object, which may
+        // be a `WrappedOrDeleted` tombstone) or `objects_backward_history`.
+        //
+        // Only `ACTIVE` rows from `objects_backward_history` are joined
+        // (`bh.object_status = $3`) because they are the only rows that
+        // carry the real `(object_id, object_version)`. The other two statuses
+        // use placeholder versions, so matching on them by `(object_id,
+        // object_version)` could by chance return incorrect row (with
+        // incorrect version).
+        //
+        // `object_status` is taken from whichever source matched, falling
+        // back to `WrappedOrDeleted` only when `objects_version` knows the
+        // version but neither table has a row for it. This mirrors
+        // the tombstone synthesis in
+        // `backward_view::historical::tombstones_from_objects_version`.
+        //
+        // The synthetic `WrappedOrDeleted` fallback is only safe when the
+        // version's `cp_sequence_number` is at or above the backward-history
+        // watermark — outside that window the backward-history rows have
+        // been pruned, so a missing match might mean "pruned out" rather
+        // than "tombstone".
+        //
+        // `objects_version` is the existence oracle and the source of
+        // `cp_sequence_number` (the checkpoint at which the version was
+        // committed), used by the in-memory `checkpoint_viewed_at` filter
+        // below.
+        let sql = "SELECT \
+                v.object_id, \
+                v.object_version, \
+                v.cp_sequence_number AS checkpoint_sequence_number, \
+                COALESCE(co.object_status, bh.object_status, $4::int2) AS object_status, \
+                COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
+                COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
+                COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
+                COALESCE(co.object_type, bh.object_type) AS object_type, \
+                COALESCE(co.object_type_package, bh.object_type_package) AS object_type_package, \
+                COALESCE(co.object_type_module, bh.object_type_module) AS object_type_module, \
+                COALESCE(co.object_type_name, bh.object_type_name) AS object_type_name, \
+                COALESCE(co.serialized_object, bh.serialized_object) AS serialized_object, \
+                COALESCE(co.coin_type, bh.coin_type) AS coin_type, \
+                COALESCE(co.coin_balance, bh.coin_balance) AS coin_balance, \
+                COALESCE(co.df_kind, bh.df_kind) AS df_kind \
+            FROM unnest($1::bytea[], $2::bigint[]) AS pairs(object_id, object_version) \
+            INNER JOIN objects_version v \
+                    ON v.object_id = pairs.object_id \
+                   AND v.object_version = pairs.object_version \
+            LEFT JOIN checkpointed_objects co \
+                   ON co.object_id = v.object_id \
+                  AND co.object_version = v.object_version \
+            LEFT JOIN objects_backward_history bh \
+                   ON bh.object_id = v.object_id \
+                  AND bh.object_version = v.object_version \
+                  AND bh.object_status = $3 \
+            WHERE co.object_id IS NOT NULL \
+               OR bh.object_id IS NOT NULL \
+               OR v.cp_sequence_number >= COALESCE(\
+                      (SELECT min_available_cp FROM watermarks \
+                       WHERE entity = $5), 0)";
 
         let objects: Vec<StoredHistoryObject> = self
             .execute(move |conn| {
                 conn.results(move || {
-                    let mut query = h::objects_history
-                        .inner_join(
-                            v::objects_version.on(v::cp_sequence_number
-                                .eq(h::checkpoint_sequence_number)
-                                .and(v::object_id.eq(h::object_id))
-                                .and(v::object_version.eq(h::object_version))),
-                        )
-                        .select(StoredHistoryObject::as_select())
-                        .into_boxed();
-
-                    for (id, version) in id_versions.iter().cloned() {
-                        query =
-                            query.or_filter(v::object_id.eq(id).and(v::object_version.eq(version)));
-                    }
-
-                    query
+                    diesel::sql_query(sql)
+                        .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
+                        .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
+                        .bind::<sql_types::SmallInt, _>(active)
+                        .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
+                        .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
                 })
             })
             .await

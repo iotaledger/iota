@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::base_types::TypeTag;
+use iota_sdk_types::TypeTag;
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 

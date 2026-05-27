@@ -25,7 +25,7 @@ async fn try_direct_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -81,7 +81,7 @@ async fn idempotence() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -125,7 +125,7 @@ async fn multiple_direct_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -166,7 +166,7 @@ async fn direct_skip() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -218,7 +218,7 @@ async fn indirect_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -362,7 +362,7 @@ async fn indirect_skip() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -492,7 +492,7 @@ async fn undecided() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
@@ -581,7 +581,7 @@ async fn test_byzantine_direct_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new()),
     )));
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
