@@ -1264,7 +1264,7 @@ impl AuthorityState {
         // We could be re-executing a previously executed but uncommitted transaction,
         // perhaps after restarting with a new binary. In this situation, if
         // we have published an effects signature, we must be sure not to
-        // equivocate. TODO: read from cache instead of DB
+        // equivocate.
         let expected_effects_digest =
             expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
