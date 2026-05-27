@@ -4,6 +4,7 @@
 
 //! Types and logic to interact with the db.
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
@@ -1536,7 +1537,7 @@ impl IndexerReader {
 
     async fn multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
         &self,
-        tx_sequence_numbers: Vec<i64>,
+        mut tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
@@ -1562,6 +1563,12 @@ impl IndexerReader {
                 // Some(tx).
                 let mut results: Vec<Option<StoredTransaction>> =
                     vec![None; tx_sequence_numbers.len()];
+
+                match is_descending {
+                    Some(true) => tx_sequence_numbers.sort_unstable_by_key(|&s| Reverse(s)),
+                    Some(false) => tx_sequence_numbers.sort_unstable(),
+                    None => {}
+                }
 
                 // each entry is a tuple of (key, original_index) so we can merge fetched data
                 // back into the correct position in the results vector.
