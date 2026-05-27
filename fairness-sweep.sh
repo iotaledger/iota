@@ -24,6 +24,11 @@
 # misleading. The first-pass rate computed here is the fairness metric
 # that distinguishes binary FCFS (spammer-dominated) from graduated
 # hash-based (per-tx equal probability).
+#
+# Note: if you see AddrNotAvailable / TCP port exhaustion errors in the
+# subprocess logs (rare since the TransactionDriver switch — long-lived
+# gRPC channels replace per-call short-lived sockets), run
+# `sudo ./tune-sysctl.sh` once per boot session.
 set -uo pipefail
 
 # CRITICAL: the validator-side white-flag override needs these env vars at

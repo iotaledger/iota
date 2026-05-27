@@ -5,6 +5,11 @@
 # Usage: ./burst-sweep.sh
 # Watch progress: tail -f burst-sweep.log
 # CSV output:     burst-sweep.csv
+#
+# Note: if you see AddrNotAvailable / TCP port exhaustion errors in the
+# subprocess logs (rare since the TransactionDriver switch — long-lived
+# gRPC channels replace per-call short-lived sockets), run
+# `sudo ./tune-sysctl.sh` once per boot session.
 set -uo pipefail
 
 OUT_CSV="burst-sweep.csv"

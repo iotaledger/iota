@@ -116,5 +116,9 @@ crates/iota-aws-orchestrator/assets/logs/
 apps/explorer/public/*.wasm
 
 runs/
-burst-sweep.log
-fairness-sweep.log
+burst-sweep.*
+!burst-sweep.sh
+fairness-sweep.*
+!fairness-sweep.sh
+cap-policy-sweep.*
+!cap-policy-sweep.sh
