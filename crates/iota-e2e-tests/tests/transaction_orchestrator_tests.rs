@@ -372,7 +372,26 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
 /// being returned to the caller — otherwise the safety guard at the end of
 /// `execute_transaction_block` would reject the response as
 /// `QuorumDriverInternal`.
-fn enable_white_flag_env() {
+/// Drop-guard that clears the white-flag env vars on scope exit, so a test
+/// that enables the flow does not contaminate sibling tests sharing the same
+/// process (e.g. when run via `cargo nextest` with `--test-threads`).
+#[must_use = "drop the guard at the end of the test to restore env vars"]
+struct WhiteFlagEnvGuard;
+
+impl Drop for WhiteFlagEnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: paired with `enable_white_flag_env`; both calls run on the
+        // test thread before/after the cluster is alive.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            );
+        }
+    }
+}
+
+fn enable_white_flag_env() -> WhiteFlagEnvGuard {
     // SAFETY: set before spawning the test cluster; env vars are the only
     // reliable way to flip the white-flag protocol flag inside validator
     // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
@@ -384,11 +403,12 @@ fn enable_white_flag_env() {
             "true",
         );
     }
+    WhiteFlagEnvGuard
 }
 
 #[sim_test]
 async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
-    enable_white_flag_env();
+    let _env_guard = enable_white_flag_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_white_flag_flow_for_testing(true);
         config
@@ -450,7 +470,7 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
 /// or input/output objects must not receive them.
 #[sim_test]
 async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
-    enable_white_flag_env();
+    let _env_guard = enable_white_flag_env();
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_white_flag_flow_for_testing(true);
         config
