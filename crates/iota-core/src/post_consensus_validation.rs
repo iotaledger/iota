@@ -46,9 +46,7 @@ use tracing::{debug, warn};
 use crate::{
     authority::{
         AuthorityState,
-        authority_per_epoch_store::{
-            AuthorityPerEpochStore, LockDetails, consensus_quarantine::ConsensusCommitOutput,
-        },
+        authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
     },
     consensus_handler::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
@@ -90,7 +88,6 @@ pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
-    output: &mut ConsensusCommitOutput,
     drop_keys_to_notify: &mut Vec<SequencedConsensusTransactionKey>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
@@ -149,9 +146,7 @@ pub async fn validate_and_resolve_conflicts(
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
-            let key = tx.0.key();
-            output.record_consensus_message_processed(key.clone());
-            drop_keys_to_notify.push(key);
+            drop_keys_to_notify.push(tx.0.key());
             dropped.push((digest, e));
             keep[i] = false;
             continue;
@@ -166,9 +161,7 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                let key = tx.0.key();
-                output.record_consensus_message_processed(key.clone());
-                drop_keys_to_notify.push(key);
+                drop_keys_to_notify.push(tx.0.key());
                 dropped.push((digest, e));
                 keep[i] = false;
                 continue;
@@ -238,9 +231,7 @@ pub async fn validate_and_resolve_conflicts(
             }
         }
         if let Some(e) = conflict {
-            let key = tx.0.key();
-            output.record_consensus_message_processed(key.clone());
-            drop_keys_to_notify.push(key);
+            drop_keys_to_notify.push(tx.0.key());
             dropped.push((digest, e));
             keep[i] = false;
             continue;
@@ -298,9 +289,7 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                let key = tx.0.key();
-                output.record_consensus_message_processed(key.clone());
-                drop_keys_to_notify.push(key);
+                drop_keys_to_notify.push(tx.0.key());
                 dropped.push((digest, e));
                 keep[i] = false;
                 continue;

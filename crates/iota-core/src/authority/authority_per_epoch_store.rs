@@ -3204,13 +3204,16 @@ impl AuthorityPerEpochStore {
 
         let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
         // Keys of transactions that this commit decides not to process further
-        // (post-consensus load-shedding drops, validation drops). For each such
-        // key we (a) record it as processed on `output` so future readers see
-        // it via the quarantine/DB, and (b) accumulate it here so the
-        // per-commit `notifications` pass wakes the submitter's
-        // `consensus_messages_processed_notify` registration. Without this the
-        // submitter parks on `processed_waiter.await` and leaks the
-        // `sequencing_in_flight_submissions` gauge until the epoch ends.
+        // (post-consensus load-shedding drops, validation drops). We push them
+        // onto the per-commit `notifications` Vec so the submitter's
+        // `consensus_messages_processed_notify` registration is woken and its
+        // `sequencing_in_flight_submissions` slot is released. We deliberately
+        // do NOT record the key in `consensus_message_processed`, because drop
+        // outcomes depend on the surrounding commit's state — load shedding on
+        // a future commit may not fire, lock conflicts may have resolved,
+        // `ObjectNotFound` inputs may have been produced — so a retry
+        // contained in a different commit must be re-evaluated rather than
+        // short-circuited as already-processed.
         let mut drop_keys_to_notify: Vec<SequencedConsensusTransactionKey> = Vec::new();
 
         for tx in verified_transactions {
@@ -3229,9 +3232,7 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .post_consensus_load_shedding_dropped_transactions_total
                                 .inc();
-                            let key = tx.0.key();
-                            output.record_consensus_message_processed(key.clone());
-                            drop_keys_to_notify.push(key);
+                            drop_keys_to_notify.push(tx.0.key());
                             continue;
                         }
                     }
@@ -3371,7 +3372,6 @@ impl AuthorityPerEpochStore {
                     authority_state,
                     self,
                     &mut sequenced_transactions,
-                    &mut output,
                     &mut drop_keys_to_notify,
                 )
                 .await?;
@@ -3634,10 +3634,6 @@ impl AuthorityPerEpochStore {
                 .generate_randomness(epoch, randomness_round);
         }
 
-        // Wake submitters waiting on transactions this commit decided to drop.
-        // See the declaration of `drop_keys_to_notify` for the leak this prevents.
-        // Must come after `push_consensus_output` so the quarantine holds the
-        // keys before `notify` fires and any racing re-registration short-circuits.
         notifications.extend(drop_keys_to_notify);
         self.process_notifications(&notifications, &end_of_publish_transactions);
 

@@ -18,7 +18,6 @@ use iota_types::{
 
 use crate::{
     authority::authority_tests::init_state_with_objects_and_object_basics,
-    authority::authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput,
     consensus_handler::VerifiedSequencedConsensusTransaction, post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
@@ -105,7 +104,6 @@ async fn test_valid_user_transaction_passes() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -143,7 +141,6 @@ async fn test_non_user_transaction_passes_through() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -209,7 +206,6 @@ async fn test_duplicate_transaction_deduplicated() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -299,7 +295,6 @@ async fn test_mixed_batch_filtering() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -389,7 +384,6 @@ async fn test_simple_conflict() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -485,7 +479,6 @@ async fn test_no_conflict() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -588,7 +581,6 @@ async fn test_chain_conflict() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -712,7 +704,6 @@ async fn test_multiple_conflicts_in_batch() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -804,7 +795,6 @@ async fn test_gas_object_conflict() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -922,7 +912,6 @@ async fn test_winner_blocks_multiple_losers() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
@@ -1044,7 +1033,6 @@ async fn test_dropped_tx_does_not_acquire_locks() {
             &authority,
             &epoch_store,
             &mut transactions,
-            &mut ConsensusCommitOutput::new(0),
             &mut Vec::new(),
         )
         .await
