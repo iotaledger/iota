@@ -337,7 +337,15 @@ hierarchies:
 # Notarization
 notarization:
   label: Notarization
-  description: The IOTA Notarization API.
+  description: The IOTA Notarization Toolkit providing Single Notarization and Audit Trail.
+
+single-notarization:
+  label: Single Notarization
+  description: Locked or Dynamic Notarizations of arbitrary data, documents, hashes, or latest-state records.
+
+audit-trail:
+  label: Audit Trail
+  description: The solution for tamper-proof, chronological records on IOTA.
 
 dynamic-notarization:
   label: Dynamic Notarization
@@ -346,8 +354,3 @@ dynamic-notarization:
 locked-notarization:
   label: Locked Notarization
   description: Create a permanent, immutable record.
-
-# Audit Trail
-audit-trail:
-  label: Audit Trail
-  description: The solution for tamper-proof, chronological records on IOTA.
