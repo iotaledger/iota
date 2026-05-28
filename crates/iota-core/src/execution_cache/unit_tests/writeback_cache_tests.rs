@@ -31,11 +31,7 @@ use tokio::sync::RwLock;
 
 use super::*;
 use crate::{
-    authority::{
-        AuthorityState, AuthorityStore,
-        authority_store_types::SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
-        test_authority_builder::TestAuthorityBuilder,
-    },
+    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
     execution_cache::ExecutionCacheAPI,
 };
 
@@ -377,9 +373,7 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        let batch = self
-            .cache()
-            .build_db_batch(1, SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT, &[tx]);
+        let batch = self.cache().build_db_batch(1, 0, &[tx]);
         self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
@@ -574,7 +568,7 @@ async fn test_committed() {
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
         // Distinct, recognizable checkpoint sequence number. Asserted below
-        // to lock the `build_db_batch` → row → read round-trip on the
+        // to lock the `build_db_batch` -> row -> read round-trip on the
         // `WritebackCache` path.
         let expected_checkpoint: u64 = 0xCAFE_F00D_BEEF_0042;
         let batch = s.cache().build_db_batch(1, expected_checkpoint, &[tx]);
@@ -597,7 +591,7 @@ async fn test_committed() {
             .collect();
         assert_eq!(observed.len(), tracked_ids.len());
         for ckpt in observed.values() {
-            assert_eq!(*ckpt, expected_checkpoint);
+            assert_eq!(*ckpt, Some(expected_checkpoint));
         }
 
         s.reset_cache();

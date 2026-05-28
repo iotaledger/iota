@@ -26,7 +26,9 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
+use iota_core::authority::authority_store_tables::{
+    AuthorityPerpetualTables, LiveObject, SnapshotLiveObject,
+};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -57,7 +59,7 @@ pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
 /// Orchestrates restoring a state snapshot from a remote object store. The
 /// `V1` suffix refers to the orchestration-layer revision of this struct
-/// (its public API surface), not the snapshot wire format. After the V2
+/// (its public API surface), not the on-disk snapshot format. After the V2
 /// snapshot rollout this reader consumes only V2 manifests and refuses V1
 /// snapshots up-front.
 #[derive(Clone)]
@@ -703,6 +705,11 @@ impl LiveObjectIter {
         }
     }
 
+    /// Decodes a `LiveObject` from the underlying reader (the on-disk
+    /// schema is `SnapshotLiveObject`) and converts it to an in-process
+    /// `LiveObject` so consumers outside the reader work in a single type.
+    /// The conversion is infallible: every published `.obj` record carries
+    /// a concrete checkpoint by construction, which maps to `Some(_)`.
     fn next_object(&mut self) -> Result<LiveObject> {
         let len = self.reader.read_varint::<u64>()? as usize;
         if len == 0 {
@@ -715,7 +722,8 @@ impl LiveObjectIter {
             data,
             encoding: BlobEncoding::try_from(encoding)?,
         };
-        blob.decode()
+        let snap: SnapshotLiveObject = blob.decode()?;
+        Ok(snap.into())
     }
 }
 

@@ -14,21 +14,6 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Sentinel placed on a `StoreObjectValueV2.previous_transaction_checkpoint`
-/// when a `StoreObjectV1` row is lifted to `StoreObjectV2` by `migrate()`
-/// before the migration backfill has rewritten it with the real value.
-///
-/// `u64::MAX` is unambiguous because no real checkpoint will ever reach it.
-/// Post-backfill, no live-set row should hold this value; this is assertable
-/// in tests and operational checks.
-///
-/// TODO(snapshot-v2-backfill): a one-time backfill must rewrite every row
-/// that holds this sentinel - V1 rows lifted via `migrate()`, rows stamped
-/// on the `PassthroughCache` synchronous-write path, and rows stamped on
-/// the snapshot restore path - with the real
-/// `previous_transaction_checkpoint`.
-pub const SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT: CheckpointSequenceNumber = u64::MAX;
-
 // Versioning process:
 //
 // Object storage versioning is done lazily (at read time) - therefore we must
@@ -46,7 +31,7 @@ pub const SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT: CheckpointSequenceNumber = u
 // StoreMoveObject), use the following process:
 // - Add a new variant `StoreObjectV{N+1}` to the `StoreObjectWrapper` enum.
 // - Define `From<StoreObjectV{N}> for StoreObjectV{N+1}` for the lift, and
-//   extend `migrate()` to chain `V{N}` → `V{N+1}`.
+//   extend `migrate()` to chain `V{N}` -> `V{N+1}`.
 // - Advance `pub type StoreObject = StoreObjectV{N+1}` and update
 //   `From<StoreObject> for StoreObjectWrapper` to wrap the new variant.
 // - Update `get_store_object` (and any other writers) to construct the new
@@ -116,10 +101,10 @@ pub struct StoreObjectValue {
 
 /// Latest stored object format. Adds `previous_transaction_checkpoint` to
 /// `Value`, recording the checkpoint sequence number that contained the
-/// transaction whose effects produced this object version. A future snapshot
-/// V2 writer will read this field and emit it on each reference record so
-/// consumers can attribute live objects to the checkpoint that produced
-/// their current version.
+/// transaction whose effects produced this object version. The snapshot V2
+/// writer in `iota-snapshot` reads this field and emits it on each `.obj`
+/// record so consumers can attribute live objects to the checkpoint that
+/// produced their current version.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreObjectV2 {
     Value(Box<StoreObjectValueV2>),
@@ -137,21 +122,29 @@ pub struct StoreObjectValueV2 {
     /// Checkpoint sequence number of the checkpoint that contained
     /// `previous_transaction`.
     ///
-    /// **Producer.** Stamped at write time by `AuthorityStore::build_db_batch`,
-    /// called from the cache layer. On the `WritebackCache` path the value
-    /// is the containing checkpoint's sequence number (buffered until
-    /// checkpoint commit). On the `PassthroughCache` synchronous-write path
-    /// the containing checkpoint is not yet known, so the value is
-    /// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` until the follow-up
-    /// backfill rewrites those rows. The same sentinel is stamped on V1
-    /// rows lifted to V2 by `migrate()` and on rows produced by the
-    /// snapshot restore path.
+    /// **When this is `None`.** Any row whose on-disk representation is
+    /// `StoreObjectV1` (i.e. written by a pre-V2 build of `iota-core`, or
+    /// restored from a pre-V2 snapshot) is lifted to `StoreObjectV2` by
+    /// `migrate()` on read with this field set to `None`: pre-V2 rows
+    /// never recorded the checkpoint and it is unrecoverable. A node that
+    /// has only ever run V2 — synced from genesis under V2, or restored
+    /// from a V2 snapshot — will never observe `None` here. Any consumer
+    /// that reads this field must handle both cases.
     ///
-    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObject`
-    /// records the snapshot V2 writer emits into bucketed `.obj` files.
-    /// The indexer reads it to populate object-history tables (i.e. "which
-    /// checkpoint last touched this object") without an archive replay.
-    pub previous_transaction_checkpoint: CheckpointSequenceNumber,
+    /// **Producer.** Stamped at write time by `AuthorityStore::build_db_batch`,
+    /// called from the cache layer with the real containing-checkpoint
+    /// sequence number (`Some(seq)`). `None` is only ever produced by the
+    /// V1 -> V2 lazy lift described above.
+    ///
+    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObject` records
+    /// the snapshot V2 writer emits into bucketed `.obj` files. The indexer
+    /// reads it to populate object-history tables (i.e. "which checkpoint
+    /// last touched this object") without an archive replay. The snapshot
+    /// writer refuses to publish if any live-set row carries `None`; a
+    /// node that wants to publish V2 snapshots must therefore have synced
+    /// from genesis under V2 or been started from a V2 state so that
+    /// no lifted-V1 rows are present.
+    pub previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
     pub storage_rebate: u64,
 }
 
@@ -162,7 +155,11 @@ impl From<StoreObjectV1> for StoreObjectV2 {
                 data: v1_value.data,
                 owner: v1_value.owner,
                 previous_transaction: v1_value.previous_transaction,
-                previous_transaction_checkpoint: SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+                // Pre-V2 rows never recorded the containing checkpoint;
+                // there is no way to recover it. The snapshot writer
+                // rejects any row carrying `None` rather than emit an
+                // unknown value into the wire format.
+                previous_transaction_checkpoint: None,
                 storage_rebate: v1_value.storage_rebate,
             })),
             StoreObjectV1::Deleted => Self::Deleted,
@@ -184,14 +181,13 @@ pub enum StoreData {
 
 /// Build a `StoreObjectWrapper` for a newly written object version. The caller
 /// supplies the checkpoint sequence number that contains the transaction whose
-/// effects produced this object version; pass
-/// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` at execution-time write paths
-/// where the containing checkpoint is not yet known (those rows are rewritten
-/// at checkpoint commit time on caches that buffer, or by the migration
-/// backfill otherwise).
+/// effects produced this object version. Production write paths always know
+/// the checkpoint (`WritebackCache` flushes objects at checkpoint commit time)
+/// and pass `Some(seq)`; `None` is only used by the V1 -> V2 lazy migration on
+/// read, since pre-V2 rows never recorded the checkpoint.
 pub fn get_store_object(
     object: Object,
-    previous_transaction_checkpoint: CheckpointSequenceNumber,
+    previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
 ) -> StoreObjectWrapper {
     let object = object.into_inner();
 
@@ -265,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn migrate_v1_value_lifts_with_sentinel() {
+    fn migrate_v1_value_lifts_with_none_checkpoint() {
         let v1 = v1_value();
         let wrapped = StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(v1.clone()))).migrate();
         let StoreObjectWrapper::V2(StoreObjectV2::Value(v2_value)) = wrapped else {
@@ -275,10 +271,9 @@ mod tests {
         assert_eq!(v2_value.owner, v1.owner);
         assert_eq!(v2_value.previous_transaction, v1.previous_transaction);
         assert_eq!(v2_value.storage_rebate, v1.storage_rebate);
-        assert_eq!(
-            v2_value.previous_transaction_checkpoint,
-            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT
-        );
+        // Pre-V2 rows never recorded the checkpoint; lift surfaces that as
+        // `None`. The snapshot writer rejects such rows at the boundary.
+        assert_eq!(v2_value.previous_transaction_checkpoint, None);
     }
 
     #[test]
@@ -310,17 +305,12 @@ mod tests {
     }
 
     /// `get_store_object` is the single production write site for new V2
-    /// rows. Both cache layers funnel through it: `WritebackCache` passes
-    /// the real containing-checkpoint sequence number, `PassthroughCache`
-    /// passes `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`. This locks that
-    /// whatever the caller passes ends up faithfully on the row, for both
-    /// the sentinel and a distinct value.
+    /// rows. `WritebackCache` always passes `Some(seq)` at checkpoint commit
+    /// time. This locks that whatever the caller passes ends up faithfully
+    /// on the row, for both `None` and a concrete `Some(seq)`.
     #[test]
     fn get_store_object_stamps_provided_checkpoint() {
-        for expected in [
-            SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
-            0xCAFE_F00D_BEEF_0001u64,
-        ] {
+        for expected in [None, Some(0xCAFE_F00D_BEEF_0001u64)] {
             let object =
                 Object::immutable_with_id_for_testing(iota_types::base_types::ObjectID::random());
             let wrapper = get_store_object(object, expected);
@@ -340,7 +330,7 @@ mod tests {
             data: StoreData::Coin(1),
             owner: Owner::Immutable,
             previous_transaction: TransactionDigest::random(),
-            previous_transaction_checkpoint: 100,
+            previous_transaction_checkpoint: Some(100),
             storage_rebate: 0,
         }));
         let wrapper = StoreObjectWrapper::V2(v2.clone());
@@ -360,13 +350,16 @@ mod tests {
     ///
     /// Field order: data | owner | previous_transaction |
     ///              previous_transaction_checkpoint | storage_rebate.
+    /// Covers both `Some(seq)` (the production case) and `None` (lifted V1
+    /// row) since the BCS encoding of the `Option` discriminant differs.
     #[test]
     fn store_object_value_v2_bcs_layout_is_locked() {
+        // `Some(seq)` case - the production write path.
         let v2 = StoreObjectValueV2 {
             data: StoreData::Coin(0x0102_0304_0506_0708),
             owner: Owner::Immutable,
             previous_transaction: TransactionDigest::ZERO,
-            previous_transaction_checkpoint: 0x1011_1213_1415_1617,
+            previous_transaction_checkpoint: Some(0x1011_1213_1415_1617),
             storage_rebate: 0x2021_2223_2425_2627,
         };
         let bytes = bcs::to_bytes(&v2).unwrap();
@@ -384,7 +377,9 @@ mod tests {
         // length-prefixed: ULEB128 length 32 (=`0x20`) + 32 zero bytes.
         golden.push(0x20);
         golden.extend_from_slice(&[0u8; 32]);
-        // `previous_transaction_checkpoint: u64` - little-endian.
+        // `previous_transaction_checkpoint: Option<u64>` - `Some` discriminant
+        // (0x01) + u64 in little-endian.
+        golden.push(0x01);
         golden.extend_from_slice(&0x1011_1213_1415_1617u64.to_le_bytes());
         // `storage_rebate: u64` - little-endian.
         golden.extend_from_slice(&0x2021_2223_2425_2627u64.to_le_bytes());
@@ -394,5 +389,22 @@ mod tests {
             "StoreObjectValueV2 BCS layout changed; introduce a new StoreObject \
              version rather than mutating V2"
         );
+
+        // `None` case - rows lifted from pre-V2 on-disk format.
+        let v2_none = StoreObjectValueV2 {
+            previous_transaction_checkpoint: None,
+            ..v2
+        };
+        let bytes_none = bcs::to_bytes(&v2_none).unwrap();
+        let mut golden_none: Vec<u8> = Vec::new();
+        golden_none.push(0x03);
+        golden_none.extend_from_slice(&0x0102_0304_0506_0708u64.to_le_bytes());
+        golden_none.push(0x03);
+        golden_none.push(0x20);
+        golden_none.extend_from_slice(&[0u8; 32]);
+        // `previous_transaction_checkpoint: Option<u64>` - `None` discriminant.
+        golden_none.push(0x00);
+        golden_none.extend_from_slice(&0x2021_2223_2425_2627u64.to_le_bytes());
+        assert_eq!(bytes_none, golden_none);
     }
 }

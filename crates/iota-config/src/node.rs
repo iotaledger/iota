@@ -1095,6 +1095,13 @@ pub struct StateArchiveConfig {
     pub use_for_pruning_watermark: bool,
 }
 
+/// Configuration for the per-epoch state-snapshot publisher.
+///
+/// **Operator note (V2 snapshot publishing).** A node configured to publish
+/// V2 snapshots must have a perpetual store containing no pre-V2
+/// (`StoreObjectV1`) rows. This means a snapshot-publishing node must have
+/// either synced from genesis under V2 or been restored from a V2 snapshot.
+/// There is no on-disk backfill: a fresh sync is the only supported path.
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct StateSnapshotConfig {

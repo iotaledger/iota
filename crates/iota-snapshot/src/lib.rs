@@ -69,13 +69,16 @@ use tokio::time::Instant;
 /// MANIFEST file contains per file metadata of every file in the snapshot
 /// directory.
 ///
-/// Snapshot-format V2 additions over V1 (this "V2" refers to the on-wire
+/// Snapshot-format V2 additions over V1 (this "V2" refers to the on-disk
 /// snapshot format, not to `StoreObjectV2` or `EpochInfo::V*`, which are
 /// independent type-level version axes):
 /// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
 ///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
-///   `LiveObject` carrying the per-object `previous_transaction_checkpoint`
-///   inline.
+///   `SnapshotLiveObject` carrying the per-object
+///   `previous_transaction_checkpoint` inline. The writer rejects rows whose
+///   checkpoint is `None` (lifted from pre-V2 store rows) at the publish
+///   boundary, so any record present in a published `.obj` file carries a
+///   concrete checkpoint sequence number.
 /// - REFERENCE file format is unchanged from V1.
 /// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
 ///   carrying one [`EpochInfoEntry`] per epoch in `[0, snapshot_epoch]` from
@@ -154,10 +157,10 @@ use tokio::time::Instant;
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
 /// V2 object file magic (V1 was `0x00B7EC75`). Encoded records are
-/// BCS-serialized `LiveObject` carrying the per-object
-/// `previous_transaction_checkpoint` inline. The magic is bumped so a V1
+/// BCS-serialized `SnapshotLiveObject` carrying the per-object
+/// `previous_transaction_checkpoint: u64` inline. The magic is bumped so a V1
 /// reader fails fast on the magic check rather than silently decoding the
-/// extra trailing u64 as part of the next record.
+/// extra trailing `u64` as part of the next record.
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
@@ -226,10 +229,10 @@ impl FileMetadata {
 }
 
 /// Body of a manifest at any version. V1 and V2 are structurally identical -
-/// the on-disk wire format is the same and the BCS variant tag on `Manifest`
+/// the on-disk format is the same and the BCS variant tag on `Manifest`
 /// distinguishes them. V2 differs only in semantic associations: the
 /// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
-/// `.obj` records are BCS-encoded `LiveObject` (carrying an inline
+/// `.obj` records are BCS-encoded `SnapshotLiveObject` (carrying an inline
 /// `previous_transaction_checkpoint`).
 /// `address_length` is preserved as a sanity check across versions.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -273,7 +276,7 @@ impl Manifest {
 /// future schema evolution. `entries[i]` is the entry for epoch `i`;
 /// length is `snapshot_epoch + 1`.
 ///
-/// Entries are wrapped in `Option<>` so the wire format can express "no
+/// Entries are wrapped in `Option<>` so the on-disk format can express "no
 /// row for epoch `i`" without bumping to `EpochInfoV2`. Today's writer
 /// always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
 /// (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`) refuses

@@ -695,19 +695,17 @@ impl AuthorityStore {
         // We only side load objects with a genesis parent transaction.
         debug_assert!(object.previous_transaction == TransactionDigest::GENESIS_MARKER);
         let object_ref = object.compute_object_reference();
-        self.insert_object_direct(object_ref, &object)
+        self.insert_genesis_object_direct(object_ref, &object)
     }
 
     /// Insert an object directly into the store, and also update relevant
     /// tables NOTE: does not handle transaction lock.
     /// This is used to insert genesis objects
-    fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
+    fn insert_genesis_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
 
-        // Genesis objects are produced by the genesis checkpoint (sequence 0),
-        // so 0 is the real `previous_transaction_checkpoint` value here, not a
-        // sentinel.
-        let store_object = get_store_object(object.clone(), 0);
+        // Genesis objects are produced by the genesis checkpoint (sequence 0).
+        let store_object = get_store_object(object.clone(), Some(0));
         write_batch.insert_batch(
             &self.perpetual_tables.objects,
             std::iter::once((ObjectKey::from(object_ref), store_object)),
@@ -739,9 +737,12 @@ impl AuthorityStore {
         // Genesis objects are produced by the genesis checkpoint (sequence 0).
         batch.insert_batch(
             &self.perpetual_tables.objects,
-            ref_and_objects
-                .iter()
-                .map(|(oref, o)| (ObjectKey::from(oref), get_store_object((*o).clone(), 0))),
+            ref_and_objects.iter().map(|(oref, o)| {
+                (
+                    ObjectKey::from(oref),
+                    get_store_object((*o).clone(), Some(0)),
+                )
+            }),
         )?;
 
         let non_child_object_refs: Vec<_> = ref_and_objects
@@ -820,11 +821,8 @@ impl AuthorityStore {
     ///
     /// `previous_transaction_checkpoint` is stamped onto each newly written
     /// object's `StoreObjectValueV2.previous_transaction_checkpoint` field.
-    /// Callers that buffer execution outputs until checkpoint commit time
-    /// (e.g. `WritebackCache`) pass the containing checkpoint's sequence
-    /// number; callers that flush at execution time before the containing
-    /// checkpoint is known (e.g. `PassthroughCache`) pass
-    /// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT`.
+    /// `WritebackCache` buffers execution outputs until checkpoint commit
+    /// time and passes the containing checkpoint's sequence number here.
     #[instrument(level = "debug", skip_all)]
     pub fn build_db_batch(
         &self,
@@ -914,7 +912,7 @@ impl AuthorityStore {
             let version = new_object.version();
             trace!(?id, ?version, "writing object");
             let store_object =
-                get_store_object(new_object.clone(), previous_transaction_checkpoint);
+                get_store_object(new_object.clone(), Some(previous_transaction_checkpoint));
             (ObjectKey(*id, version), store_object)
         });
 

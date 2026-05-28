@@ -201,7 +201,10 @@ pub fn insert_keys(
     let mut id = ObjectID::ZERO;
     for _ in 0..total_unique_object_ids {
         let object = Object::immutable_with_id_for_testing(id);
-        db.insert_object_test_only(object)?;
+        // Use a concrete `Some(0)` so the snapshot writer's V1-rejection
+        // check passes. The exact value is irrelevant for the round-trip
+        // tests, which compare object references rather than checkpoints.
+        db.insert_object_test_only(object, Some(0))?;
         id = id.next_lexicographical();
     }
     Ok(())
@@ -272,7 +275,7 @@ async fn snapshot_round_trip(
         .write_internal(0, perpetual_db.clone(), root_accumulator)
         .await?;
 
-    // On-wire size assertion: with no compression the uploaded `.ref` file
+    // On-disk size assertion: with no compression the uploaded `.ref` file
     // is exactly `MAGIC_BYTES + num_objects * OBJECT_REF_BYTES`. A bug that
     // wrote records of the wrong size would still pass the round-trip if
     // writer and reader agreed on the wrong size. Reads from the remote
@@ -283,7 +286,7 @@ async fn snapshot_round_trip(
         let expected_size = MAGIC_BYTES + (num_objects as usize) * OBJECT_REF_BYTES;
         assert_eq!(
             actual_size, expected_size,
-            "ref-file on-wire size mismatch: expected {expected_size}, got {actual_size}"
+            "ref-file on-disk size mismatch: expected {expected_size}, got {actual_size}"
         );
     }
 
@@ -293,7 +296,7 @@ async fn snapshot_round_trip(
     // without this assertion a writer bug - typo'd magic, wrong filename,
     // wrong BCS encoding - would pass every test and only surface
     // post-deploy when the indexer fails to decode. Gated on `None`
-    // compression so the raw on-wire bytes are readable directly.
+    // compression so the raw on-disk bytes are readable directly.
     if file_compression == FileCompression::None {
         let epoch_info_file = tmp_dir
             .join("remote_dir")
@@ -420,7 +423,7 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
     // Empty database case.
     let empty_dir = iota_common::tempdir();
     snapshot_round_trip(empty_dir.path(), 0, FileCompression::Zstd).await?;
-    // Uncompressed case so the ref-file on-wire size assertion can run
+    // Uncompressed case so the ref-file on-disk size assertion can run
     // directly against the staged file.
     let uncompressed_dir = iota_common::tempdir();
     snapshot_round_trip(uncompressed_dir.path(), 100, FileCompression::None).await?;
@@ -430,6 +433,21 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
     // on `snapshot_round_trip`).
     let checkpoint_dir = iota_common::tempdir();
     snapshot_restores_per_object_checkpoint(checkpoint_dir.path()).await?;
+
+    // V1-rejection: a perpetual DB containing any row whose
+    // `previous_transaction_checkpoint` is `None` (i.e. lifted from a pre-V2
+    // on-disk format) must cause the writer to error out before any `.obj`
+    // file is written. Two sub-cases cover the same boundary check at
+    // different layers:
+    //   - `lifted_v1_row`: V2 row with `previous_transaction_checkpoint: None`
+    //     inserted directly, isolating the writer's rejection check.
+    //   - `literal_v1_row`: literal `StoreObjectWrapper::V1` row inserted, forcing
+    //     `LiveSetIter::migrate()` to lift the row to V2(None) before the writer
+    //     sees it. Locks the end-to-end pipeline as a single assertion.
+    let lifted_v1_dir = iota_common::tempdir();
+    snapshot_writer_rejects_lifted_v1_row(lifted_v1_dir.path()).await?;
+    let literal_v1_dir = iota_common::tempdir();
+    snapshot_writer_rejects_literal_v1_row(literal_v1_dir.path()).await?;
 
     // Watermark precondition: absent watermark rejects the snapshot.
     // Matched against the full anyhow chain via `{err:#}` because
@@ -473,10 +491,10 @@ async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
 /// time, surfaced by `LiveSetIter`, BCS-encoded into `LiveObject` records
 /// in the `.obj` files, decoded by `LiveObjectIter`, and re-stamped onto
 /// the restored DB by `bulk_insert_live_objects`. Without this, a
-/// regression that, e.g., reverted the restore path to stamping
-/// `SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT` would still pass
-/// `snapshot_round_trip` (which only compares `object_reference`s) - this
-/// helper is the focused canary for the per-object checkpoint contract.
+/// regression that, e.g., reverted the restore path to stamping `None`
+/// would still pass `snapshot_round_trip` (which only compares
+/// `object_reference`s) - this helper is the focused canary for the
+/// per-object checkpoint contract.
 async fn snapshot_restores_per_object_checkpoint(
     tmp_dir: &std::path::Path,
 ) -> Result<(), anyhow::Error> {
@@ -503,19 +521,18 @@ async fn snapshot_restores_per_object_checkpoint(
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
 
     // Insert objects with distinct, recognizable per-object checkpoints.
-    // The pattern avoids the two values most likely to mask a bug: the
-    // sentinel (`u64::MAX`) and `0` (the default a buggy restore might
-    // stamp). Each object gets a unique value so a swap or off-by-one bug
-    // surfaces as a specific mismatch rather than a uniform clobber.
+    // The pattern avoids `0` (the default a buggy restore might stamp).
+    // Each object gets a unique value so a swap or off-by-one bug surfaces
+    // as a specific mismatch rather than a uniform clobber.
     const NUM_OBJECTS: u64 = 32;
     const CHECKPOINT_BASE: u64 = 0xC0FF_EE00_0000_0000;
-    let mut expected: HashMap<ObjectID, u64> = HashMap::new();
+    let mut expected: HashMap<ObjectID, Option<u64>> = HashMap::new();
     let mut id = ObjectID::ZERO;
     for i in 0..NUM_OBJECTS {
         let object = Object::immutable_with_id_for_testing(id);
         let checkpoint = CHECKPOINT_BASE | i;
-        perpetual_db.insert_object_test_only_with_checkpoint(object, checkpoint)?;
-        expected.insert(id, checkpoint);
+        perpetual_db.insert_object_test_only(object, Some(checkpoint))?;
+        expected.insert(id, Some(checkpoint));
         id = id.next_lexicographical();
     }
 
@@ -547,7 +564,7 @@ async fn snapshot_restores_per_object_checkpoint(
 
     // Read every restored row through `LiveSetIter` and compare against
     // the values written before the snapshot was taken.
-    let restored: HashMap<ObjectID, u64> = restored_perpetual_db
+    let restored: HashMap<ObjectID, Option<u64>> = restored_perpetual_db
         .iter_live_object_set()
         .map(|live_object| {
             (
@@ -561,6 +578,141 @@ async fn snapshot_restores_per_object_checkpoint(
         "per-object previous_transaction_checkpoint did not round-trip through the snapshot"
     );
     Ok(())
+}
+
+/// Asserts that the snapshot writer rejects a perpetual DB that still
+/// contains rows lifted from pre-V2 on-disk format
+/// (`previous_transaction_checkpoint == None`). Pre-V2 rows never recorded the
+/// containing checkpoint and there is no way to recover it; emitting them into
+/// the snapshot file would force downstream consumers to handle unknown
+/// checkpoints forever. The writer must fail loudly so an operator who hasn't
+/// synced from genesis under V2 sees the problem at publish time, not after the
+/// bad snapshot has been uploaded.
+async fn snapshot_writer_rejects_lifted_v1_row(
+    tmp_dir: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_dir = tmp_dir.join("remote_dir");
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(remote_dir.clone()),
+        ..Default::default()
+    };
+
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
+        FileCompression::None,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    // Mix a normal V2 row (Some(seq)) with a lifted-V1 row (None) so the
+    // assertion is genuinely about the lifted row triggering the error,
+    // not about the DB being empty.
+    perpetual_db.insert_object_test_only(
+        Object::immutable_with_id_for_testing(ObjectID::ZERO),
+        Some(42),
+    )?;
+    let lifted_id = ObjectID::ZERO.next_lexicographical();
+    perpetual_db.insert_object_test_only(Object::immutable_with_id_for_testing(lifted_id), None)?;
+
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    let err = snapshot_writer
+        .write_internal(0, perpetual_db, root_accumulator)
+        .await
+        .expect_err("writer must reject a DB containing a lifted V1 row");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("lifted from a pre-V2 store row"),
+        "unexpected error chain for lifted V1 row: {msg}"
+    );
+    // No `.obj` or `.ref` files should reach the remote store: the writer
+    // bails out before `LiveObjectSetWriterV1::done()` is called (which is
+    // the only path that pushes `FileMetadata` onto the upload channel).
+    assert_no_bucket_files(&remote_dir);
+    Ok(())
+}
+
+/// End-to-end variant of [`snapshot_writer_rejects_lifted_v1_row`]: inserts
+/// a literal `StoreObjectWrapper::V1` row directly into the perpetual
+/// `objects` map (bypassing `get_store_object`, which always produces V2),
+/// then runs the snapshot writer. The on-read `migrate()` step must lift
+/// the row to `StoreObjectV2(None)`, `LiveSetIter` must surface the `None`,
+/// and the writer must reject the publish — covering the full V1->lift->reject
+/// pipeline as a single assertion.
+async fn snapshot_writer_rejects_literal_v1_row(
+    tmp_dir: &std::path::Path,
+) -> Result<(), anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_dir = tmp_dir.join("remote_dir");
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(remote_dir.clone()),
+        ..Default::default()
+    };
+
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
+        FileCompression::None,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    // Single literal V1 row. The writer must fail end-to-end.
+    perpetual_db
+        .insert_v1_object_test_only(Object::immutable_with_id_for_testing(ObjectID::ZERO))?;
+
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    let err = snapshot_writer
+        .write_internal(0, perpetual_db, root_accumulator)
+        .await
+        .expect_err("writer must reject a DB containing a literal V1 row");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("lifted from a pre-V2 store row"),
+        "unexpected error chain for literal V1 row: {msg}"
+    );
+    assert_no_bucket_files(&remote_dir);
+    Ok(())
+}
+
+/// Recursively scans `root` and asserts no `.obj` or `.ref` files exist.
+fn assert_no_bucket_files(root: &std::path::Path) {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                assert!(
+                    ext != "obj" && ext != "ref",
+                    "writer emitted a bucket file despite rejecting the input: {}",
+                    path.display()
+                );
+            }
+        }
+    }
 }
 
 /// Negative test: a V2 manifest without an `EPOCH_INFO` entry must be
@@ -640,7 +792,7 @@ fn write_manifest_file(path: &std::path::Path, manifest: &Manifest) -> std::io::
     Ok(())
 }
 
-/// Locks the on-wire format of the `EPOCH_INFO` file body: BCS-encoding
+/// Locks the on-disk format of the `EPOCH_INFO` file body: BCS-encoding
 /// `EpochInfo::V1` must use variant tag `0`, and `entries` must round-trip
 /// with its length preserved.
 ///
@@ -649,7 +801,7 @@ fn write_manifest_file(path: &std::path::Path, manifest: &Manifest) -> std::io::
 /// `TEST_START_SYSTEM_STATE` canary to verify a bit-identical round-trip
 /// of the opaque `start_system_state` bytes plus `first_checkpoint`,
 /// `last_checkpoint_summary`, and `end_of_epoch_tx_events`. This test
-/// exercises the discriminant and Vec framing in isolation so a wire-
+/// exercises the discriminant and Vec framing in isolation so an on-disk-
 /// format regression that decouples from the writer (e.g. someone adds
 /// an `EpochInfoV2` variant before `V1`) is caught even if the writer
 /// path is healthy.
@@ -658,7 +810,7 @@ fn epoch_info_v1_bcs_round_trip() {
     // Mix of `Some(_)` and `None` entries so the `Option` framing in
     // `Vec<Option<EpochInfoEntry>>` is exercised end-to-end. Today's
     // writer never emits `None` (the watermark precondition forbids it),
-    // but the wire format reserves that shape for a future partial-
+    // but the on-disk format reserves that shape for a future partial-
     // coverage writer — see [`EpochInfo`]. Locking the `None`-tag byte
     // here keeps that forward-compat path honest.
     let epoch_info = SnapshotEpochInfo::V1(EpochInfoV1 {

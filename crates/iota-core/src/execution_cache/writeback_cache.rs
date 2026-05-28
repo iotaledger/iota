@@ -94,7 +94,6 @@ use crate::{
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
         authority_store_tables::LiveObject,
-        authority_store_types::SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -2385,8 +2384,13 @@ impl GlobalStateHashStore for WritebackCache {
                         id,
                         LiveObject {
                             object: object.clone(),
-                            previous_transaction_checkpoint:
-                                SENTINEL_PREVIOUS_TRANSACTION_CHECKPOINT,
+                            // Dirty-cache entries have not yet been flushed at checkpoint commit
+                            // time, so the containing-checkpoint sequence number is not yet known;
+                            // surfaced as `previous_transaction_checkpoint: None`. Production
+                            // snapshot-write paths do not call this iterator (the asserting
+                            // `iter_live_object_set` requires an empty dirty cache), so no real
+                            // `.obj` file ever observes these `None`s.
+                            previous_transaction_checkpoint: None,
                         },
                     );
                 }

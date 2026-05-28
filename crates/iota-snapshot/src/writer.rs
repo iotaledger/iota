@@ -21,7 +21,7 @@ use futures::StreamExt;
 use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
-    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject, SnapshotLiveObject},
     global_state_hasher::GlobalStateHasher,
 };
 use iota_node_storage::GrpcIndexes;
@@ -219,10 +219,33 @@ impl LiveObjectSetWriterV1 {
         Ok(())
     }
 
-    /// Writes a `LiveObject` to the object file. Creates a new partition
+    /// Writes a live object to the object file. Creates a new partition
     /// (new object file and reference file) if it exceeds the maximum size.
+    ///
+    /// Builds a [`SnapshotLiveObject`] right before BCS encoding so the
+    /// on-disk schema is `previous_transaction_checkpoint: u64` (not
+    /// `Option<u64>`). A `LiveObject` whose checkpoint is `None` (lifted from
+    /// a pre-V2 on-disk row) is rejected here — there is no recoverable
+    /// checkpoint, and emitting that into the snapshot file would force
+    /// downstream consumers to handle unknown checkpoints forever.
     fn write_object(&mut self, live_object: &LiveObject) -> Result<()> {
-        let blob = Blob::encode(live_object, BlobEncoding::Bcs)?;
+        let previous_transaction_checkpoint =
+            live_object.previous_transaction_checkpoint.ok_or_else(|| {
+                anyhow!(
+                    "Snapshot V2 writer: live object {:?} (version {:?}) was lifted from a \
+                     pre-V2 store row and has no `previous_transaction_checkpoint`. This node \
+                     cannot publish V2 snapshots without re-syncing from genesis under V2 or \
+                     starting from a valid V2 snapshot so the entire perpetual store is in V2 \
+                     format.",
+                    live_object.object.id(),
+                    live_object.object.version(),
+                )
+            })?;
+        let snapshot_live_object = SnapshotLiveObject {
+            object: live_object.object.clone(),
+            previous_transaction_checkpoint,
+        };
+        let blob = Blob::encode(&snapshot_live_object, BlobEncoding::Bcs)?;
         let mut blob_size = blob.data.len().required_space();
         blob_size += BLOB_ENCODING_BYTES;
         blob_size += blob.data.len();
@@ -565,7 +588,7 @@ impl StateSnapshotWriterV1 {
                 "epoch_info[{epoch_id}] is populated with an entry for epoch \
                  {entry_epoch}; the snapshot would silently misattribute checkpoints",
             );
-            // Wire format is `Vec<Option<EpochInfoEntry>>` (see [`EpochInfo`]).
+            // On-disk format is `Vec<Option<EpochInfoEntry>>` (see [`EpochInfo`]).
             // Today's writer always emits `Some` — the watermark precondition
             // refuses to publish if any row in `[0, epoch]` is incomplete.
             entries.push(Some(entry));
