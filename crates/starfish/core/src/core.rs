@@ -832,6 +832,20 @@ impl Core {
         // block header's strong_vote field.
         let leader_header = self.leader_header(quorum_round);
 
+        // If an ordinary-ready moment was recorded for an earlier clock round
+        // but we never proposed in it (the round advanced first), the
+        // strong-vote wait still counts toward the extra-wait metric.
+        if let Some((recorded_round, start)) = self.ordinary_propose_ready_at {
+            if recorded_round != clock_round {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .strong_vote_extra_wait_seconds
+                    .observe(start.elapsed().as_secs_f64());
+                self.ordinary_propose_ready_at = None;
+            }
+        }
+
         // Record the first moment in this clock round at which the ordinary
         // (base Starfish) propose condition was satisfied. Used to observe the
         // extra wait imposed by the StarfishSpeed strong-vote condition.
@@ -934,17 +948,20 @@ impl Core {
             .with_label_values(&[leader_authority])
             .inc();
 
-        // Extra wait between ordinary-condition readiness and actual proposal,
-        // attributable to the StarfishSpeed strong-vote condition.
-        if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
-            if let Some((r, start)) = self.ordinary_propose_ready_at {
-                if r == clock_round {
+        // The strong-vote wait for this clock round ends with this proposal.
+        // Observe it for non-forced proposals; forced proposals (e.g. max
+        // leader timeout) are excluded. Clear it either way so the wait is not
+        // re-counted as an abandoned round on a later call.
+        if let Some((r, start)) = self.ordinary_propose_ready_at {
+            if r == clock_round {
+                if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
                     self.context
                         .metrics
                         .node_metrics
                         .strong_vote_extra_wait_seconds
                         .observe(start.elapsed().as_secs_f64());
                 }
+                self.ordinary_propose_ready_at = None;
             }
         }
 
