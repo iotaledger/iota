@@ -676,11 +676,13 @@ impl PrimaryWorker {
                 }
             }
 
-            // 2. Created objects did not exist before this transaction.
+            // 2. Created objects did not exist before this transaction. Use lamport version
+            //    - 1 so the version is monotonic with other backward-history rows for the
+            //    same object.
             for (r, _) in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
-                    -1,
+                    r.version.as_u64() as i64 - 1,
                     BackwardHistoryObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));

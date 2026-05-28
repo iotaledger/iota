@@ -76,14 +76,19 @@ pub async fn call_test_fn(
         .unwrap()
 }
 
-/// Extract the first created object ID from a transaction response.
-pub fn first_created_id(resp: &iota_json_rpc_types::IotaTransactionBlockResponse) -> ObjectID {
+/// Extract the id and version of the first created object from a transaction
+/// response.
+pub fn first_created(
+    resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
+) -> (ObjectID, SequenceNumber) {
     resp.object_changes
         .as_ref()
         .unwrap()
         .iter()
         .find_map(|c| match c {
-            ObjectChange::Created { object_id, .. } => Some(*object_id),
+            ObjectChange::Created {
+                object_id, version, ..
+            } => Some((*object_id, *version)),
             _ => None,
         })
         .expect("expected a created object")
@@ -167,7 +172,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             Some(gas_id),
         )
         .await;
-        let item_id = first_created_id(&resp);
+        let (item_id, item_create_version) = first_created(&resp);
         let create_cp = resp.checkpoint.unwrap() as i64;
 
         let entry = find_backward_entry(store, item_id.as_bytes(), create_cp)?
@@ -176,7 +181,12 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        // NotYetCreated rows carry lamport - 1 so MIN(object_version) stays
+        // monotonic across the object's lifecycle.
+        assert_eq!(
+            entry.object_version,
+            item_create_version.as_u64() as i64 - 1
+        );
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
@@ -225,7 +235,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
         )
         .await;
         let wrap_cp = resp.checkpoint.unwrap() as i64;
-        let box_id = first_created_id(&resp);
+        let (box_id, box_create_version) = first_created(&resp);
 
         // Item was wrapped → ACTIVE backward entry with previous data.
         let entry = find_backward_entry(store, item_id.as_bytes(), wrap_cp)?
@@ -243,7 +253,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        assert_eq!(entry.object_version, box_create_version.as_u64() as i64 - 1);
 
         // ================================================================
         // Step 4: UNWRAP — unwrap the item from the Box
@@ -328,7 +338,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             Some(gas_id),
         )
         .await;
-        let item2_id = first_created_id(&resp);
+        let (item2_id, _) = first_created(&resp);
 
         // 6b. Wrap it.
         let resp = call_test_fn(
@@ -342,7 +352,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
             Some(gas_id),
         )
         .await;
-        let box2_id = first_created_id(&resp);
+        let (box2_id, _) = first_created(&resp);
 
         // 6c. Unwrap-then-delete.
         let resp = call_test_fn(

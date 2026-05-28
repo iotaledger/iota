@@ -1,0 +1,163 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
+---
+processed 15 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 14-43:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7227600, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 45-48:
+//# programmable --sender A --inputs @A
+//> 0: Test::M1::child(Input(0));
+//> 1: Test::M1::child(Input(0));
+//> 2: Test::M1::parent(Input(0));
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4826000, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 50:
+//# run Test::M1::add_child --sender A --args object(2,2) object(2,1) 41
+created: object(3,0)
+mutated: object(0,0), object(2,1), object(2,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5973600, storage_rebate: 3526400, non_refundable_storage_fee: 0
+
+task 4, line 52:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, line 54:
+//# run Test::M1::add_child --sender A --args object(2,2) object(2,0) 42
+created: object(5,0)
+mutated: object(0,0), object(2,0), object(2,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5973600, storage_rebate: 3526400, non_refundable_storage_fee: 0
+
+task 6, line 56:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 7, line 58:
+//# run Test::M1::reclaim_and_transfer_child --sender A --args object(2,2) 42 @A
+mutated: object(0,0), object(2,0), object(2,2)
+deleted: object(5,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3526400, storage_rebate: 5973600, non_refundable_storage_fee: 0
+
+task 8, line 60:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 9, line 62:
+//# run Test::M1::add_child --sender A --args object(2,2) object(2,0) 42
+created: object(5,0)
+mutated: object(0,0), object(2,0), object(2,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5973600, storage_rebate: 3526400, non_refundable_storage_fee: 0
+
+task 10, line 64:
+//# create-checkpoint
+Checkpoint created: 4
+
+task 11, lines 66-88:
+//# run-graphql --cursors bcs(@{obj_3_0},1)
+Response: {
+  "data": {
+    "cv1_after": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "cv1_before": {
+      "dynamicFields": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 12, lines 90-112:
+//# run-graphql --cursors bcs(@{obj_3_0},2)
+Response: {
+  "data": {
+    "cv2_after": {
+      "dynamicFields": {
+        "edges": [
+          {
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "count": "0",
+                    "id": "0x2ce6099adb778c4162a90f9e88e7bc2bc9cfee970340ef4ad3b2b1af9c00ac00"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "cv2_before": {
+      "dynamicFields": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 13, lines 114-136:
+//# run-graphql --cursors bcs(@{obj_3_0},3)
+Response: {
+  "data": {
+    "cv3_after": {
+      "dynamicFields": {
+        "edges": []
+      }
+    },
+    "cv3_before": {
+      "dynamicFields": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 14, lines 138-160:
+//# run-graphql --cursors bcs(@{obj_3_0},4)
+Response: {
+  "data": {
+    "cv4_after": {
+      "dynamicFields": {
+        "edges": [
+          {
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "count": "0",
+                    "id": "0x2ce6099adb778c4162a90f9e88e7bc2bc9cfee970340ef4ad3b2b1af9c00ac00"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "cv4_before": {
+      "dynamicFields": {
+        "edges": []
+      }
+    }
+  }
+}

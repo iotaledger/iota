@@ -701,7 +701,7 @@ mod ingestion_tests {
     ///
     /// `transfer_txn` splits a coin from the gas object and transfers it.
     /// Each such transaction produces:
-    ///   - a CREATED coin  → NOT_YET_CREATED backward entry (version=-1)
+    ///   - a CREATED coin  → NOT_YET_CREATED backward entry (version=lamport-1)
     ///   - a MUTATED gas   → ACTIVE backward entry with previous version/data
     #[tokio::test]
     pub async fn backward_history_ingestion() -> Result<(), IndexerError> {
@@ -723,14 +723,14 @@ mod ingestion_tests {
         let created1: Vec<_> = effects1
             .created()
             .into_iter()
-            .map(|(r, _)| r.object_id)
+            .map(|(r, _)| (r.object_id, r.version))
             .collect();
         assert_eq!(
             created1.len(),
             1,
             "transfer_txn should create exactly 1 coin"
         );
-        let created_coin_1 = created1[0];
+        let (created_coin_1, created_coin_1_version) = created1[0];
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
@@ -746,10 +746,10 @@ mod ingestion_tests {
         let created2: Vec<_> = effects2
             .created()
             .into_iter()
-            .map(|(r, _)| r.object_id)
+            .map(|(r, _)| (r.object_id, r.version))
             .collect();
         assert_eq!(created2.len(), 1);
-        let created_coin_2 = created2[0];
+        let (created_coin_2, created_coin_2_version) = created2[0];
 
         // Both transactions land in checkpoint 1.
         sim.create_checkpoint();
@@ -763,10 +763,10 @@ mod ingestion_tests {
         let created3: Vec<_> = effects3
             .created()
             .into_iter()
-            .map(|(r, _)| r.object_id)
+            .map(|(r, _)| (r.object_id, r.version))
             .collect();
         assert_eq!(created3.len(), 1);
-        let created_coin_3 = created3[0];
+        let (created_coin_3, created_coin_3_version) = created3[0];
         sim.create_checkpoint();
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -782,14 +782,19 @@ mod ingestion_tests {
 
         // === checkpoint 1 assertions (two transactions) ===
 
-        // Both created coins should have NOT_YET_CREATED entries.
+        // Both created coins should have NOT_YET_CREATED entries, with
+        // object_version = lamport - 1 (the version assigned by the create tx,
+        // minus one).
         let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
             .expect("created coin 1 must have a backward history entry at cp 1");
         assert_eq!(
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        assert_eq!(
+            entry.object_version,
+            created_coin_1_version.as_u64() as i64 - 1
+        );
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
@@ -799,7 +804,10 @@ mod ingestion_tests {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        assert_eq!(
+            entry.object_version,
+            created_coin_2_version.as_u64() as i64 - 1
+        );
 
         // The gas object was mutated twice in checkpoint 1 — there should be
         // two ACTIVE entries with different previous versions.
@@ -839,7 +847,10 @@ mod ingestion_tests {
             entry.object_status,
             BackwardHistoryObjectStatus::NotYetCreated as i16
         );
-        assert_eq!(entry.object_version, -1);
+        assert_eq!(
+            entry.object_version,
+            created_coin_3_version.as_u64() as i64 - 1
+        );
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");
