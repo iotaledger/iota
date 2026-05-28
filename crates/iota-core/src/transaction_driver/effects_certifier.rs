@@ -234,14 +234,6 @@ impl EffectsCertifier {
     /// to match `expected_tx_digest`; a mismatch indicates a byzantine
     /// submitter attempting to inject effects for an unrelated transaction
     /// and is rejected.
-    ///
-    /// Behavior per `submit_txn_result`:
-    /// - `Executed { details: Some(_) }`: use the submitting validator's
-    ///   details directly — no extra RPC needed.
-    /// - `Executed { details: None }` or `Submitted`: fetch full effects from
-    ///   the submitting validator (one RPC, no quorum broadcast).
-    /// - `Rejected` or `Expired`: return `ClientInternal` error (these should
-    ///   already be filtered upstream by `drive_transaction_once`).
     #[instrument(level = "debug", skip_all, err(level = "debug"))]
     pub(crate) async fn get_effects_without_certification<A>(
         &self,
@@ -286,18 +278,24 @@ impl EffectsCertifier {
                     }
                 }
             }
+            // `Rejected` and `Expired` are filtered upstream by
+            // `drive_transaction_once` before the skip-cert path is entered;
+            // hitting them here is a driver-level invariant break, not a
+            // user-facing error.
             TxStatusUpdate::Rejected { error } => {
+                debug_fatal!(
+                    "Rejected status reached get_effects_without_certification: {error:?}"
+                );
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Unexpected submission error in get_effects_without_certification(): {error:?}"
-                    ),
+                    error: format!("Rejected reached skip-cert path: {error:?}"),
                 });
             }
             TxStatusUpdate::Expired { epoch } => {
+                debug_fatal!(
+                    "Expired status reached get_effects_without_certification at epoch {epoch}"
+                );
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Transaction expired in epoch {epoch} during get_effects_without_certification()",
-                    ),
+                    error: format!("Expired reached skip-cert path at epoch {epoch}"),
                 });
             }
         };

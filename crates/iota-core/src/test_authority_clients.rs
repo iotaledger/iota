@@ -374,11 +374,13 @@ impl ValidatorV2API for MockAuthorityApi {
         _request: GetTxStatusRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let Some(result) = self.tx_status_stub.lock().unwrap().clone() else {
+            return Err(IotaError::Unknown(
+                "MockAuthorityApi::get_tx_status was called without a stub".to_string(),
+            ));
+        };
         tokio::time::sleep(self.delay).await;
-        match self.tx_status_stub.lock().unwrap().clone() {
-            Some(result) => result,
-            None => unimplemented!(),
-        }
+        result
     }
     async fn notify_capabilities_v2(
         &self,

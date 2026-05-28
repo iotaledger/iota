@@ -341,22 +341,38 @@ pub async fn execute_transactions(
             }
         };
         let flags = ReadFlags::from_mask(&read_mask);
+        let flags_ref = &flags;
+        let read_mask_ref = &read_mask;
+        let wait_error_ref = wait_error.as_deref();
 
-        for (i, digest, rebuild_ctx) in &successful_digests {
-            let original = std::mem::take(&mut transaction_results[*i]);
-            transaction_results[*i] = finalize_item(
-                reader,
-                executor,
-                config,
-                &read_mask,
-                &flags,
-                original,
-                digest,
-                rebuild_ctx.as_ref(),
-                checkpoint_map.get(digest).copied(),
-                wait_error.as_deref(),
-            )
-            .await;
+        // Run per-tx finalization (which calls into `rebuild_from_cache` →
+        // cache reads + object derivation) in parallel; results land back
+        // in per-index slots so the response order matches the request.
+        let mut finalize_futs: FuturesUnordered<_> = successful_digests
+            .into_iter()
+            .map(|(i, digest, rebuild_ctx)| {
+                let original = std::mem::take(&mut transaction_results[i]);
+                let checkpoint_entry = checkpoint_map.get(&digest).copied();
+                async move {
+                    let result = finalize_item(
+                        reader,
+                        executor,
+                        config,
+                        read_mask_ref,
+                        flags_ref,
+                        original,
+                        &digest,
+                        rebuild_ctx,
+                        checkpoint_entry,
+                        wait_error_ref,
+                    )
+                    .await;
+                    (i, result)
+                }
+            })
+            .collect();
+        while let Some((i, result)) = finalize_futs.next().await {
+            transaction_results[i] = result;
         }
     }
 
@@ -419,7 +435,7 @@ async fn finalize_item(
     flags: &ReadFlags,
     mut original: ExecuteTransactionResult,
     digest: &TransactionDigest,
-    rebuild_ctx: Option<&RebuildCtx>,
+    rebuild_ctx: Option<RebuildCtx>,
     checkpoint_entry: Option<(u64, u64)>,
     wait_error: Option<&str>,
 ) -> ExecuteTransactionResult {
@@ -497,7 +513,7 @@ async fn rebuild_from_cache(
     executor: &Arc<dyn TransactionExecutor>,
     config: &iota_config::node::GrpcApiConfig,
     read_mask: &FieldMaskTree,
-    ctx: &RebuildCtx,
+    ctx: RebuildCtx,
     digest: &TransactionDigest,
     checkpoint_seq: u64,
     checkpoint_ts_ms: u64,
@@ -523,8 +539,8 @@ async fn rebuild_from_cache(
     let source = TransactionReadSource {
         reader: reader.clone(),
         config,
-        transaction: Some(ctx.transaction.clone()),
-        signatures: Some(ctx.signatures.clone()),
+        transaction: Some(ctx.transaction),
+        signatures: Some(ctx.signatures),
         effects: Some(cached.effects),
         events: cached.events,
         checkpoint: Some(checkpoint_seq),

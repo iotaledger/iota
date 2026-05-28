@@ -267,10 +267,10 @@ where
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        // Capture the caller's opt-in flags before `request` is moved; the
-        // skip-effect-certification reconcile uses them to decide which
-        // fields to (re-)read from the cache, rather than inferring intent
-        // from whatever the submitter happened to return.
+        // Captured before `request` moves so the skip-cert reconcile reads
+        // caller intent, not whatever the submitter happened to return — a
+        // Byzantine submitter could otherwise censor a field by returning
+        // `None`.
         let include_events = request.include_events;
         let include_input_objects = request.include_input_objects;
         let include_output_objects = request.include_output_objects;
@@ -279,13 +279,13 @@ where
             .verify_transaction(request.transaction.clone())
             .map_err(QuorumDriverError::InvalidUserSignature)?;
 
-        let skip_certification = matches!(
+        let wait_for_local_execution = matches!(
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         );
         let tx_digest = *transaction.digest();
 
-        let (mut response, seq) = match (&self.transaction_driver, skip_certification) {
+        let (mut response, seq) = match (&self.transaction_driver, wait_for_local_execution) {
             (Some(td), true) => {
                 self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
                     .await?
@@ -306,112 +306,83 @@ where
             }
         };
 
-        let executed_locally = if skip_certification {
-            // A response with `UncertifiedSingleValidator` finality came from
-            // the TD skip-effect-certification path; `None` means we need to
-            // build the response from scratch. Both cases consume the
-            // checkpoint sequence from `submit_with_checkpoint_race`, which
-            // honors the CheckpointExecutor's write ordering:
-            // `executed_transactions_to_checkpoint` is written strictly after
-            // every tx in the checkpoint has its effects written, so a seq
-            // here implies effects are also available in the local cache.
-            let needs_cache_rebuild = response.is_none()
-                || response
-                    .as_ref()
-                    .map(|r| {
-                        matches!(
-                            r.effects.finality_info,
-                            EffectsFinalityInfo::UncertifiedSingleValidator(_)
-                        )
-                    })
-                    .unwrap_or(false);
+        // `needs_cache_rebuild` is derived from finality, not caller intent:
+        // the QD fallback path returns `Certified` (no rebuild needed) even
+        // when the caller asked for `WaitForLocalExecution`, while only the
+        // TD skip-cert engine produces `UncertifiedSingleValidator`. The
+        // checkpoint sequence comes from `submit_with_checkpoint_race`, which
+        // relies on `executed_transactions_to_checkpoint` being written
+        // strictly after every tx's effects — so a `Some(seq)` here implies
+        // the cache has authoritative effects.
+        let needs_cache_rebuild = matches!(
+            response.as_ref().map(|r| &r.effects.finality_info),
+            None | Some(EffectsFinalityInfo::UncertifiedSingleValidator(_)),
+        );
 
-            let executed_locally = if needs_cache_rebuild {
-                if let Some(seq) = seq {
-                    match response.as_mut() {
-                        Some(existing) => Self::reconcile_effects_from_cache(
-                            &self.validator_state,
-                            tx_digest,
-                            seq,
-                            include_events,
-                            include_input_objects,
-                            include_output_objects,
-                            existing,
-                            &self.metrics,
-                        ),
-                        None => {
-                            response = Some(Self::build_response_from_cache(
-                                &self.validator_state,
-                                tx_digest,
-                                seq,
-                                include_events,
-                                include_input_objects,
-                                include_output_objects,
-                            )?);
-                        }
-                    }
-                    true
-                } else {
-                    // Timed out waiting for the tx to land in a local
-                    // checkpoint. For the TD-success-with-UncertifiedSingleValidator
-                    // case, the existing safety guard rejects the response.
-                    // For the recovery case (response is None), surface a
-                    // TimeoutBeforeFinality to the caller.
-                    if response.is_none() {
-                        return Err(QuorumDriverError::TimeoutBeforeFinality);
-                    }
-                    false
-                }
-            } else {
-                // QuorumDriver fallback path (white flag flow disabled in the
-                // current protocol). QD already collected 2f+1 effects acks
-                // and tagged the response `Certified`, so no reconciliation is
-                // needed — we only wait to confirm local execution. This branch
-                // can be removed once QD is dropped from the fullnode.
-                let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
-                    &self.validator_state,
-                    &transaction,
-                    &self.metrics,
-                )
-                .await
-                .is_ok();
-                add_server_timing("local_execution");
-                ok
-            };
-
-            executed_locally
-        } else {
+        let executed_locally = if !wait_for_local_execution {
             false
+        } else if needs_cache_rebuild {
+            let Some(seq) = seq else {
+                // Timed out waiting for the tx to land in a local checkpoint.
+                // TD-success-with-UncertifiedSingleValidator falls through to
+                // the safety guard; recovery (response is None) gets a
+                // TimeoutBeforeFinality.
+                if response.is_none() {
+                    return Err(QuorumDriverError::TimeoutBeforeFinality);
+                }
+                return Ok((
+                    response.expect("response is Some on the safety-guard branch"),
+                    false,
+                ));
+            };
+            match response.as_mut() {
+                Some(existing) => Self::reconcile_effects_from_cache(
+                    &self.validator_state,
+                    tx_digest,
+                    seq,
+                    include_events,
+                    include_input_objects,
+                    include_output_objects,
+                    existing,
+                    &self.metrics,
+                ),
+                None => {
+                    response = Some(Self::build_response_from_cache(
+                        &self.validator_state,
+                        tx_digest,
+                        seq,
+                        include_events,
+                        include_input_objects,
+                        include_output_objects,
+                    )?);
+                }
+            }
+            true
+        } else {
+            // QD path: response is already 2f+1 certified, just confirm local
+            // execution finished. Removable once QD is dropped from the
+            // fullnode.
+            let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
+                &self.validator_state,
+                &transaction,
+                &self.metrics,
+            )
+            .await
+            .is_ok();
+            add_server_timing("local_execution");
+            ok
         };
 
-        // At this point `response` is always `Some`: the recovery path either
-        // successfully rebuilt from cache or returned early with
-        // `TimeoutBeforeFinality`; every other code path populated it
-        // unconditionally. `expect` guards against a future refactor that
-        // forgets this invariant.
         let response = response.expect("response must be populated before return");
 
         // Safety guard: `UncertifiedSingleValidator` finality carries effects
         // from the single submitting validator only — they MUST NOT reach the
-        // client without first being corroborated against the local
-        // checkpoint cache. This is the last-chance check before a successful
-        // return; it is reachable when:
-        //
-        // 1. The skip-effect-certification path returned single-validator data but the
-        //    caller did not pass `WaitForLocalExecution`, so
-        //    `reconcile_effects_from_cache` was never invoked.
-        // 2. `wait_for_finalized_tx_executed_locally_with_timeout` /
-        //    `wait_for_checkpoint_inclusion` timed out, so
-        //    `reconcile_effects_from_cache` bailed early and left the finality as-is.
-        // 3. `reconcile_effects_from_cache` took one of its early-return branches —
-        //    cache miss for effects, events, or object derivation — and left the
-        //    finality unchanged.
-        // 4. A future refactor introduces a new return path that forgets to run
-        //    reconciliation.
-        //
-        // In cases (1)-(3) the caller sees `TimeoutBeforeFinality` upstream,
-        // so this guard is expected only as a belt-and-braces fallback. Do
-        // not remove it as "dead code".
+        // client without first being corroborated against the local cache. The
+        // reachable paths today all branch to `TimeoutBeforeFinality` upstream;
+        // this guard is the last-chance fallback for an early-return inside
+        // `reconcile_effects_from_cache` (cache miss / read failure) or a
+        // future refactor that forgets to reconcile. Do not remove as dead
+        // code.
         if matches!(
             response.effects.finality_info,
             EffectsFinalityInfo::UncertifiedSingleValidator(_)
@@ -460,6 +431,45 @@ where
         response: &mut ExecuteTransactionResponseV1,
         metrics: &TransactionOrchestratorMetrics,
     ) {
+        // Happy path: read just the effects, compare digests, and if the TD
+        // response already matches the cache there's no need to re-derive
+        // events / input / output objects (each derivation is N object-store
+        // reads). Only fall back to the full rebuild on digest mismatch.
+        let cache_effects = match validator_state
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&tx_digest)
+        {
+            Ok(Some(e)) => e,
+            other => {
+                // Cache miss or storage error — leave `response` as-is; the
+                // safety guard at the end of `execute_transaction_block`
+                // rejects the still-uncertified finality.
+                warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: cache read failed or empty: {other:?}"
+                );
+                return;
+            }
+        };
+
+        let td_digest = response.effects.effects.digest();
+        let cache_digest = cache_effects.digest();
+        if td_digest == cache_digest {
+            let epoch = cache_effects.epoch();
+            response.effects.effects = cache_effects;
+            response.effects.finality_info =
+                EffectsFinalityInfo::Checkpointed(epoch, checkpoint_seq);
+            return;
+        }
+
+        warn!(
+            ?tx_digest,
+            ?td_digest,
+            ?cache_digest,
+            "reconcile_effects_from_cache: TransactionDriver and local cache disagree \
+             on effects digest — rebuilding from cache (possible byzantine submitter)"
+        );
+
         let rebuilt = match Self::build_response_from_cache(
             validator_state,
             tx_digest,
@@ -470,28 +480,10 @@ where
         ) {
             Ok(r) => r,
             Err(e) => {
-                // Leave `response` as-is; the safety guard at the end of
-                // `execute_transaction_block` will reject the still-uncertified
-                // finality and surface a client-facing error.
                 warn!(?tx_digest, "reconcile_effects_from_cache: {e}");
                 return;
             }
         };
-
-        // Compare driver-returned vs cache-authoritative views before
-        // overwriting, so byzantine-submitter divergences show up in logs and
-        // metrics rather than being silently discarded by the overwrite.
-        let td_digest = response.effects.effects.digest();
-        let cache_digest = rebuilt.effects.effects.digest();
-        if td_digest != cache_digest {
-            warn!(
-                ?tx_digest,
-                ?td_digest,
-                ?cache_digest,
-                "reconcile_effects_from_cache: TransactionDriver and local cache disagree \
-                 on effects digest — using cache (possible byzantine submitter)"
-            );
-        }
         if include_events && response.events.is_some() && rebuilt.events.is_none() {
             warn!(
                 ?tx_digest,
@@ -500,19 +492,15 @@ where
             );
             metrics.skip_effect_cert_events_cache_miss.inc();
         }
-
         *response = rebuilt;
     }
 
     /// Build a skip-effect-certification response entirely from the local
     /// cache. The caller must have already obtained `checkpoint_seq` via
     /// `wait_for_checkpoint_inclusion` — that guarantees both the effects
-    /// write and the checkpoint-mapping write have landed.
-    ///
-    /// Used as a recovery path in `execute_transaction_block` when the
-    /// submitter was reachable enough to submit the tx (so consensus will
-    /// include it) but the subsequent effects fetch from that single
-    /// validator failed.
+    /// write and the checkpoint-mapping write have landed, so a missing
+    /// cache entry here is a hard internal error rather than "not yet
+    /// executed".
     fn build_response_from_cache(
         validator_state: &Arc<AuthorityState>,
         tx_digest: TransactionDigest,
@@ -521,59 +509,29 @@ where
         include_input_objects: bool,
         include_output_objects: bool,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        let cache = validator_state.get_transaction_cache_reader();
-        let effects = cache
-            .try_get_executed_effects(&tx_digest)
-            .map_err(|e| {
-                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
-                    "failed to read effects for tx {tx_digest:?}: {e:?}"
-                )))
-            })?
-            .ok_or_else(|| {
-                // Should be unreachable: wait_for_checkpoint_inclusion
-                // returned Some(seq), which means the CheckpointExecutor
-                // has already stored effects for every tx in that checkpoint.
-                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
-                    "effects missing from cache after checkpoint inclusion for tx {tx_digest:?}"
-                )))
-            })?;
-
-        let events = if include_events {
-            cache.try_get_events(&tx_digest).map_err(|e| {
-                QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
-                    "failed to read events for tx {tx_digest:?}: {e:?}"
-                )))
-            })?
-        } else {
-            None
-        };
-
-        let input_objects = if include_input_objects {
-            Some(
-                validator_state
-                    .get_transaction_input_objects(&effects)
-                    .map_err(|e| {
-                        QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
-                            "failed to derive input objects for tx {tx_digest:?}: {e:?}"
-                        )))
-                    })?,
-            )
-        } else {
-            None
-        };
-        let output_objects = if include_output_objects {
-            Some(
-                validator_state
-                    .get_transaction_output_objects(&effects)
-                    .map_err(|e| {
-                        QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
-                            "failed to derive output objects for tx {tx_digest:?}: {e:?}"
-                        )))
-                    })?,
-            )
-        } else {
-            None
-        };
+        let cached = read_cached_transaction_data(
+            validator_state,
+            &tx_digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )
+        .map_err(|e| {
+            QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                "failed to read cached tx data for {tx_digest:?}: {e:?}"
+            )))
+        })?
+        .ok_or_else(|| {
+            QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(format!(
+                "effects missing from cache after checkpoint inclusion for tx {tx_digest:?}"
+            )))
+        })?;
+        let iota_types::transaction_executor::CachedTransactionData {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        } = cached;
 
         let epoch = effects.epoch();
         Ok(ExecuteTransactionResponseV1 {
@@ -683,27 +641,14 @@ where
 
     /// Submit a transaction via the TransactionDriver (white flag flow).
     ///
-    /// When `skip_certification` is true, `drive_transaction` internally:
-    /// 1. Submits to a single validator and fetches effects (no 2f+1
-    ///    broadcast).
-    /// 2. On post-submit effects-fetch failure, runs
-    ///    `corroborate_single_validator_error`: broadcasts `GetTxStatus` to the
-    ///    committee and aggregates non-retriable rejections.
-    ///    - f+1 stake confirming non-retriable rejection →
-    ///      `RejectedByValidators` (terminal).
-    ///    - Inconclusive → `SubmittedButFetchFailed` (retriable).
-    /// 3. The driver's outer retry loop reissues submission on retriable errors
-    ///    (including `SubmittedButFetchFailed`) up to
-    ///    `WAIT_FOR_FINALITY_TIMEOUT`. The wasted retry on honest-validator
-    ///    transient fetch failures is the cost of guarding against a Byzantine
-    ///    submitter that may not have propagated the tx; see the TODO in
-    ///    `corroborate_single_validator_error` for the planned distinction.
-    /// 4. On retry exhaustion, returns `TimeoutWithLastRetriableError`.
-    ///
-    /// The caller (gRPC `execute_transactions` or `execute_transaction_block`)
-    /// is responsible for `wait_for_checkpoint_inclusion` and the
-    /// cache-rebuild gate that prevents uncertified single-validator data
-    /// from reaching the client.
+    /// With `skip_certification = true` the driver may return
+    /// `UncertifiedSingleValidator` effects without a 2f+1 broadcast. The
+    /// caller (gRPC `execute_transactions` or `execute_transaction_block`)
+    /// is then responsible for `wait_for_checkpoint_inclusion` and the
+    /// cache-rebuild gate that replaces those single-validator effects with
+    /// authoritative data — uncertified data must never reach the client.
+    /// See `corroborate_single_validator_error` for the per-submission
+    /// fetch-failure recovery flow inside the driver.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
@@ -1463,43 +1408,63 @@ where
         include_input_objects: bool,
         include_output_objects: bool,
     ) -> Result<Option<iota_types::transaction_executor::CachedTransactionData>, IotaError> {
-        let cache = self.validator_state.get_transaction_cache_reader();
-        let Some(effects) = cache.try_get_executed_effects(digest)? else {
-            return Ok(None);
-        };
-
-        let events = if include_events {
-            cache.try_get_events(digest)?
-        } else {
-            None
-        };
-
-        let input_objects = if include_input_objects {
-            Some(
-                self.validator_state
-                    .get_transaction_input_objects(&effects)
-                    .map_err(|e| IotaError::Unknown(format!("input objects: {e:?}")))?,
-            )
-        } else {
-            None
-        };
-        let output_objects = if include_output_objects {
-            Some(
-                self.validator_state
-                    .get_transaction_output_objects(&effects)
-                    .map_err(|e| IotaError::Unknown(format!("output objects: {e:?}")))?,
-            )
-        } else {
-            None
-        };
-
-        Ok(Some(
-            iota_types::transaction_executor::CachedTransactionData {
-                effects,
-                events,
-                input_objects,
-                output_objects,
-            },
-        ))
+        read_cached_transaction_data(
+            &self.validator_state,
+            digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )
     }
+}
+
+/// Read a transaction's authoritative data from the local cache. Returns
+/// `Ok(None)` if the tx hasn't been executed locally yet. Shared by the
+/// orchestrator's skip-cert response builder and the `TransactionExecutor`
+/// trait method consumed by the gRPC handler.
+fn read_cached_transaction_data(
+    validator_state: &Arc<AuthorityState>,
+    digest: &TransactionDigest,
+    include_events: bool,
+    include_input_objects: bool,
+    include_output_objects: bool,
+) -> Result<Option<iota_types::transaction_executor::CachedTransactionData>, IotaError> {
+    let cache = validator_state.get_transaction_cache_reader();
+    let Some(effects) = cache.try_get_executed_effects(digest)? else {
+        return Ok(None);
+    };
+
+    let events = if include_events {
+        cache.try_get_events(digest)?
+    } else {
+        None
+    };
+
+    let input_objects = if include_input_objects {
+        Some(
+            validator_state
+                .get_transaction_input_objects(&effects)
+                .map_err(|e| IotaError::Unknown(format!("input objects: {e:?}")))?,
+        )
+    } else {
+        None
+    };
+    let output_objects = if include_output_objects {
+        Some(
+            validator_state
+                .get_transaction_output_objects(&effects)
+                .map_err(|e| IotaError::Unknown(format!("output objects: {e:?}")))?,
+        )
+    } else {
+        None
+    };
+
+    Ok(Some(
+        iota_types::transaction_executor::CachedTransactionData {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        },
+    ))
 }
