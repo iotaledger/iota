@@ -524,6 +524,83 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
     Ok(())
 }
 
+/// Without consensus quorum, the skip-cert path can never observe checkpoint
+/// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
+/// (a retriable transient), not `QuorumDriverInternal` — the latter would
+/// page on-call for a routine availability dip.
+#[sim_test]
+async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_white_flag_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    // Sanity-check the happy path first so the failure below is attributable
+    // to the deliberate quorum loss, not a misconfigured cluster.
+    let mut txns = batch_make_transfer_transactions(context, 2).await;
+    let healthy_txn = txns.swap_remove(0);
+    orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: healthy_txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("baseline skip-cert tx should succeed before quorum loss");
+
+    // Drop two validators (of four) so consensus cannot form. Checkpoint
+    // inclusion will never happen for any new tx submitted after this point.
+    let validator_addresses = test_cluster.get_validator_pubkeys();
+    assert_eq!(validator_addresses.len(), 4);
+    test_cluster.stop_node(&validator_addresses[0]);
+    test_cluster.stop_node(&validator_addresses[1]);
+
+    let stuck_txn = txns.swap_remove(0);
+    let result = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: stuck_txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await;
+
+    match result {
+        Err(QuorumDriverError::TimeoutBeforeFinality)
+        | Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }) => {}
+        Err(QuorumDriverError::QuorumDriverInternal(e)) => panic!(
+            "skip-cert quorum loss should map to TimeoutBeforeFinality, got \
+             QuorumDriverInternal: {e:?}"
+        ),
+        Err(other) => {
+            panic!("unexpected error variant from skip-cert under quorum loss: {other:?}")
+        }
+        Ok((response, _)) => panic!(
+            "skip-cert should not succeed without consensus quorum; got {:?}",
+            response.effects.finality_info
+        ),
+    }
+
+    Ok(())
+}
+
 #[sim_test]
 async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
