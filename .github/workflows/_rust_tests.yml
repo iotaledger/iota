@@ -213,11 +213,8 @@ jobs:
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Check iota-types compiles to wasm32
-        run: cargo check -p iota-types --target wasm32-unknown-unknown
-
-      - name: Check iota-common compiles to wasm32
-        run: cargo check -p iota-common --target wasm32-unknown-unknown
+      - name: Check wasm32 compatibility
+        run: cargo check -p iota-types -p iota-common --target wasm32-unknown-unknown
 
   check-wasm32-cancel:
     needs: [check-wasm32]

@@ -40,20 +40,6 @@ macro_rules! debug_fatal {
     }};
 }
 
-// On wasm32 the `iota-metrics` dep is excluded. Keep the macro available with
-// the same surface but without the metrics callout.
-#[cfg(target_arch = "wasm32")]
-#[macro_export]
-macro_rules! debug_fatal {
-    ($($arg:tt)*) => {{
-        if $crate::logging::crash_on_debug() {
-            $crate::fatal!($($arg)*);
-        } else {
-            tracing::error!(debug_fatal = true, $($arg)*);
-        }
-    }};
-}
-
 mod tests {
     #[test]
     #[should_panic]
