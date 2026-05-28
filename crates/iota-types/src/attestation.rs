@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 // TODO: change the import once the AuthorityIndex refactor is ready
+// See https://github.com/iotaledger/iota-private/issues/404
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -23,8 +24,7 @@ use crate::{
 ///   signature is needed.
 /// - [`Attestation::Explicit`]: produced by a registered third-party attestor.
 ///   Requires a signature binding the attestation to the transaction.
-#[non_exhaustive]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Attestation {
     Validator {
         payload: AttestationData,
@@ -47,7 +47,7 @@ pub enum Attestation {
 /// match arms. Both `Validator` and `Explicit` share the same `AttestationData`
 /// so any extension applies uniformly across attestation types.
 #[non_exhaustive]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttestationData {
     V1 {
         /// Expected computation cost, in gas units, used by the sequencer to
@@ -64,9 +64,9 @@ pub enum AttestationData {
 
 /// A user transaction bundled with its attestation. This is the inner payload
 /// of `ConsensusTransactionKind::UserTransactionV2`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttestedTransaction {
-    pub transaction: Box<Transaction>,
+    pub transaction: Transaction,
     pub attestation: Attestation,
 }
 
@@ -88,7 +88,7 @@ impl Attestation {
 impl AttestedTransaction {
     pub fn new(transaction: Transaction, attestation: Attestation) -> Self {
         Self {
-            transaction: Box::new(transaction),
+            transaction,
             attestation,
         }
     }
@@ -100,8 +100,6 @@ impl AttestedTransaction {
 
 #[cfg(test)]
 mod tests {
-    use bcs;
-
     use super::*;
     use crate::{
         base_types::{IotaAddress, random_object_ref},
@@ -121,12 +119,7 @@ mod tests {
         let data = make_attestation_data();
         let encoded = bcs::to_bytes(&data).unwrap();
         let decoded: AttestationData = bcs::from_bytes(&encoded).unwrap();
-        let AttestationData::V1 {
-            estimated_computation_cost,
-            object_versions,
-        } = decoded;
-        assert_eq!(estimated_computation_cost, 1_000_000);
-        assert_eq!(object_versions.len(), 1);
+        assert_eq!(decoded, data);
     }
 
     #[test]
@@ -137,39 +130,27 @@ mod tests {
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
-        let Attestation::Validator { attestor_index, .. } = decoded else {
-            panic!("unexpected variant");
-        };
-        assert_eq!(attestor_index, AuthorityIndex::new_for_test(3));
+        assert_eq!(decoded, attestation);
     }
 
     #[test]
     fn attestation_explicit_bcs_round_trip() {
-        let address = IotaAddress::random();
         let attestation = Attestation::Explicit {
             payload: make_attestation_data(),
-            attestor_address: address,
+            attestor_address: IotaAddress::random(),
             signature: Box::new(GenericSignature::Signature(
                 Ed25519IotaSignature::default().into(),
             )),
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
-        let Attestation::Explicit {
-            attestor_address, ..
-        } = decoded
-        else {
-            panic!("unexpected variant");
-        };
-        assert_eq!(attestor_address, address);
+        assert_eq!(decoded, attestation);
     }
 
     #[test]
     fn attested_transaction_bcs_round_trip() {
-        let tx = create_fake_transaction();
-        let digest = *tx.digest();
         let attested = AttestedTransaction::new(
-            tx,
+            create_fake_transaction(),
             Attestation::Validator {
                 payload: make_attestation_data(),
                 attestor_index: AuthorityIndex::new_for_test(0),
@@ -177,6 +158,6 @@ mod tests {
         );
         let encoded = bcs::to_bytes(&attested).unwrap();
         let decoded: AttestedTransaction = bcs::from_bytes(&encoded).unwrap();
-        assert_eq!(*decoded.digest(), digest);
+        assert_eq!(decoded, attested);
     }
 }

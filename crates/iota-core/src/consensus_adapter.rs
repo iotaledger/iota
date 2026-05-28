@@ -578,21 +578,14 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // Soft-bundle batches must be homogeneous: either all
-            // CertifiedTransaction (certificate flow), all UserTransactionV1,
-            // or all UserTransactionV2 (white-flag flow). submit_and_wait_inner
-            // assumes a single transaction kind across the batch.
-            let all_certificates = transactions
-                .iter()
-                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::CertifiedTransaction(_)));
-            let all_v1 = transactions
-                .iter()
-                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::UserTransactionV1(_)));
-            let all_v2 = transactions
-                .iter()
-                .all(|tx| matches!(tx.kind, ConsensusTransactionKind::UserTransactionV2(_)));
+            // Soft-bundle batches must be homogeneous — every transaction must be
+            // of the same kind, because submit_and_wait_inner assumes a single
+            // transaction kind across the batch.
+            let first_kind = std::mem::discriminant(&transactions[0].kind);
             fp_ensure!(
-                all_certificates || all_v1 || all_v2,
+                transactions
+                    .iter()
+                    .all(|tx| std::mem::discriminant(&tx.kind) == first_kind),
                 IotaError::InvalidTxKindInSoftBundle
             );
         }
@@ -679,8 +672,9 @@ impl ConsensusAdapter {
         }
 
         // submit_batch enforces that multi-tx batches (soft bundles) are
-        // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
-        // Single-tx submits can be any kind.
+        // homogeneous: all transactions share the same `ConsensusTransactionKind`
+        // (in practice all CertifiedTransaction, all UserTransactionV1, or all
+        // UserTransactionV2). Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
 
         let mut transaction_keys = Vec::new();

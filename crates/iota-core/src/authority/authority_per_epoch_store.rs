@@ -2248,10 +2248,11 @@ impl AuthorityPerEpochStore {
             .multi_insert(key_value_pairs)?;
 
         // NOTE: If the white flag flow is enabled (certificate-less mode), we do not
-        // insert `UserTransactionV1` into the pending set because there is no
-        // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
-        // executed before the end of epoch. Thus, the below insertion is only for
-        // certificates, i.e., when the white flag flow is disabled.
+        // insert user transactions (`UserTransactionV1` / `UserTransactionV2`) into
+        // the pending set because there is no pre-consensus "promise" (a certificate)
+        // that they will be executed before the end of epoch. Thus, the below
+        // insertion is only for certificates, i.e., when the white flag flow is
+        // disabled.
         if !self.protocol_config.enable_white_flag_flow() {
             // TODO: lock once for all insert() calls.
             for transaction in transactions {
@@ -2912,9 +2913,13 @@ impl AuthorityPerEpochStore {
                 //  validation if the protocol feature flag is not set
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV2(_a),
+                kind: ConsensusTransactionKind::UserTransactionV2(_attested_tx),
                 ..
-            }) => {}
+            }) => {
+                // TODO: make sure that UserTransactionV2 blocks don't pass
+                //  validation if the validator-attestation feature flag is not
+                // set
+            }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
                 ..
@@ -3195,11 +3200,12 @@ impl AuthorityPerEpochStore {
         sequenced_randomness_transactions.extend(current_commit_sequenced_randomness_transactions);
 
         // Post-consensus validation and owned-object conflict resolution in a
-        // single pass: validates UserTransactionV1 transactions and resolves
-        // lock conflicts before reordering. Deferred txs from previous commits
-        // already have persistent locks, giving them natural precedence.
-        // Also collects all UserTransactionV1 digests for soft lock release
-        // after the consensus output is quarantined.
+        // single pass: validates user transactions (`UserTransactionV1` /
+        // `UserTransactionV2`) and resolves lock conflicts before reordering.
+        // Deferred txs from previous commits already have persistent locks,
+        // giving them natural precedence. Also collects all user transaction
+        // digests for soft lock release after the consensus output is
+        // quarantined.
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_white_flag {
             let (dropped, owned_object_locks, soft_lock_digests) =

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 26;
+pub const MAX_PROTOCOL_VERSION: u64 = 25;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -141,9 +141,6 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable additional borrow checks.
 // Version 25: Deprecate zkLogin related parameters since zkLogin is no longer
 //             supported.
-// Version 26: Enable white flag flow and validator attestation in devnet.
-//             Switch per-object congestion-control mode to
-//             TotalComputationCost.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2790,23 +2787,6 @@ impl ProtocolConfig {
                     cfg.max_jwk_votes_per_validator_per_epoch = None;
                     cfg.max_age_of_jwk_in_epochs = None;
                 }
-                26 => {
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable white flag flow and validator attestation in devnet.
-                        cfg.feature_flags.enable_white_flag_flow = true;
-                        cfg.feature_flags.enable_validator_attestation = true;
-                        // Switch the per-object congestion-control mode to use the
-                        // attested computation cost from `UserTransactionV2` for
-                        // shared-object scheduling.
-                        cfg.feature_flags.per_object_congestion_control_mode =
-                            PerObjectCongestionControlMode::TotalComputationCost;
-                        // Raise the per-object commit limit to match
-                        // `max_tx_gas / reference_gas_price` (50 IOTA / 1000) = 50M
-                        // computation gas units — room for one max-budget transaction.
-                        cfg.max_accumulated_txn_cost_per_object_in_mysticeti_commit = Some(50_000_000);
-                    }
-                }
-
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.

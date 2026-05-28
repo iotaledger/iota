@@ -126,7 +126,7 @@ pub async fn validate_and_resolve_conflicts(
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => (t, None),
+            }) => (t.as_ref(), None),
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV2(a),
                 ..
@@ -152,8 +152,9 @@ pub async fn validate_and_resolve_conflicts(
         {
             warn!(
                 ?digest,
+                kind = if attestation.is_some() { "UserTransactionV2" } else { "UserTransactionV1" },
                 error = ?e,
-                "UserTransactionV1 failed validity_check post-consensus, dropping"
+                "user transaction failed validity_check post-consensus, dropping"
             );
             dropped.push((digest, e));
             keep[i] = false;
@@ -178,7 +179,9 @@ pub async fn validate_and_resolve_conflicts(
                     }
                 }
                 // Reject Explicit variant as not yet implemented.
-                _ => Some(IotaError::ExplicitAttestationNotSupported),
+                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
+                    error: "Explicit attestation not yet supported".into(),
+                }),
             };
             if let Some(e) = error {
                 warn!(
@@ -289,14 +292,23 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         //
-        // For `UserTransactionV2` (attested transactions), this check is skipped
-        // entirely. The attestor has already performed validation (including deny
-        // checks, gas, and ownership verification) before producing the
-        // attestation. Re-running these checks post-consensus would be redundant
-        // and could cause divergence if state changes between attestation time
-        // and execution time.
+        // For `UserTransactionV2` (attested transactions) this check is
+        // skipped. Each part of it is either re-applied during execution or is
+        // not safety-critical to run post-consensus:
+        //   - `TransactionDenyConfig` (sender/object/package deny lists, feature
+        //     kill-switches): loaded from each validator's local `NodeConfig` so it
+        //     shouldn't be re-run post- consensus.
+        //   - Coin deny list v1 will be enforced at execution time.
+        //   - Receiving-object validity: the Move runtime fails the `receive()` call
+        //     when the ref doesn't match current state.
+        //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
+        //     published package; the signing-time variant only adds a stricter meter as
+        //     a DoS gate.
+        //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
+        //     execution pipeline (`check_certificate_input` and
+        //     `authenticate_then_execute_transaction_to_effects`).
         if attestation.is_none() {
-            let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+            let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             if let Err(e) = authority_state
                 .handle_transaction_validation_checks(&verified_tx, epoch_store)
                 .await

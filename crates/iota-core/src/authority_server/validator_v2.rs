@@ -15,7 +15,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     fp_ensure,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     message_envelope::Message,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -226,10 +225,19 @@ impl ValidatorService {
         // object loading, input validation, coin deny list, and a full dry-run
         // in a single call, so it replaces `handle_transaction_validation_checks`
         // entirely. The legacy path calls the validation-only function.
-        let (attestation_data, owned_objects) =
+        let (attestation_data, owned_objects, verified_tx) =
             if epoch_store.protocol_config().enable_validator_attestation() {
-                match state.attest_transaction(&verified_tx, epoch_store) {
-                    Ok((data, objs)) => (Some(data), objs),
+                let state_for_attest = state.clone();
+                let epoch_store_for_attest = epoch_store.clone();
+                let (result, verified_tx) = tokio::task::spawn_blocking(move || {
+                    let result =
+                        state_for_attest.attest_transaction(&verified_tx, &epoch_store_for_attest);
+                    (result, verified_tx)
+                })
+                .await
+                .expect("attest_transaction blocking task panicked");
+                match result {
+                    Ok((data, objs)) => (Some(data), objs, verified_tx),
                     Err(e) => {
                         let weight = normalize(&e);
                         return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -240,7 +248,7 @@ impl ValidatorService {
                     .handle_transaction_validation_checks(&verified_tx, epoch_store)
                     .await
                 {
-                    Ok(objs) => (None, objs),
+                    Ok(objs) => (None, objs, verified_tx),
                     Err(e) => {
                         let weight = normalize(&e);
                         return (TxStatusUpdate::Rejected { error: e }, weight);
@@ -290,39 +298,23 @@ impl ValidatorService {
 
         // Build the consensus transaction.
         let consensus_tx = if let Some(attestation_data) = attestation_data {
-            let committee = epoch_store.committee();
-            let attestor_index = committee
-                .names()
-                .position(|n| n == &state.name)
-                .and_then(|i| {
-                    epoch_store
-                        .epoch_start_state()
-                        .get_consensus_committee()
-                        .to_authority_index(i)
-                });
+            // submit_single_tx runs on a validator, so it must be present in its
+            // own committee. Treat absence as a fatal bug, not a user error.
+            let attestor_index = epoch_store
+                .committee()
+                .authority_index(&state.name)
+                .map(|i| starfish_config::AuthorityIndex::from(i as u8))
+                .expect("validator must be present in its own consensus committee");
 
-            match attestor_index {
-                Some(attestor_index) => {
-                    ConsensusTransaction::new_attested_transaction(AttestedTransaction::new(
-                        verified_tx.into_inner(),
-                        Attestation::Validator {
-                            payload: attestation_data,
-                            attestor_index,
-                        },
-                    ))
-                }
-                None => {
-                    soft_locks.release(&tx_digest);
-                    metrics
-                        .soft_lock_table_size
-                        .set(soft_locks.lock_count() as i64);
-                    let error = IotaError::from("validator not found in consensus committee");
-                    let weight = normalize(&error);
-                    return (TxStatusUpdate::Rejected { error }, weight);
-                }
-            }
+            ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
+                verified_tx.into_inner(),
+                Attestation::Validator {
+                    payload: attestation_data,
+                    attestor_index,
+                },
+            ))
         } else {
-            ConsensusTransaction::new_user_transaction(verified_tx.into_inner())
+            ConsensusTransaction::new_user_transaction_v1(verified_tx.into_inner())
         };
 
         // Submit to consensus.
