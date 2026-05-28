@@ -7124,6 +7124,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         None,
         ConsensusAdapterMetrics::new_test(),
         soft_limit_pct,
+        true,
     ));
 
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();

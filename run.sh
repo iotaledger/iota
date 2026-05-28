@@ -7,14 +7,14 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 nohup bash -c '
-  START_PCT=100 MAX_PENDING=1000 SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
-  START_PCT=75  MAX_PENDING=1000 SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
-  START_PCT=50  MAX_PENDING=1000 SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
-  START_PCT=25  MAX_PENDING=1000 SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
-  START_PCT=100 MAX_PENDING=1000 SEMAPHORE_CAP=20   ./cap-policy-sweep.sh
-  START_PCT=50  MAX_PENDING=1000 SEMAPHORE_CAP=20   ./cap-policy-sweep.sh
-  START_PCT=100 MAX_PENDING=500  SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
-  START_PCT=100 MAX_PENDING=900  SEMAPHORE_CAP=2000 ./cap-policy-sweep.sh
+  START_PCT=100 MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
+  START_PCT=75  MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
+  START_PCT=50  MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
+  START_PCT=25  MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
+  START_PCT=100 MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=true  ./cap-policy-sweep.sh
+  START_PCT=50  MAX_PENDING=1000 SEMAPHORE_CAP=20 SEM_SHEDDING=true  ./cap-policy-sweep.sh
+  START_PCT=100 MAX_PENDING=500  SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
+  START_PCT=100 MAX_PENDING=900  SEMAPHORE_CAP=20 SEM_SHEDDING=false ./cap-policy-sweep.sh
 ' >/dev/null 2>&1 &
 
 disown

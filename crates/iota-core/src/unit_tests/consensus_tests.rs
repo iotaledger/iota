@@ -224,6 +224,7 @@ pub fn make_consensus_adapter_for_test(
         None,
         metrics,
         50,
+        true,
     ))
 }
 
@@ -535,6 +536,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            true,
         ));
 
         adapter.submit_recovered(&epoch_store);
@@ -617,6 +619,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            true,
         ));
 
         adapter.submit_recovered(&epoch_store);

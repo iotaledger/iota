@@ -59,7 +59,7 @@ YAML_CFG="$PRIVNET/configs/validator-common.yaml"
 # CSV header (only if new file). `start_pct` is graduated-load-shedding-soft-limit-pct
 # from validator-common.yaml at run time — embedded per row so cross-pct CSV
 # concatenation stays self-describing.
-[ -f "$OUT_CSV" ] || echo "iso_time,burst,bar_ms,iter,start_pct,peak_inflight,ratio,exit_codes_ok,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,queue_p50,queue_p75,queue_p99,reject_rate_max,reject_rate_mean,admit_lat_p99,permit_hold_p50,permit_hold_p99,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p99" > "$OUT_CSV"
+[ -f "$OUT_CSV" ] || echo "iso_time,burst,bar_ms,iter,start_pct,peak_inflight,ratio,exit_codes_ok,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,queue_p50,queue_p75,queue_p99,reject_rate_max,reject_rate_mean,admit_lat_p50,admit_lat_p99,permit_hold_p50,permit_hold_p99,permit_wait_p50,permit_wait_p99,pre_acquire_p50,pre_acquire_p99,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p50,consensus_lat_p99" > "$OUT_CSV"
 
 exec >> "$OUT_LOG" 2>&1
 
@@ -247,12 +247,18 @@ for burst in "${BURSTS[@]}"; do
       q_p99=$(grep '^queue_depth_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       rej_rate_max=$(grep '^reject_rate_max:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       rej_rate_mean=$(grep '^reject_rate_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      admit_p50=$(grep '^admit_lat_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       admit_p99=$(grep '^admit_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       permit_hold_p50=$(grep '^permit_hold_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       permit_hold_p99=$(grep '^permit_hold_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      permit_wait_p50=$(grep '^permit_wait_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      permit_wait_p99=$(grep '^permit_wait_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      pre_acquire_p50=$(grep '^pre_acquire_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      pre_acquire_p99=$(grep '^pre_acquire_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       inflight_stddev=$(grep '^inflight_stddev:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       inflight_mean=$(grep '^inflight_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       saturation_75pct=$(grep '^saturation_75pct:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+      consensus_lat_p50=$(grep '^consensus_lat_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       consensus_lat_p99=$(grep '^consensus_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       # Soft-limit-pct as currently deployed via validator-common.yaml. Read
       # at the same point we extract the result so each row records the
@@ -273,18 +279,24 @@ for burst in "${BURSTS[@]}"; do
       [ -z "$q_p99" ] && q_p99=0
       [ -z "$rej_rate_max" ] && rej_rate_max=0
       [ -z "$rej_rate_mean" ] && rej_rate_mean=0
+      [ -z "$admit_p50" ] && admit_p50=0
       [ -z "$admit_p99" ] && admit_p99=0
       [ -z "$permit_hold_p50" ] && permit_hold_p50=0
       [ -z "$permit_hold_p99" ] && permit_hold_p99=0
+      [ -z "$permit_wait_p50" ] && permit_wait_p50=0
+      [ -z "$permit_wait_p99" ] && permit_wait_p99=0
+      [ -z "$pre_acquire_p50" ] && pre_acquire_p50=0
+      [ -z "$pre_acquire_p99" ] && pre_acquire_p99=0
       [ -z "$inflight_stddev" ] && inflight_stddev=0
       [ -z "$inflight_mean" ] && inflight_mean=0
       [ -z "$saturation_75pct" ] && saturation_75pct=0
+      [ -z "$consensus_lat_p50" ] && consensus_lat_p50=0
       [ -z "$consensus_lat_p99" ] && consensus_lat_p99=0
       [ -z "$start_pct" ] && start_pct="?"
       ok=$(echo "$exits" | awk '{for(i=1;i<=NF;i++) if($i!="0"){print 0; exit} print 1}')
       iso=$(basename "$latest" | sed 's/multi-//')
-      echo "$iso,$burst,$bar,$i,$start_pct,$peak,$ratio,$ok,$r_prev,$r_grad_react,$r_max,$r_sem,$useful_tps,$q_p50,$q_p75,$q_p99,$rej_rate_max,$rej_rate_mean,$admit_p99,$permit_hold_p50,$permit_hold_p99,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p99" >> "$OUT_CSV"
-      echo ">>> RESULT: burst=$burst bar=$bar iter=$i pct=$start_pct peak=$peak ratio=${ratio}× ok=$ok  tps=$useful_tps  q[p50=$q_p50,p99=$q_p99]  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  rej_rate[max=$rej_rate_max,mean=$rej_rate_mean]  admit_p99=$admit_p99 hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  inflight[mean=$inflight_mean,std=$inflight_stddev] sat75=$saturation_75pct cons_p99=$consensus_lat_p99"
+      echo "$iso,$burst,$bar,$i,$start_pct,$peak,$ratio,$ok,$r_prev,$r_grad_react,$r_max,$r_sem,$useful_tps,$q_p50,$q_p75,$q_p99,$rej_rate_max,$rej_rate_mean,$admit_p50,$admit_p99,$permit_hold_p50,$permit_hold_p99,$permit_wait_p50,$permit_wait_p99,$pre_acquire_p50,$pre_acquire_p99,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p50,$consensus_lat_p99" >> "$OUT_CSV"
+      echo ">>> RESULT: burst=$burst bar=$bar iter=$i pct=$start_pct peak=$peak ratio=${ratio}× ok=$ok  tps=$useful_tps  q[p50=$q_p50,p99=$q_p99]  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  rej_rate[max=$rej_rate_max,mean=$rej_rate_mean]  admit_p99=$admit_p99 hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  inflight[mean=$inflight_mean,std=$inflight_stddev] sat75=$saturation_75pct cons_p99=$consensus_lat_p99"
       # Early-exit safety: if first 2 iters give peak=0, something's broken
       # network-side (e.g. white-flag misconfig). Don't burn 75 min on it.
       if [ "$i" -le 2 ] && [ "${peak:-0}" -eq 0 ] 2>/dev/null; then

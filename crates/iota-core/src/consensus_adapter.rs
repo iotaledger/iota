@@ -80,6 +80,8 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_in_flight_semaphore_wait: IntGauge,
     pub sequencing_in_flight_submissions: IntGauge,
     pub sequencing_submit_permit_hold_duration: Histogram,
+    pub sequencing_submit_permit_wait_duration: Histogram,
+    pub sequencing_submit_pre_acquire_duration: Histogram,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
 }
@@ -183,6 +185,26 @@ impl ConsensusAdapterMetrics {
                 "Wall-clock time a submit_semaphore permit is held: from \
                  acquire-success until drop. Approximates per-tx admission \
                  cost on the validator's pre-consensus path.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_permit_wait_duration: register_histogram_with_registry!(
+                "sequencing_submit_permit_wait_duration",
+                "Wall-clock time a tx blocks on submit_semaphore.acquire() \
+                 after being admitted (stage B). Non-zero when sem is the \
+                 binding cap; near-zero otherwise.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_pre_acquire_duration: register_histogram_with_registry!(
+                "sequencing_submit_pre_acquire_duration",
+                "Wall-clock time from InflightDropGuard::acquire to the \
+                 tokio::select! resolving (i.e. before submit_semaphore.acquire()). \
+                 Covers leader-rotation wait, epoch-close wait, and dedup-via-\
+                 consensus race. Observed for every tx regardless of which arm \
+                 fires (normal-flow OR early-exit).",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -313,6 +335,11 @@ pub struct ConsensusAdapter {
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
 
+    /// When `false`, the semaphore is NOT used as a load-shedding signal:
+    /// both `check_consensus_limits_reason` and the submit-path `acquire()`
+    /// bypass it. Defaults to `true`. Set via `ConsensusConfig`.
+    semaphore_shedding_enabled: bool,
+
     /// Tracks consensus submission latency for adaptive submit-delay backoff.
     latency_observer: LatencyObserver,
 
@@ -356,6 +383,7 @@ impl ConsensusAdapter {
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
         graduated_load_shedding_soft_limit_pct: u32,
+        semaphore_shedding_enabled: bool,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -372,6 +400,7 @@ impl ConsensusAdapter {
             low_scoring_authorities,
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
+            semaphore_shedding_enabled,
             latency_observer: LatencyObserver::new(),
             graduated_load_shedding_soft_limit_pct,
         }
@@ -392,6 +421,7 @@ impl ConsensusAdapter {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            true,
         )
     }
 
@@ -720,8 +750,9 @@ impl ConsensusAdapter {
             return Some(ConsensusOverloadReason::MaxPendingTxsExceeded);
         }
 
-        // Then check if `submit_semaphore` has permits
-        if self.submit_semaphore.available_permits() == 0 {
+        // Then check if `submit_semaphore` has permits, unless semaphore-based
+        // shedding is disabled (research knob to isolate other shedding signals).
+        if self.semaphore_shedding_enabled && self.submit_semaphore.available_permits() == 0 {
             return Some(ConsensusOverloadReason::SemaphoreNoPermits);
         }
 
@@ -816,6 +847,10 @@ impl ConsensusAdapter {
 
         let mut guard = InflightDropGuard::acquire(&self, tx_type);
 
+        // Stage A timer: wraps the select! below, observed for every tx
+        // regardless of which arm fires.
+        let pre_acquire_start = std::time::Instant::now();
+
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
             self.await_submit_delay(epoch_store.committee(), &transactions[..]);
@@ -841,6 +876,9 @@ impl ConsensusAdapter {
                 None
             }
         };
+        self.metrics
+            .sequencing_submit_pre_acquire_duration
+            .observe(pre_acquire_start.elapsed().as_secs_f64());
 
         // Log warnings for administrative transactions that fail to get sequenced
         let _monitor = if !is_soft_bundle
@@ -878,12 +916,17 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
+            // Stage B: measure wall-clock time spent waiting for the sem permit.
+            let permit_wait_start = std::time::Instant::now();
             let _permit: SemaphorePermit = self
                 .submit_semaphore
                 .acquire()
                 .count_in_flight(&self.metrics.sequencing_in_flight_semaphore_wait)
                 .await
                 .expect("Consensus adapter does not close semaphore");
+            self.metrics
+                .sequencing_submit_permit_wait_duration
+                .observe(permit_wait_start.elapsed().as_secs_f64());
             // Permit hold timer starts AFTER acquire-success (excludes wait time, which
             // is already captured by sequencing_in_flight_semaphore_wait).
             let permit_held_start = std::time::Instant::now();
@@ -1578,6 +1621,7 @@ mod adapter_tests {
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
             50,
+            true,
         );
 
         // transaction to submit
@@ -1609,6 +1653,7 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            true,
         );
 
         let (delay_step, position, positions_moved, _) =

@@ -159,6 +159,7 @@ impl ValidatorConfigBuilder {
             parameters: Default::default(),
             graduated_load_shedding_soft_limit_pct: Default::default(),
             max_pending_local_submissions: None,
+            semaphore_shedding_enabled: None,
         };
 
         let p2p_config = P2pConfig {

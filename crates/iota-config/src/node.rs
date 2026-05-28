@@ -867,6 +867,16 @@ pub struct ConsensusConfig {
     /// formula in iota-node.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_pending_local_submissions: Option<usize>,
+
+    /// When `false`, the consensus adapter does NOT use `submit_semaphore`
+    /// permits as a load-shedding signal. Both the "no permits available"
+    /// rejection in `check_consensus_limits_reason()` and the
+    /// `submit_semaphore.acquire().await` in the submit path are bypassed.
+    /// Lets researchers isolate graduated/max_pending shedding effects
+    /// without the side-effect of the semaphore also capping concurrency.
+    /// Defaults to `true` (semaphore-based shedding active).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semaphore_shedding_enabled: Option<bool>,
 }
 
 impl ConsensusConfig {
@@ -898,6 +908,12 @@ impl ConsensusConfig {
         self.graduated_load_shedding_soft_limit_pct
             .unwrap_or(50)
             .min(100)
+    }
+
+    /// Returns whether `submit_semaphore` is used as a load-shedding signal.
+    /// Defaults to `true` (semaphore-based shedding active).
+    pub fn semaphore_shedding_enabled(&self) -> bool {
+        self.semaphore_shedding_enabled.unwrap_or(true)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {

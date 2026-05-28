@@ -11,6 +11,7 @@ validator:
     max-pending-transactions: 1000
     max-pending-local-submissions: 20
     graduated-load-shedding-soft-limit-pct: 100
+    semaphore-shedding-enabled: false
   expensive-safety-check-config:
     enable-epoch-iota-conservation-check: false
     enable-deep-per-tx-iota-conservation-check: false
