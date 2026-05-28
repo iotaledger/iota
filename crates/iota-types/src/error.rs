@@ -685,6 +685,9 @@ pub enum IotaError {
 
     #[error("The request did not contain a certificate")]
     NoCertificateProvided,
+
+    #[error("Invalid admin request: {0}")]
+    InvalidAdminRequest(String),
 }
 
 #[repr(u64)]

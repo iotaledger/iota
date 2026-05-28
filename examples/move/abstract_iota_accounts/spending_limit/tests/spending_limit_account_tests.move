@@ -772,5 +772,7 @@ fun make_auth_context_for_testing(
         vector[],
         b"00000000000000000000000000000000",
         option::none(),
+        option::none(),
+        option::none(),
     )
 }

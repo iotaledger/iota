@@ -61,9 +61,10 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
     },
+    auth_context::AuthContextData,
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectInfo, ObjectRef, ObjectType,
         SequenceNumber, VersionNumber,
@@ -120,6 +121,7 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
+    traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
     transaction::*,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -180,6 +182,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
+    traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
     transaction_outputs::TransactionOutputs,
@@ -827,6 +830,9 @@ pub struct AuthorityState {
     chain_identifier: ChainIdentifier,
 
     pub(crate) congestion_tracker: Arc<CongestionTracker>,
+
+    /// Traffic controller for IOTA core servers (json-rpc, validator service)
+    pub traffic_controller: Option<Arc<TrafficController>>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -946,6 +952,19 @@ impl AuthorityState {
             &self.get_object_store(),
         )?;
 
+        let (kind, signer, gas_data) = tx_data.execution_parts();
+
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| {
+                        move_authenticator.address().ok().as_ref() == Some(&address)
+                    })
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+
         // Filter the authenticators and their checked inputs down to those that must
         // be executed pre-consensus. This is done *after* the deny-list check so
         // that all MoveAuthenticator input objects are covered by that check regardless
@@ -1004,7 +1023,13 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            let (kind, signer, gas_data) = tx_data.execution_parts();
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
 
             // Execute the Move authenticators.
             let validation_result = epoch_store.executor().authenticate_transaction(
@@ -1023,9 +1048,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
-                tx_data_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
+                auth_context_data,
                 &mut None,
             );
 
@@ -1506,6 +1529,19 @@ impl AuthorityState {
         Ok((effects, execution_error_opt))
     }
 
+    pub async fn reconfigure_traffic_control(
+        &self,
+        params: TrafficControlReconfigParams,
+    ) -> Result<TrafficControlReconfigParams, IotaError> {
+        if let Some(traffic_controller) = self.traffic_controller.as_ref() {
+            traffic_controller.admin_reconfigure(params).await
+        } else {
+            Err(IotaError::InvalidAdminRequest(
+                "Traffic controller is not configured on this node".to_string(),
+            ))
+        }
+    }
+
     #[instrument(level = "trace", skip_all)]
     fn commit_certificate(
         &self,
@@ -1801,6 +1837,22 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -1820,9 +1872,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    tx_data_bytes,
-                    sender_auth_digest,
-                    sponsor_auth_digest,
+                    auth_context_data,
                     &mut None,
                 )
         };
@@ -3047,6 +3097,7 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
+    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3067,6 +3118,8 @@ impl AuthorityState {
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
+        policy_config: Option<PolicyConfig>,
+        firewall_config: Option<RemoteFirewallConfig>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3107,6 +3160,20 @@ impl AuthorityState {
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
         let rgp = epoch_store.reference_gas_price();
+        let traffic_controller_metrics =
+            Arc::new(TrafficControllerMetrics::new(prometheus_registry));
+        let traffic_controller = if let Some(policy_config) = policy_config {
+            Some(Arc::new(
+                TrafficController::init(
+                    policy_config,
+                    traffic_controller_metrics,
+                    firewall_config.clone(),
+                )
+                .await,
+            ))
+        } else {
+            None
+        };
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -3131,6 +3198,7 @@ impl AuthorityState {
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
+            traffic_controller,
         });
 
         // Start a task to execute ready certificates.
