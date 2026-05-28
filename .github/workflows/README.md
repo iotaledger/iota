@@ -367,7 +367,7 @@ new PRs.
 
 - [Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)
 - [Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)
-- [Reusing workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
+- [Reusing workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)
 - [Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
 
 ### Notable breaches & writeups
