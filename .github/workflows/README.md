@@ -381,7 +381,7 @@ new PRs.
 
 ### Linting / static analysis tools (consider adding)
 
-- [zizmor](https://github.com/woodruffw/zizmor) — GitHub Actions linter
+- [zizmor](https://github.com/zizmorcore/zizmor) — GitHub Actions linter
   catching common security issues (unpinned actions, dangerous
   triggers, script injection).
 - [OpenSSF Scorecard](https://github.com/ossf/scorecard) — automated
