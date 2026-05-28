@@ -496,11 +496,24 @@ async fn finalize_item(
             ExecuteTransactionResult::default().with_executed_transaction(tx)
         }
         Ok(None) => {
-            // Executor has no cache (e.g. simulacrum) — best we can do is
-            // patch the TD-built response. In production the orchestrator
-            // impl always returns `Some`.
-            patch_checkpoint_timestamp(&mut original, seq, ts, flags);
-            original
+            // Executor has no cache (e.g. simulacrum). The skip-cert path
+            // here means `original` still carries uncertified single-validator
+            // data — never return that to the client. In production the
+            // orchestrator impl always returns `Some`; an executor that opts
+            // into `skip_certification` without providing a cache is a
+            // configuration error.
+            tracing::error!(
+                ?digest,
+                "skip-cert finalize: executor returned no cached data despite checkpoint \
+                 inclusion — refusing to return uncertified response"
+            );
+            error_result(
+                tonic::Code::Internal,
+                format!(
+                    "executor cannot rebuild tx {digest:?} from local cache; \
+                     skip-certification requires a cache-backed executor"
+                ),
+            )
         }
         Err(e) => {
             tracing::warn!(?digest, "failed to rebuild executed tx from cache: {e}");
