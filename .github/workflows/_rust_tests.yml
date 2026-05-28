@@ -216,6 +216,9 @@ jobs:
       - name: Check iota-types compiles to wasm32
         run: cargo check -p iota-types --target wasm32-unknown-unknown
 
+      - name: Check iota-common compiles to wasm32
+        run: cargo check -p iota-common --target wasm32-unknown-unknown
+
   check-wasm32-cancel:
     needs: [check-wasm32]
     if: failure() && !inputs.isNightly

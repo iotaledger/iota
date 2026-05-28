@@ -5594,6 +5594,7 @@ name = "iota-common"
 version = "1.25.0-alpha"
 dependencies = [
  "futures",
+ "getrandom 0.2.15",
  "iota-macros",
  "iota-metrics",
  "once_cell",
