@@ -366,7 +366,7 @@ new PRs.
 ### GitHub Actions documentation
 
 - [Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)
-- [Security hardening for GitHub Actions](https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions)
+- [Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use)
 - [Reusing workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 - [Events that trigger workflows](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)
 
