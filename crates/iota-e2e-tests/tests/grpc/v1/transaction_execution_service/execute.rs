@@ -557,3 +557,100 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
         );
     }
 }
+
+/// Drop-guard that restores the white-flag env vars on scope exit so the
+/// process-wide flag does not leak into sibling tests sharing this process.
+#[must_use = "bind the guard for the lifetime of the test"]
+struct WhiteFlagEnvGuard;
+
+impl Drop for WhiteFlagEnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: paired with `enable_white_flag_env`; both run on the test
+        // thread before/after the cluster is alive.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var(
+                "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            );
+        }
+    }
+}
+
+fn enable_white_flag_env() -> WhiteFlagEnvGuard {
+    // SAFETY: must be set before the test cluster starts spawning validator
+    // tasks; thread-local protocol-config overrides do not propagate across
+    // spawned tasks outside msim.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            "true",
+        );
+    }
+    WhiteFlagEnvGuard
+}
+
+/// Skip-effect-certification path through the gRPC handler. With the white-flag
+/// flow enabled and `checkpoint_inclusion_timeout_ms` set, the handler must
+/// (1) drive the TD without a 2f+1 broadcast, (2) wait for local checkpoint
+/// inclusion, and (3) rebuild the response from the local cache so the client
+/// never sees uncertified single-validator data.
+///
+/// Pinpoint signal that the rebuild ran: `checkpoint` is populated (only set
+/// by the post-checkpoint reconcile branch) and the effects payload is
+/// internally consistent. A safety-guard fire or a leak of UncertifiedSingle-
+/// Validator finality would surface as a `tonic::Code::Internal` error from
+/// the handler rather than a successful response.
+#[sim_test]
+async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
+    let _env_guard = enable_white_flag_env();
+    let _proto_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_white_flag_flow_for_testing(true);
+            config
+        });
+
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random();
+    let txn = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+    let item = build_item(&txn);
+
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![item])
+                .with_read_mask(FieldMask::from_paths([
+                    "transaction.digest",
+                    "effects",
+                    "events",
+                    "input_objects",
+                    "output_objects",
+                    "checkpoint",
+                    "timestamp",
+                ]))
+                .with_checkpoint_inclusion_timeout_ms(30_000),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed = first_executed_transaction(&response);
+    assert!(
+        executed.checkpoint.is_some_and(|cp| cp > 0),
+        "skip-cert reconcile must populate a non-zero checkpoint sequence"
+    );
+    assert!(
+        executed.timestamp.as_ref().is_some_and(|ts| ts.seconds > 0),
+        "skip-cert reconcile must populate a non-zero checkpoint timestamp"
+    );
+    assert!(
+        executed.effects.is_some(),
+        "effects must be present after the cache rebuild"
+    );
+    assert!(
+        executed.transaction.is_some(),
+        "transaction (digest) must be present"
+    );
+}
