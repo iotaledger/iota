@@ -49,11 +49,11 @@ playbook for avoiding each pattern.
 
 Three event types matter:
 
-| Event | When it fires | `github.ref` resolves to | Workflow file loaded from | Fork PR: token / secrets |
-|---|---|---|---|---|
-| `pull_request` | PR opened / sync / etc. | merge-ref (`refs/pull/<N>/merge`) | PR HEAD | **Read-only**, no secrets |
-| `pull_request_target` | same PR events | BASE ref (e.g. `refs/heads/develop`) | BASE | **Full default**, secrets accessible |
-| `workflow_dispatch` | API call or "Run workflow" button | The `ref` passed at dispatch | That ref | **Full default**, secrets accessible |
+| Event                 | When it fires                     | `github.ref` resolves to             | Workflow file loaded from | Fork PR: token / secrets             |
+| --------------------- | --------------------------------- | ------------------------------------ | ------------------------- | ------------------------------------ |
+| `pull_request`        | PR opened / sync / etc.           | merge-ref (`refs/pull/<N>/merge`)    | PR HEAD                   | **Read-only**, no secrets            |
+| `pull_request_target` | same PR events                    | BASE ref (e.g. `refs/heads/develop`) | BASE                      | **Full default**, secrets accessible |
+| `workflow_dispatch`   | API call or "Run workflow" button | The `ref` passed at dispatch         | That ref                  | **Full default**, secrets accessible |
 
 ### When to use each
 
@@ -98,8 +98,8 @@ critical — they limit the blast radius if the token is exfiltrated. Our
 
 ```yaml
 permissions:
-  contents: read    # for actions/checkout + dorny/paths-filter
-  actions: write    # for the rust-tests-cancel / rust-simtests-cancel jobs
+  contents: read # for actions/checkout + dorny/paths-filter
+  actions: write # for the rust-tests-cancel / rust-simtests-cancel jobs
 ```
 
 Everything else (`pull-requests`, `issues`, `packages`, ...) is `none`.
@@ -222,10 +222,10 @@ substitution back into shell.
 
 ### Entry workflows vs reusables
 
-| Type | Examples | Has trigger events | Owns concurrency |
-|---|---|---|---|
-| Entry | `hierarchy.yml`, `heavy_tests.yml`, `nightly.yml`, `ci_trigger.yml`, `pr_lint.yml` | Yes (`on: pull_request`, `schedule`, ...) | Yes (workflow-level) |
-| Reusable | `_rust_tests.yml`, `_split_cluster.yml`, `_rust_lints.yml`, `_typos.yml`, ... | Only `workflow_call` | No (caller owns it) |
+| Type     | Examples                                                                           | Has trigger events                        | Owns concurrency     |
+| -------- | ---------------------------------------------------------------------------------- | ----------------------------------------- | -------------------- |
+| Entry    | `hierarchy.yml`, `heavy_tests.yml`, `nightly.yml`, `ci_trigger.yml`, `pr_lint.yml` | Yes (`on: pull_request`, `schedule`, ...) | Yes (workflow-level) |
+| Reusable | `_rust_tests.yml`, `_split_cluster.yml`, `_rust_lints.yml`, `_typos.yml`, ...      | Only `workflow_call`                      | No (caller owns it)  |
 
 A reusable workflow's jobs run inside the caller's `workflow_run`. They
 share the same `github.run_id` and contexts. Cancelling the caller

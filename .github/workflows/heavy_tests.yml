@@ -56,8 +56,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/develop' }}
 
 permissions:
-  contents: read    # actions/checkout + dorny/paths-filter
-  actions: write    # gh run cancel in _rust_tests.yml
+  contents: read # actions/checkout + dorny/paths-filter
+  actions: write # gh run cancel in _rust_tests.yml
 
 jobs:
   diff:
