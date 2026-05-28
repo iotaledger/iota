@@ -727,5 +727,6 @@ async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
             "skip-cert under quorum loss must not return a successful executed transaction; got {tx:?}"
         ),
         None => panic!("per-item result must be populated"),
+        other => panic!("unexpected per-item result variant: {other:?}"),
     }
 }
