@@ -586,13 +586,20 @@ where
     }
 
     /// Submit on the skip-effect-certification path while concurrently
-    /// waiting for local checkpoint inclusion. A slow driver (e.g.,
-    /// corroborating a Byzantine validator's rejection) is cancelled when
-    /// the checkpoint arrives first; the caller then rebuilds the response
-    /// from the local cache. Returns `(response, seq)` where `response` is
-    /// `Some` when the driver returned a result (which may carry
-    /// `UncertifiedSingleValidator` finality requiring rebuild) and `seq` is
-    /// the checkpoint sequence if either future yielded it.
+    /// waiting for local checkpoint inclusion. The race is asymmetric:
+    ///
+    /// - If the **checkpoint** future resolves first (slow driver, e.g. stuck
+    ///   corroborating a Byzantine validator's rejection), the driver future is
+    ///   dropped and the caller rebuilds the response from the local cache.
+    /// - If the **driver** returns first, its result is taken and the
+    ///   checkpoint future is awaited to completion (up to
+    ///   `WAIT_FOR_LOCAL_CHECKPOINT_INCLUSION_TIMEOUT`) before returning, so
+    ///   the caller has a checkpoint sequence to reconcile against.
+    ///
+    /// Returns `(response, seq)` where `response` is `Some` when the driver
+    /// returned a result (which may carry `UncertifiedSingleValidator`
+    /// finality requiring rebuild) and `seq` is the checkpoint sequence if
+    /// either future yielded it.
     #[instrument(name = "tx_orchestrator_submit_with_checkpoint_race", level = "trace", skip_all,
                  fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(

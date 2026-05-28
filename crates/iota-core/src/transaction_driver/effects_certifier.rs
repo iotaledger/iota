@@ -593,6 +593,10 @@ impl EffectsCertifier {
                             .record_interaction_result(feedback_builder.ok_now(started.elapsed()));
                         update
                     }
+                    // TODO(#11669): rejection-shaped `IotaError`s mis-blame the
+                    // validator when wrapped as `Aborted`; distinguish
+                    // transport vs rejection at a shared classification
+                    // helper.
                     Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
                     Err(_) => {
                         monitor.record_interaction_result(feedback_builder.err_now());

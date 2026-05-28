@@ -341,11 +341,6 @@ impl MockAuthorityApi {
         self.handle_capability_notification_result = Some(result);
     }
 
-    /// Override the response returned by `get_tx_status` for subsequent
-    /// calls. Uses interior mutability because the mock is typically already
-    /// wrapped in an `Arc` (inside `SafeClient`) by the time a test wants to
-    /// configure it, so a `&mut self` setter (as used by the siblings above)
-    /// is not reachable.
     pub fn stub_tx_status(&self, response: GetTxStatusResult) {
         *self.tx_status_stub.lock().unwrap() = Some(response);
     }

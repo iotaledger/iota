@@ -469,6 +469,15 @@ async fn finalize_item(
         return original;
     };
 
+    // Was the original (single-validator) response claiming events? Captured
+    // here so we can detect a submitter-vs-cache events disagreement after
+    // the rebuild (mirrors the orchestrator's `skip_effect_cert_events_cache_miss`
+    // invariant).
+    let submitter_claimed_events = matches!(
+        &original.result,
+        Some(execute_transaction_result::Result::ExecutedTransaction(tx)) if tx.events.is_some(),
+    );
+
     // Skip-effect-cert path, checkpointed: rebuild the response from the
     // authoritative local cache to replace the single-validator data.
     match rebuild_from_cache(
@@ -476,7 +485,16 @@ async fn finalize_item(
     )
     .await
     {
-        Ok(Some(tx)) => ExecuteTransactionResult::default().with_executed_transaction(tx),
+        Ok(Some(tx)) => {
+            if submitter_claimed_events && flags.include_events && tx.events.is_none() {
+                tracing::warn!(
+                    ?digest,
+                    "submitter claimed events but local cache has none — discarding \
+                     (possible byzantine submitter)"
+                );
+            }
+            ExecuteTransactionResult::default().with_executed_transaction(tx)
+        }
         Ok(None) => {
             // Executor has no cache (e.g. simulacrum) — best we can do is
             // patch the TD-built response. In production the orchestrator
