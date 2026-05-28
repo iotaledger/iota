@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
-    ExecutionCacheConfig, ExecutionCacheType,
+    ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
     node::{
@@ -68,7 +68,6 @@ pub struct TestAuthorityBuilder<'a> {
     /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
@@ -170,11 +169,6 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
-    pub fn with_cache_type(mut self, cache_type: ExecutionCacheType) -> Self {
-        self.cache_type = Some(cache_type);
-        self
-    }
-
     pub fn with_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         self.cache_config = Some(config);
         self
@@ -242,9 +236,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap()
             }
         };
-        if let Some(cache_type) = self.cache_type {
-            config.execution_cache = cache_type;
-        }
         if let Some(cache_config) = self.cache_config {
             config.execution_cache_config = cache_config;
         }
@@ -280,7 +271,6 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
-            &epoch_start_configuration,
             &registry,
             &authority_store,
             backpressure_manager.clone(),

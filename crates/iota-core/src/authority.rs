@@ -3522,10 +3522,6 @@ impl AuthorityState {
             }
         }
 
-        self.get_reconfig_api()
-            .reconfigure_cache(&epoch_start_configuration)
-            .await;
-
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
             .reopen_epoch_db(

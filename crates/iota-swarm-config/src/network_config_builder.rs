@@ -11,7 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    ExecutionCacheConfig, ExecutionCacheType, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
+    ExecutionCacheConfig, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
 };
@@ -86,7 +86,6 @@ pub struct ConfigBuilder<R = OsRng> {
     additional_objects: Vec<Object>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -113,7 +112,6 @@ impl ConfigBuilder {
             additional_objects: vec![],
             num_unpruned_validators: None,
             authority_overload_config: None,
-            execution_cache_type: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             policy_config: None,
@@ -263,11 +261,6 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_execution_cache_type(mut self, c: ExecutionCacheType) -> Self {
-        self.execution_cache_type = Some(c);
-        self
-    }
-
     pub fn with_execution_cache_config(mut self, c: ExecutionCacheConfig) -> Self {
         self.execution_cache_config = Some(c);
         self
@@ -313,7 +306,6 @@ impl<R> ConfigBuilder<R> {
             additional_objects: self.additional_objects,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
-            execution_cache_type: self.execution_cache_type,
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             policy_config: self.policy_config,
@@ -517,10 +509,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 if let Some(authority_overload_config) = &self.authority_overload_config {
                     builder =
                         builder.with_authority_overload_config(authority_overload_config.clone());
-                }
-
-                if let Some(execution_cache_type) = &self.execution_cache_type {
-                    builder = builder.with_execution_cache_type(*execution_cache_type);
                 }
 
                 if let Some(execution_cache_config) = &self.execution_cache_config {
