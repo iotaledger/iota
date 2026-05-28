@@ -373,7 +373,7 @@ new PRs.
 ### Notable breaches & writeups
 
 - [tj-actions/changed-files (CVE-2025-30066)](https://github.com/advisories/ghsa-mrrh-fwg8-r2c3)
-- [Wiz — Hardening GitHub Actions: Lessons from Recent Attacks](https://www.wiz.io/blog/github-actions-security-guide)
+- [Wiz — How to Harden GitHub Actions: An Updated Guide](https://www.wiz.io/blog/github-actions-security-guide)
 - [Snyk — Trivy supply chain compromise](https://snyk.io/articles/trivy-github-actions-supply-chain-compromise/)
 - [Orca — pull_request_nightmare Part 2](https://orca.security/resources/blog/pull-request-nightmare-part-2-exploits/)
 - [Endor Labs — Lessons from Trivy](https://www.endorlabs.com/learn/github-actions-security-lessons-from-trivy)
