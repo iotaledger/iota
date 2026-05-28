@@ -28,15 +28,6 @@ impl Multiaddr {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-
-    /// Stub: on the node this validates the multiaddr can be turned into an
-    /// anemo address; on wasm we don't have anemo, so we accept anything that
-    /// deserialized successfully. Returning `Ok(())` is enough because the
-    /// Move verifier on the node already gated invalid metadata at validator
-    /// creation time — we're inspecting already-on-chain state.
-    pub fn to_anemo_address(&self) -> Result<(), ()> {
-        Ok(())
-    }
 }
 
 impl fmt::Display for Multiaddr {

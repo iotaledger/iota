@@ -150,7 +150,7 @@ impl BytecodeVerifierMetrics {
 /// arguments (instead of a `prometheus::Registry`) — wasm callers use
 /// `LimitsMetrics::new_stub()` / `BytecodeVerifierMetrics::new_stub()`.
 #[cfg(target_arch = "wasm32")]
-mod wasm_stubs {
+pub mod wasm_stubs {
     #[derive(Default, Clone)]
     pub struct StubCounter;
 
@@ -251,5 +251,3 @@ mod wasm_stubs {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-pub use wasm_stubs::*;

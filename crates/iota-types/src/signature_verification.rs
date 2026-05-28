@@ -12,7 +12,7 @@ use parking_lot::RwLock;
 use prometheus::IntCounter;
 
 #[cfg(target_arch = "wasm32")]
-use crate::metrics::StubIntCounter as IntCounter;
+use crate::metrics::wasm_stubs::StubIntCounter as IntCounter;
 use crate::{
     error::{IotaError, IotaResult},
     signature::VerifyParams,
