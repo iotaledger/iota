@@ -153,6 +153,7 @@ impl BytecodeVerifierMetrics {
 mod wasm_stubs {
     #[derive(Default, Clone)]
     pub struct StubCounter;
+
     impl StubCounter {
         pub fn new(_name: &str, _help: &str) -> Result<Self, ()> {
             Ok(StubCounter)
@@ -160,11 +161,13 @@ mod wasm_stubs {
         pub fn inc(&self) {}
         pub fn inc_by(&self, _v: u64) {}
     }
+
     /// Aliased so external call sites that use `prometheus::IntCounter` keep
     /// compiling.
     pub type StubIntCounter = StubCounter;
 
     pub struct StubCounterVec;
+
     impl StubCounterVec {
         pub fn with_label_values(&self, _labels: &[&str]) -> StubCounter {
             StubCounter
@@ -172,9 +175,11 @@ mod wasm_stubs {
     }
 
     pub struct StubTimer;
+
     impl Drop for StubTimer {
         fn drop(&mut self) {}
     }
+
     impl StubTimer {
         pub fn observe_duration(self) {}
         pub fn stop_and_record(self) -> f64 {
@@ -189,6 +194,7 @@ mod wasm_stubs {
     }
 
     pub struct StubHistogram;
+
     impl StubHistogram {
         pub fn observe(&self, _v: f64) {}
         pub fn start_timer(&self) -> StubTimer {
