@@ -47,13 +47,13 @@ pub const DEFAULT_DRAIN_TIMEOUT_SECS: u64 = 300;
 type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
 
 #[derive(Clone)]
-pub struct Blocklists {
+struct Blocklists {
     clients: Blocklist,
     proxied_clients: Blocklist,
 }
 
 #[derive(Clone)]
-pub enum Acl {
+enum Acl {
     Blocklists(Blocklists),
     /// If this variant is set, then we do no tallying or running
     /// of background tasks, and instead simply block all IPs not
@@ -234,26 +234,26 @@ impl TrafficController {
             dry_run,
         } = params;
         if let Some(error_threshold) = error_threshold {
+            let policy = self.error_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure error policy threshold in allowlist mode".to_string(),
+                )
+            })?;
             self.metrics
                 .error_client_threshold
                 .set(error_threshold as i64);
-            Self::update_policy_threshold(
-                self.error_policy.as_ref().unwrap(),
-                error_threshold,
-                dry_run,
-            )
-            .await?;
+            Self::update_policy_threshold(policy, error_threshold, dry_run).await?;
         }
         if let Some(spam_threshold) = spam_threshold {
+            let policy = self.spam_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure spam policy threshold in allowlist mode".to_string(),
+                )
+            })?;
             self.metrics
                 .spam_client_threshold
                 .set(spam_threshold as i64);
-            Self::update_policy_threshold(
-                self.spam_policy.as_ref().unwrap(),
-                spam_threshold,
-                dry_run,
-            )
-            .await?;
+            Self::update_policy_threshold(policy, spam_threshold, dry_run).await?;
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
