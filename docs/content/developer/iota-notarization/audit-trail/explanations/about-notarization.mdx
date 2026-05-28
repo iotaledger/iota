@@ -11,9 +11,9 @@ tags:
 
 The core of the IOTA Audit Trail is the `AuditTrail` **shared** Move object — an on-chain ledger that stores a sequential, tamper-proof log of records. Unlike owned objects (such as a [Notarization](../../single-notarization/explanations/about-notarization.mdx)) that are controlled by a single address, an Audit Trail is a shared object that multiple authorized parties can write to, governed by [Role-Based Access Control](./role-based-access-control.mdx).
 
-IOTA Audit Trail is composed of two primary components:
+IOTA Audit Trail is composed of two primary packages:
 - **Audit Trail Move Package**: The on-chain smart contracts that define the behavior, structure, and access control of Audit Trail objects.
-- **Audit Trail Library (Rust/Wasm)**: A client-side library that provides developers with convenient functions to create, manage, and query Audit Trail objects on the network.
+- **Audit Trail Client Packages (Rust crate / WASM bindings)**: Client-side packages that provide developers with convenient functions to create, manage, and query Audit Trail objects on the network.
 
 ---
 

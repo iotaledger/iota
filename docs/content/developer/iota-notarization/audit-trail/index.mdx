@@ -1,6 +1,6 @@
 ---
 title: IOTA Audit Trail
-description: Discover how the IOTA Audit Trail framework provides tamper-proof, chronological records of activities on the IOTA ledger.
+description: Discover how the IOTA Audit Trail component provides tamper-proof, chronological records of activities on the IOTA ledger.
 sidebar_label: Introduction
 tags:
  - reference
@@ -11,7 +11,7 @@ tags:
 
 ![IOTA Audit Trail](/img/banner/banner_audit_trail.png)
 
-IOTA Audit Trail is one of the two components of the [IOTA Notarization](../index.mdx) Trust Framework product, alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trail is designed for organizations that need verifiable accountability and compliance-ready event logs.
+IOTA Audit Trail is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trail is designed for organizations that need verifiable accountability and compliance-ready event logs.
 
 ## Introduction to Audit Trail
 
@@ -48,7 +48,7 @@ The [Digital Product Passport real world example](./real-world-examples/digital-
 
 ### Audit Trail versus Dynamic Notarization
 
-The IOTA Trust Framework offers two complementary products for recording data on-chain. Understanding their differences helps you choose the right tool:
+The Notarization Toolkit offers two complementary options for recording data on-chain. Understanding their differences helps you choose the right tool:
 
 | Aspect | Audit Trail | Dynamic Notarization |
 |--------|-------------|---------------------|
@@ -58,7 +58,7 @@ The IOTA Trust Framework offers two complementary products for recording data on
 | **Ownership** | Shared object — multiple authorized users can write | Owned object — only the owner can modify |
 | **Primary use case** | "What happened and when?" — event logs, compliance trails | "What is the current state?" — registries, living documents |
 
-These products complement each other. For example, a Digital Product Passport might use a Dynamic Notarization to store the product's current status and an Audit Trail to record every lifecycle event. The Notarization provides fast lookup of the latest state, while the Audit Trail provides the complete, verifiable history.
+The two complement each other. For example, a Digital Product Passport might use a Dynamic Notarization to store the product's current status and an Audit Trail to record every lifecycle event. The Notarization provides fast lookup of the latest state, while the Audit Trail provides the complete, verifiable history.
 
 ### Why IOTA for Audit Trail?
 
@@ -66,7 +66,7 @@ IOTA is uniquely suited for audit trail applications due to several key properti
 
 * **Cost-Effectiveness**: Creating and maintaining an Audit Trail on IOTA involves a refundable storage deposit for the ledger space occupied. This deposit can be reclaimed when records are deleted or the trail is destroyed, making long-term operation highly affordable.
 * **High Availability**: Audit Trail data is replicated across every node in the IOTA network, ensuring it is always available for verification anywhere in the world.
-* **Shared Object Model**: Unlike owned objects that can only be modified by a single address, Audit Trails are shared objects. This means multiple authorized parties can write to the same trail concurrently, governed by on-chain Role-Based Access Control — a critical requirement for multi-stakeholder scenarios.
+* **Shared Object Model**: Unlike owned objects that can only be modified by a single address, an Audit Trail is a shared object. This means multiple authorized parties can write to the same trail concurrently, governed by on-chain Role-Based Access Control — a critical requirement for multi-stakeholder scenarios.
 * **Security**: All write operations require a valid on-chain Capability object with the appropriate permissions. Capabilities can be time-limited, address-bound, and revoked at any time, providing defense-in-depth against unauthorized access.
 * **Integrity**: Every record receives a monotonically increasing sequence number and a timestamp from the on-chain clock. The IOTA consensus mechanism guarantees that records cannot be reordered, backdated, or silently removed.
 
@@ -80,7 +80,7 @@ For a detailed explanation of the privacy challenges, the on-chain/off-chain pat
 
 ## Key Actors in the Audit Trail Process
 
-IOTA Audit Trail provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trails-rbac)) management that can be used to
+IOTA Audit Trail provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trail-rbac)) management that can be used to
 define clear roles for the participants in the audit process:
 
 ### Trail Creator (Admin)
@@ -117,7 +117,7 @@ The exact roles, permissions and tags depend on the use case, but Record Writer 
 - Confirm that records have not been tampered with by comparing on-chain data against off-chain source documents
 - Validate that the trail's access control configuration meets compliance requirements
 
-## Role-Based Access Control in Audit Trails (RBAC)
+## Role-Based Access Control in Audit Trail (RBAC)
 
 Access to every write operation on an Audit Trail is governed by Role-Based Access Control (RBAC). The RBAC system is highly configurable and combines four primitives:
 
@@ -126,5 +126,5 @@ Access to every write operation on an Audit Trail is governed by Role-Based Acce
 - **Permission Sets**: Each role specifies a set of permissions (e.g., `AddRecord`, `DeleteRecord`, `AddRoles`, `UpdateMetadata`). Permissions can be combined to create custom roles that fit specific organizational needs.
 - **Record Tags**: User-defined labels that can be attached to records (e.g., `"finance"`, `"legal"`, `"maintenance"`). Roles can specify which tags they have permission to operate on, enabling fine-grained access control over different categories of records.
 
-This system enables multi-party collaboration on a single trail while maintaining strict access boundaries. For a detailed explanation of how roles, capabilities, and record tags work together, see [Role-Based Access Control for Audit Trails](./explanations/role-based-access-control.mdx).
+This system enables multi-party collaboration on a single trail while maintaining strict access boundaries. For a detailed explanation of how roles, capabilities, and record tags work together, see [Role-Based Access Control for Audit Trail](./explanations/role-based-access-control.mdx).
 

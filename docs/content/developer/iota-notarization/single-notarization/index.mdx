@@ -11,7 +11,7 @@ tags:
 
 ![IOTA Notarization](/img/banner/banner_single_notarization.png)
 
-IOTA Single Notarization is one of the two components of the [IOTA Notarization](../index.mdx) Trust Framework product, alongside [IOTA Audit Trail](../audit-trail/index.mdx). Single Notarization provides two powerful methods for creating verifiable, on-chain records of any individual piece of digital data. By anchoring data to the IOTA ledger, Single Notarization transforms it into a permanent, tamper-proof asset that can be independently verified by anyone, at any time.
+IOTA Single Notarization is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Audit Trail](../audit-trail/index.mdx). Single Notarization provides two powerful methods for creating verifiable, on-chain records of any individual piece of digital data. By anchoring data to the IOTA ledger, Single Notarization transforms it into a permanent, tamper-proof asset that can be independently verified by anyone, at any time.
 
 ## Notarization Methods.
 
@@ -19,7 +19,7 @@ The IOTA Single Notarization component offers two powerful, distinct methods to 
 -   **Locked Notarization**: For creating permanent, static records that can not be changed until the object is destroyed. Ideal for contracts, certificates, and legal evidence.
 -   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant. Ideal for tracking asset status, managing registries, or versioning living documents.
 
-Together, these methods provide a comprehensive toolkit for building applications that require a robust foundation of digital trust.
+Together, these methods provide a comprehensive foundation for building applications that require digital trust.
 
 ## Key Actors in the Single Notarization Process
 
@@ -41,6 +41,6 @@ The **Verifier** confirms the integrity and immutability of data by validating i
 
 **Key Responsibilities:**
 - Request original documents and their associated object IDs from the Prover
-- Query the IOTA network through the Notarization Library to retrieve stored data using object IDs
+- Query the IOTA network through the Notarization client packages to retrieve stored data using object IDs
 - Validate that data stored in the ledger matches the original document (for hash-based verification)
 - Verify the authenticity and integrity of on-chain stored data independently

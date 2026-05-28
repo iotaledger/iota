@@ -4,7 +4,7 @@ This file guides agents writing or editing real-world how-to pages in this direc
 
 ## Purpose
 
-Real-world pages are **how-to guides** that demonstrate a complete business scenario using the IOTA Audit Trail SDK. They show an experienced developer how to model a multi-party, role-scoped audit trail for a specific industry use case (e.g., customs clearance, clinical trials, digital product passports).
+Real-world pages are **how-to guides** that demonstrate a complete business scenario using the IOTA Audit Trail client packages. They show an experienced developer how to model a multi-party, role-scoped audit trail for a specific industry use case (e.g., customs clearance, clinical trials, digital product passports).
 
 ## Page structure
 
@@ -102,7 +102,7 @@ Always cover all five fields in this exact order. Use inline code for field name
 
 - A funded IOTA account
 - Access to an IOTA network (testnet, devnet, or local)
-- Audit Trail client SDK installed
+- Audit Trail client packages installed
 - Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx)<optional-extra-links>
 ```
 
