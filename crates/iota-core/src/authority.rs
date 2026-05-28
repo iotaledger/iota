@@ -1810,13 +1810,15 @@ impl AuthorityState {
                     reference_gas_price,
                 )?;
 
-            // Re-run the sender-side coin deny list check from signing time
-            // for attested transactions only.
+            // Re-run the sender-side coin deny list check.
             if certificate.attestation.is_some() {
+                let tx_receiving_objects = self
+                    .input_loader
+                    .read_receiving_objects(&tx_data.receiving_objects(), epoch_store.epoch())?;
                 check_coin_deny_list_v1(
                     tx_data.sender(),
                     &tx_checked_input_objects,
-                    &ReceivingObjects { objects: vec![] },
+                    &tx_receiving_objects,
                     &vec![],
                     &self.get_object_store(),
                 )?;
@@ -1914,13 +1916,15 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
-            // Re-run the sender-side coin deny list check from signing time
-            // for attested transactions only.
+            // Re-run the sender-side coin deny list check.
             if certificate.attestation.is_some() {
+                let tx_receiving_objects = self
+                    .input_loader
+                    .read_receiving_objects(&tx_data.receiving_objects(), epoch_store.epoch())?;
                 check_coin_deny_list_v1(
                     tx_data.sender(),
                     &authenticator_and_tx_checked_input_objects,
-                    &ReceivingObjects { objects: vec![] },
+                    &tx_receiving_objects,
                     &vec![],
                     &self.get_object_store(),
                 )?;
