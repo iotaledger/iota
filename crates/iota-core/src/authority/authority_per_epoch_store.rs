@@ -3172,17 +3172,26 @@ impl AuthorityPerEpochStore {
                 for tx in &verified_transactions {
                     if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
                         kind:
-                            ConsensusTransactionKind::OverloadNotificationV1(
-                                authority,
-                                _,
-                                percentage,
-                            ),
+                            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                         ..
                     }) = &tx.0.transaction
                     {
                         notifications.insert(*authority, *percentage);
                     }
                 }
+            }
+            // Publish the live per-peer percentages — what the load-shedding
+            // logic actually holds for each authority right now. Iterating the
+            // committee (not just `notifications.keys()`) ensures peers that
+            // have not sent any notification yet this epoch are surfaced as 0,
+            // and that the per-epoch store rebuild at epoch boundary will
+            // reset every gauge series back to 0 on the next commit.
+            for (peer_authority, _stake) in self.committee().members() {
+                let value = notifications.get(peer_authority).copied().unwrap_or(0);
+                authority_metrics
+                    .authority_overload_notification_current_percentage
+                    .with_label_values(&[&peer_authority.concise().to_string()])
+                    .set(value as i64);
             }
             self.compute_quorum_load_shedding_percentage(&notifications) as u32
         } else {
@@ -3192,6 +3201,17 @@ impl AuthorityPerEpochStore {
             .authority_quorum_load_shedding_percentage
             .set(drop_percentage as i64);
         let drop_seed = consensus_commit_info.round;
+
+        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
+        // Keys of transactions that this commit decides not to process further
+        // (post-consensus load-shedding drops, validation drops). For each such
+        // key we (a) record it as processed on `output` so future readers see
+        // it via the quarantine/DB, and (b) accumulate it here so the
+        // per-commit `notifications` pass wakes the submitter's
+        // `consensus_messages_processed_notify` registration. Without this the
+        // submitter parks on `processed_waiter.await` and leaks the
+        // `sequencing_in_flight_submissions` gauge until the epoch ends.
+        let mut drop_keys_to_notify: Vec<SequencedConsensusTransactionKey> = Vec::new();
 
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -3209,6 +3229,9 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .post_consensus_load_shedding_dropped_transactions_total
                                 .inc();
+                            let key = tx.0.key();
+                            output.record_consensus_message_processed(key.clone());
+                            drop_keys_to_notify.push(key);
                             continue;
                         }
                     }
@@ -3221,8 +3244,6 @@ impl AuthorityPerEpochStore {
                 }
             }
         }
-
-        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -3350,6 +3371,8 @@ impl AuthorityPerEpochStore {
                     authority_state,
                     self,
                     &mut sequenced_transactions,
+                    &mut output,
+                    &mut drop_keys_to_notify,
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
@@ -3437,7 +3460,7 @@ impl AuthorityPerEpochStore {
         let (
             verified_non_randomness_transactions,
             mut verified_randomness_transactions,
-            notifications,
+            mut notifications,
             lock,
             final_round,
             consensus_commit_prologue_root,
@@ -3611,6 +3634,11 @@ impl AuthorityPerEpochStore {
                 .generate_randomness(epoch, randomness_round);
         }
 
+        // Wake submitters waiting on transactions this commit decided to drop.
+        // See the declaration of `drop_keys_to_notify` for the leak this prevents.
+        // Must come after `push_consensus_output` so the quarantine holds the
+        // keys before `notify` fires and any racing re-registration short-circuits.
+        notifications.extend(drop_keys_to_notify);
         self.process_notifications(&notifications, &end_of_publish_transactions);
 
         if final_round {
@@ -4629,10 +4657,6 @@ impl AuthorityPerEpochStore {
                         .authority_overload_notifications_received_total
                         .with_label_values(&[&from])
                         .inc();
-                    authority_metrics
-                        .authority_overload_notification_last_received_percentage
-                        .with_label_values(&[&from])
-                        .set(*percentage as i64);
                 } else {
                     debug!(
                         "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
