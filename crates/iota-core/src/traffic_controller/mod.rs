@@ -12,7 +12,10 @@ use std::{
     fs,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     ops::Add,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -70,6 +73,10 @@ pub struct TrafficController {
     spam_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
     error_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
     policy_config: Arc<RwLock<PolicyConfig>>,
+    // Lifted out of `policy_config` so the request hot path in `check`
+    // can read it with a relaxed atomic load instead of acquiring the
+    // RwLock and cloning the entire config.
+    dry_run: Arc<AtomicBool>,
     fw_config: Option<RemoteFirewallConfig>,
 }
 
@@ -100,6 +107,7 @@ impl TrafficController {
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
+        let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
         match policy_config.allow_list.clone() {
             Some(allow_list) => {
                 let allowlist = allow_list
@@ -115,6 +123,7 @@ impl TrafficController {
                     acl: Acl::Allowlist(allowlist),
                     metrics,
                     policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
                     fw_config,
                     spam_policy: None,
                     error_policy: None,
@@ -135,6 +144,7 @@ impl TrafficController {
                     }),
                     metrics,
                     policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
                     fw_config,
                     spam_policy: Some(spam_policy),
                     error_policy: Some(error_policy),
@@ -220,7 +230,7 @@ impl TrafficController {
             }
         }
 
-        result.dry_run = Some(self.policy_config.read().await.dry_run);
+        result.dry_run = Some(self.dry_run.load(Ordering::Relaxed));
         result
     }
 
@@ -257,7 +267,7 @@ impl TrafficController {
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
-            self.policy_config.write().await.dry_run = dry_run;
+            self.dry_run.store(dry_run, Ordering::Relaxed);
         }
 
         Ok(self.get_current_state().await)
@@ -343,9 +353,9 @@ impl TrafficController {
 
     /// Handle check with dry-run mode considered
     pub async fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
-        let policy_config = { self.policy_config.read().await.clone() };
+        let dry_run = self.dry_run.load(Ordering::Relaxed);
         let check_with_dry_run_maybe = |allowed| -> bool {
-            match (allowed, policy_config.dry_run) {
+            match (allowed, dry_run) {
                 // request allowed
                 (true, _) => true,
                 // request blocked while in dry-run mode
