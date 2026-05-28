@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
 
-use anemo::{PeerId, Request, types::response::StatusCode};
+use anemo::{PeerId, Request};
 use anyhow::bail;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
@@ -142,12 +142,16 @@ async fn server_get_checkpoint() {
     );
     let (builder, server) = Builder::new().store(store).build_internal();
 
-    // The reserved (formerly `Latest`) variant is no longer served.
-    let status = server
-        .get_checkpoint_summary(Request::new(GetCheckpointSummaryRequest::Reserved0))
+    // Requests for the Latest checkpoint should return the genesis checkpoint
+    let response = server
+        .get_checkpoint_summary(Request::new(GetCheckpointSummaryRequest::Latest))
         .await
-        .unwrap_err();
-    assert_eq!(status.status(), StatusCode::BadRequest);
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        response.unwrap().data(),
+        ordered_checkpoints.first().unwrap().data(),
+    );
 
     // Requests for checkpoints that aren't in the server's store
     let requests = [
@@ -167,6 +171,20 @@ async fn server_get_checkpoint() {
     for checkpoint in ordered_checkpoints.clone() {
         builder.store.inner_mut().insert_checkpoint(&checkpoint)
     }
+    let latest = ordered_checkpoints.last().unwrap().clone();
+    builder
+        .store
+        .inner_mut()
+        .update_highest_synced_checkpoint(&latest);
+
+    let request = Request::new(GetCheckpointSummaryRequest::Latest);
+    let response = server
+        .get_checkpoint_summary(request)
+        .await
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    assert_eq!(response.data(), latest.data());
 
     for checkpoint in ordered_checkpoints {
         let request = Request::new(GetCheckpointSummaryRequest::ByDigest(*checkpoint.digest()));
