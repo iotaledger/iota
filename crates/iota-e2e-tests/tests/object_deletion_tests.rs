@@ -9,6 +9,7 @@ mod sim_only_tests {
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
+    use iota_sdk_types::ObjectId;
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
         digests::TransactionDigest, messages_checkpoint::CheckpointSequenceNumber,

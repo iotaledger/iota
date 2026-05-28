@@ -5995,6 +5995,7 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
+    use iota_sdk_types::ObjectId;
     use iota_types::base_types::AuthorityName;
     use move_binary_format::CompiledModule;
 
