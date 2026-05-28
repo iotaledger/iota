@@ -18,6 +18,7 @@ title: '<Scenario Name> - Audit Trail'
 sidebar_label: '<Short Label>'
 description: 'Real-world example demonstrating how to use IOTA Audit Trail to <one-line goal>.'
 tags:
+  - notarization
   - audit-trail
   - how-to
 ---
