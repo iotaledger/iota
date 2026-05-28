@@ -2,18 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::sync::atomic::AtomicU64;
 use std::{
-    collections::HashSet,
     fs,
     io::{Read, Write},
-    num::NonZeroUsize,
-    sync::Arc,
 };
 
 use anyhow::{Context, Result, bail};
-use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
+use iota_config::genesis::Genesis;
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_sdk_types::{
@@ -24,9 +19,8 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
-use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     config::Config, graphql::query_last_checkpoint_of_epoch, object_store::CheckpointStore,
@@ -89,35 +83,15 @@ pub fn write_checkpoint_summary(
     Ok(())
 }
 
-/// Downloads the list of end of epoch checkpoints from the archive store or the
-/// GraphQL endpoint
+/// Downloads the list of end of epoch checkpoints from the GraphQL endpoint
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointList> {
-    let checkpoints_from_archive = if config.archive_store_config.is_some() {
-        match sync_checkpoint_list_to_latest_from_archive(config).await {
-            Ok(list) => list,
-            Err(e) => {
-                warn!("Failed to sync checkpoint list from archive: {e}");
-                CheckpointList::default()
-            }
-        }
-    } else {
-        CheckpointList::default()
-    };
+    if config.graphql_url.is_none() {
+        bail!("GraphQL URL is required to sync the checkpoint list");
+    }
 
-    let checkpoints_from_graphql = if config.graphql_url.is_some() {
-        match sync_checkpoint_list_to_latest_from_graphql(config).await {
-            Ok(list) => list,
-            Err(e) => {
-                warn!("Failed to sync checkpoints from full node: {e}");
-                CheckpointList::default()
-            }
-        }
-    } else {
-        CheckpointList::default()
-    };
-
-    let checkpoint_list =
-        merge_checkpoint_lists(&checkpoints_from_archive, &checkpoints_from_graphql);
+    let checkpoint_list = sync_checkpoint_list_to_latest_from_graphql(config)
+        .await
+        .context("Failed to sync checkpoint list from GraphQL")?;
 
     if checkpoint_list.is_empty() {
         bail!("Unable to sync from configured sources");
@@ -127,25 +101,6 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
     write_checkpoint_list(config, &checkpoint_list)?;
 
     Ok(checkpoint_list)
-}
-
-/// Merges two checkpoint lists, removing duplicates and ensuring the result is
-/// sorted
-fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> CheckpointList {
-    let unique_checkpoints: HashSet<u64> = list1
-        .checkpoints
-        .iter()
-        .chain(list2.checkpoints.iter())
-        .copied()
-        .collect();
-
-    // Convert to sorted vector
-    let mut sorted_checkpoints: Vec<_> = unique_checkpoints.into_iter().collect();
-    sorted_checkpoints.sort();
-
-    CheckpointList {
-        checkpoints: sorted_checkpoints,
-    }
 }
 
 /// Syncs the list of end-of-epoch checkpoints from GraphQL.
@@ -196,60 +151,6 @@ pub async fn sync_checkpoint_list_to_latest_from_graphql(
     Ok(checkpoints_list)
 }
 
-/// Syncs the list of end-of-epoch checkpoints from an archive store.
-pub async fn sync_checkpoint_list_to_latest_from_archive(
-    config: &Config,
-) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from archive store.");
-
-    let Some(archive_store_config) = &config.archive_store_config else {
-        bail!("Archive store config is not provided");
-    };
-
-    let config = ArchiveReaderConfig {
-        remote_store_config: archive_store_config.clone(),
-        download_concurrency: NonZeroUsize::new(5).unwrap(),
-        ingestion_url: None,
-    };
-
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let archive_reader = ArchiveReader::new(config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
-
-    let manifest = archive_reader.get_manifest().await?;
-    let checkpoints = manifest.get_all_end_of_epoch_checkpoint_seq_numbers()?;
-
-    Ok(CheckpointList { checkpoints })
-}
-
-pub async fn download_summaries_from_archive_store(
-    config: &Config,
-    checkpoints: Vec<u64>,
-) -> anyhow::Result<()> {
-    info!("Downloading missing checkpoints from archive store.");
-
-    let Some(archive_store_config) = &config.archive_store_config else {
-        bail!("missing archive store config");
-    };
-
-    let archive_reader_config = ArchiveReaderConfig {
-        remote_store_config: archive_store_config.clone(),
-        download_concurrency: NonZeroUsize::new(5).unwrap(),
-        ingestion_url: None,
-    };
-
-    let store = CheckpointSummaryFileStore::new(config.clone());
-    let counter = Arc::new(AtomicU64::new(0));
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
-    archive_reader
-        .read_summaries_for_list_no_verify(store, checkpoints, counter)
-        .await?;
-
-    Ok(())
-}
-
 pub async fn download_summaries_from_checkpoint_store(
     config: &Config,
     checkpoints: Vec<u64>,
@@ -294,14 +195,12 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     }
 
     if !missing.is_empty() {
-        if config.archive_store_config.is_some() {
-            download_summaries_from_archive_store(config, missing).await?;
-        } else if config.checkpoint_store_config.is_some() {
+        if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
             anyhow::bail!(
                 "No download source configured for missing checkpoint summaries. \
-                 Configure one of: archive_store_config or checkpoint_store_config."
+                 Configure `checkpoint_store_config`."
             );
         }
     }
@@ -535,7 +434,6 @@ mod tests {
             sync_before_check: false,
             genesis_blob_download_url: None,
             checkpoint_store_config: None,
-            archive_store_config: None,
         };
         (config, temp_dir)
     }

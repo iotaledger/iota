@@ -26,7 +26,7 @@ The config file for the light client takes a URL for a full node, a directory to
 # A full node JSON RPC endpoint to query the latest network state (mandatory)
 rpc_url: "https://api.mainnet.iota.cafe"
 
-# A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (optional if archive store config is provided)
+# A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (mandatory — used to sync end-of-epoch checkpoints)
 graphql_url: "https://graphql.mainnet.iota.cafe"
 
 # Local directory to store checkpoint summaries and other synchronization data (mandatory)
@@ -42,15 +42,6 @@ sync_before_check: true
 checkpoint_store_config:
   object-store: "S3"
   aws-endpoint: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
-  aws-virtual-hosted-style-request: true
-  no-sign-request: true
-  aws-region: "weur"
-  object-store-connection-limit: 20
-
-# A config for an object store that gets populated by an archiver (optional)
-archive_store_config:
-  object-store: "S3"
-  aws-endpoint: "https://archive.mainnet.iota.cafe"
   aws-virtual-hosted-style-request: true
   no-sign-request: true
   aws-region: "weur"
