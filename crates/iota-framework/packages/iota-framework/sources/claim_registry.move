@@ -3,16 +3,14 @@
 
 /// On-chain registry for claiming addresses.
 ///
-/// `claim` validates the public key (scheme, length, address derivation),
-/// marks the sender's address as claimed, and returns a deterministic `UID`
-/// for the new account object.
+/// `claim` takes an already-validated `PublicKey`, marks the sender's address
+/// as claimed, and returns a deterministic `UID` for the new account object.
+/// Callers with raw bytes use `iota::public_key::from_prefixed_bytes` to construct
+/// the `PublicKey` before calling `claim`.
 module iota::claim_registry;
 
-use iota::address as iota_address;
 use iota::dynamic_field as df;
-use iota::hash;
-use iota::public_key::{Self, PublicKey};
-use iota::signature_scheme::{Self, SignatureScheme};
+use iota::public_key::PublicKey;
 
 // === Errors ===
 
@@ -48,28 +46,20 @@ fun create(ctx: &TxContext) {
 
 // === Claim ===
 
-/// Validate the public key for the given `scheme` and mark `ctx.sender()` as
-/// claimed. Returns a `UID` for the new account object, derived from the
-/// sender's address.
+/// Mark `ctx.sender()` as claimed and return a deterministic `UID` for the new
+/// account object.
 ///
 /// The returned `UID` is a hot potato — it has no `drop` ability and must be
 /// consumed (typically as the `id` field of a new `key` struct) in the same PTB.
 ///
-/// Supported schemes:
-///   0x00 Ed25519   | 0x01 Secp256k1 | 0x02 Secp256r1
-///   0x03 MultiSig  | 0x06 Passkey
-///
-/// Scheme validity and byte-length are validated via `iota::public_key::create`.
-/// Aborts with `EAddressMismatch` if the key does not derive to the sender, or
-/// `EAlreadyClaimed` if the address was already claimed.
+/// Aborts with `EAddressMismatch` if `public_key` does not derive to the sender,
+/// or `EAlreadyClaimed` if the address was already claimed.
 public fun claim(
     registry: &mut ClaimRegistry,
-    scheme: SignatureScheme,
-    raw_bytes: vector<u8>,
+    public_key: PublicKey,
     ctx: &mut TxContext,
 ): UID {
-    let pk = public_key::create(scheme, raw_bytes);
-    let derived_addr = derive_address(&pk);
+    let derived_addr = public_key.to_iota_address();
     assert!(derived_addr == ctx.sender(), EAddressMismatch);
     assert!(!is_claimed(registry, derived_addr), EAlreadyClaimed);
     df::add(&mut registry.id, derived_addr, true);
@@ -82,28 +72,6 @@ public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
     df::exists_(&registry.id, addr)
 }
 
-// === Internal helpers ===
-
-/// Mirrors Rust `IotaAddress::from(&PublicKey)`:
-///   Ed25519:   Blake2b256(pubkey)           — no flag prefix
-///   Secp256k1: Blake2b256([0x01] || pubkey)
-///   Secp256r1: Blake2b256([0x02] || pubkey)
-///   MultiSig:  Blake2b256([0x03] || pubkey)
-///   Passkey:   Blake2b256([0x06] || pubkey)
-fun derive_address(pk: &PublicKey): address {
-    let scheme = pk.scheme();
-    let raw = *pk.raw_bytes();
-    // Ed25519 is hashed without a flag prefix; all other schemes prepend the flag byte.
-    let data = if (scheme == signature_scheme::ed25519()) {
-        raw
-    } else {
-        let mut v = vector[scheme.flag()];
-        v.append(raw);
-        v
-    };
-    iota_address::from_bytes(hash::blake2b256(&data))
-}
-
 // === Test only ===
 
 #[test_only]
@@ -112,6 +80,6 @@ public fun create_for_testing(ctx: &mut TxContext) {
 }
 
 #[test_only]
-public fun derive_address_for_testing(scheme: SignatureScheme, raw_bytes: &vector<u8>): address {
-    derive_address(&public_key::create(scheme, *raw_bytes))
+public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
+    public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
 }

@@ -8,7 +8,7 @@
 module iota::test_account;
 
 use iota::claim_registry::ClaimRegistry;
-use iota::signature_scheme::{Self, SignatureScheme};
+use iota::public_key::PublicKey;
 
 public struct Account has key {
     id: UID,
@@ -17,11 +17,10 @@ public struct Account has key {
 
 public fun create(
     registry: &mut ClaimRegistry,
-    scheme: SignatureScheme,
-    public_key: vector<u8>,
+    public_key: PublicKey,
     ctx: &mut TxContext,
 ) {
-    let scheme_flag = scheme.flag();
-    let uid = iota::claim_registry::claim(registry, scheme, public_key, ctx);
-    transfer::transfer(Account { id: uid, scheme: scheme_flag }, ctx.sender());
+    let flag = public_key.scheme().flag();
+    let uid = iota::claim_registry::claim(registry, public_key, ctx);
+    transfer::transfer(Account { id: uid, scheme: flag }, ctx.sender());
 }

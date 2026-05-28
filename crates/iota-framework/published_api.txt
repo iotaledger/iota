@@ -1474,9 +1474,6 @@ module_name
 function_name
 	public fun
 	0x2::authenticator_function
-create_for_framework
-	public(package) fun
-	0x2::authenticator_function
 create_auth_function_ref_v1_inner
 	public(package) fun
 	0x2::authenticator_function
@@ -2275,6 +2272,9 @@ flag
 PublicKey
 	public struct
 	0x2::public_key
+from_prefixed_bytes
+	public fun
+	0x2::public_key
 create
 	public fun
 	0x2::public_key
@@ -2283,6 +2283,12 @@ scheme
 	0x2::public_key
 raw_bytes
 	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+scheme_from_flag
+	fun
 	0x2::public_key
 validate_public_key
 	fun
@@ -2385,9 +2391,6 @@ claim
 	0x2::claim_registry
 is_claimed
 	public fun
-	0x2::claim_registry
-derive_address
-	fun
 	0x2::claim_registry
 Clock
 	public struct

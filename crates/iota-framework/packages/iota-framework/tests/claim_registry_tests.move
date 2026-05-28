@@ -6,34 +6,37 @@ module iota::claim_registry_tests;
 
 use iota::claim_registry::{Self, ClaimRegistry};
 use iota::public_key;
-use iota::signature_scheme;
 use iota::test_scenario::{Self, Scenario};
 
 // Pre-computed Ed25519 public key from fastcrypto test vectors.
-// address = Blake2b256(pk)
+// Layout: [0x00 (Ed25519 flag)] || [32-byte key]
+// address = Blake2b256(raw_bytes)
 const ED25519_PK: vector<u8> =
-    x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
 
 // Pre-computed Secp256k1 compressed public key from fastcrypto test vectors.
-// address = Blake2b256([0x01] || pk)
+// Layout: [0x01 (Secp256k1 flag)] || [33-byte compressed key]
+// address = Blake2b256([0x01] || raw_bytes)
 const SECP256K1_PK: vector<u8> =
-    x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+    x"0102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
 
 // Pre-computed Secp256r1 compressed public key from fastcrypto test vectors.
-// address = Blake2b256([0x02] || pk)
+// Layout: [0x02 (Secp256r1 flag)] || [33-byte compressed key]
+// address = Blake2b256([0x02] || raw_bytes)
 const SECP256R1_PK: vector<u8> =
-    x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+    x"020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
 
-// Minimal BCS-encoded MultiSigPublicKey: 1 Ed25519 signer (ED25519_PK), weight=1, threshold=1.
-// Layout: ULEB128(num_signers=1) | ULEB128(tag=0 Ed25519) | 32-byte key | u8(weight=1) | u16-LE(threshold=1)
-// address = Blake2b256([0x03] || pk)
+// Minimal BCS-encoded MultiSigPublicKey: 1 Ed25519 signer (ED25519_PK raw), weight=1, threshold=1.
+// Layout: [0x03 (MultiSig flag)] || ULEB128(num_signers=1) | ULEB128(tag=0 Ed25519) | 32-byte key | u8(weight=1) | u16-LE(threshold=1)
+// address = Blake2b256([0x03] || raw_bytes)
 const MULTISIG_PK: vector<u8> =
-    x"0100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
+    x"030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
 
 // Passkey uses a 33-byte compressed secp256r1 (P-256) public key — same wire format as Secp256r1.
-// address = Blake2b256([0x06] || pk)
+// Layout: [0x06 (Passkey flag)] || [33-byte compressed key]
+// address = Blake2b256([0x06] || raw_bytes)
 const PASSKEY_PK: vector<u8> =
-    x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+    x"060227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
 
 // ============================================================
 // Helpers
@@ -69,10 +72,7 @@ fun test_registry_created() {
 #[test]
 fun test_claim_ed25519_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
 
     scenario.next_tx(sender);
     {
@@ -80,8 +80,7 @@ fun test_claim_ed25519_happy_path() {
         let ctx = test_scenario::ctx(&mut scenario);
         let uid = claim_registry::claim(
             &mut registry,
-            signature_scheme::ed25519(),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(ED25519_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -95,10 +94,7 @@ fun test_claim_ed25519_happy_path() {
 #[test]
 fun test_claim_secp256k1_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::secp256k1(),
-        &SECP256K1_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&SECP256K1_PK);
 
     scenario.next_tx(sender);
     {
@@ -106,8 +102,7 @@ fun test_claim_secp256k1_happy_path() {
         let ctx = test_scenario::ctx(&mut scenario);
         let uid = claim_registry::claim(
             &mut registry,
-            signature_scheme::secp256k1(),
-            SECP256K1_PK,
+            public_key::from_prefixed_bytes(SECP256K1_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -121,10 +116,7 @@ fun test_claim_secp256k1_happy_path() {
 #[test]
 fun test_claim_secp256r1_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::secp256r1(),
-        &SECP256R1_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&SECP256R1_PK);
 
     scenario.next_tx(sender);
     {
@@ -132,8 +124,7 @@ fun test_claim_secp256r1_happy_path() {
         let ctx = test_scenario::ctx(&mut scenario);
         let uid = claim_registry::claim(
             &mut registry,
-            signature_scheme::secp256r1(),
-            SECP256R1_PK,
+            public_key::from_prefixed_bytes(SECP256R1_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -147,10 +138,7 @@ fun test_claim_secp256r1_happy_path() {
 #[test]
 fun test_claim_multisig_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::multisig(),
-        &MULTISIG_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&MULTISIG_PK);
 
     scenario.next_tx(sender);
     {
@@ -158,8 +146,7 @@ fun test_claim_multisig_happy_path() {
         let ctx = test_scenario::ctx(&mut scenario);
         let uid = claim_registry::claim(
             &mut registry,
-            signature_scheme::multisig(),
-            MULTISIG_PK,
+            public_key::from_prefixed_bytes(MULTISIG_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -173,10 +160,7 @@ fun test_claim_multisig_happy_path() {
 #[test]
 fun test_claim_passkey_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::passkey(),
-        &PASSKEY_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&PASSKEY_PK);
 
     scenario.next_tx(sender);
     {
@@ -184,8 +168,7 @@ fun test_claim_passkey_happy_path() {
         let ctx = test_scenario::ctx(&mut scenario);
         let uid = claim_registry::claim(
             &mut registry,
-            signature_scheme::passkey(),
-            PASSKEY_PK,
+            public_key::from_prefixed_bytes(PASSKEY_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -203,10 +186,7 @@ fun test_claim_passkey_happy_path() {
 #[test]
 fun test_custom_account_creation() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
 
     scenario.next_tx(sender);
     {
@@ -214,8 +194,7 @@ fun test_custom_account_creation() {
         let ctx = test_scenario::ctx(&mut scenario);
         iota::test_account::create(
             &mut registry,
-            signature_scheme::ed25519(),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(ED25519_PK),
             ctx,
         );
         assert!(claim_registry::is_claimed(&registry, sender));
@@ -246,8 +225,7 @@ fun test_claim_address_mismatch() {
         let ctx = test_scenario::ctx(&mut scenario);
         claim_registry::claim(
             &mut registry,
-            signature_scheme::ed25519(),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(ED25519_PK),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -259,10 +237,7 @@ fun test_claim_address_mismatch() {
 #[expected_failure(abort_code = claim_registry::EAlreadyClaimed)]
 fun test_claim_double_claim() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
+    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
 
     scenario.next_tx(sender);
     {
@@ -270,8 +245,7 @@ fun test_claim_double_claim() {
         let ctx = test_scenario::ctx(&mut scenario);
         claim_registry::claim(
             &mut registry,
-            signature_scheme::ed25519(),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(ED25519_PK),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -283,8 +257,7 @@ fun test_claim_double_claim() {
         let ctx = test_scenario::ctx(&mut scenario);
         claim_registry::claim(
             &mut registry,
-            signature_scheme::ed25519(),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(ED25519_PK),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -301,11 +274,12 @@ fun test_claim_invalid_scheme() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        // Scheme 0xff is not recognized — public_key::create aborts inside claim.
+        // Flag 0xff is not recognized — scheme_from_flag aborts inside from_prefixed_bytes.
         claim_registry::claim(
             &mut registry,
-            signature_scheme::from_flag_for_testing(0xff),
-            ED25519_PK,
+            public_key::from_prefixed_bytes(
+                x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+            ),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -321,11 +295,12 @@ fun test_claim_move_authenticator_is_invalid() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        // Scheme 0x07 (MoveAuthenticator) has no standard address derivation rule.
+        // Flag 0x07 (MoveAuthenticator) has no standard address derivation rule.
         claim_registry::claim(
             &mut registry,
-            signature_scheme::from_flag_for_testing(0x07),
-            SECP256K1_PK,
+            public_key::from_prefixed_bytes(
+                x"0702337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
+            ),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -341,11 +316,12 @@ fun test_claim_ed25519_wrong_key_length() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        // 31 bytes instead of 32 — public_key::create aborts inside claim.
+        // 31 raw bytes instead of 32 — create aborts inside from_prefixed_bytes.
         claim_registry::claim(
             &mut registry,
-            signature_scheme::ed25519(),
-            x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd",
+            public_key::from_prefixed_bytes(
+                x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd",
+            ),
             ctx,
         ).delete();
         test_scenario::return_shared(registry);
@@ -359,27 +335,15 @@ fun test_claim_ed25519_wrong_key_length() {
 
 #[test]
 fun test_derive_address_ed25519_is_deterministic() {
-    let addr1 = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
-    let addr2 = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
+    let addr1 = claim_registry::derive_address_for_testing(&ED25519_PK);
+    let addr2 = claim_registry::derive_address_for_testing(&ED25519_PK);
     assert!(addr1 == addr2);
 }
 
 #[test]
 fun test_derive_address_differs_by_scheme() {
-    let addr_ed = claim_registry::derive_address_for_testing(
-        signature_scheme::ed25519(),
-        &ED25519_PK,
-    );
-    let addr_k1 = claim_registry::derive_address_for_testing(
-        signature_scheme::secp256k1(),
-        &SECP256K1_PK,
-    );
+    let addr_ed = claim_registry::derive_address_for_testing(&ED25519_PK);
+    let addr_k1 = claim_registry::derive_address_for_testing(&SECP256K1_PK);
     assert!(addr_ed != addr_k1);
 }
 

@@ -6,6 +6,6 @@
 
 //# init --accounts A --addresses test=0x0
 
-//# programmable --sender A --inputs object(0x10) x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
-//> iota::signature_scheme::ed25519();
-//> iota::claim_registry::claim(Input(0), Result(0), Input(1));
+//# programmable --sender A --inputs object(0x10) x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
+//> iota::public_key::from_prefixed_bytes(Input(1));
+//> 1: iota::claim_registry::claim(Input(0), Result(0));
