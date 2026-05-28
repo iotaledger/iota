@@ -31,13 +31,13 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    StructTag,
+    Command, Identifier, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
     base_types::{
-        ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest, TxContext,
+        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        TxContext,
     },
     committee::Committee,
     crypto::{
@@ -46,7 +46,7 @@ use iota_types::{
     },
     deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     epoch_data::EpochData,
     event::Event,
     gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},
@@ -54,7 +54,6 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
@@ -68,8 +67,7 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, GenesisObject, InputObjectKind, ObjectReadResult,
-        Transaction,
+        CallArg, CheckedInputObjects, GenesisObject, InputObjectKind, ObjectReadResult, Transaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1369,7 +1367,7 @@ fn create_genesis_objects(
         )
         .expect("Processing a package should not fail here");
 
-        events.extend(tx_events.data);
+        events.extend(tx_events.0);
     }
 
     for object in input_objects {

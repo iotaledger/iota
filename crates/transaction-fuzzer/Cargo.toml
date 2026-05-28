@@ -14,7 +14,7 @@ workspace = true
 # external dependencies
 once_cell.workspace = true
 proptest.workspace = true
-proptest-derive.workspace = true
+proptest-derive = "0.5.1"
 rand.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tracing.workspace = true
@@ -23,5 +23,6 @@ tracing.workspace = true
 iota-core.workspace = true
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types = { workspace = true, features = ["fuzzing"] }
 move-core-types.workspace = true

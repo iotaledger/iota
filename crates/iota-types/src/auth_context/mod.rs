@@ -12,7 +12,12 @@ use move_core_types::{
 use serde::Serialize;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, digests::MoveAuthenticatorDigest, transaction::ProgrammableTransaction,
+    IOTA_FRAMEWORK_ADDRESS,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
+    },
+    digests::{Digest, MoveAuthenticatorDigest},
+    transaction::ProgrammableTransaction,
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -34,9 +39,9 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 ///
 /// Typical use:
 /// ```move
-/// public fun authenticate(account: &Account, signature: &vector<u8>, auth_ctx: &AuthContext, , ctx: &TxContext) {
+/// public fun authenticate(account: &Account, signature: &vector<u8>, auth_ctx: &AuthContext, ctx: &TxContext) {
 ///     assert!(ed25519::ed25519_verify(signature, &account.pub_key, ctx.digest()), EEd25519VerificationFailed);
-///     
+///
 ///     assert!(is_authorized(&extract_function_key(&auth_ctx)), EUnauthorized);
 ///     ...
 /// }
@@ -47,6 +52,21 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
+    /// The sender's auth digest. For [`MoveAuthenticator`] signatures equals
+    /// [`MoveAuthenticator::digest()`]; for others Blake2b256 of the
+    /// serialized (flag-prefixed) signature bytes.
+    sender_auth_digest: Digest,
+    /// The sponsor's auth digest, present only for sponsored transactions.
+    /// For [`MoveAuthenticator`] signatures equals
+    /// [`MoveAuthenticator::digest()`]; for others Blake2b256 of the
+    /// serialized (flag-prefixed) signature bytes.
+    sponsor_auth_digest: Option<Digest>,
+    /// The sender's authenticator function ref, present when the sender uses a
+    /// [`MoveAuthenticator`] signature.
+    sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+    /// The sponsor's authenticator function ref, present when the sponsor uses
+    /// a [`MoveAuthenticator`] signature.
+    sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
     /// The authentication input objects or primitive values
     tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
@@ -58,11 +78,19 @@ pub struct AuthContext {
 impl AuthContext {
     pub fn new_from_components(
         auth_digest: MoveAuthenticatorDigest,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
+        sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+        sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
         ptb: &ProgrammableTransaction,
         tx_data_bytes: Vec<u8>,
     ) -> Self {
         Self {
             auth_digest,
+            sender_auth_digest,
+            sponsor_auth_digest,
+            sender_authenticator_function_ref_v1,
+            sponsor_authenticator_function_ref_v1,
             tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
             tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
             tx_data_bytes,
@@ -72,14 +100,52 @@ impl AuthContext {
     pub fn new_for_testing() -> Self {
         Self {
             auth_digest: MoveAuthenticatorDigest::default(),
+            sender_auth_digest: Digest::default(),
+            sponsor_auth_digest: None,
+            sender_authenticator_function_ref_v1: None,
+            sponsor_authenticator_function_ref_v1: None,
             tx_inputs: Vec::new(),
             tx_commands: Vec::new(),
             tx_data_bytes: Vec::new(),
         }
     }
 
+    /// Returns the MoveAuthenticator digest.
     pub fn digest(&self) -> &MoveAuthenticatorDigest {
         &self.auth_digest
+    }
+
+    /// Returns the sender's auth digest. For
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signatures equals
+    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
+    pub fn sender_auth_digest(&self) -> &Digest {
+        &self.sender_auth_digest
+    }
+
+    /// Returns the sponsor's auth digest for sponsored transactions, `None`
+    /// otherwise. For
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signatures equals
+    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
+    pub fn sponsor_auth_digest(&self) -> Option<&Digest> {
+        self.sponsor_auth_digest.as_ref()
+    }
+
+    /// Returns the sender's authenticator function ref, present when the sender
+    /// uses a [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator) signature.
+    pub fn sender_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
+        self.sender_authenticator_function_ref_v1.as_ref()
+    }
+
+    /// Returns the sponsor's authenticator function ref, present when the
+    /// sponsor uses a
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signature.
+    pub fn sponsor_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
+        self.sponsor_authenticator_function_ref_v1.as_ref()
     }
 
     pub fn tx_inputs(&self) -> &Vec<MoveCallArg> {
@@ -144,11 +210,19 @@ impl AuthContext {
         tx_inputs: Vec<MoveCallArg>,
         tx_commands: Vec<MoveCommand>,
         tx_data_bytes: Vec<u8>,
+        sender_auth_digest: Digest,
+        sponsor_auth_digest: Option<Digest>,
+        sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+        sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
         self.tx_commands = tx_commands;
         self.tx_data_bytes = tx_data_bytes;
+        self.sender_auth_digest = sender_auth_digest;
+        self.sponsor_auth_digest = sponsor_auth_digest;
+        self.sender_authenticator_function_ref_v1 = sender_authenticator_function_ref_v1;
+        self.sponsor_authenticator_function_ref_v1 = sponsor_authenticator_function_ref_v1;
     }
 }
 
@@ -182,17 +256,32 @@ pub fn is_auth_context(
         && struct_name == AUTH_CONTEXT_STRUCT_NAME
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AuthContextData {
+    pub transaction_data_bytes: Vec<u8>,
+    pub sender_auth_digest: Digest,
+    pub sponsor_auth_digest: Option<Digest>,
+    pub sender_authenticator_function_ref: Option<AuthenticatorFunctionRef>,
+    pub sponsor_authenticator_function_ref: Option<AuthenticatorFunctionRef>,
+}
+
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::{Command, Identifier, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{Identifier, ObjectID, TypeTag},
-        transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+        base_types::ObjectID,
+        transaction::{Argument, CallArg, ProgrammableTransaction},
     };
 
     #[test]
     fn auth_context_new_from_components() {
+        let auth_digest = MoveAuthenticatorDigest::new([1u8; 32]);
+        let sender_auth_digest = Digest::new([2u8; 32]);
+        let sponsor_auth_digest = Some(Digest::new([3u8; 32]));
+        let tx_data_bytes = vec![0xde, 0xad, 0xbe, 0xef];
+
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
             commands: vec![Command::new_move_call(
@@ -205,18 +294,61 @@ mod tests {
             )],
         };
 
-        let ctx =
-            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb, vec![]);
+        let sender_auth_fun_ref_v1 = AuthenticatorFunctionRefV1 {
+            package: ObjectID::from([0xAAu8; 32]),
+            module: "sender_mod".to_string(),
+            function: "authenticate".to_string(),
+        };
+        let sponsor_auth_fun_ref_v1 = AuthenticatorFunctionRefV1 {
+            package: ObjectID::from([0xBBu8; 32]),
+            module: "sponsor_mod".to_string(),
+            function: "authenticate".to_string(),
+        };
 
+        let ctx = AuthContext::new_from_components(
+            auth_digest,
+            sender_auth_digest,
+            sponsor_auth_digest,
+            Some(sender_auth_fun_ref_v1.clone()),
+            Some(sponsor_auth_fun_ref_v1.clone()),
+            &ptb,
+            tx_data_bytes.clone(),
+        );
+
+        // auth_digest
+        assert_eq!(ctx.digest(), &auth_digest);
+
+        // sender_auth_digest
+        assert_eq!(ctx.sender_auth_digest(), &sender_auth_digest);
+
+        // sponsor_auth_digest
+        assert_eq!(ctx.sponsor_auth_digest(), sponsor_auth_digest.as_ref());
+
+        // sender_authenticator_function_ref_v1
+        assert_eq!(
+            ctx.sender_authenticator_function_ref_v1(),
+            Some(&sender_auth_fun_ref_v1)
+        );
+
+        // sponsor_authenticator_function_ref_v1
+        assert_eq!(
+            ctx.sponsor_authenticator_function_ref_v1(),
+            Some(&sponsor_auth_fun_ref_v1)
+        );
+
+        // tx_inputs: one Pure input
         assert_eq!(ctx.tx_inputs().len(), 1);
-        assert_eq!(ctx.tx_commands().len(), 1);
-
         assert!(matches!(ctx.tx_inputs()[0], MoveCallArg::Pure(_)));
 
+        // tx_commands: one MoveCall command
+        assert_eq!(ctx.tx_commands().len(), 1);
         let MoveCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
             panic!("expected MoveCall");
         };
         assert_eq!(call.type_arguments, vec![TypeTag::U8]);
+
+        // tx_data_bytes
+        assert_eq!(ctx.tx_data_bytes(), &tx_data_bytes);
     }
 
     #[test]
@@ -235,6 +367,10 @@ mod tests {
             vec![MoveCallArg::Pure(vec![1])],
             vec![],
             vec![],
+            Digest::default(),
+            None,
+            None,
+            None,
         );
         let non_empty_bytes = ctx.to_bcs_bytes();
 

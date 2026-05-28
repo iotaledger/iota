@@ -24,3 +24,9 @@ mod transaction_builder;
 
 #[cfg(feature = "shared_test_runtime")]
 mod write_api;
+
+#[cfg(feature = "shared_test_runtime")]
+mod backward_history;
+
+#[cfg(feature = "shared_test_runtime")]
+mod checkpointed_objects;

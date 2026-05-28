@@ -30,7 +30,7 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
@@ -449,7 +449,7 @@ impl WriteApiServer for TransactionExecutionApi {
         )
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
     async fn dev_inspect_transaction_block(
         &self,
         sender_address: IotaAddress,

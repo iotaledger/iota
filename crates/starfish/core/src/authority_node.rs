@@ -123,7 +123,7 @@ impl ConsensusAuthority {
         let network_client = network_manager.client();
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-        let store = Arc::new(RocksDBStore::new(store_path, context.clone()));
+        let store = Arc::new(RocksDBStore::new(store_path));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
@@ -166,6 +166,8 @@ impl ConsensusAuthority {
 
         let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
 
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+
         let core = Core::new(
             context.clone(),
             leader_schedule,
@@ -180,6 +182,7 @@ impl ConsensusAuthority {
             protocol_keypair,
             dag_state.clone(),
             sync_last_known_own_block,
+            commit_vote_monitor.clone(),
         );
 
         let (core_dispatcher, core_thread_handle) =
@@ -202,8 +205,6 @@ impl ConsensusAuthority {
 
         let shard_reconstructor =
             ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         // `fast_sync_active` is a shared flag used by the fast syncer to
         // signal when it has any work in flight. The regular commit syncer

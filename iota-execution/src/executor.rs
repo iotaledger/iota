@@ -9,6 +9,7 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
+    auth_context::AuthContextData,
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -109,7 +110,7 @@ pub trait Executor {
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -143,7 +144,7 @@ pub trait Executor {
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

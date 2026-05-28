@@ -6,8 +6,9 @@ use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
     object::bounded_visitor::BoundedVisitor,

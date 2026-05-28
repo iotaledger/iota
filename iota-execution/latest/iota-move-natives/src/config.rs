@@ -4,10 +4,8 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{
-    base_types::{ObjectID, StructTag},
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
-};
+use iota_sdk_types::StructTag;
+use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::struct_tag_core_to_sdk};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, runtime_value as R,

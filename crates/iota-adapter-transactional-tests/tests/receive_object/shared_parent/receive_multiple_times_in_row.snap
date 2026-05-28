@@ -90,7 +90,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 11, lines 62-64:
 //# run tto::M1::send_back --summarize --args object(3,0) receiving(2,1)@6 --sender A
 Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 3
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("transfer"), function: 12, instruction: 0, function_name: Some(Identifier("receive_impl")) }, code: 3 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(3), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
+Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 3; caused by: VMError with status ABORTED with sub status 3 at location Module ModuleId { address: iota, name: Identifier("transfer") } at code offset 0 in function definition 12; at command index: 0
 
 task 12, line 65:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)@6

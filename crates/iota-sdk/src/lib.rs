@@ -106,9 +106,10 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
+use iota_sdk_types::StructTag;
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID, StructTag};
+use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},

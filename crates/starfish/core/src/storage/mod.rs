@@ -30,7 +30,11 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+    fn read_blocks(
+        &self,
+        refs: &[BlockRef],
+        context: Arc<Context>,
+    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Read and get verified block headers for the given refs.
     fn read_verified_block_headers(
@@ -72,6 +76,7 @@ pub(crate) trait Store: Send + Sync {
         &self,
         authority: AuthorityIndex,
         start_round: Round,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
@@ -84,6 +89,7 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     fn scan_block_references_by_author(

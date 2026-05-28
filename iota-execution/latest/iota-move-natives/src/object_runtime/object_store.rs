@@ -8,8 +8,9 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag},
+    base_types::{ObjectID, SequenceNumber},
     committee::EpochId,
     error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata,

@@ -14,7 +14,6 @@ use iota_protocol_config::Chain;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::{TransactionDigest, get_mainnet_chain_identifier, get_testnet_chain_identifier},
-    message_envelope::Message,
 };
 use move_vm_config::runtime::get_default_output_filepath;
 use tracing::{error, info, warn};

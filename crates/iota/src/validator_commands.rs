@@ -31,9 +31,12 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    Identifier, TypeTag,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,

@@ -12,7 +12,8 @@ use iota_grpc_types::{
         state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
     },
 };
-use iota_types::base_types::{IotaAddress, StructTag};
+use iota_sdk_types::StructTag;
+use iota_types::base_types::IotaAddress;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 

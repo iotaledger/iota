@@ -16,4 +16,4 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, lines 10-23:
 //# publish --sender A --dependencies simple_abstract_account
 Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid authenticator function parameter type: iota::transfer::Receiving<iota::coin::Coin<iota::iota::IOTA>>. Receiving objects are invalid. Valid types are immutable references to objects or primitive types."), command: Some(0) } }
+Execution Error: IotaMoveVerificationError: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.; caused by: Invalid authenticator function parameter type: iota::transfer::Receiving<iota::coin::Coin<iota::iota::IOTA>>. Receiving objects are invalid. Valid types are immutable references to objects or primitive types.; at command index: 0

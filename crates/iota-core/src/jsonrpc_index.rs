@@ -19,11 +19,12 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, StructTag,
-        TransactionDigest, TxSequenceNumber, TypeTag,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
+        TransactionDigest, TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
@@ -524,7 +525,7 @@ impl IndexStore {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
                 let coin_type_tag = object.coin_type_opt().unwrap_or_else(|| {
                     panic!(
-                        "object_id: {obj_id:?} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                        "object_id: {obj_id} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest}"
                     )
                 });
                 let map = balance_changes.entry(*owner).or_default();
@@ -561,12 +562,12 @@ impl IndexStore {
             let obj = written_coins.get(obj_id)?;
             let coin_type_tag = obj.coin_type_opt().cloned().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let map = balance_changes.entry(*owner).or_default();
@@ -704,7 +705,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_order,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, _)| ((sequence, i), (event_digest, *digest, timestamp_ms))),
@@ -712,7 +712,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_by_move_module,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| {
@@ -728,7 +727,7 @@ impl IndexStore {
         )?;
         batch.insert_batch(
             &self.tables.event_by_sender,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.sender, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -737,7 +736,7 @@ impl IndexStore {
         )?;
         batch.insert_batch(
             &self.tables.event_by_move_event,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.type_.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -747,7 +746,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_time,
-            events.data.iter().enumerate().map(|(i, _)| {
+            events.iter().enumerate().map(|(i, _)| {
                 (
                     (timestamp_ms, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -757,7 +756,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_event_module,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (
                         ModuleId::new(
@@ -1766,7 +1765,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,
@@ -1808,7 +1807,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,

@@ -556,11 +556,11 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            Ok(CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: false,
-            }))
+                false,
+            )))
         } else {
             bail!("{fake_id} is not a shared object.")
         }
@@ -574,11 +574,11 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: true,
-            })),
+                true,
+            ))),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.compute_object_reference();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))

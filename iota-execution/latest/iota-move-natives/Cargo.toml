@@ -22,6 +22,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true

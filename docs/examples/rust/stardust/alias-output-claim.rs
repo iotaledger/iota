@@ -14,7 +14,7 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::{Identifier, ObjectID, TypeTag},
+        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -23,7 +23,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

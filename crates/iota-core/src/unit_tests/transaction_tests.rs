@@ -10,9 +10,9 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, crypto::Intent};
 use iota_types::{
-    base_types::{Identifier, dbg_addr, random_object_ref},
+    base_types::{dbg_addr, random_object_ref},
     crypto::{AccountKeyPair, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_consensus::ConsensusDeterminedVersionAssignments,
@@ -925,11 +925,11 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef::new(
+                        shared_object.id(),
                         initial_shared_version,
-                        mutable: true,
-                    }),
+                        true,
+                    )),
                     CallArg::Pure((i as u64).to_le_bytes().to_vec()),
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -1200,11 +1200,11 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef::new(
+                        shared_object.id(),
                         initial_shared_version,
-                        mutable: true,
-                    }),
+                        true,
+                    )),
                     CallArg::Pure(11u64.to_le_bytes().to_vec()),
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -1230,11 +1230,11 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef::new(
+                        shared_object.id(),
                         initial_shared_version,
-                        mutable: true,
-                    }),
+                        true,
+                    )),
                     CallArg::Pure(12u64.to_le_bytes().to_vec()),
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -1286,11 +1286,11 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef::new(
+                        shared_object.id(),
                         initial_shared_version,
-                        mutable: true,
-                    }),
+                        true,
+                    )),
                     CallArg::Pure(11u64.to_le_bytes().to_vec()),
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -1316,11 +1316,11 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef::new(
+                        shared_object.id(),
                         initial_shared_version,
-                        mutable: true,
-                    }),
+                        true,
+                    )),
                     CallArg::Pure(12u64.to_le_bytes().to_vec()),
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,

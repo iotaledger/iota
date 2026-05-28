@@ -402,6 +402,15 @@ pub enum ToolCommand {
         #[command(subcommand)]
         fire_drill: crate::fire_drill::FireDrill,
     },
+
+    /// Check the health of a running gRPC server.
+    /// Exits with code 0 if healthy, non-zero otherwise.
+    #[command(name = "grpc-health-check")]
+    GrpcHealthCheck {
+        /// The gRPC server address (e.g., "http://localhost:50051")
+        #[arg(long, default_value = "http://localhost:50051")]
+        address: String,
+    },
 }
 
 async fn check_locked_object(
@@ -429,7 +438,7 @@ async fn check_locked_object(
 
     let tx_digest = top_record.2;
     if !rescue {
-        println!("Object {id} is rescueable, top tx: {tx_digest:?}");
+        println!("Object {id} is rescueable, top tx: {tx_digest}");
         return Ok(());
     }
     println!("Object {id} is rescueable, trying tx {tx_digest}");
@@ -456,10 +465,10 @@ async fn check_locked_object(
         .await;
     match res {
         Ok(_) => {
-            println!("Transaction executed successfully ({tx_digest:?})");
+            println!("Transaction executed successfully ({tx_digest})");
         }
         Err(e) => {
-            println!("Failed to execute transaction ({tx_digest:?}): {e:?}");
+            println!("Failed to execute transaction ({tx_digest}): {e:?}");
         }
     }
     Ok(())
@@ -1088,6 +1097,11 @@ impl ToolCommand {
             }
             ToolCommand::FireDrill { fire_drill } => {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
+            }
+            ToolCommand::GrpcHealthCheck { address } => {
+                let client = iota_grpc_client::Client::new(address)?;
+                client.get_health(None).await?;
+                println!("OK");
             }
         };
         Ok(())

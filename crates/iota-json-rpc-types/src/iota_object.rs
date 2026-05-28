@@ -13,15 +13,13 @@ use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
     base_types::{
-        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TransactionDigest,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
+        TransactionDigest,
     },
-    error::{
-        ExecutionError, IotaError, IotaObjectResponseError, IotaResult, UserInputError,
-        UserInputResult,
-    },
+    error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
@@ -35,7 +33,7 @@ use serde_json::Value;
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError as IotaObjectResponseErrorSchema, Page,
+    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, Page,
     iota_owner::OwnerSchema,
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
@@ -45,14 +43,11 @@ use crate::{
     },
 };
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 pub struct IotaObjectResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<IotaObjectData>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<IotaObjectResponseErrorSchema>")]
-    #[serde_as(as = "Option<IotaObjectResponseErrorSchema>")]
     pub error: Option<IotaObjectResponseError>,
 }
 
@@ -197,7 +192,6 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 pub struct DisplayFieldsResponse {
     pub data: Option<BTreeMap<String, String>>,
-    #[schemars(with = "Option<IotaObjectResponseErrorSchema>")]
     pub error: Option<IotaObjectResponseError>,
 }
 
@@ -349,7 +343,7 @@ impl IotaObjectData {
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
         self.type_
             .as_ref()
-            .ok_or_else(|| anyhow!("type is missing for object {:?}", self.object_id))
+            .ok_or_else(|| anyhow!("type is missing for object {}", self.object_id))
             .cloned()
     }
 

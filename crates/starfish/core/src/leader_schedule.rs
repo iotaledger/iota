@@ -436,7 +436,7 @@ impl LeaderSwapTable {
         authorities_by_score.shuffle(&mut rng);
         // Stable sort the authorities by score descending. Order of authorities with
         // the same score is preserved.
-        authorities_by_score.sort_by(|a1, a2| a2.1.cmp(&a1.1));
+        authorities_by_score.sort_by_key(|a2| std::cmp::Reverse(a2.1));
 
         // Calculating the good nodes
         let good_nodes = Self::retrieve_first_nodes(
@@ -655,7 +655,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 11, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -737,7 +737,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
@@ -766,7 +766,7 @@ mod tests {
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
 
         // Populate fully connected test blocks for round 0 ~ 2, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -830,7 +830,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
         let unscored_subdags = vec![
             CommittedSubDag::new(
@@ -865,7 +865,7 @@ mod tests {
         ));
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new(context.clone())),
+            Arc::new(MemStore::new()),
         )));
 
         // Populate fully connected test blocks for round 0 ~ 4, authorities 0 ~ 3.

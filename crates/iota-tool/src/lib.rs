@@ -440,7 +440,7 @@ pub async fn get_transaction_block(
             Ok(Some((tx, effects, effects_digest))) => {
                 writeln!(
                     &mut s,
-                    "#{i:<2} tx_digest: {tx_digest:<68?} effects_digest: {effects_digest:?}",
+                    "#{i:<2} tx_digest: {tx_digest:<68} effects_digest: {effects_digest}",
                 )?;
                 writeln!(&mut s, "{effects:#?}")?;
                 if show_input_tx {

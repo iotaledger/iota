@@ -4,8 +4,7 @@
 
 use std::{
     collections::BTreeMap,
-    fs,
-    fs::File,
+    fs::{self, File},
     io::{BufReader, Read, Seek, SeekFrom},
     num::NonZeroUsize,
     path::PathBuf,
@@ -27,10 +26,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_core::authority::{
-    AuthorityStore,
-    authority_store_tables::{AuthorityPerpetualTables, LiveObject},
-};
+use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -54,6 +50,7 @@ use tracing::{error, info};
 use crate::{
     FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
     OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -222,6 +219,27 @@ impl StateSnapshotReaderV1 {
         abort_registration: AbortRegistration,
         sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
     ) -> Result<()> {
+        self.read_to_db(perpetual_db, abort_registration, sender)
+            .await
+    }
+
+    /// The main entrypoint of the [StateSnapshotReaderV1].
+    ///
+    /// This method encapsulates the logic for several operations:
+    ///
+    /// 1. Computing the partition checksums of the respective `*.ref` files.
+    /// 2. Computing the partition elliptic-curve multiset hash (ECMH) in the
+    ///    background, and sending the result through the given `sender` to the
+    ///    caller. This allows to compute and verify the root hash of the live
+    ///    objects encoded in the snapshot. See [`GlobalStateHash`].
+    /// 3. Reading, inserting, and verifying all encoded live objects to the
+    ///    given `database`.
+    pub async fn read_to_db(
+        &mut self,
+        database: &impl Restore,
+        abort_registration: AbortRegistration,
+        sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
+    ) -> Result<()> {
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
         // compare sha3 digest of object references per *.obj file against this.
@@ -305,8 +323,8 @@ impl StateSnapshotReaderV1 {
             sender.map(|sender| self.spawn_accumulation_tasks(sender, num_part_files));
 
         // Downloads all object files from remote in parallel and inserts the objects
-        // into the AuthorityPerpetualTables
-        self.sync_live_objects(perpetual_db, abort_registration, sha3_digests)
+        // into the database of choice
+        self.sync_live_objects(database, abort_registration, sha3_digests)
             .await?;
 
         if let Some(handle) = accum_handle {
@@ -416,10 +434,10 @@ impl StateSnapshotReaderV1 {
     }
 
     /// Downloads all object files from remote in parallel and inserts the
-    /// objects into the AuthorityPerpetualTables.
+    /// objects into the given database.
     async fn sync_live_objects(
         &self,
-        perpetual_db: &AuthorityPerpetualTables,
+        database: &impl Restore,
         abort_registration: AbortRegistration,
         sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
     ) -> Result<(), anyhow::Error> {
@@ -516,27 +534,24 @@ impl StateSnapshotReaderV1 {
                     .boxed()
                     .buffer_unordered(concurrency)
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let bytes_len = bytes.len();
-                        // Inserts live objects into the AuthorityStore
-                        let result: Result<(), anyhow::Error> =
-                            LiveObjectIter::new(&file_metadata, bytes).map(|obj_iter| {
-                                AuthorityStore::bulk_insert_live_objects(
-                                    perpetual_db,
-                                    obj_iter,
-                                    &sha3_digest,
-                                )
-                                .expect("Failed to insert live objects");
-                            });
-                        downloaded_bytes.fetch_add(bytes_len, Ordering::Relaxed);
-                        // Updates the progress bar
-                        obj_progress_bar_clone.inc(1);
-                        obj_progress_bar_clone.set_message(format!(
-                            "Download speed: {} MiB/s",
-                            downloaded_bytes.load(Ordering::Relaxed) as f64
-                                / (1024 * 1024) as f64
-                                / instant.elapsed().as_secs_f64(),
-                        ));
-                        futures::future::ready(result)
+                        let downloaded_bytes = &downloaded_bytes;
+                        let obj_progress_bar = &obj_progress_bar_clone;
+                        let instant = &instant;
+                        async move {
+                            let bytes_len = bytes.len();
+                            database
+                                .insert_partition(file_metadata, bytes, &sha3_digest)
+                                .await?;
+                            downloaded_bytes.fetch_add(bytes_len, Ordering::Relaxed);
+                            obj_progress_bar.inc(1);
+                            obj_progress_bar.set_message(format!(
+                                "Download speed: {} MiB/s",
+                                downloaded_bytes.load(Ordering::Relaxed) as f64
+                                    / (1024 * 1024) as f64
+                                    / instant.elapsed().as_secs_f64(),
+                            ));
+                            Ok(())
+                        }
                     })
                     .await
             },

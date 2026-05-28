@@ -143,41 +143,36 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         // is coming to an end. Since `close_epoch` is called according to local clocks,
         // we use an analogous rule for the last reports, requiring that the checkpoint
         // is close to the next reconfiguration timestamp.
-        let should_send_last_report = checkpoint_timestamp
-            >= self
-                .next_reconfiguration_timestamp_ms
-                .saturating_sub(REPORT_END_OF_EPOCH_MARGIN_MS)
-            && !epoch_store.scorer.has_sent_end_of_epoch_report();
-        if epoch_store.protocol_config().calculate_validator_scores()
-            && ((checkpoint_seq.saturating_sub(epoch_store.scorer.last_report_checkpoint_seq())
+        if epoch_store.protocol_config().calculate_validator_scores() {
+            let mut rl = epoch_store.misbehavior_monitor.rate_limit();
+
+            let should_send_last_report = checkpoint_timestamp
+                >= self
+                    .next_reconfiguration_timestamp_ms
+                    .saturating_sub(REPORT_END_OF_EPOCH_MARGIN_MS)
+                && !rl.has_sent_end_of_epoch_report;
+
+            if (checkpoint_seq.saturating_sub(rl.last_report_checkpoint_seq)
                 >= MIN_CHECKPOINTS_BETWEEN_REPORTS
                 && Some(checkpoint_seq + MAX_CHECKPOINT_LAG_FOR_REPORT)
                     >= highest_verified_checkpoint)
-                || should_send_last_report)
-        {
-            let misbehavior_report = epoch_store
-                .scorer
-                .generate_report_with_current_local_metrics();
-            let new_report_summary = misbehavior_report.summary();
-            if new_report_summary != epoch_store.scorer.last_report_summary()
                 || should_send_last_report
             {
-                let transaction = ConsensusTransaction::new_misbehavior_report(
-                    epoch_store.name,
-                    &misbehavior_report,
-                    checkpoint_seq,
-                );
-                info!(?transaction, "submitting misbehavior report to consensus");
-                self.sender
-                    .submit_to_consensus(&[transaction], epoch_store)?;
-                epoch_store
-                    .scorer
-                    .store_last_report_summary(new_report_summary);
-                epoch_store
-                    .scorer
-                    .store_last_report_checkpoint_seq(checkpoint_seq);
-                if should_send_last_report {
-                    epoch_store.scorer.mark_end_of_epoch_report_sent();
+                let misbehavior_report = epoch_store
+                    .misbehavior_monitor
+                    .generate_report(checkpoint_seq);
+                let new_report_summary = misbehavior_report.summary();
+                if new_report_summary != rl.last_report_summary || should_send_last_report {
+                    let transaction =
+                        ConsensusTransaction::new_misbehavior_report(misbehavior_report);
+                    info!(?transaction, "submitting misbehavior report to consensus");
+                    self.sender
+                        .submit_to_consensus(&[transaction], epoch_store)?;
+                    rl.last_report_summary = new_report_summary;
+                    rl.last_report_checkpoint_seq = checkpoint_seq;
+                    if should_send_last_report {
+                        rl.has_sent_end_of_epoch_report = true;
+                    }
                 }
             }
         }

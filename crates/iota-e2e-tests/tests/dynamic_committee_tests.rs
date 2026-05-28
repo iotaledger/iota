@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
+use iota_sdk_types::Command;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -23,7 +24,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, ProgrammableTransaction},
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -36,8 +37,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::base_types::Identifier::from_static(stringify!($module_name)),
-            iota_types::base_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -218,7 +219,9 @@ impl StressTestRunner {
         let pre_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         self.test_cluster.force_new_epoch().await;
@@ -226,7 +229,9 @@ impl StressTestRunner {
         let post_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         info!("Changing epoch from {} to {}", pre_epoch, post_epoch);

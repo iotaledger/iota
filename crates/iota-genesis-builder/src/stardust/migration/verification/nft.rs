@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, TypeTag},
+    base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -49,14 +50,14 @@ pub(super) fn verify_nft_output(
     })?;
     let created_output = created_output_obj
         .to_rust::<MoveNftOutput>()
-        .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
+        .map_err(|e| anyhow!("invalid nft output object for {output_id}: {e}"))?;
 
     let created_nft_obj = storage
         .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
         .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
     let created_nft = created_nft_obj
         .to_rust::<MoveNft>()
-        .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
+        .map_err(|e| anyhow!("invalid nft object for {output_id}: {e}"))?;
 
     // Output Owner
     // If there is an expiration unlock condition, the NFT is shared.

@@ -104,10 +104,7 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
     if items_len > max_batch {
         return Err(RpcError::new(
             tonic::Code::InvalidArgument,
-            format!(
-                "batch size {} exceeds maximum allowed ({})",
-                items_len, max_batch
-            ),
+            format!("batch size {items_len} exceeds maximum allowed ({max_batch})"),
         ));
     }
     Ok(())

@@ -555,6 +555,7 @@ pub(crate) mod tests {
         CommitConsumer, VerifiedBlockHeader,
         block_manager::BlockManager,
         commit_observer::CommitObserver,
+        commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::CoreSignals,
         dag_state::DagState,
@@ -732,7 +733,7 @@ pub(crate) mod tests {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -766,6 +767,7 @@ pub(crate) mod tests {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
         let (core_dispatcher, handle) = ChannelCoreThreadDispatcher::start(context, core, false);

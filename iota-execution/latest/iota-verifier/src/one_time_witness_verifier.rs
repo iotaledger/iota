@@ -20,9 +20,11 @@
 //! - its only instance in existence is passed as an argument to the module
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
+
+use iota_sdk_types::Identifier;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{Identifier, IotaAddress},
+    base_types::IotaAddress,
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };

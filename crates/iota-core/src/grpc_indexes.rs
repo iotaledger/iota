@@ -10,8 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,
     error::IotaResult,

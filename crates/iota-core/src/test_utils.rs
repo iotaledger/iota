@@ -5,11 +5,14 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::{
+    Identifier,
+    crypto::{Intent, IntentScope},
+};
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef,
-        TransactionDigest, random_object_ref,
+        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
+        random_object_ref,
     },
     committee::Committee,
     crypto::{
@@ -18,7 +21,6 @@ use iota_types::{
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
-    message_envelope::Message,
     transaction::{
         CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         Transaction, TransactionData, TransactionDataAPI,

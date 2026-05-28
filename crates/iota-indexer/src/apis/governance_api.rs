@@ -14,9 +14,10 @@ use iota_json_rpc_types::{
     IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::StructTag;
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, ObjectID, StructTag},
+    base_types::{IotaAddress, ObjectID},
     committee::EpochId,
     dynamic_field::DynamicFieldInfo,
     governance::StakedIota,

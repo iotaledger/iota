@@ -424,7 +424,7 @@ impl TransactionManager {
                         .transaction_cache_read
                         .try_is_tx_already_executed(&digest)
                         .unwrap_or_else(|err| {
-                            fatal!("Failed to check if tx {digest:?} is already executed: {err:?}")
+                            fatal!("Failed to check if tx {digest} is already executed: {err:?}")
                         })
                     {
                         self.metrics
@@ -649,7 +649,7 @@ impl TransactionManager {
 
                     assert!(
                         inner.missing_inputs.entry(key).or_default().insert(digest),
-                        "Duplicated certificate {digest:?} for missing object {key:?}"
+                        "Duplicated certificate {digest} for missing object {key:?}"
                     );
                     let input_txns = inner.input_objects.entry(key.id()).or_default();
                     input_txns.insert(digest, pending_cert_enqueue_time);
@@ -673,7 +673,7 @@ impl TransactionManager {
                     .pending_certificates
                     .insert(digest, pending_cert)
                     .is_none(),
-                "Duplicated pending certificate {digest:?}"
+                "Duplicated pending certificate {digest}"
             );
 
             self.metrics

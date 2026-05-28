@@ -6,8 +6,9 @@ use std::result::Result;
 
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -20,7 +21,7 @@ use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_types::transaction::Command::Publish`] for the provided package.
+    /// [`iota_sdk_types::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
         sender: IotaAddress,
@@ -60,7 +61,7 @@ impl TransactionBuilder {
     }
 
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
+    /// [`iota_sdk_types::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
         package_id: ObjectID,
@@ -85,11 +86,11 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                    object_id: upgrade_capability.object_ref().object_id,
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                    upgrade_capability.object_ref().object_id,
                     initial_shared_version,
-                    mutable: true,
-                }),
+                    true,
+                )),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }

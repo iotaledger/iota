@@ -9,7 +9,7 @@ use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
 };
@@ -18,11 +18,11 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::TypeTag;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
 };
@@ -460,9 +460,9 @@ impl IndexerApiServer for IndexerApi {
 
         let name = field_reverse_record_object
             .to_rust::<Field<IotaAddress, Name>>()
-            .ok_or_else(|| {
+            .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Malformed Object {reverse_record_id}"
+                    "Malformed Object {reverse_record_id}: {e}"
                 ))
             })?
             .value;

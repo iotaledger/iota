@@ -17,9 +17,9 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Identifier, StructTag, crypto::Intent};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
@@ -145,11 +145,11 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            builder.obj(CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: false,
-            }))?
+                false,
+            )))?
         } else {
             builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
                 object_id, version, digest,
@@ -349,11 +349,11 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef {
-            object_id: game.board.id,
+        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+            game.board.id,
             initial_shared_version,
-            mutable: true,
-        }))?;
+            true,
+        )))?;
 
         builder.programmable_move_call(
             self.package,
@@ -426,11 +426,11 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef {
-            object_id: game.board.id,
+        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+            game.board.id,
             initial_shared_version,
-            mutable: true,
-        }))?;
+            true,
+        )))?;
 
         let r = builder.pure(row)?;
         let c = builder.pure(col)?;

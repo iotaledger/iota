@@ -15,8 +15,9 @@ use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
+use iota_sdk_types::{Identifier, TypeTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -211,11 +212,11 @@ pub async fn create_test_transaction(
     let tx_data = create_transaction_data(iota_client, account_address, pt).await?;
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: account_ref.object_id,
-        initial_shared_version: account_ref.version,
-        mutable: false,
-    });
+    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
+        account_ref.object_id,
+        account_ref.version,
+        false,
+    ));
 
     let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![],

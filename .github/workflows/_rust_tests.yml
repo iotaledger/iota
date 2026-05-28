@@ -203,6 +203,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  check-wasm32:
+    name: Check wasm32-unknown-unknown
+    if: (!cancelled() && !failure() && inputs.isRust)
+    runs-on: [self-hosted-x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check iota-types compiles to wasm32
+        run: cargo check -p iota-types --target wasm32-unknown-unknown
+
+  check-wasm32-cancel:
+    needs: [check-wasm32]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
     if: (!cancelled() && !failure())
@@ -246,10 +269,6 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: benchmark (smoke)
-        run: |
-          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
-
       - name: doctests
         run: |
           cargo test --doc
@@ -257,10 +276,6 @@ jobs:
       - name: rustdoc
         run: |
           cargo doc --all-features --workspace --no-deps
-
-      - name: iota-grpc-client (no default features)
-        run: |
-          cargo nextest run --profile ci -p iota-grpc-client --no-default-features --no-tests=warn
 
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade

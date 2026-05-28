@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, TxContext, TxContextKind},
+    base_types::{IotaAddress, TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,

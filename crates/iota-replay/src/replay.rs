@@ -18,15 +18,17 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::StructTag;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
-            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
     },
-    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
+    auth_context::AuthContextData,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -862,6 +864,28 @@ impl LocalExec {
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                tx_info.sender_signed_data.compute_auth_digests()?;
+
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: bcs::to_bytes(
+                    tx_info.sender_signed_data.transaction_data(),
+                )
+                .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             executor.authenticate_then_execute_transaction_to_effects(
                 &self,
                 protocol_config,
@@ -877,8 +901,7 @@ impl LocalExec {
                 transaction_kind.clone(),
                 tx_info.sender,
                 *tx_digest,
-                bcs::to_bytes(tx_info.sender_signed_data.transaction_data())
-                    .expect("TransactionData serialization cannot fail"),
+                auth_context_data,
                 &mut None,
             )
         };
@@ -1157,6 +1180,26 @@ impl LocalExec {
                 .collect::<Vec<_>>();
 
             let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            let (sender_auth_digest, sponsor_auth_digest) =
+                sender_signed_data.compute_auth_digests()?;
+
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: bcs::to_bytes(sender_signed_data.transaction_data())
+                    .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             executor.authenticate_then_execute_transaction_to_effects(
                 &store,
                 &protocol_config,
@@ -1172,8 +1215,7 @@ impl LocalExec {
                 kind,
                 signer,
                 *executable.digest(),
-                bcs::to_bytes(sender_signed_data.transaction_data())
-                    .expect("TransactionData serialization cannot fail"),
+                auth_context_data,
                 &mut None,
             )
         };
@@ -2155,9 +2197,9 @@ fn load_authenticator_function_ref(
 
     let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
         .to_rust()
-        .ok_or_else(|| ReplayEngineError::GeneralError {
+        .map_err(|e| ReplayEngineError::GeneralError {
             err: format!(
-                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}"
+                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
             ),
         })?;
 

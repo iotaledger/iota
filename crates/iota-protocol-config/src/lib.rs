@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 26;
+pub const MAX_PROTOCOL_VERSION: u64 = 28;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -143,6 +143,14 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             supported.
 // Version 26: Introduce a module to allow Move code to query protocol feature
 //             flags at runtime.
+// Version 27: Only sponsor Move authentication is performed pre-consensus in
+//             devnet.
+//             Enable consensus block restrictions on testnet and devnet:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
+// Version 28: Move authenticator contracts can now inspect which authenticator
+//             function the sender and sponsor used during transaction execution
+//             via new AuthContext accessors.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -466,6 +474,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     consensus_fast_commit_sync: bool,
 
+    // If true, enables consensus block restrictions: bounds the block header size for
+    // a given committee size.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_block_restrictions: bool,
+
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
     move_native_tx_context: bool,
@@ -473,6 +486,10 @@ struct FeatureFlags {
     // If true, perform additional borrow checks
     #[serde(skip_serializing_if = "is_false")]
     additional_borrow_checks: bool,
+
+    // If true, only sponsor Move authentication is performed pre-consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    pre_consensus_sponsor_only_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1315,7 +1332,9 @@ pub struct ProtocolConfig {
     /// the MisbehaviorReports messages, where `version` determines the scoring
     /// formulas and metrics to be used. Even if set to None, the Scorer
     /// component is created, having access to metrics and being able to expose
-    /// validator scores.
+    /// validator scores. Also gates the wire format of the
+    /// `MisbehaviorReport` consensus transaction — scorer and report bump
+    /// together.
     scorer_version: Option<u16>,
 
     // `auth_context` module
@@ -1334,6 +1353,10 @@ pub struct ProtocolConfig {
     // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
+    // Cost params for the Move native functions
+    // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
+    // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
+    auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -1477,6 +1500,22 @@ impl ProtocolConfig {
 
     pub fn consensus_max_acknowledgments_per_block_or_default(&self) -> u32 {
         self.consensus_max_acknowledgments_per_block.unwrap_or(400)
+    }
+
+    pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
+        if self.consensus_block_restrictions() {
+            2 * committee_size
+        } else {
+            self.consensus_max_acknowledgments_per_block_or_default() as usize
+        }
+    }
+
+    pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
+        if self.consensus_block_restrictions() {
+            committee_size
+        } else {
+            100
+        }
     }
 
     pub fn variant_nodes(&self) -> bool {
@@ -1667,8 +1706,29 @@ impl ProtocolConfig {
         res
     }
 
+    pub fn consensus_block_restrictions(&self) -> bool {
+        self.feature_flags.consensus_block_restrictions
+    }
+
     pub fn move_native_tx_context(&self) -> bool {
         self.feature_flags.move_native_tx_context
+    }
+
+    pub fn pre_consensus_sponsor_only_move_authentication(&self) -> bool {
+        let pre_consensus_sponsor_only_move_authentication = self
+            .feature_flags
+            .pre_consensus_sponsor_only_move_authentication;
+        if pre_consensus_sponsor_only_move_authentication {
+            assert!(
+                self.enable_move_authentication(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.enable_move_authentication_for_sponsor(),
+                "pre_consensus_sponsor_only_move_authentication requires enable_move_authentication_for_sponsor to be set"
+            );
+        }
+        pre_consensus_sponsor_only_move_authentication
     }
 }
 
@@ -2260,6 +2320,7 @@ impl ProtocolConfig {
             auth_context_tx_inputs_cost_per_byte: None,
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
+            auth_context_authenticator_function_info_v1_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2749,7 +2810,26 @@ impl ProtocolConfig {
                     // Introduce a module to allow Move code to query protocol
                     // feature flags at runtime.
                 }
+                27 => {
+                    if chain != Chain::Mainnet {
+                        // Enable consensus block restrictions on testnet/devnet to bound
+                        // header size by committee size.
+                        cfg.feature_flags.consensus_block_restrictions = true;
+                    }
 
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Only sponsor Move authentication is performed pre-consensus in devnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                }
+                28 => {
+                    // AuthenticatorFunctionInfoV1 max BCS size:
+                    // package (32) + module_name (128) + function_name (128) = 288 bytes = 9 ×
+                    // digest. auth_context_digest_cost_base = 30 for 32 bytes →
+                    // 9 × 30 = 270.
+                    cfg.auth_context_authenticator_function_info_v1_cost_base = Some(270);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2978,6 +3058,15 @@ impl ProtocolConfig {
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
+    }
+
+    pub fn set_consensus_block_restrictions_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_block_restrictions = val;
+    }
+
+    pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pre_consensus_sponsor_only_move_authentication = val;
     }
 }
 

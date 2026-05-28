@@ -797,11 +797,11 @@ pub mod shared_object_test_utils {
                         objects
                             .iter()
                             .map(|(id, mutable)| {
-                                CallArg::Shared(SharedObjectRef {
-                                    object_id: *id,
-                                    initial_shared_version: SequenceNumber::default(),
-                                    mutable: *mutable,
-                                })
+                                CallArg::Shared(SharedObjectRef::new(
+                                    *id,
+                                    SequenceNumber::default(),
+                                    *mutable,
+                                ))
                             })
                             .collect(),
                     )
@@ -848,11 +848,7 @@ pub mod shared_object_test_utils {
     pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedObjectRef> {
         objects
             .iter()
-            .map(|(id, mutable)| SharedObjectRef {
-                object_id: *id,
-                initial_shared_version: SequenceNumber::default(),
-                mutable: *mutable,
-            })
+            .map(|(id, mutable)| SharedObjectRef::new(*id, SequenceNumber::default(), *mutable))
             .collect()
     }
 }

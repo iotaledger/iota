@@ -669,8 +669,11 @@ impl ObjectInner {
         Ok(type_tag)
     }
 
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        self.data.as_struct_opt().and_then(|data| data.to_rust())
+    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
+        self.data
+            .as_struct_opt()
+            .ok_or_else(|| bcs::Error::Custom("Object is not a struct".to_string()))?
+            .to_rust()
     }
 }
 
@@ -909,7 +912,7 @@ impl Display for ObjectRead {
                 write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({id:?})")
+                write!(f, "ObjectRead::NotExists ({id})")
             }
             Self::Exists(oref, _, _) => {
                 write!(f, "ObjectRead::Exists ({oref:?})")
@@ -971,7 +974,7 @@ impl Display for PastObjectRead {
                 write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
+                write!(f, "PastObjectRead::ObjectNotExists ({id})")
             }
             Self::VersionFound(oref, _, _) => {
                 write!(f, "PastObjectRead::VersionFound ({oref:?})")
@@ -979,7 +982,7 @@ impl Display for PastObjectRead {
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
+                    "PastObjectRead::VersionNotFound ({object_id}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -989,7 +992,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
+                    "PastObjectRead::VersionTooHigh ({object_id}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }

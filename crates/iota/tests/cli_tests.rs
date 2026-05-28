@@ -32,9 +32,9 @@ use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaRawData, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
-    get_new_package_obj_from_response,
+    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaRawData,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    ObjectChange, OwnedObjectRef, get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -49,7 +49,6 @@ use iota_types::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
-    error::IotaObjectResponseError,
     gas_coin::GasCoin,
     move_package::{MovePackage, UpgradeInfo},
     object::Owner,
@@ -266,6 +265,30 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
         }
     }
     Ok(())
+}
+
+/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
+/// parallel PTB `--publish` / `--upgrade` tests don't race on the
+/// shared on-disk `build/` and `Move.lock`. The caller must keep the
+/// returned `TempDir` alive (drop deletes it).
+fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
+    fs::create_dir_all(&dst_pkg).unwrap();
+    fs::copy(src_pkg.join("Move.toml"), dst_pkg.join("Move.toml")).unwrap();
+    copy_dir_all(src_pkg.join("sources"), dst_pkg.join("sources")).unwrap();
+
+    // Anchor relative `local = "../..."` deps at the original package
+    // dir so they still resolve from the tempdir location.
+    let move_toml = dst_pkg.join("Move.toml");
+    let anchor = fs::canonicalize(src_pkg).unwrap();
+    let rewritten = fs::read_to_string(&move_toml).unwrap().replace(
+        r#"local = ".."#,
+        &format!(r#"local = "{}/.."#, anchor.display()),
+    );
+    fs::write(&move_toml, rewritten).unwrap();
+
+    (temp_dir, dst_pkg)
 }
 
 /// Fetch move packages based on the provided package IDs.
@@ -551,13 +574,9 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
-
-    // Drop any stale `Move.lock` left behind by a prior publish — its
-    // `published-id` would rewrite module addresses away from 0x0 and fail
-    // this publish. `Move.lock` is gitignored, so this is always safe.
-    let _ = fs::remove_file(package_path.join("Move.lock"));
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
 
     let publish_ptb_string = format!(
         r#"
@@ -587,14 +606,12 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .build()
         .await;
     let context = &mut test_cluster.wallet;
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("ptb_complex_args_test_functions");
-    let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
-    package_path_2.push("clever_errors");
-
-    // Drop stale `Move.lock`s from prior publishes; see `test_ptb_publish`.
-    let _ = fs::remove_file(package_path.join("Move.lock"));
-    let _ = fs::remove_file(package_path_2.join("Move.lock"));
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let mut src_pkg_2 = PathBuf::from(TEST_DATA_DIR);
+    src_pkg_2.push("clever_errors");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
+    let (_temp_dir_2, package_path_2) = isolate_test_package(&src_pkg_2);
 
     let publish_ptb_string = format!(
         r#"
@@ -724,6 +741,244 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+
+    Ok(())
+}
+
+/// Publish a Move package and update the lock file, returning the upgrade cap
+/// ID. Shared setup for upgrade tests.
+async fn publish_package_for_upgrade(
+    context: &mut WalletContext,
+    package_path: &Path,
+) -> Result<ObjectID, anyhow::Error> {
+    let publish_ptb_string = format!(
+        r#"
+        --move-call iota::tx_context::sender
+        --assign sender
+        --publish {}
+        --assign upgrade_cap
+        --transfer-objects "[upgrade_cap]" sender
+        "#,
+        package_path.display()
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(transaction_response) = *res else {
+        panic!("unexpected PTB result");
+    };
+
+    let object_changes = transaction_response.object_changes.unwrap();
+    let upgrade_cap_id = object_changes
+        .iter()
+        .find_map(|c| {
+            if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
+                if object_type.is_upgrade_cap() {
+                    Some(c.object_id())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .expect("should find upgrade cap");
+
+    // Get the package address from the upgrade cap
+    let client = context.get_client().await?;
+    let cap_object = client
+        .read_api()
+        .get_object_with_options(
+            upgrade_cap_id,
+            IotaObjectDataOptions::default().with_content(),
+        )
+        .await?
+        .into_object()
+        .unwrap();
+    let move_obj = cap_object.content.unwrap();
+    let package_addr = if let iota_json_rpc_types::IotaParsedData::MoveObject(parsed) = move_obj {
+        let fields_map = match parsed.fields {
+            iota_json_rpc_types::IotaMoveStruct::WithFields(f) => f,
+            _ => panic!("Unexpected struct type"),
+        };
+        let package_value = &fields_map["package"];
+        package_value
+            .clone()
+            .to_json_value()
+            .as_str()
+            .unwrap()
+            .parse::<IotaAddress>()
+            .unwrap()
+    } else {
+        panic!("Expected MoveObject");
+    };
+
+    // Update lock file
+    let mut build_config = BuildConfig::new_for_testing().config;
+    build_config.lock_file = Some(package_path.join("Move.lock"));
+    iota_package_management::update_lock_file_with_package_id(
+        context,
+        iota_package_management::LockCommand::Publish,
+        build_config.install_dir,
+        build_config.lock_file,
+        package_addr.into(),
+        1,
+    )
+    .await?;
+
+    Ok(upgrade_cap_id)
+}
+
+/// Test the 3-step upgrade flow using --compile-upgrade + --execute-upgrade
+/// combined with standard --move-call for authorize and commit.
+#[sim_test]
+async fn test_ptb_compile_upgrade_execute() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
+
+    let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
+
+    // Upgrade using --compile-upgrade + --execute-upgrade
+    // This demonstrates the 3-step upgrade flow:
+    //   1. --compile-upgrade: compile and get the package digest
+    //   2. --move-call authorize_upgrade: authorize with standard function
+    //   3. --execute-upgrade: execute the system upgrade
+    //   4. --move-call commit_upgrade: finalize the upgrade
+    let package_display = package_path.display();
+    let upgrade_ptb_string = format!(
+        r#"
+        --compile-upgrade {package_display} @{upgrade_cap_id}
+        --assign package_digest
+        --move-call iota::package::authorize_upgrade @{upgrade_cap_id} 0u8 package_digest
+        --assign ticket
+        --execute-upgrade ticket
+        --assign receipt
+        --move-call iota::package::commit_upgrade @{upgrade_cap_id} receipt
+        "#
+    );
+    let args = shlex::split(&upgrade_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
+
+    Ok(())
+}
+
+/// Test that the original --upgrade command still works (backward
+/// compatibility) alongside the new --compile-upgrade/--execute-upgrade
+/// commands.
+#[sim_test]
+async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("clever_errors");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
+
+    let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
+
+    // Upgrade using the original --upgrade command (backward compat)
+    let package_display = package_path.display();
+    let upgrade_ptb_string = format!(
+        r#"
+        --upgrade {package_display} @{upgrade_cap_id}
+        "#
+    );
+    let args = shlex::split(&upgrade_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
+
+    Ok(())
+}
+
+/// Test that misuses of the `--compile-upgrade` / `--execute-upgrade` pair
+/// are rejected:
+///   1. `--execute-upgrade` with no preceding `--compile-upgrade`.
+///   2. Two `--compile-upgrade`s in a row without an intervening
+///      `--execute-upgrade`.
+///   3. A trailing `--compile-upgrade` that is never consumed by an
+///      `--execute-upgrade`.
+#[sim_test]
+async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut src_pkg = PathBuf::from(TEST_DATA_DIR);
+    src_pkg.push("ptb_complex_args_test_functions");
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
+
+    let upgrade_cap_id = publish_package_for_upgrade(context, &package_path).await?;
+    let package_display = package_path.display();
+
+    // 1. `--execute-upgrade` with no preceding `--compile-upgrade`.
+    let ptb = format!("--execute-upgrade @{upgrade_cap_id}");
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(result.is_err(), "bare --execute-upgrade should be rejected");
+
+    // 2. Two `--compile-upgrade`s in a row without an intervening
+    //    `--execute-upgrade`.
+    let ptb = format!(
+        r#"
+        --compile-upgrade {package_display} @{upgrade_cap_id}
+        --compile-upgrade {package_display} @{upgrade_cap_id}
+        "#
+    );
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(
+        result.is_err(),
+        "two --compile-upgrade in a row should be rejected"
+    );
+
+    // 3. A trailing `--compile-upgrade` that is never consumed.
+    let ptb = format!("--compile-upgrade {package_display} @{upgrade_cap_id}");
+    let result = iota::client_ptb::ptb::PTB {
+        args: shlex::split(&ptb).unwrap(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await;
+    assert!(
+        result.is_err(),
+        "unconsumed --compile-upgrade should be rejected"
+    );
 
     Ok(())
 }
@@ -6364,15 +6619,13 @@ async fn setup_move_authenticator_account(
 ) -> Result<ObjectID, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_obj_id = client
-        .read_api()
-        .get_owned_objects(publisher, None, None, None)
+        .coin_read_api()
+        .get_coins(publisher, None, None, None)
         .await?
         .data
         .first()
         .unwrap()
-        .object()
-        .unwrap()
-        .object_id;
+        .coin_object_id;
 
     let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()

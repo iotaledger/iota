@@ -4,7 +4,8 @@
 
 use std::iter::Peekable;
 
-use iota_types::base_types::{Identifier, ObjectID};
+use iota_sdk_types::Identifier;
+use iota_types::base_types::ObjectID;
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
@@ -188,6 +189,17 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     let src = sp.wrap(src.to_owned());
                     let cap = try_!(self.parse_argument());
                     Ok(cap.span.wrap(ParsedPTBCommand::Upgrade(src, cap)))
+                }),
+
+                L(T::Command, A::EXECUTE_UPGRADE) => command!({
+                    let ticket = try_!(self.parse_argument());
+                    Ok(ticket.span.wrap(ParsedPTBCommand::ExecuteUpgrade(ticket)))
+                }),
+
+                L(T::CompileUpgrade, src) => command!({
+                    let src = sp.wrap(src.to_owned());
+                    let cap = try_!(self.parse_argument());
+                    Ok(cap.span.wrap(ParsedPTBCommand::CompileUpgrade(src, cap)))
                 }),
 
                 L(T::Command, s) => {

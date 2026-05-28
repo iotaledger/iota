@@ -16,7 +16,7 @@ use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{

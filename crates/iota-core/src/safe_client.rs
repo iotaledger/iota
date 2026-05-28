@@ -9,7 +9,7 @@ use iota_types::{
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
-    effects::{SignedTransactionEffects, TransactionEffectsAPI},
+    effects::{SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,
@@ -351,7 +351,7 @@ where
         match (&events, signed_effects.events_digest()) {
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
-                if !events.data.is_empty() {
+                if !events.is_empty() {
                     return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned events but no event digest present in the signed effects"

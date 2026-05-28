@@ -6,8 +6,9 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::TypeTag;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, TypeTag},
+    base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
@@ -234,7 +235,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
                     existing.version() < version,
-                    "mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    "mutation version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }
@@ -242,7 +243,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = mutations.insert(id, mutation) {
                 assert!(
                     existing.object().version() < version,
-                    "mutation version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    "mutation version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version()
                 );
             }
@@ -255,7 +256,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
                     existing.object().version() < version,
-                    "deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                    "deletion version ({version}) should be greater than existing mutation version ({}) for object {id}",
                     existing.object().version(),
                 );
             }
@@ -263,7 +264,7 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
             if let Some(existing) = deletions.insert(id, deletion) {
                 assert!(
                     existing.version() < version,
-                    "deletion version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                    "deletion version ({version}) should be greater than existing deletion version ({}) for object {id}",
                     existing.version()
                 );
             }

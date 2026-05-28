@@ -35,4 +35,4 @@ task 3, lines 38-45:
 //  incorrect usage B                B                  A
 //> test::m1::eat(NestedResult(4,0), NestedResult(4,0), NestedResult(4,1));
 Error: Transaction Effects Status: Invalid command argument at 0. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: TypeMismatch }, source: None, command: Some(5) } }
+Execution Error: CommandArgumentError: Invalid command argument at 0. The type of the value does not match the expected type; at command index: 5

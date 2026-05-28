@@ -44,4 +44,4 @@ task 5, lines 42-44:
 //> tto::M1::pass_through(Input(1));
 //> tto::M1::receiver(Input(0), Input(1));
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1

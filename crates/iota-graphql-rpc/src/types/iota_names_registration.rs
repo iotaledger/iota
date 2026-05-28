@@ -10,11 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, StructTag},
-    dynamic_field::Field,
-    id::UID,
-};
+use iota_sdk_types::StructTag;
+use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -39,12 +36,12 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
+    backward_view::consistent,
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    types::object::ObjectOwner,
+    types::object::{ObjectOwner, StoredBackwardObject},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -469,7 +466,7 @@ impl IotaNames {
         let field: Field<NativeIotaAddress, NativeName> = object
             .native
             .to_rust()
-            .ok_or_else(|| Error::Internal("Malformed IOTA-Names Name".to_string()))?;
+            .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
 
         let name = Name(field.value);
 
@@ -492,6 +489,7 @@ impl IotaNames {
     ) -> Result<Option<NameExpiration>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let db: &Db = ctx.data_unchecked();
+        let max_available_range = db.max_available_range;
         // Construct the list of `object_id`s to look up. The first element is the
         // name's `NameRecord`. If the name is a subname, there will be a
         // second element for the parent's `NameRecord`.
@@ -524,22 +522,26 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_objects_query(
-                    View::Consistent,
-                    range,
-                    &page,
-                    move |query| filter.apply(query),
-                    move |newer| newer,
-                );
+                let sql = consistent::query(checkpoint_viewed_at, &page, move |query| {
+                    filter.apply(query)
+                });
 
-                let objects: Vec<StoredHistoryObject> =
+                let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
+                let objects: Vec<StoredHistoryObject> = backward_objects
+                    .into_iter()
+                    .map(|o| o.into_stored_history(checkpoint_viewed_at))
+                    .collect();
 
                 Ok(Some((timestamp_ms, objects)))
             })

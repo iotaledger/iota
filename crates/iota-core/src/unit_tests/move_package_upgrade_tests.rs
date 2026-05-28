@@ -11,8 +11,9 @@ use std::{
 
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
     digests::Digest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -45,8 +46,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::base_types::Identifier::from_static(stringify!($module_name)),
-            iota_types::base_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -1269,8 +1270,7 @@ async fn test_upgraded_types_in_one_txn() {
     let mut events = runner
         .authority_state
         .get_transaction_events(effects.transaction_digest())
-        .unwrap()
-        .data;
+        .unwrap();
     events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
     assert!(events.len() == 2);
     assert_eq!(events[0].type_, e1_type);

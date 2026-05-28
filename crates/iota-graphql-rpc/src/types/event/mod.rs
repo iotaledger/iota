@@ -15,8 +15,9 @@ use iota_indexer::{
     },
     schema::{checkpoints, events},
 };
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
     event::Event as NativeEvent,
     parse_iota_struct_tag,
 };

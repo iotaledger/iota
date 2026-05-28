@@ -325,16 +325,16 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared(SharedObjectRef {
-        object_id: counter_id,
-        initial_shared_version: counter_initial_shared_version,
-        mutable: true,
-    });
-    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef {
-        object_id: counter_id,
-        initial_shared_version: counter_initial_shared_version,
-        mutable: false,
-    });
+    let counter_object_arg = CallArg::Shared(SharedObjectRef::new(
+        counter_id,
+        counter_initial_shared_version,
+        true,
+    ));
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef::new(
+        counter_id,
+        counter_initial_shared_version,
+        false,
+    ));
     let counter_creation_transaction = test_cluster
         .get_object_from_fullnode_store(&counter_id)
         .await
@@ -507,8 +507,8 @@ async fn access_clock_object_test() {
         .unwrap();
     assert!(matches!(effects.status(), ExecutionStatus::Success));
 
-    assert_eq!(1, events.data.len());
-    let event = events.data.first().unwrap();
+    assert_eq!(1, events.len());
+    let event = events.first().unwrap();
     let Event { contents, .. } = event;
 
     use serde::{Deserialize, Serialize};
