@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// The skip-effect-certification path (transaction_driver / orchestrator)
+// produces deeply-nested generic futures that exceed rustc's default
+// recursion limit of 128 when monomorphized through this crate's consumers.
+#![recursion_limit = "256"]
+
 use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
