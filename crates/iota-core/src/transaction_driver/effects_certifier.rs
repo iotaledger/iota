@@ -99,24 +99,18 @@ impl EffectsCertifier {
         A: AuthorityAPI + Send + Sync + 'static,
     {
         // Skip the first attempt to get full effects if it is already provided.
+        // `submit_transaction` is contracted to surface `Rejected`/`Expired`
+        // as `Err`; reaching them here is an upstream invariant break.
         let full_effects = match submit_txn_result {
             TxStatusUpdate::Submitted => None,
             TxStatusUpdate::Executed {
                 effects_digest,
                 details,
             } => details.map(|d| (effects_digest, d)),
-            TxStatusUpdate::Rejected { error } => {
+            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+                debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Unexpected submission error in get_certified_finalized_effects(): {error:?}"
-                    ),
-                });
-            }
-            TxStatusUpdate::Expired { epoch } => {
-                return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "Transaction expired in epoch {epoch} during get_certified_finalized_effects()",
-                    ),
+                    error: "internal driver error".to_string(),
                 });
             }
         };
@@ -278,24 +272,13 @@ impl EffectsCertifier {
                     }
                 }
             }
-            // `Rejected` and `Expired` are filtered upstream by
-            // `drive_transaction_once` before the skip-cert path is entered;
-            // hitting them here is a driver-level invariant break, not a
-            // user-facing error.
-            TxStatusUpdate::Rejected { error } => {
-                debug_fatal!(
-                    "Rejected status reached get_effects_without_certification: {error:?}"
-                );
+            // `submit_transaction` is contracted to surface
+            // `Rejected`/`Expired` as `Err`; reaching them here is an
+            // upstream invariant break.
+            update @ (TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. }) => {
+                debug_fatal!("submit_transaction returned non-actionable status: {update:?}");
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!("Rejected reached skip-cert path: {error:?}"),
-                });
-            }
-            TxStatusUpdate::Expired { epoch } => {
-                debug_fatal!(
-                    "Expired status reached get_effects_without_certification at epoch {epoch}"
-                );
-                return Err(TransactionDriverError::ClientInternal {
-                    error: format!("Expired reached skip-cert path at epoch {epoch}"),
+                    error: "internal driver error".to_string(),
                 });
             }
         };
@@ -593,10 +576,6 @@ impl EffectsCertifier {
                             .record_interaction_result(feedback_builder.ok_now(started.elapsed()));
                         update
                     }
-                    // TODO(#11669): rejection-shaped `IotaError`s mis-blame the
-                    // validator when wrapped as `Aborted`; distinguish
-                    // transport vs rejection at a shared classification
-                    // helper.
                     Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
                     Err(_) => {
                         monitor.record_interaction_result(feedback_builder.err_now());

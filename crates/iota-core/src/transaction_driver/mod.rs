@@ -18,7 +18,7 @@ use arc_swap::ArcSwap;
 use effects_certifier::*;
 /// Exports
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
-use iota_common::backoff::ExponentialBackoff;
+use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_types::{committee::EpochId, messages_grpc::TxStatusUpdate, transaction::Transaction};
 pub use metrics::*;
@@ -294,19 +294,17 @@ where
                 options,
             )
             .await?;
+        // `submit_transaction` is contracted to convert `Rejected`/`Expired`
+        // into `Err` before returning; reaching them here means that
+        // contract was broken upstream. Surface loudly in debug/test, hide
+        // the implementation detail from the client.
         match &submit_txn_result {
-            TxStatusUpdate::Rejected { error } => {
+            TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. } => {
+                debug_fatal!(
+                    "submit_transaction returned non-actionable status: {submit_txn_result:?}"
+                );
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "TxStatusUpdate::Rejected should have been returned as an error in submit_transaction(): {error:?}",
-                    ),
-                });
-            }
-            TxStatusUpdate::Expired { epoch } => {
-                return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "TxStatusUpdate::Expired should have been returned as an error in submit_transaction() (epoch {epoch})",
-                    ),
+                    error: "internal driver error".to_string(),
                 });
             }
             _ => {}
