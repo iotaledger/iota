@@ -2277,7 +2277,7 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
         &authority_state,
     );
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2312,7 +2312,7 @@ async fn test_handle_confirmation_transaction_ok() {
     let old_account = authority_state.get_object(&object_id).await.unwrap();
 
     let signed_effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction.clone(),
             &authority_state.epoch_store_for_testing(),
         )
@@ -2368,7 +2368,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
     );
 
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2377,7 +2377,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
     assert_eq!(effects.status(), &ExecutionStatus::Success);
 
     let signed_effects2 = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2525,7 +2525,7 @@ async fn test_move_call_insufficient_gas() {
         &authority_state,
     );
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2886,7 +2886,7 @@ async fn test_idempotent_reversed_confirmation() {
         &authority_state,
     );
     let result1 = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -3151,7 +3151,7 @@ async fn test_transfer_iota_no_amount() {
 
     let certificate = init_certified_transaction(transaction.into(), &authority_state);
     let effects = authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
     // Check that the transaction was successful, and the gas object is the only
@@ -3193,7 +3193,7 @@ async fn test_transfer_iota_with_amount() {
     let transaction = to_sender_signed_transaction(tx_data, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let effects = authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
     // Check that the transaction was successful, the gas object remains in the
@@ -3243,7 +3243,7 @@ async fn test_store_revert_transfer_iota() {
     let certificate = init_certified_transaction(transaction, &authority_state);
     let tx_digest = *certificate.digest();
     authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3325,7 +3325,7 @@ async fn test_store_revert_wrap_move_call() {
     let wrap_digest = *wrap_cert.digest();
 
     let wrap_effects = authority_state
-        .execute_certificate(&wrap_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&wrap_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3424,7 +3424,7 @@ async fn test_store_revert_unwrap_move_call() {
     let unwrap_digest = *unwrap_cert.digest();
 
     let unwrap_effects = authority_state
-        .execute_certificate(&unwrap_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&unwrap_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3704,7 +3704,7 @@ async fn test_store_revert_add_ofield() {
     let add_digest = *add_cert.digest();
 
     let add_effects = authority_state
-        .execute_certificate(&add_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&add_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3830,7 +3830,7 @@ async fn test_store_revert_remove_ofield() {
     let remove_ofield_digest = *remove_ofield_cert.digest();
 
     let remove_effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &remove_ofield_cert,
             &authority_state.epoch_store_for_testing(),
         )
@@ -3897,7 +3897,7 @@ async fn test_iter_live_object_set() {
         &authority,
     );
     authority
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority.epoch_store_for_testing(),
         )

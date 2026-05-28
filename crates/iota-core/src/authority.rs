@@ -1174,9 +1174,12 @@ impl AuthorityState {
             .inc();
     }
 
-    /// Executes a certificate for its effects.
+    /// Wait for a certificate to be executed.
+    /// For consensus transactions, it needs to be sequenced by the consensus.
+    /// For owned object transactions, this function will enqueue the
+    /// transaction for execution.
     #[instrument(level = "trace", skip_all)]
-    pub async fn execute_certificate(
+    pub async fn wait_for_certificate_execution(
         &self,
         certificate: &VerifiedCertificate,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1190,7 +1193,7 @@ impl AuthorityState {
                 .execute_certificate_latency_single_writer
                 .start_timer()
         };
-        trace!("execute_certificate");
+        trace!("wait_for_certificate_execution");
 
         self.metrics.total_cert_attempts.inc();
 
@@ -1222,7 +1225,7 @@ impl AuthorityState {
     ///
     /// It is caller's responsibility to ensure input objects are available and
     /// locks are set. If this cannot be satisfied by the caller,
-    /// execute_certificate() should be called instead.
+    /// wait_for_certificate_execution() should be called instead.
     ///
     /// Should only be called within iota-core.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest()))]
@@ -1429,12 +1432,12 @@ impl AuthorityState {
             });
         }
 
-        // Errors originating from prepare_certificate may be transient (failure to read
+        // Errors originating from execute_certificate may be transient (failure to read
         // locks) or non-transient (transaction input is invalid, move vm
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.prepare_certificate(
+        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_certificate(
             &execution_guard,
             certificate,
             tx_input_objects,
@@ -1610,19 +1613,19 @@ impl AuthorityState {
         );
     }
 
-    /// prepare_certificate validates the transaction input, and executes the
+    /// execute_certificate validates the transaction input, and executes the
     /// certificate, returning effects, output objects, events, etc.
     ///
     /// It reads state from the db (both owned and shared locks), but it has no
     /// side effects.
     ///
-    /// It can be generally understood that a failure of prepare_certificate
+    /// It can be generally understood that a failure of execute_certificate
     /// indicates a non-transient error, e.g. the transaction input is
     /// somehow invalid, the correct locks are not held, etc. However, this
     /// is not entirely true, as a transient db read error may also cause
     /// this function to fail.
     #[instrument(level = "trace", skip_all)]
-    fn prepare_certificate(
+    fn execute_certificate(
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
         certificate: &VerifiedExecutableTransaction,
@@ -1634,7 +1637,7 @@ impl AuthorityState {
         TransactionEffects,
         Option<ExecutionError>,
     )> {
-        let _scope = monitored_scope("Execution::prepare_certificate");
+        let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_certificate_start_time = tokio::time::Instant::now();
 
@@ -1855,7 +1858,7 @@ impl AuthorityState {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
 
-        self.prepare_certificate(
+        self.execute_certificate(
             &execution_guard,
             certificate,
             input_objects,
@@ -5284,7 +5287,7 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
-        let (temporary_store, effects, _execution_error_opt) = self.prepare_certificate(
+        let (temporary_store, effects, _execution_error_opt) = self.execute_certificate(
             &execution_guard,
             &executable_tx,
             input_objects,
