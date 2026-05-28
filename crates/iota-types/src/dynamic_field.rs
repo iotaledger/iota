@@ -262,7 +262,10 @@ where
     let mut hasher = DefaultHash::default();
     hasher.update([HashingIntentScope::ChildObjectId as u8]);
     hasher.update(parent);
-    hasher.update(key_bytes.len().to_le_bytes());
+    // `usize::to_le_bytes()` is platform-dependent (4 bytes on wasm32, 8 on
+    // x86_64); cast to u64 so the hash matches the on-chain Move VM derivation
+    // on every target.
+    hasher.update((key_bytes.len() as u64).to_le_bytes());
     hasher.update(key_bytes);
     hasher.update(k_tag_bytes);
     let hash = hasher.finalize();

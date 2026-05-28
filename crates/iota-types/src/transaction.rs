@@ -24,8 +24,9 @@ pub use iota_sdk_types::{
     TransactionV1 as TransactionDataV1,
 };
 use iota_sdk_types::{
-    Command, Digest, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Publish,
-    SplitCoins, TransferObjects, TypeTag, Upgrade,
+    CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
+    MoveCall, ObjectId, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -48,9 +49,6 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{
-        CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    },
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,

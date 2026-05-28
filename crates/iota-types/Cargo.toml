@@ -11,7 +11,6 @@ workspace = true
 
 [dependencies]
 # external dependencies
-anemo.workspace = true
 anyhow.workspace = true
 async-stream.workspace = true
 async-trait.workspace = true
@@ -25,7 +24,6 @@ either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-fastcrypto-tbls.workspace = true
 futures.workspace = true
 hex.workspace = true
 indexmap.workspace = true
@@ -35,7 +33,6 @@ nonempty.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 passkey-types.workspace = true
-prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 prost-types.workspace = true
 rand.workspace = true
@@ -50,12 +47,10 @@ strum.workspace = true
 strum_macros.workspace = true
 tap.workspace = true
 thiserror.workspace = true
-tonic.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
-iota-network-stack.workspace = true
 iota-proc-macros.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
@@ -64,8 +59,20 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
-starfish-config.workspace = true
 typed-store-error.workspace = true
+
+# Dependencies that don't compile to wasm32 (networking, metrics, consensus).
+# Gated with target cfg so non-wasm builds are unchanged.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
+anemo.workspace = true
+fastcrypto-tbls.workspace = true
+prometheus.workspace = true
+tonic.workspace = true
+
+# internal dependencies
+iota-network-stack.workspace = true
+starfish-config.workspace = true
 
 [dev-dependencies]
 # external dependencies
