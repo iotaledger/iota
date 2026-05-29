@@ -22,10 +22,7 @@ use iota_types::{
     error::IotaError,
     messages_checkpoint::CheckpointResponse,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
-    messages_grpc::{
-        LayoutGenerationOption, RawSubmitTransactionsRequest, RawSubmitTransactionsResponse,
-        SubmitTransactionResult, SubmitTransactionsRequest, SubmitTransactionsResponse,
-    },
+    messages_grpc::{LayoutGenerationOption, TxStatusUpdate},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
@@ -486,8 +483,7 @@ async fn test_v2_submit_tx_success() {
     assert_eq!(*digest, expected_digest);
     assert!(
         matches!(result, TxStatusUpdate::Submitted),
-        "Expected Submitted, got {:?}",
-        result
+        "Expected Submitted, got {result:?}"
     );
 }
 
@@ -555,13 +551,13 @@ async fn test_v2_submit_tx_invalid_signature() {
     assert_eq!(results.len(), 1);
     match &results[0].1 {
         TxStatusUpdate::Rejected { error } => {
-            let msg = format!("{:?}", error).to_lowercase();
+            let msg = format!("{error:?}").to_lowercase();
             assert!(
                 msg.contains("signature"),
                 "Error should mention signature, got: {msg}",
             );
         }
-        other => panic!("Expected Rejected, got {:?}", other),
+        other => panic!("Expected Rejected, got {other:?}"),
     }
 }
 
@@ -696,7 +692,7 @@ async fn test_v2_submit_tx_already_executed() {
         TxStatusUpdate::Executed { effects_digest, .. } => {
             assert_eq!(effects_digest, effects.digest());
         }
-        other => panic!("Expected Executed, got {:?}", other),
+        other => panic!("Expected Executed, got {other:?}"),
     }
 }
 
@@ -751,8 +747,7 @@ async fn test_v2_submit_tx_multiple_transactions() {
     for (i, (_digest, result)) in results.iter().enumerate() {
         assert!(
             matches!(result, TxStatusUpdate::Submitted),
-            "Expected Submitted for tx {i}, got {:?}",
-            result
+            "Expected Submitted for tx {i}, got {result:?}"
         );
     }
 }
@@ -800,10 +795,10 @@ async fn test_v2_submit_tx_invalid_transaction() {
 
     let pt = ProgrammableTransaction {
         inputs: vec![],
-        commands: vec![Command::SplitCoins(
-            iota_types::transaction::Argument::Gas,
-            vec![], // empty — invalid
-        )],
+        commands: vec![Command::SplitCoins(iota_sdk_types::SplitCoins {
+            coin: iota_sdk_types::Argument::Gas,
+            amounts: vec![], // empty — invalid
+        })],
     };
     let tx_data = TransactionData::new_programmable(
         sender,
@@ -974,8 +969,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     for (i, (_digest, result)) in results.iter().enumerate() {
         assert!(
             matches!(result, TxStatusUpdate::Submitted),
-            "Expected Submitted for tx {i}, got {:?}",
-            result
+            "Expected Submitted for tx {i}, got {result:?}"
         );
     }
 }
@@ -1192,7 +1186,7 @@ async fn test_v2_get_tx_status_already_executed() {
                 "details should be None when not requested"
             );
         }
-        other => panic!("Expected Executed, got {:?}", other),
+        other => panic!("Expected Executed, got {other:?}"),
     }
 }
 
@@ -1269,7 +1263,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
                 "details should be present when requested"
             );
         }
-        other => panic!("Expected Executed, got {:?}", other),
+        other => panic!("Expected Executed, got {other:?}"),
     }
 }
 
@@ -1375,7 +1369,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
                     assert!(details.is_none(), "digest2 did not request details");
                 }
             }
-            other => panic!("Expected Executed, got {:?}", other),
+            other => panic!("Expected Executed, got {other:?}"),
         }
     }
 }
@@ -1509,8 +1503,7 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
     assert_eq!(*digest, dropped_digest);
     assert!(
         matches!(update, TxStatusUpdate::Rejected { .. }),
-        "Expected Rejected for dropped digest, got {:?}",
-        update
+        "Expected Rejected for dropped digest, got {update:?}"
     );
 }
 
@@ -1557,8 +1550,7 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
     assert_eq!(*digest, unknown_digest);
     assert!(
         matches!(update, TxStatusUpdate::Expired { .. }),
-        "Expected Expired for unknown digest, got {:?}",
-        update
+        "Expected Expired for unknown digest, got {update:?}"
     );
 }
 
