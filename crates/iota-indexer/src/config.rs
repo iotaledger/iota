@@ -305,8 +305,8 @@ pub enum Command {
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
-    /// Argument left for backward compatibility, users are encouraged to use
-    /// pruning_config_path
+    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
+    /// pointing at a TOML retention config instead.
     #[arg(long, env = "EPOCHS_TO_KEEP")]
     pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
@@ -340,6 +340,7 @@ impl PruningOptions {
             };
             warn!(
                 "using the deprecated --epochs-to-keep argument for pruning configuration. \
+                 This argument will be removed in v1.28.0. \
                  Please use --pruning-config-path to specify a TOML configuration file instead."
             );
             return Ok(Some(RetentionConfig::new(
@@ -350,7 +351,8 @@ impl PruningOptions {
 
         if self.epochs_to_keep.is_some() {
             warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
+                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
             );
         };
 
