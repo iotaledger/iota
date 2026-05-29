@@ -46,10 +46,7 @@ use prometheus::{
     register_int_counter_with_registry,
 };
 use tap::TapFallible;
-use tonic::{
-    metadata::{Ascii, MetadataValue},
-    transport::server::TcpConnectInfo,
-};
+use tonic::transport::server::TcpConnectInfo;
 use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 
 use crate::{
@@ -59,7 +56,9 @@ use crate::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
     starfish_adapter::LazyStarfishClient,
-    traffic_controller::{TrafficController, parse_ip, policies::TrafficTally},
+    traffic_controller::{
+        ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+    },
 };
 
 #[cfg(test)]
@@ -1019,101 +1018,68 @@ impl ValidatorService {
         request: &tonic::Request<T>,
         source: &ClientIdSource,
     ) -> Option<IpAddr> {
-        let forwarded_header = request.metadata().get_all("x-forwarded-for").iter().next();
-
-        if let Some(header) = forwarded_header {
+        // Observability gauge: track the hop depth even when we're not using
+        // x-forwarded-for as the source, to detect misconfigured proxies.
+        if let Some(header) = request.metadata().get_all("x-forwarded-for").iter().next() {
             let num_hops = header
                 .to_str()
                 .map(|h| h.split(',').count().saturating_sub(1))
                 .unwrap_or(0);
-
             self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
         }
 
-        match source {
-            ClientIdSource::SocketAddr => {
-                let socket_addr: Option<SocketAddr> = request.remote_addr();
-
+        match get_client_ip(request.metadata().as_ref(), request.remote_addr(), source) {
+            ClientIpStatus::Ok(ip) => Some(ip),
+            ClientIpStatus::SocketAddrMissing => {
                 // We will hit this case if the IO type used does not
                 // implement Connected or when using a unix domain socket.
                 // TODO: once we have confirmed that no legitimate traffic
                 // is hitting this case, we should reject such requests that
                 // hit this case.
-                if let Some(socket_addr) = socket_addr {
-                    Some(socket_addr.ip())
+                if cfg!(msim) {
+                    // Ignore the error from simtests.
+                } else if cfg!(test) {
+                    panic!("Failed to get remote address from request");
                 } else {
-                    if cfg!(msim) {
-                        // Ignore the error from simtests.
-                    } else if cfg!(test) {
-                        panic!("Failed to get remote address from request");
-                    } else {
-                        self.metrics.connection_ip_not_found.inc();
-                        error!("Failed to get remote address from request");
-                    }
-                    None
+                    self.metrics.connection_ip_not_found.inc();
+                    error!("Failed to get remote address from request");
                 }
+                None
             }
-            ClientIdSource::XForwardedFor(num_hops) => {
-                let do_header_parse = |op: &MetadataValue<Ascii>| {
-                    match op.to_str() {
-                        Ok(header_val) => {
-                            let header_contents =
-                                header_val.split(',').map(str::trim).collect::<Vec<_>>();
-                            if *num_hops == 0 {
-                                error!(
-                                    "x-forwarded-for: 0 specified. x-forwarded-for contents: {:?}. Please assign nonzero value for \
-                                    number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
-                                    to this node. Skipping traffic controller request handling.",
-                                    header_contents,
-                                );
-                                return None;
-                            }
-                            let contents_len = header_contents.len();
-                            if contents_len < *num_hops {
-                                error!(
-                                    "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
-                                    Expected at least {} values. Please correctly set the `x-forwarded-for` value under \
-                                    `client-id-source` in the node config.",
-                                    header_contents, contents_len, num_hops, contents_len,
-                                );
-                                self.metrics.client_id_source_config_mismatch.inc();
-                                return None;
-                            }
-                            let Some(client_ip) = header_contents.get(contents_len - num_hops)
-                            else {
-                                error!(
-                                    "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
-                                    Expected at least {} values. Skipping traffic controller request handling.",
-                                    header_contents, contents_len, num_hops, contents_len,
-                                );
-                                return None;
-                            };
-                            parse_ip(client_ip).or_else(|| {
-                                self.metrics.forwarded_header_parse_error.inc();
-                                None
-                            })
-                        }
-                        Err(e) => {
-                            // TODO: once we have confirmed that no legitimate traffic
-                            // is hitting this case, we should reject such requests that
-                            // hit this case.
-                            self.metrics.forwarded_header_invalid.inc();
-                            error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
-                            None
-                        }
-                    }
-                };
-                if let Some(op) = request.metadata().get("x-forwarded-for") {
-                    do_header_parse(op)
-                } else if let Some(op) = request.metadata().get("X-Forwarded-For") {
-                    do_header_parse(op)
-                } else {
-                    self.metrics.forwarded_header_not_included.inc();
-                    error!(
-                        "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                    );
-                    None
-                }
+            ClientIpStatus::XForwardedForHeaderMissing => {
+                self.metrics.forwarded_header_not_included.inc();
+                error!(
+                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
+                );
+                None
+            }
+            ClientIpStatus::XForwardedForInvalidUtf8 => {
+                // TODO: once we have confirmed that no legitimate traffic
+                // is hitting this case, we should reject such requests that
+                // hit this case.
+                self.metrics.forwarded_header_invalid.inc();
+                error!("Invalid UTF-8 in x-forwarded-for header");
+                None
+            }
+            ClientIpStatus::XForwardedForZeroHops => {
+                error!(
+                    "x-forwarded-for: 0 specified. Please assign nonzero value for number of hops here, or use \
+                    `socket-addr` client-id-source type if requests are not being proxied to this node. \
+                    Skipping traffic controller request handling."
+                );
+                None
+            }
+            ClientIpStatus::XForwardedForConfigMismatch { expected, actual } => {
+                error!(
+                    "x-forwarded-for header contains {actual} values, but {expected} hops were specified. \
+                    Please correctly set the `x-forwarded-for` value under `client-id-source` in the node config."
+                );
+                self.metrics.client_id_source_config_mismatch.inc();
+                None
+            }
+            ClientIpStatus::XForwardedForUnparsable => {
+                self.metrics.forwarded_header_parse_error.inc();
+                None
             }
         }
     }

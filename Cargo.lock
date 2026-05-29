@@ -5658,6 +5658,7 @@ dependencies = [
  "fastcrypto-tbls",
  "fs_extra",
  "futures",
+ "http 1.4.0",
  "iota-archival",
  "iota-authority-aggregation",
  "iota-common",

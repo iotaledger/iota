@@ -9,33 +9,30 @@
 //! one controller across both surfaces so the same blocklist and tally apply
 //! to a given client IP regardless of which API it hits.
 //!
-//! The layer extracts the client IP from `TcpConnectInfo` (added to request
-//! extensions by tonic per connection) or from the `x-forwarded-for` header,
-//! depending on [`ClientIdSource`], calls
-//! [`TrafficController::check`][check] before dispatching, then calls
-//! [`tally`][tally] with a weight derived from the response's gRPC status
-//! code.
+//! The layer extracts the client IP via [`get_client_ip`] (shared with the
+//! validator), calls [`TrafficController::check`][check] before dispatching,
+//! then calls [`tally`][tally] with a weight derived from the response's
+//! gRPC status code.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally
 
 use std::{
     future::Future,
-    net::{IpAddr, SocketAddr},
+    net::IpAddr,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
     time::SystemTime,
 };
 
-use iota_core::traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
+use iota_core::traffic_controller::{
+    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+};
 use iota_types::traffic_control::{ClientIdSource, Weight};
 use tonic::{Code, Status, transport::server::TcpConnectInfo};
 use tower::{Layer, Service};
-use tracing::error;
-
-/// Header name used for forwarded client identification.
-const X_FORWARDED_FOR: &str = "x-forwarded-for";
+use tracing::warn;
 
 /// Tower [`Layer`] that integrates the shared traffic controller.
 #[derive(Clone)]
@@ -94,7 +91,19 @@ where
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
         let traffic_controller = self.traffic_controller.clone();
-        let client = extract_client_ip(&req, &self.client_id_source);
+        let remote_addr = req
+            .extensions()
+            .get::<TcpConnectInfo>()
+            .and_then(|info| info.remote_addr());
+        let client = match get_client_ip(req.headers(), remote_addr, &self.client_id_source) {
+            ClientIpStatus::Ok(ip) => Some(ip),
+            other => {
+                warn!(
+                    "Skipping traffic controller request handling for client {remote_addr:?}: {other:?}"
+                );
+                None
+            }
+        };
 
         // Tower contract: the cloned service is the one ready to call, so swap
         // the clone in and keep the previously-ready inner for this request.
@@ -129,9 +138,6 @@ fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: C
         direct: client,
         through_fullnode: None,
         error_info,
-        // Match the JSON-RPC layer: count every request equally as spam.
-        // A future refinement could weight transaction-execution paths more
-        // heavily than reads.
         spam_weight: Weight::one(),
         timestamp: SystemTime::now(),
     });
@@ -151,42 +157,5 @@ fn normalize(code: Code) -> Weight {
         | Code::Unauthenticated
         | Code::PermissionDenied => Weight::one(),
         _ => Weight::zero(),
-    }
-}
-
-fn extract_client_ip<B>(req: &http::Request<B>, source: &ClientIdSource) -> Option<IpAddr> {
-    match source {
-        ClientIdSource::SocketAddr => req
-            .extensions()
-            .get::<TcpConnectInfo>()
-            .and_then(|info| info.remote_addr())
-            .map(|addr: SocketAddr| addr.ip()),
-        ClientIdSource::XForwardedFor(num_hops) => {
-            let header = req
-                .headers()
-                .get(X_FORWARDED_FOR)
-                .or_else(|| req.headers().get("X-Forwarded-For"))?;
-            let value = header
-                .to_str()
-                .map_err(|e| error!("Invalid UTF-8 in x-forwarded-for header: {e:?}"))
-                .ok()?;
-            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
-            if *num_hops == 0 {
-                error!(
-                    "x-forwarded-for: 0 hops specified. Contents: {contents:?}. Set a nonzero hop count or use socket-addr."
-                );
-                return None;
-            }
-            if contents.len() < *num_hops {
-                error!(
-                    "x-forwarded-for header value of {contents:?} contains {} values but {num_hops} hops were specified.",
-                    contents.len()
-                );
-                return None;
-            }
-            contents
-                .get(contents.len() - num_hops)
-                .and_then(|ip| parse_ip(ip))
-        }
     }
 }

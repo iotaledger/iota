@@ -26,7 +26,8 @@ use iota_metrics::spawn_monitored_task;
 use iota_types::{
     error::IotaError,
     traffic_control::{
-        PolicyConfig, PolicyType, RemoteFirewallConfig, TrafficControlReconfigParams, Weight,
+        ClientIdSource, PolicyConfig, PolicyType, RemoteFirewallConfig,
+        TrafficControlReconfigParams, Weight,
     },
 };
 use parking_lot::Mutex as ParkingLotMutex;
@@ -1016,4 +1017,77 @@ pub fn parse_ip(ip: &str) -> Option<IpAddr> {
                 None
             })
     })
+}
+
+/// Outcome of resolving the client IP for an incoming request.
+///
+/// The non-`Ok` variants are diagnostic — callers map them to logs/metrics
+/// that match their surface (validator service vs. fullnode gRPC server).
+#[derive(Debug)]
+pub enum ClientIpStatus {
+    /// Successfully resolved the client IP.
+    Ok(IpAddr),
+    /// `SocketAddr` source but the IO type did not expose a remote address
+    /// (e.g. Unix sockets, custom transports). In tests this is usually a
+    /// programming error; in production it usually means a misconfigured
+    /// transport.
+    SocketAddrMissing,
+    /// `XForwardedFor` source but no `x-forwarded-for` header on the request.
+    XForwardedForHeaderMissing,
+    /// `XForwardedFor` source but the header value was not valid UTF-8.
+    XForwardedForInvalidUtf8,
+    /// `XForwardedFor` configured with `num_hops == 0` (operator misconfig).
+    XForwardedForZeroHops,
+    /// `XForwardedFor` configured with `expected` hops but the header
+    /// only had `actual` entries.
+    XForwardedForConfigMismatch { expected: usize, actual: usize },
+    /// `XForwardedFor` header was present and well-formed but the chosen hop
+    /// position did not parse as an IP address.
+    XForwardedForUnparsable,
+}
+
+/// Resolve the client IP for an incoming request.
+///
+/// Shared between the validator service and the fullnode gRPC server so the
+/// two surfaces agree on which IP gets fed into the traffic controller.
+/// Returns a [`ClientIpStatus`] so callers can attach their own metric
+/// counters and log messages.
+pub fn get_client_ip(
+    headers: &http::HeaderMap,
+    remote_addr: Option<SocketAddr>,
+    source: &ClientIdSource,
+) -> ClientIpStatus {
+    match source {
+        ClientIdSource::SocketAddr => match remote_addr {
+            Some(addr) => ClientIpStatus::Ok(addr.ip()),
+            None => ClientIpStatus::SocketAddrMissing,
+        },
+        ClientIdSource::XForwardedFor(num_hops) => {
+            let header = match headers
+                .get("x-forwarded-for")
+                .or_else(|| headers.get("X-Forwarded-For"))
+            {
+                Some(h) => h,
+                None => return ClientIpStatus::XForwardedForHeaderMissing,
+            };
+            let value = match header.to_str() {
+                Ok(v) => v,
+                Err(_) => return ClientIpStatus::XForwardedForInvalidUtf8,
+            };
+            if *num_hops == 0 {
+                return ClientIpStatus::XForwardedForZeroHops;
+            }
+            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
+            if contents.len() < *num_hops {
+                return ClientIpStatus::XForwardedForConfigMismatch {
+                    expected: *num_hops,
+                    actual: contents.len(),
+                };
+            }
+            match parse_ip(contents[contents.len() - num_hops]) {
+                Some(ip) => ClientIpStatus::Ok(ip),
+                None => ClientIpStatus::XForwardedForUnparsable,
+            }
+        }
+    }
 }
