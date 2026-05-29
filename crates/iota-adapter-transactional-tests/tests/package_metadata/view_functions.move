@@ -6,7 +6,7 @@
 //# publish --sender A
 module test::view_metadata;
 
-use iota::package_metadata::{Self, PackageMetadataV1};
+use iota::package_metadata::PackageMetadataV2;
 use std::ascii;
 
 #[view]
@@ -14,17 +14,16 @@ public fun answer(): u64 {
     42
 }
 
-public fun assert_view_metadata(metadata: &PackageMetadataV1) {
-    let view_metadata = package_metadata::borrow_package_view_functions_metadata(metadata);
+public fun assert_view_metadata(metadata: &PackageMetadataV2) {
     let module_name = ascii::string(b"view_metadata");
-    let view_functions = package_metadata::module_view_functions(view_metadata, &module_name);
+    let view_function_name = ascii::string(b"answer");
+    let module_metadata = metadata.modules_metadata_v2(&module_name);
+    let view_functions_metadata = module_metadata.view_functions_metadata();
 
-    assert!(view_functions.length() == 1, 0);
-    assert!(view_functions[0] == ascii::string(b"answer"), 1);
+    assert!(view_functions_metadata.length() == 1, 0);
 
-    let package_view_functions = package_metadata::view_functions(view_metadata);
-    assert!(package_view_functions.size() == 1, 2);
-    assert!(*package_view_functions.get(&module_name) == vector[ascii::string(b"answer")], 3);
+    let view_function_metadata = module_metadata.view_function_metadata(&view_function_name);
+    assert!(*view_function_metadata.view_function_name() == view_function_name, 1);
 }
 
 //# run test::view_metadata::assert_view_metadata --sender A --args object(1,1)

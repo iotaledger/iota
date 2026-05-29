@@ -82,7 +82,7 @@ public struct AuthenticatorMetadataV1 has copy, drop, store {
 // ===  Constructors ===
 
 public(package) fun create_package_metadata_v1(
-    id: UID,
+    metadata_id: address,
     storage_id: ID,
     runtime_id: ID,
     package_version: u64,
@@ -95,6 +95,7 @@ public(package) fun create_package_metadata_v1(
         auth_functions,
         type_names,
     );
+    let id = object::new_uid_from_hash(metadata_id);
     let package_metadata = PackageMetadataV1 {
         id,
         storage_id,
@@ -106,7 +107,7 @@ public(package) fun create_package_metadata_v1(
 }
 
 public(package) fun create_package_metadata_v2(
-    id: UID,
+    metadata_id: address,
     storage_id: ID,
     runtime_id: ID,
     package_version: u64,
@@ -115,6 +116,7 @@ public(package) fun create_package_metadata_v2(
     type_names: vector<vector<TypeName>>,
     view_function_names: vector<vector<ascii::String>>,
 ) {
+    let id = object::new_uid_from_hash(metadata_id);
     let mut package_metadata = PackageMetadataV2 {
         id,
         storage_id,
@@ -355,7 +357,11 @@ public fun create_package_metadata_v2_for_testing(
         type_names,
         view_functions,
     );
-    attach_package_metadata_inner(&mut package_metadata, pkg_metadata_v2);
+    dynamic_field::add(
+        &mut package_metadata.id,
+        PackageMetadataV2Key {},
+        pkg_metadata_v2,
+    );
     package_metadata
 }
 
@@ -373,17 +379,5 @@ public fun create_package_metadata_v1_for_testing_one_authenticator(
         vector[module_name],
         vector[vector[function_name]],
         vector[vector[type_name]],
-    )
-}
-
-/// Attach package metadata payload to a package metadata object.
-public(package) fun attach_package_metadata_inner(
-    self: &mut PackageMetadataV2,
-    package_metadata_inner: PackageMetadataV2Inner,
-) {
-    dynamic_field::add(
-        &mut self.id,
-        PackageMetadataV2Key {},
-        package_metadata_inner,
     )
 }

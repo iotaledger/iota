@@ -18,10 +18,6 @@ const EModuleMetadataNotFound: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
-#[error(code = 2)]
-const EViewFunctionMetadataNotCompatible: vector<u8> =
-    b"The requested view function metadata is not supported in this version.";
-
 // === Structs ===
 
 /// Represents the metadata of a Move package V2.

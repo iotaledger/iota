@@ -6,8 +6,6 @@
 //# publish --sender A
 module test::view_metadata;
 
-use std::ascii;
-
 #[view]
 public fun answer(): u64 {
     42

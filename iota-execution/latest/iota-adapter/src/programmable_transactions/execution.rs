@@ -29,14 +29,13 @@ mod checked {
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
-        id::RESOLVED_IOTA_ID,
+        id::{ID, RESOLVED_IOTA_ID},
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, PackageMetadata, PackageMetadataInner,
-            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy,
-            UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules_with_metadata,
-            normalize_modules_with_metadata,
+            IotaAttribute, MovePackageExt, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
+            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket, derive_package_metadata_id,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -70,7 +69,7 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
-    use serde::{Deserialize, de::DeserializeSeed};
+    use serde::{Deserialize, Serialize, de::DeserializeSeed};
     use tracing::instrument;
 
     use crate::{
@@ -84,8 +83,8 @@ mod checked {
         programmable_transactions::context::*,
     };
 
-    const ATTACH_PACKAGE_METADATA_INNER_FN_NAME: &IdentStr =
-        ident_str!("attach_package_metadata_inner");
+    const CREATE_PACKAGE_METADATA_V1_FN_NAME: &IdentStr = ident_str!("create_package_metadata_v1");
+    const CREATE_PACKAGE_METADATA_V2_FN_NAME: &IdentStr = ident_str!("create_package_metadata_v2");
     const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -1003,43 +1002,96 @@ mod checked {
 
         fn publish_package(
             self,
+            context: &mut ExecutionContext<'_, '_, '_>,
             modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
             storage_id: ObjectId,
             runtime_id: ObjectId,
             package_version: u64,
-        ) -> ObjectValue {
+            trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        ) -> Result<(), ExecutionError> {
             match self {
-                Self::V1 => {
-                    self.publish_v1(modules_metadata, storage_id, runtime_id, package_version)
-                }
-                Self::V2 => {
-                    self.publish_v2(modules_metadata, storage_id, runtime_id, package_version)
-                }
+                Self::V1 => self.publish_v1(
+                    context,
+                    modules_metadata,
+                    storage_id,
+                    runtime_id,
+                    package_version,
+                    trace_builder_opt,
+                ),
+                Self::V2 => self.publish_v2(
+                    context,
+                    modules_metadata,
+                    storage_id,
+                    runtime_id,
+                    package_version,
+                    trace_builder_opt,
+                ),
             }
         }
 
         fn publish_v1(
             self,
+            context: &mut ExecutionContext<'_, '_, '_>,
             modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
             storage_id: ObjectId,
             runtime_id: ObjectId,
             package_version: u64,
-        ) -> ObjectValue {
-            // Publish package metadata V1 calling the move framework function
-            // create_package_metadata_v1
-            todo!()
+            trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        ) -> Result<(), ExecutionError> {
+            let (modules, auth_functions, type_names, _) =
+                package_metadata_constructor_args(modules_metadata);
+            let metadata_id = derive_package_metadata_id(storage_id);
+            let args = vec![
+                to_bcs_argument(
+                    &AccountAddress::new(metadata_id.into_bytes()),
+                    "package metadata ID",
+                )?,
+                to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
+                to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
+                to_bcs_argument(&package_version, "package metadata version")?,
+                to_bcs_argument(&modules, "package metadata modules")?,
+                to_bcs_argument(&auth_functions, "package metadata authenticator functions")?,
+                to_bcs_argument(&type_names, "package metadata type names")?,
+            ];
+            execute_package_metadata_constructor(
+                context,
+                CREATE_PACKAGE_METADATA_V1_FN_NAME,
+                args,
+                trace_builder_opt,
+            )
         }
 
         fn publish_v2(
             self,
+            context: &mut ExecutionContext<'_, '_, '_>,
             modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
             storage_id: ObjectId,
             runtime_id: ObjectId,
             package_version: u64,
-        ) -> ObjectValue {
-            // Publish package metadata V2 calling the move framework function
-            // create_package_metadata_v2
-            todo!()
+            trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        ) -> Result<(), ExecutionError> {
+            let (modules, auth_functions, type_names, view_function_names) =
+                package_metadata_constructor_args(modules_metadata);
+            let metadata_id = derive_package_metadata_id(storage_id);
+            let args = vec![
+                to_bcs_argument(
+                    &AccountAddress::new(metadata_id.into_bytes()),
+                    "package metadata ID",
+                )?,
+                to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
+                to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
+                to_bcs_argument(&package_version, "package metadata version")?,
+                to_bcs_argument(&modules, "package metadata modules")?,
+                to_bcs_argument(&auth_functions, "package metadata authenticator functions")?,
+                to_bcs_argument(&type_names, "package metadata type names")?,
+                to_bcs_argument(&view_function_names, "package metadata view functions")?,
+            ];
+            execute_package_metadata_constructor(
+                context,
+                CREATE_PACKAGE_METADATA_V2_FN_NAME,
+                args,
+                trace_builder_opt,
+            )
         }
     }
 
@@ -1053,28 +1105,13 @@ mod checked {
         fn is_empty(&self) -> bool {
             self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
         }
-
-        // fn into_v1(self) -> ModuleMetadataV1 {
-        //     ModuleMetadataV1 {
-        //         authenticator_metadata: self.authenticator_metadata,
-        //     }
-        // }
-
-        // fn into_v2(self) -> ModuleMetadataV2 {
-        //     ModuleMetadataV2 {
-        //         authenticator_metadata: self.authenticator_metadata,
-        //         view_function_metadata: self.view_function_metadata,
-        //     }
-        // }
     }
 
     /// Creates package metadata for a Move package by extracting module
-    /// metadata and wrapping it in a `PackageMetadata`. The function iterates
-    /// through the provided modules, collecting metadata associated with
-    /// the IOTA_METADATA_KEY key. It then constructs the package metadata
-    /// wrapper using the collected module metadata, storage ID, runtime ID,
-    /// and package version and finally freezes it. If no relevant metadata
-    /// is found, the function exits without creating any package metadata.
+    /// metadata and passing it to the framework package metadata constructor.
+    /// The framework constructor builds and freezes the metadata object. If no
+    /// relevant metadata is found, the function exits without creating any
+    /// package metadata.
     fn create_and_freeze_package_metadata_if_present(
         context: &mut ExecutionContext<'_, '_, '_>,
         modules: &[CompiledModule],
@@ -1083,7 +1120,7 @@ mod checked {
         package_version: u64,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
-        let package_metadata_hanlder =
+        let package_metadata_handler =
             PackageMetadataHandler::from_protocol_config(context.protocol_config);
         let mut modules_metadata_map = BTreeMap::new();
         // Extract metadata for each module
@@ -1129,7 +1166,7 @@ mod checked {
                                 );
                             }
                             IotaAttribute::View
-                                if package_metadata_hanlder.supports_view_function_metadata() =>
+                                if package_metadata_handler.supports_view_function_metadata() =>
                             {
                                 pending_module_metadata
                                     .view_function_metadata
@@ -1150,54 +1187,56 @@ mod checked {
 
         // Only publish package metadata if there is at least one module with
         // relevant metadata
-        if package_metadata_hanlder.should_publish_package(&modules_metadata_map) {
-            // Create the package metadata "special" object UID
-            let metadata_uid = context.package_derived_metadata_id(storage_id)?;
-            // let package_metadata_inner =
-            //     PackageMetadataInner::new_v2(modules_metadata_map, package_view_functions_map);
-            // // Create the package metadata object content
-            // let metadata =
-            //     PackageMetadata::new(metadata_uid, storage_id, runtime_id, package_version);
-            // // Turn the content into an object
-            // let mut package_metadata = context.make_object_value(
-            //     PackageMetadata::type_(),
-            //     // used_in_non_entry_move_call
-            //     false,
-            //     &metadata.to_bcs_bytes(),
-            // )?;
-            // package_metadata = attach_package_metadata_inner(
-            //     context,
-            //     package_metadata,
-            //     package_metadata_inner,
-            //     trace_builder_opt,
-            // )?;
-            let published_metadata = package_metadata_hanlder.publish_package(
+        if package_metadata_handler.should_publish_package(&modules_metadata_map) {
+            package_metadata_handler.publish_package(
+                context,
                 &modules_metadata_map,
                 storage_id,
                 runtime_id,
                 package_version,
-            );
-
-            // Freeze the package metadata object
-            context.freeze_object(published_metadata)?
+                trace_builder_opt,
+            )?;
         }
         Ok(())
     }
 
-    fn attach_package_metadata_inner(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        package_metadata: ObjectValue,
-        package_metadata_inner: PackageMetadataInner,
-        trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<ObjectValue, ExecutionError> {
-        let mut package_metadata_bytes = Vec::new();
-        package_metadata.write_bcs_bytes(&mut package_metadata_bytes, None)?;
-        let package_metadata_inner_bytes = bcs::to_bytes(&package_metadata_inner).map_err(|e| {
-            ExecutionError::invariant_violation(format!(
-                "failed to serialize package metadata inner payload: {e}"
-            ))
-        })?;
+    fn package_metadata_constructor_args(
+        modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
+    ) -> (
+        Vec<String>,
+        Vec<Vec<String>>,
+        Vec<Vec<String>>,
+        Vec<Vec<String>>,
+    ) {
+        let mut modules = Vec::with_capacity(modules_metadata.len());
+        let mut auth_functions = Vec::with_capacity(modules_metadata.len());
+        let mut type_names = Vec::with_capacity(modules_metadata.len());
+        let mut view_function_names = Vec::with_capacity(modules_metadata.len());
 
+        for (module_name, metadata) in modules_metadata {
+            modules.push(module_name.clone());
+
+            let mut module_auth_functions =
+                Vec::with_capacity(metadata.authenticator_metadata.len());
+            let mut module_type_names = Vec::with_capacity(metadata.authenticator_metadata.len());
+            for (function_name, account_type) in &metadata.authenticator_metadata {
+                module_auth_functions.push(function_name.clone());
+                module_type_names.push(account_type.to_canonical_string(false));
+            }
+            auth_functions.push(module_auth_functions);
+            type_names.push(module_type_names);
+            view_function_names.push(metadata.view_function_metadata.clone());
+        }
+
+        (modules, auth_functions, type_names, view_function_names)
+    }
+
+    fn execute_package_metadata_constructor(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        function: &IdentStr,
+        args: Vec<Vec<u8>>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
         let saved_linkage = context.linkage_view.steal_linkage();
         let result = (|| {
             let original_address = context.set_link_context(IOTA_FRAMEWORK_PACKAGE_ID)?;
@@ -1206,9 +1245,9 @@ mod checked {
             context
                 .execute_function_bypass_visibility(
                     &runtime_id,
-                    ATTACH_PACKAGE_METADATA_INNER_FN_NAME,
+                    function,
                     vec![],
-                    vec![package_metadata_bytes, package_metadata_inner_bytes],
+                    args,
                     trace_builder_opt,
                 )
                 .map_err(|e| context.convert_vm_error(e))
@@ -1221,33 +1260,25 @@ mod checked {
             } = result;
             assert_invariant!(
                 return_values.is_empty(),
-                "attach_package_metadata_inner should not have return values"
-            );
-            let mut mutable_reference_outputs = mutable_reference_outputs.into_iter();
-            let Some((idx, package_metadata_bytes, _layout)) = mutable_reference_outputs.next()
-            else {
-                invariant_violation!(
-                    "attach_package_metadata_inner should return one mutable reference output"
-                );
-            };
-            assert_invariant!(
-                mutable_reference_outputs.next().is_none(),
-                "attach_package_metadata_inner should return one mutable reference output"
+                "package metadata constructor should not have return values"
             );
             assert_invariant!(
-                idx == 0,
-                "attach_package_metadata_inner should mutate its first argument"
+                mutable_reference_outputs.is_empty(),
+                "package metadata constructor should not have mutable reference outputs"
             );
-
-            context.make_object_value(
-                PackageMetadata::type_(),
-                // used_in_non_entry_move_call
-                false,
-                &package_metadata_bytes,
-            )
+            Ok(())
         });
         context.linkage_view.restore_linkage(saved_linkage)?;
         res
+    }
+
+    fn to_bcs_argument<T: Serialize>(
+        value: &T,
+        description: &'static str,
+    ) -> Result<Vec<u8>, ExecutionError> {
+        bcs::to_bytes(value).map_err(|e| {
+            ExecutionError::invariant_violation(format!("failed to serialize {description}: {e}"))
+        })
     }
 
     fn get_authenticator_first_param_type_tag(
