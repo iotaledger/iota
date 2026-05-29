@@ -44,6 +44,8 @@ pub const EFFECTS_COLUMN_QUALIFIER: &str = "fx";
 pub const EVENTS_COLUMN_QUALIFIER: &str = "evtx";
 pub const TRANSACTION_TO_CHECKPOINT: &str = "tx2c";
 
+pub type TransactionSequenceNumber = u64;
+
 #[async_trait]
 impl KeyValueStoreWriter for BigTableClient {
     type Error = anyhow::Error;
@@ -108,10 +110,7 @@ impl KeyValueStoreWriter for BigTableClient {
         let rows = entries
             .into_iter()
             .map(|(address, seq, transaction_digest)| {
-                let key = encode_transaction_by_address_key(
-                    &address,
-                    TransactionSequenceNumber::new(seq),
-                );
+                let key = encode_transaction_by_address_key(&address, seq.into());
                 let cells = [Cell::new(
                     DEFAULT_COLUMN_QUALIFIER.as_bytes().into(),
                     transaction_digest.inner().into(),
@@ -223,11 +222,8 @@ impl KeyValueStoreReader for BigTableClient {
 
         let cursor = cursor.into();
 
-        let newest =
-            encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(u64::MAX))
-                .to_vec();
-        let oldest =
-            encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(0)).to_vec();
+        let newest = encode_transaction_by_address_key(&address, u64::MAX.into()).to_vec();
+        let oldest = encode_transaction_by_address_key(&address, 0.into()).to_vec();
 
         let (start_key, end_key) = match (cursor, order) {
             // no cursor: whole address block, direction handled by order.
@@ -239,23 +235,28 @@ impl KeyValueStoreReader for BigTableClient {
             (Some(cursor), TransactionsOrder::NewestFirst) => {
                 // no transactions can have seq < 0, the scan would be empty
                 // and BigTable rejects empty ranges.
-                if cursor.get() == 0 {
+                if cursor == 0 {
                     return Ok(vec![]);
                 }
-                let k = encode_transaction_by_address_key(&address, cursor).to_vec();
+                let k = encode_transaction_by_address_key(&address, cursor.into()).to_vec();
                 (StartKey::StartKeyOpen(k), EndKey::EndKeyClosed(oldest))
             }
             // oldest-first, continue past cursor: tx seq > cursor.
             (Some(cursor), TransactionsOrder::OldestFirst) => {
                 // no transactions can have seq > u64::MAX, the scan would be
                 // empty and BigTable rejects empty ranges.
-                if cursor.get() == u64::MAX {
+                if cursor == u64::MAX {
                     return Ok(vec![]);
                 }
-                let k = encode_transaction_by_address_key(&address, cursor).to_vec();
+                let k = encode_transaction_by_address_key(&address, cursor.into()).to_vec();
                 (StartKey::StartKeyClosed(newest), EndKey::EndKeyOpen(k))
             }
         };
+
+        // row keys are encoded as `address || ReverseSequenceNumber`, so a
+        // forward scan already returns newest-first. OldestFirst requires a
+        // reverse scan.
+        let descending = matches!(order, TransactionsOrder::OldestFirst);
 
         let rows = self
             .range_scan(
@@ -263,7 +264,7 @@ impl KeyValueStoreReader for BigTableClient {
                 Some(start_key),
                 Some(end_key),
                 limit.get(),
-                order.is_reversed(),
+                descending,
                 Some(RowFilter {
                     filter: Some(Filter::ColumnQualifierRegexFilter(
                         format!("^{DEFAULT_COLUMN_QUALIFIER}$").into_bytes(),
@@ -277,7 +278,7 @@ impl KeyValueStoreReader for BigTableClient {
             .map(|(key, cell)| -> Result<_, anyhow::Error> {
                 let (_addr, seq) = decode_transaction_by_address_key(&key)?;
                 let digest = TransactionDigest::from_bytes(&cell.value)?;
-                Ok((seq, digest))
+                Ok((u64::from(seq), digest))
             })
             .collect()
     }
@@ -356,67 +357,52 @@ pub enum TransactionsOrder {
     OldestFirst,
 }
 
-impl TransactionsOrder {
-    /// Returns `true` if range scan is in reverse (oldest first), `false` if
-    /// newest first.
-    pub(crate) fn is_reversed(self) -> bool {
-        matches!(self, Self::OldestFirst)
+/// A sequence number stored as its bitwise complement (`!seq`), so that
+/// BigTable's ascending lexicographic row-key order yields newest-first
+/// results on a forward range scan.
+///
+/// By storing the complement, higher original sequence numbers map to
+/// smaller byte representations and therefore sort earlier. This turns
+/// "newest first" into a cheap forward scan instead of an expensive
+/// reverse one.
+///
+/// # Conversions
+/// - `From<u64>`: produces a `ReverseSequenceNumber` holding `!seq`.
+/// - `Into<u64>`: returns the original `seq` from the wrapped `!seq`.
+/// - [`ReverseSequenceNumber::to_be_bytes`]: encodes the stored value as
+///   big-endian bytes for BigTable storage.
+/// - [`ReverseSequenceNumber::from_be_bytes`]: decodes the stored value from
+///   big-endian bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ReverseSequenceNumber(u64);
+
+impl ReverseSequenceNumber {
+    pub const LENGTH: usize = std::mem::size_of::<u64>();
+
+    /// Encodes the reversed sequence number into a big-endian byte array.
+    pub fn to_be_bytes(self) -> [u8; Self::LENGTH] {
+        self.0.to_be_bytes()
+    }
+
+    /// Decodes a reversed sequence number from a big-endian byte array.
+    pub fn from_be_bytes(bytes: [u8; Self::LENGTH]) -> Self {
+        Self(u64::from_be_bytes(bytes))
     }
 }
 
-/// A transaction sequence number, with a BigTable byte encoding that
-/// preserves *descending* order under lexicographic row-key comparison.
-///
-/// BigTable scans keys in ascending lexicographic order. To make "newest
-/// transactions for an address" a cheap forward range scan, the
-/// per-address index stores each sequence number's complement
-/// (`u64::MAX - seq`) in the key, so higher seq sorts earlier.
-///
-/// - Encode with [`TransactionSequenceNumber::to_complement_be_bytes`].
-/// - Decode with [`TransactionSequenceNumber::from_complement_be_bytes`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct TransactionSequenceNumber(u64);
-
-impl TransactionSequenceNumber {
-    pub const LENGTH: usize = std::mem::size_of::<u64>();
-
-    /// Creates a new [`TransactionSequenceNumber`] from the given sequence
-    /// number.
-    pub fn new(seq: u64) -> Self {
-        Self(seq)
+impl From<u64> for ReverseSequenceNumber {
+    fn from(seq: u64) -> Self {
+        Self(!seq)
     }
-
-    /// Returns a copy of the contained sequence number.
-    pub fn get(&self) -> u64 {
-        self.0
-    }
-
-    /// Returns the complement (`u64::MAX - seq`) of the sequence number,
-    /// encoded as a big-endian byte array.
-    ///
-    /// # Lexicographical Ordering
-    /// Storing the complement ensures that BigTable's lexicographical sorting
-    /// orders entries by **descending** sequence number. This allows for
-    /// efficient forward scans to retrieve the most recent transactions
-    /// first.
-    pub fn to_complement_be_bytes(&self) -> [u8; Self::LENGTH] {
-        (u64::MAX - self.0).to_be_bytes()
-    }
-
-    /// Reconstructs a [`TransactionSequenceNumber`] from its complement
-    /// byte array representation.
-    ///
-    /// This is the inverse of
-    /// [`TransactionSequenceNumber::to_complement_be_bytes`]. It reads the
-    /// stored complement bytes and restores the original sequence number by
-    /// applying `u64::MAX - stored_value`.
-    pub fn from_complement_be_bytes(bytes: [u8; Self::LENGTH]) -> Self {
-        Self(u64::MAX - u64::from_be_bytes(bytes))
+}
+impl From<ReverseSequenceNumber> for u64 {
+    fn from(rev: ReverseSequenceNumber) -> u64 {
+        !rev.0
     }
 }
 
 /// The length of an address-to-transaction row key, in bytes.
-pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + TransactionSequenceNumber::LENGTH;
+pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + ReverseSequenceNumber::LENGTH;
 
 /// Encodes a row key for the address-to-transaction index.
 ///
@@ -429,28 +415,26 @@ pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + TransactionSequenceN
 /// See [`decode_transaction_by_address_key`] for the inverse operation.
 pub fn encode_transaction_by_address_key(
     address: &IotaAddress,
-    transaction_sequence_number: TransactionSequenceNumber,
+    sequence_number: ReverseSequenceNumber,
 ) -> [u8; ADDRESS_TX_KEY_LEN] {
     let mut key = [0u8; ADDRESS_TX_KEY_LEN];
     key[..IotaAddress::LENGTH].copy_from_slice(address.as_ref());
-    key[IotaAddress::LENGTH..]
-        .copy_from_slice(&transaction_sequence_number.to_complement_be_bytes());
+    key[IotaAddress::LENGTH..].copy_from_slice(&sequence_number.to_be_bytes());
     key
 }
 
 /// Decodes an address-to-transaction row key.
 ///
 /// This is the inverse of [`encode_transaction_by_address_key`]. It
-/// extracts the address and restores the original sequence number from
-/// the stored complement.
+/// extracts the address and restores the reversed sequence number.
 pub fn decode_transaction_by_address_key(
     key: &[u8],
-) -> Result<(IotaAddress, TransactionSequenceNumber), anyhow::Error> {
+) -> Result<(IotaAddress, ReverseSequenceNumber), anyhow::Error> {
     anyhow::ensure!(key.len() == ADDRESS_TX_KEY_LEN, "invalid key length");
     let address = IotaAddress::from_bytes(&key[..IotaAddress::LENGTH])?;
-    let transaction_sequence_number =
-        TransactionSequenceNumber::from_complement_be_bytes(key[IotaAddress::LENGTH..].try_into()?);
-    Ok((address, transaction_sequence_number))
+    let reversed_tx_sequence =
+        ReverseSequenceNumber::from_be_bytes(key[IotaAddress::LENGTH..].try_into()?);
+    Ok((address, reversed_tx_sequence))
 }
 
 #[cfg(test)]
@@ -458,13 +442,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn transaction_sequence_number_roundtrip() {
-        for seq in [0, 1, 42, u64::MAX - 1, u64::MAX] {
-            let n = TransactionSequenceNumber::new(seq);
-            assert_eq!(
-                TransactionSequenceNumber::from_complement_be_bytes(n.to_complement_be_bytes()),
-                n,
-            );
+    fn reverse_sequence_number_round_trips_through_bytes() {
+        for seq in [0u64, 1, 42, u64::MAX - 1, u64::MAX] {
+            let rev = ReverseSequenceNumber::from(seq);
+            let recovered = ReverseSequenceNumber::from_be_bytes(rev.to_be_bytes());
+            assert_eq!(u64::from(recovered), seq);
         }
     }
 
@@ -472,13 +454,13 @@ mod tests {
     fn transaction_sequence_number_orders_descending() {
         // higher seq must sort earlier (smaller bytes) so forward range scans
         // return newest transactions first.
-        let older = TransactionSequenceNumber::new(1).to_complement_be_bytes();
-        let newer = TransactionSequenceNumber::new(2).to_complement_be_bytes();
+        let older = ReverseSequenceNumber::from(1).to_be_bytes();
+        let newer = ReverseSequenceNumber::from(2).to_be_bytes();
         assert!(newer < older);
 
         // boundary: u64::MAX (newest possible) sorts before 0 (oldest possible).
-        let newest = TransactionSequenceNumber::new(u64::MAX).to_complement_be_bytes();
-        let oldest = TransactionSequenceNumber::new(0).to_complement_be_bytes();
+        let newest = ReverseSequenceNumber::from(u64::MAX).to_be_bytes();
+        let oldest = ReverseSequenceNumber::from(0).to_be_bytes();
         assert!(newest < oldest);
         assert_eq!(newest, [0; 8]);
         assert_eq!(oldest, [0xFF; 8]);
@@ -487,23 +469,21 @@ mod tests {
     #[test]
     fn transaction_by_address_key_encode() {
         let address = IotaAddress::random();
-        let transaction_sequence_number = TransactionSequenceNumber::new(42);
+        let transaction_sequence_number = ReverseSequenceNumber::from(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
         assert_eq!(key[..IotaAddress::LENGTH], address.into_bytes());
-        assert_eq!(
-            key[IotaAddress::LENGTH..],
-            transaction_sequence_number.to_complement_be_bytes()
-        );
+        assert_eq!(key[IotaAddress::LENGTH..], (u64::MAX - 42).to_be_bytes());
     }
 
     #[test]
     fn transaction_by_address_key_decode() {
         let address = IotaAddress::random();
-        let transaction_sequence_number = TransactionSequenceNumber::new(42);
+        let transaction_sequence_number = ReverseSequenceNumber::from(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
         let (decoded_address, decoded_sequence_number) =
             decode_transaction_by_address_key(&key).unwrap();
         assert_eq!(decoded_address, address);
         assert_eq!(decoded_sequence_number, transaction_sequence_number);
+        assert_eq!(u64::from(decoded_sequence_number), 42);
     }
 }
