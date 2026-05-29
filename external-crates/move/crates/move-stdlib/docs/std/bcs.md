@@ -9,16 +9,22 @@ published on-chain. See https://github.com/diem/bcs#binary-canonical-serializati
 details on BCS.
 
 
--  [Function `to_bytes`](#std_bcs_to_bytes)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `to_bytes`](#std_bcs_to_bytes)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
 <a name="std_bcs_to_bytes"></a>
 
-## Function `to_bytes`
+### <span class="move-vis move-vis-public">pub</span> `to_bytes`
 
 Return the binary representation of <code>v</code> in BCS (Binary Canonical Serialization) format
 
