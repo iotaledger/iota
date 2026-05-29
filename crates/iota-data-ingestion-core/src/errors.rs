@@ -58,6 +58,9 @@ pub enum IngestionError {
     #[error("invalid epoch boundary update: `{0}`")]
     EpochBoundary(String),
 
+    #[error("checkpoint verification failed: `{0}`")]
+    Verification(String),
+
     #[error("max downloaded checkpoints limit reached")]
     MaxCheckpointsCapacityReached,
 

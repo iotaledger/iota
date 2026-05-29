@@ -75,6 +75,7 @@ use crate::{IngestionError, errors::IngestionResult as Result};
 pub mod epoch_boundaries;
 pub mod manifest;
 pub mod reader;
+pub mod verifier;
 
 pub const CHECKPOINT_FILE_MAGIC: u32 = 0x0000BEEF;
 pub const CHECKPOINT_FILE_SUFFIX: &str = "chk";
