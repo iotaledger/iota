@@ -163,16 +163,24 @@ pub async fn validate_and_resolve_conflicts(
 
         // Check #3: Attestor verification (UserTransactionV2 only).
         // The block signature transitively authenticates the attestation;
-        // verify the claimed attestor matches the actual block author.
+        // verify the claimed attestor matches the actual block author and that
+        // the payload is not malformed.
         if let Some(attestation) = attestation {
             let block_author =
                 starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
+            let min_attested_cost = epoch_store.protocol_config().base_tx_cost_fixed();
+            let attested_cost = attestation.estimated_computation_cost();
             let error = match attestation {
                 Attestation::Validator { attestor_index, .. } => {
                     if *attestor_index != block_author {
                         Some(IotaError::AttestationAuthorMismatch {
                             expected: *attestor_index,
                             actual: block_author,
+                        })
+                    } else if attested_cost < min_attested_cost {
+                        Some(IotaError::AttestationCostBelowMinimum {
+                            actual: attested_cost,
+                            minimum: min_attested_cost,
                         })
                     } else {
                         None

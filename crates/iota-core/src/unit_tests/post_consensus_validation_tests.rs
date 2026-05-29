@@ -49,16 +49,15 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// the given `attestor_index`. The block's `certificate_author_index` is always
-/// `0` (set by `new_test`), so passing `0` produces a matching attestation and
-/// any other value produces a mismatch.
+/// the given `attestor_index` and `estimated_computation_cost`.
 fn make_user_tx_v2(
     tx: iota_types::transaction::Transaction,
     attestor_index: starfish_config::AuthorityIndex,
+    estimated_computation_cost: u64,
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
         payload: AttestationData::V1 {
-            estimated_computation_cost: 0,
+            estimated_computation_cost,
             object_versions: vec![],
         },
         attestor_index,
@@ -1131,9 +1130,11 @@ async fn test_v2_passes() {
     let digest = *tx.digest();
 
     // attestor_index 0 == certificate_author_index 0 set by new_test → match.
+    let min_cost = epoch_store.protocol_config().base_tx_cost_fixed();
     let mut transactions = vec![make_user_tx_v2(
         tx,
         starfish_config::AuthorityIndex::new_for_test(0),
+        min_cost,
     )];
 
     let (dropped, locks, user_tx_digests) =
@@ -1201,9 +1202,11 @@ async fn test_v2_attestor_mismatch() {
     let digest = *tx.digest();
 
     // attestor_index 1 != certificate_author_index 0 → mismatch.
+    let min_cost = epoch_store.protocol_config().base_tx_cost_fixed();
     let mut transactions = vec![make_user_tx_v2(
         tx,
         starfish_config::AuthorityIndex::new_for_test(1),
+        min_cost,
     )];
 
     let (dropped, locks, user_tx_digests) =
@@ -1235,6 +1238,93 @@ async fn test_v2_attestor_mismatch() {
     );
     // The digest must be in user_tx_digests even though the transaction was
     // dropped — the caller needs it to release the pre-consensus soft lock.
+    assert_eq!(
+        user_tx_digests,
+        vec![digest],
+        "digest must be collected before Check #3 for soft-lock release",
+    );
+}
+
+/// A `UserTransactionV2` whose attestation reports
+/// `estimated_computation_cost` below the protocol's `base_tx_cost_fixed`
+/// floor is malformed: no honest dry-run can bucketize below that cost. Such
+/// transactions are dropped via Check #3 with `AttestationCostBelowMinimum`,
+/// and — like the attestor-mismatch case — the digest must still surface in
+/// `all_user_tx_digests` for soft-lock release.
+#[sim_test]
+async fn test_v2_cost_below_minimum() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+
+    // Matching attestor (passes Check #3 author verification) but a payload
+    // whose computation cost is one below the protocol minimum.
+    let min_cost = epoch_store.protocol_config().base_tx_cost_fixed();
+    let mut transactions = vec![make_user_tx_v2(
+        tx,
+        starfish_config::AuthorityIndex::new_for_test(0),
+        min_cost - 1,
+    )];
+
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        transactions.is_empty(),
+        "malformed-cost V2 should be removed from the batch"
+    );
+    assert_eq!(
+        dropped.len(),
+        1,
+        "malformed cost should produce one dropped entry"
+    );
+    match &dropped[0].1 {
+        IotaError::AttestationCostBelowMinimum { actual, minimum } => {
+            assert_eq!(*actual, min_cost - 1);
+            assert_eq!(*minimum, min_cost);
+        }
+        other => panic!("expected AttestationCostBelowMinimum, got {:?}", other),
+    }
+    assert!(
+        locks.is_empty(),
+        "no locks should be acquired for a dropped transaction"
+    );
     assert_eq!(
         user_tx_digests,
         vec![digest],

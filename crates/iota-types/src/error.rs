@@ -539,6 +539,13 @@ pub enum IotaError {
         actual: starfish_config::AuthorityIndex,
     },
 
+    #[error(
+        "Attestation reports estimated_computation_cost = {actual} gas units, \
+         below the protocol minimum of {minimum} (`base_tx_cost_fixed`); \
+         an honest dry-run cannot bucketize below this floor"
+    )]
+    AttestationCostBelowMinimum { actual: u64, minimum: u64 },
+
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
