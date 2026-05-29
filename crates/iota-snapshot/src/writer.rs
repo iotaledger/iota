@@ -48,7 +48,7 @@ use tracing::debug;
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
     FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
-    ManifestBody, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
+    ManifestV1, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
     compute_sha3_checksum, create_file_metadata,
 };
 
@@ -624,7 +624,7 @@ impl StateSnapshotWriterV1 {
     fn write_manifest(&mut self, epoch: u64, file_metadata: Vec<FileMetadata>) -> Result<()> {
         let (f, manifest_file_path) = self.manifest_file(epoch)?;
         let mut wbuf = BufWriter::new(f);
-        let manifest: Manifest = Manifest::V2(ManifestBody {
+        let manifest: Manifest = Manifest::V1(ManifestV1 {
             snapshot_version: 2,
             address_length: ObjectID::LENGTH as u64,
             file_metadata,

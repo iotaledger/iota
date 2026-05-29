@@ -155,11 +155,6 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
-/// V2 object file magic (V1 was `0x00B7EC75`). Encoded records are
-/// BCS-serialized `SnapshotLiveObject` carrying the per-object
-/// `previous_transaction_checkpoint: u64` inline. The magic is bumped so a V1
-/// reader fails fast on the magic check rather than silently decoding the
-/// extra trailing `u64` as part of the next record.
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
 const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
@@ -186,10 +181,6 @@ const FILE_METADATA_BYTES: usize =
     Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive, IntoPrimitive,
 )]
 #[repr(u8)]
-// Discriminants are pinned: this enum is BCS-serialized inside `FileMetadata`
-// in the `Manifest`, so changing or shifting a tag breaks every existing
-// snapshot on disk. Adding a new variant must use a fresh, unused tag - never
-// reuse a tag and never insert in the middle without an explicit tag.
 pub enum FileType {
     Object = 0,
     Reference = 1,
@@ -226,47 +217,39 @@ impl FileMetadata {
     }
 }
 
-/// Body of a manifest at any version. V1 and V2 are structurally identical -
-/// the on-disk format is the same and the BCS variant tag on `Manifest`
-/// distinguishes them. V2 differs only in semantic associations: the
-/// `file_metadata` list includes the per-snapshot `EPOCH_INFO` file, and
-/// `.obj` records are BCS-encoded `SnapshotLiveObject` (carrying an inline
-/// `previous_transaction_checkpoint`).
-/// `address_length` is preserved as a sanity check across versions.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ManifestBody {
+pub struct ManifestV1 {
     pub snapshot_version: u8,
     pub address_length: u64,
     pub file_metadata: Vec<FileMetadata>,
     pub epoch: u64,
 }
 
-// `Manifest::V1` and `Manifest::V2` use the same `ManifestBody` payload -
-// the BCS variant tag distinguishes them. The variants must stay (removing
-// `V1` would shift `V2`'s tag) even though the body type is shared.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Manifest {
-    V1(ManifestBody),
-    V2(ManifestBody),
+    V1(ManifestV1),
 }
 
 impl Manifest {
-    fn body(&self) -> &ManifestBody {
+    pub fn snapshot_version(&self) -> u8 {
         match self {
-            Self::V1(manifest) | Self::V2(manifest) => manifest,
+            Self::V1(manifest) => manifest.snapshot_version,
         }
     }
-    pub fn snapshot_version(&self) -> u8 {
-        self.body().snapshot_version
-    }
     pub fn address_length(&self) -> u64 {
-        self.body().address_length
+        match self {
+            Self::V1(manifest) => manifest.address_length,
+        }
     }
     pub fn file_metadata(&self) -> &Vec<FileMetadata> {
-        &self.body().file_metadata
+        match self {
+            Self::V1(manifest) => &manifest.file_metadata,
+        }
     }
     pub fn epoch(&self) -> u64 {
-        self.body().epoch
+        match self {
+            Self::V1(manifest) => manifest.epoch,
+        }
     }
 }
 

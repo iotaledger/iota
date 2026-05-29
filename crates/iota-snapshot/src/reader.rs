@@ -57,11 +57,7 @@ use crate::{
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
-/// Orchestrates restoring a state snapshot from a remote object store. The
-/// `V1` suffix refers to the orchestration-layer revision of this struct
-/// (its public API surface), not the on-disk snapshot format. After the V2
-/// snapshot rollout this reader consumes only V2 manifests and refuses V1
-/// snapshots up-front.
+
 #[derive(Clone)]
 pub struct StateSnapshotReaderV1 {
     epoch: u64,
@@ -120,13 +116,11 @@ impl StateSnapshotReaderV1 {
             local_staging_dir_root.clone(),
             &manifest_file_path,
         )?)?;
-        // Verifies MANIFEST. Only V2 snapshots are readable; operators
-        // regenerate any older V1 snapshots after PR 1 deploy.
         let snapshot_version = manifest.snapshot_version();
         if snapshot_version != 2u8 {
             bail!(
                 "Unsupported snapshot version: {snapshot_version}. \
-                 Only snapshot V2 is supported; regenerate the snapshot."
+                 Only snapshot V2 is supported."
             );
         }
         if manifest.address_length() as usize > ObjectID::LENGTH {
@@ -143,15 +137,21 @@ impl StateSnapshotReaderV1 {
         for file_metadata in manifest.file_metadata() {
             match file_metadata.file_type {
                 FileType::Object => {
+                    // Gets the object FileMetadata bucket with the bucket number, or inserts a new
+                    // one if it doesn't exist.
                     let entry = object_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
+                    // Inserts the object FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
                 FileType::Reference => {
+                    // Gets the reference FileMetadata bucket with the bucket number, or inserts a
+                    // new one if it doesn't exist.
                     let entry = ref_files
                         .entry(file_metadata.bucket_num)
                         .or_insert_with(BTreeMap::new);
+                    // Inserts the reference FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
                 FileType::EpochInfo => {
@@ -162,13 +162,6 @@ impl StateSnapshotReaderV1 {
                 }
             }
         }
-        // V2 manifests must list the per-snapshot EPOCH_INFO file. The
-        // manifest entry is required so a missing entry fails fast, but
-        // the EPOCH_INFO file itself is not downloaded or sha3-verified
-        // here: it is consumed out-of-band from the bucket rather than
-        // through the restore path. Out-of-band consumers (e.g. the
-        // indexer) are responsible for verifying the file against
-        // `FileMetadata::sha3_digest` recorded in the MANIFEST.
         if !epoch_info_seen {
             bail!("V2 manifest missing required EPOCH_INFO entry");
         }
@@ -650,6 +643,7 @@ impl StateSnapshotReaderV1 {
     }
 }
 
+/// An iterator over all object refs in a .ref file.
 pub struct ObjectRefIter {
     reader: Box<dyn Read>,
 }
@@ -690,6 +684,7 @@ impl Iterator for ObjectRefIter {
     }
 }
 
+/// An iterator over all objects in a *.obj file.
 pub struct LiveObjectIter {
     reader: Box<dyn Read>,
 }
@@ -705,11 +700,6 @@ impl LiveObjectIter {
         }
     }
 
-    /// Decodes a `LiveObject` from the underlying reader (the on-disk
-    /// schema is `SnapshotLiveObject`) and converts it to an in-process
-    /// `LiveObject` so consumers outside the reader work in a single type.
-    /// The conversion is infallible: every published `.obj` record carries
-    /// a concrete checkpoint by construction, which maps to `Some(_)`.
     fn next_object(&mut self) -> Result<LiveObject> {
         let len = self.reader.read_varint::<u64>()? as usize;
         if len == 0 {

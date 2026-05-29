@@ -41,7 +41,7 @@ use iota_types::{
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_REF_BYTES,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV1, OBJECT_REF_BYTES,
     reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
 };
 
@@ -738,7 +738,7 @@ async fn test_v2_manifest_missing_epoch_info_is_rejected() {
 
     // Manifest with file_metadata containing a bogus reference entry but no
     // EPOCH_INFO. The reader should reject this up-front.
-    let manifest = Manifest::V2(ManifestBody {
+    let manifest = Manifest::V1(ManifestV1 {
         snapshot_version: 2,
         address_length: ObjectID::LENGTH as u64,
         file_metadata: vec![FileMetadata {
