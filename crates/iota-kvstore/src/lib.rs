@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
@@ -24,6 +26,8 @@ mod bigtable;
 pub use bigtable::{client, worker::KvWorker};
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 
+use crate::bigtable::client::{TransactionSequenceNumber, TransactionsOrder};
+
 /// Read key-value data from a persistent store, such as objects, transactions,
 /// and checkpoints.
 #[async_trait]
@@ -43,14 +47,27 @@ pub trait KeyValueStoreReader {
         transactions: &[TransactionDigest],
     ) -> Result<Vec<TransactionData>, Self::Error>;
 
-    /// Fetches a list of transaction digests affected by a given address in
-    /// order of execution.
+    /// Fetches a list `(sequence number, digest)` pairs for transactions
+    /// affecting the given address, ordered by [`TransactionsOrder`] and capped
+    /// at `limit`.
     ///
-    /// Not found transactions are omitted from the output list.
+    /// # Pagination
+    /// `cursor` is **exclusive**.
+    ///
+    /// - [`TransactionsOrder::NewestFirst`]: returns entries with `tx_seq <
+    ///   cursor`.
+    /// - [`TransactionsOrder::OldestFirst`]: returns entries with `tx_seq >
+    ///   cursor`.
+    ///
+    /// When `None`, the scan starts from the beginning of the requested
+    /// [`TransactionsOrder`].
     async fn get_transaction_digests_by_address(
         &mut self,
         address: IotaAddress,
-    ) -> Result<Vec<TransactionDigest>, Self::Error>;
+        cursor: impl Into<Option<TransactionSequenceNumber>> + Send,
+        limit: impl TryInto<NonZeroUsize> + Send,
+        order: TransactionsOrder,
+    ) -> Result<Vec<(TransactionSequenceNumber, TransactionDigest)>, Self::Error>;
 
     /// Fetches a list of checkpoints by their sequence numbers.
     ///

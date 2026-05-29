@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use async_trait::async_trait;
 use iota_bigtable::{
     BigTableClient, Cell, Row,
@@ -211,21 +213,57 @@ impl KeyValueStoreReader for BigTableClient {
     async fn get_transaction_digests_by_address(
         &mut self,
         address: IotaAddress,
-    ) -> Result<Vec<TransactionDigest>, Self::Error> {
+        cursor: impl Into<Option<TransactionSequenceNumber>> + Send,
+        limit: impl TryInto<NonZeroUsize> + Send,
+        order: TransactionsOrder,
+    ) -> Result<Vec<(TransactionSequenceNumber, TransactionDigest)>, Self::Error> {
+        let limit = limit
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("limit must be greater than 0"))?;
+
+        let cursor = cursor.into();
+
         let newest =
             encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(u64::MAX))
                 .to_vec();
         let oldest =
             encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(0)).to_vec();
 
-        let limit = 0;
+        let (start_key, end_key) = match (cursor, order) {
+            // no cursor: whole address block, direction handled by order.
+            (None, _) => (
+                StartKey::StartKeyClosed(newest),
+                EndKey::EndKeyClosed(oldest),
+            ),
+            // newest-first, continue past cursor: tx seq < cursor.
+            (Some(cursor), TransactionsOrder::NewestFirst) => {
+                // no transactions can have seq < 0, the scan would be empty
+                // and BigTable rejects empty ranges.
+                if cursor.get() == 0 {
+                    return Ok(vec![]);
+                }
+                let k = encode_transaction_by_address_key(&address, cursor).to_vec();
+                (StartKey::StartKeyOpen(k), EndKey::EndKeyClosed(oldest))
+            }
+            // oldest-first, continue past cursor: tx seq > cursor.
+            (Some(cursor), TransactionsOrder::OldestFirst) => {
+                // no transactions can have seq > u64::MAX, the scan would be
+                // empty and BigTable rejects empty ranges.
+                if cursor.get() == u64::MAX {
+                    return Ok(vec![]);
+                }
+                let k = encode_transaction_by_address_key(&address, cursor).to_vec();
+                (StartKey::StartKeyClosed(newest), EndKey::EndKeyOpen(k))
+            }
+        };
+
         let rows = self
             .range_scan(
                 TRANSACTIONS_BY_ADDRESS_TABLE,
-                Some(StartKey::StartKeyClosed(newest)),
-                Some(EndKey::EndKeyClosed(oldest)),
-                limit,
-                false,
+                Some(start_key),
+                Some(end_key),
+                limit.get(),
+                order.is_reversed(),
                 Some(RowFilter {
                     filter: Some(Filter::ColumnQualifierRegexFilter(
                         format!("^{DEFAULT_COLUMN_QUALIFIER}$").into_bytes(),
@@ -235,10 +273,13 @@ impl KeyValueStoreReader for BigTableClient {
             .await?;
 
         rows.into_iter()
-            .filter_map(|row| row.cells.into_iter().next())
-            .map(|cell| TransactionDigest::from_bytes(&cell.value))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
+            .filter_map(|row| row.cells.into_iter().next().map(|cell| (row.key, cell)))
+            .map(|(key, cell)| -> Result<_, anyhow::Error> {
+                let (_addr, seq) = decode_transaction_by_address_key(&key)?;
+                let digest = TransactionDigest::from_bytes(&cell.value)?;
+                Ok((seq, digest))
+            })
+            .collect()
     }
 
     async fn get_checkpoints(
@@ -303,6 +344,24 @@ pub fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
     let mut raw_key = object_key.0.as_bytes().to_vec();
     raw_key.extend(object_key.1.as_u64().to_be_bytes());
     raw_key
+}
+
+/// Represents the order of transactions returned by a BigTable range scan.
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize, Deserialize,
+)]
+pub enum TransactionsOrder {
+    #[default]
+    NewestFirst,
+    OldestFirst,
+}
+
+impl TransactionsOrder {
+    /// Returns `true` if range scan is in reverse (oldest first), `false` if
+    /// newest first.
+    pub(crate) fn is_reversed(self) -> bool {
+        matches!(self, Self::OldestFirst)
+    }
 }
 
 /// A transaction sequence number, with a BigTable byte encoding that
