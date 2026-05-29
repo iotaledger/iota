@@ -12,6 +12,9 @@ use iota_data_ingestion_core::{
     Reducer,
     history::{
         CHECKPOINT_FILE_MAGIC, MAGIC_BYTES,
+        epoch_boundaries::{
+            EpochBoundaries, read_epoch_boundaries_or_default, write_epoch_boundaries,
+        },
         manifest::{
             Manifest, create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes,
         },
@@ -21,9 +24,11 @@ use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
     compress,
+    object_store::util::exists,
 };
 use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
@@ -35,6 +40,10 @@ use crate::RelayWorker;
 pub struct HistoricalWriterConfig {
     pub object_store_config: ObjectStoreConfig,
     pub commit_duration_seconds: u64,
+    /// Optional seed for the epoch boundaries. When set, it initializes the
+    /// epoch boundaries if not already initialized.
+    #[serde(default)]
+    pub epoch_boundaries: Option<EpochBoundaries>,
 }
 
 pub struct HistoricalReducer {
@@ -46,10 +55,16 @@ impl HistoricalReducer {
     pub async fn new(config: HistoricalWriterConfig) -> anyhow::Result<Self> {
         let remote_store = config.object_store_config.make()?;
 
-        Ok(Self {
+        let reducer = Self {
             remote_store,
             commit_duration_ms: config.commit_duration_seconds * 1000,
-        })
+        };
+
+        if let Some(epoch_boundaries) = config.epoch_boundaries {
+            reducer.seed_epoch_boundaries(epoch_boundaries).await?;
+        }
+
+        Ok(reducer)
     }
 
     async fn upload(
@@ -96,6 +111,34 @@ impl HistoricalReducer {
             Err(err) => Err(err)?,
         })
     }
+
+    /// Initializes the epoch boundaries from the provided seed if not already
+    /// initialized.
+    async fn seed_epoch_boundaries(&self, epoch_boundaries: EpochBoundaries) -> anyhow::Result<()> {
+        if !exists(&self.remote_store, &EpochBoundaries::file_path()).await {
+            write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
+            tracing::info!("Initialized epoch boundaries");
+        }
+        Ok(())
+    }
+
+    /// Adds a new entry in the epoch boundaries maintained in the remote store.
+    ///
+    /// # Errors
+    ///
+    /// Fails if there is a gap between the epochs already recorded and the
+    /// current one.
+    async fn record_epoch_boundary(
+        &self,
+        epoch_id: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+    ) -> anyhow::Result<()> {
+        let mut epoch_boundaries =
+            read_epoch_boundaries_or_default(self.remote_store.clone()).await?;
+        epoch_boundaries.insert_next(epoch_id, checkpoint_sequence_number)?;
+        write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -111,9 +154,17 @@ impl Reducer<RelayWorker> for HistoricalReducer {
         for checkpoint in batch {
             let data = Blob::encode(&checkpoint, BlobEncoding::Bcs)?;
             data.write(&mut buffer)?;
+            if checkpoint.checkpoint_summary.is_last_checkpoint_of_epoch() {
+                self.record_epoch_boundary(
+                    checkpoint.checkpoint_summary.epoch,
+                    checkpoint.checkpoint_summary.sequence_number,
+                )
+                .await?;
+            }
         }
         self.upload(uploaded_range, self.prepare_data_to_upload(buffer)?)
-            .await
+            .await?;
+        Ok(())
     }
 
     fn should_close_batch(
