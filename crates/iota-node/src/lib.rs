@@ -916,10 +916,7 @@ impl IotaNode {
     ///
     /// Snapshot V2 requires `enable_grpc_api = true` on the writer node so
     /// that `index_epoch` populates the per-epoch metadata the snapshot
-    /// embeds in `EPOCH_INFO`. If snapshot upload is configured but
-    /// grpc_indexes is not available, refuse to start with a clear
-    /// operator-facing error rather than producing truncated snapshots
-    /// later at publish time.
+    /// embeds in `EPOCH_INFO`.
     fn start_state_snapshot(
         config: &NodeConfig,
         prometheus_registry: &Registry,

@@ -492,47 +492,10 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    /// Test helper - simulates the V1 -> V2 lift case where the checkpoint
-    /// is unrecoverable. Snapshot-wire-format tests that need a concrete
-    /// checkpoint use `insert_object_test_only`.   
-    pub fn insert_object_without_checkpoint_test_only(&self, object: Object) -> IotaResult {
-        self.insert_object_test_only(object, None)
-    }
-
-    /// Like `insert_object_without_checkpoint_test_only` but stamps a
-    /// caller-provided `previous_transaction_checkpoint`. Used by snapshot
-    /// wire-format tests to verify the per-object checkpoint round-trips
-    /// end-to-end through `LiveSetIter` -> `.obj` ->
-    /// `bulk_insert_live_objects`.
-    pub fn insert_object_test_only(
-        &self,
-        object: Object,
-        previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
-    ) -> IotaResult {
-        let object_reference = object.compute_object_reference();
-        let wrapper = get_store_object(object, previous_transaction_checkpoint);
-        let mut wb = self.objects.batch();
-        wb.insert_batch(
-            &self.objects,
-            std::iter::once((ObjectKey::from(object_reference), wrapper)),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    /// Test helper - inserts a literal `StoreObjectWrapper::V1` row that has
-    /// no `previous_transaction_checkpoint` field. Used by snapshot tests
-    /// that exercise the on-read V1->V2 lift path end-to-end:
-    /// `LiveSetIter::migrate()` lifts the row to `StoreObjectV2` with
-    /// `previous_transaction_checkpoint: None`, and the snapshot writer
-    /// must reject it at the publish boundary.
-    pub fn insert_v1_object_test_only(&self, object: Object) -> IotaResult {
+    pub fn insert_store_object_v1_test_only(&self, object: Object) -> IotaResult {
         use crate::authority::authority_store_types::{StoreObjectV1, StoreObjectValue};
+
         let object_reference = object.compute_object_reference();
-        // Reuse `get_store_object`'s `Object` -> `StoreData` translation so
-        // this helper does not duplicate the package/coin/move-object
-        // dispatch, then downgrade the resulting V2 value into a V1 value
-        // by dropping the (defaulted-`None`) checkpoint field.
         let v2_value = match get_store_object(object, None).into_inner() {
             StoreObject::Value(v) => *v,
             other => unreachable!("get_store_object must produce a Value variant, got {other:?}"),
@@ -544,6 +507,24 @@ impl AuthorityPerpetualTables {
             storage_rebate: v2_value.storage_rebate,
         };
         let wrapper = StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(v1_value)));
+
+        let mut wb = self.objects.batch();
+        wb.insert_batch(
+            &self.objects,
+            std::iter::once((ObjectKey::from(object_reference), wrapper)),
+        )?;
+        wb.write()?;
+        Ok(())
+    }
+
+    pub fn insert_store_object_v2_test_only(
+        &self,
+        object: Object,
+        previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
+    ) -> IotaResult {
+        let object_reference = object.compute_object_reference();
+        let wrapper = get_store_object(object, previous_transaction_checkpoint);
+
         let mut wb = self.objects.batch();
         wb.insert_batch(
             &self.objects,
@@ -621,7 +602,7 @@ impl LiveObject {
 /// On-disk record format for a live object as emitted into snapshot V2 `.obj`
 /// files (`iota-snapshot::writer::write_object`) and decoded by
 /// `iota-snapshot::reader::LiveObjectIter`.
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
+#[derive(Deserialize, Serialize)]
 pub struct SnapshotLiveObject {
     pub object: Object,
     pub previous_transaction_checkpoint: CheckpointSequenceNumber,
@@ -763,22 +744,12 @@ mod tests {
     use super::*;
     use crate::authority::authority_store_types::StoreObjectV2;
 
-    /// Combined into one `#[tokio::test]` to sidestep the
-    /// `typed_store::DBMetrics` global Prometheus registry race (concurrent
-    /// `AuthorityPerpetualTables::open` calls hit `AlreadyReg`). The two cases
-    /// are independent; do not split until the metrics registry is made
-    /// re-entrant.
-    #[tokio::test]
-    async fn live_set_iter_invariants() {
-        live_set_iter_filters_wrapped_and_deleted_store_rows();
-        live_set_iter_propagates_previous_transaction_checkpoint();
-    }
-
     /// `LiveSetIter` must filter `StoreObject::Wrapped` and
     /// `StoreObject::Deleted` rows at the source so downstream consumers
     /// (snapshot writer, state-hash accumulator, restore path) only ever
     /// observe live objects.
-    fn live_set_iter_filters_wrapped_and_deleted_store_rows() {
+    #[tokio::test]
+    async fn live_set_iter_filters_wrapped_and_deleted_store_rows() {
         let tmp_dir = iota_common::tempdir();
         let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
 
@@ -790,7 +761,7 @@ mod tests {
 
         let live_object = Object::immutable_with_id_for_testing(live_id);
         perpetual_db
-            .insert_object_without_checkpoint_test_only(live_object)
+            .insert_store_object_v2_test_only(live_object, None)
             .unwrap();
 
         let mut wb = perpetual_db.objects.batch();
@@ -823,11 +794,12 @@ mod tests {
     /// stored on `StoreObjectValueV2` - it is the load-bearing input to each
     /// `LiveObject` record the snapshot V2 writer emits into `.obj` files
     /// (and, on restore, to the `previous_transaction_checkpoint` field
-    /// stamped onto `StoreObjectV2` via `bulk_insert_live_objects`).A bug
+    /// stamped onto `StoreObjectV2` via `bulk_insert_live_objects`). A bug
     /// that, e.g., always stamped `0` here would silently corrupt every
     /// snapshot's per-object record; this is the focused canary for that
     /// contract.
-    fn live_set_iter_propagates_previous_transaction_checkpoint() {
+    #[tokio::test]
+    async fn live_set_iter_propagates_previous_transaction_checkpoint() {
         let tmp_dir = iota_common::tempdir();
         let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
 

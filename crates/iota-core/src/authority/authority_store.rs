@@ -819,15 +819,16 @@ impl AuthorityStore {
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
     ///
-    /// `previous_transaction_checkpoint` is stamped onto each newly written
-    /// object's `StoreObjectValueV2.previous_transaction_checkpoint` field.
-    /// `WritebackCache` buffers execution outputs until checkpoint commit
-    /// time and passes the containing checkpoint's sequence number here.
+    /// `checkpoint_sequence_number` is stamped onto each newly written object's
+    /// `StoreObjectValueV2.previous_transaction_checkpoint` field.
+    ///
+    /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
+    /// the checkpoint identified by `checkpoint_sequence_number`.
     #[instrument(level = "debug", skip_all)]
     pub fn build_db_batch(
         &self,
         epoch_id: EpochId,
-        previous_transaction_checkpoint: CheckpointSequenceNumber,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
@@ -840,7 +841,7 @@ impl AuthorityStore {
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
-                previous_transaction_checkpoint,
+                checkpoint_sequence_number,
                 outputs,
             )?;
         }
@@ -865,7 +866,7 @@ impl AuthorityStore {
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
-        previous_transaction_checkpoint: CheckpointSequenceNumber,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &TransactionOutputs,
     ) -> IotaResult {
         let TransactionOutputs {
@@ -912,7 +913,7 @@ impl AuthorityStore {
             let version = new_object.version();
             trace!(?id, ?version, "writing object");
             let store_object =
-                get_store_object(new_object.clone(), Some(previous_transaction_checkpoint));
+                get_store_object(new_object.clone(), Some(checkpoint_sequence_number));
             (ObjectKey(*id, version), store_object)
         });
 
@@ -1484,9 +1485,8 @@ impl AuthorityStore {
                         let mut total_iota = 0;
                         for object in task_objects {
                             total_storage_rebate += object.storage_rebate;
-                            // get_total_iota includes storage rebate, however all storage
-                            // rebate is also stored in
-                            // the storage fund, so we need to subtract it here.
+                            // get_total_iota includes storage rebate, however all storage rebate is
+                            // also stored in the storage fund, so we need to subtract it here.
                             total_iota += object.get_total_iota(layout_resolver.as_mut()).unwrap()
                                 - object.storage_rebate;
                         }

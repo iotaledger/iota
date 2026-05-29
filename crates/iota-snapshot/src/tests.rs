@@ -204,7 +204,7 @@ pub fn insert_keys(
         // Use a concrete `Some(0)` so the snapshot writer's V1-rejection
         // check passes. The exact value is irrelevant for the round-trip
         // tests, which compare object references rather than checkpoints.
-        db.insert_object_test_only(object, Some(0))?;
+        db.insert_store_object_v2_test_only(object, Some(0))?;
         id = id.next_lexicographical();
     }
     Ok(())
@@ -531,7 +531,7 @@ async fn snapshot_restores_per_object_checkpoint(
     for i in 0..NUM_OBJECTS {
         let object = Object::immutable_with_id_for_testing(id);
         let checkpoint = CHECKPOINT_BASE | i;
-        perpetual_db.insert_object_test_only(object, Some(checkpoint))?;
+        perpetual_db.insert_store_object_v2_test_only(object, Some(checkpoint))?;
         expected.insert(id, Some(checkpoint));
         id = id.next_lexicographical();
     }
@@ -616,12 +616,13 @@ async fn snapshot_writer_rejects_lifted_v1_row(
     // Mix a normal V2 row (Some(seq)) with a lifted-V1 row (None) so the
     // assertion is genuinely about the lifted row triggering the error,
     // not about the DB being empty.
-    perpetual_db.insert_object_test_only(
+    perpetual_db.insert_store_object_v2_test_only(
         Object::immutable_with_id_for_testing(ObjectID::ZERO),
         Some(42),
     )?;
     let lifted_id = ObjectID::ZERO.next_lexicographical();
-    perpetual_db.insert_object_test_only(Object::immutable_with_id_for_testing(lifted_id), None)?;
+    perpetual_db
+        .insert_store_object_v2_test_only(Object::immutable_with_id_for_testing(lifted_id), None)?;
 
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
@@ -675,7 +676,7 @@ async fn snapshot_writer_rejects_literal_v1_row(
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
     // Single literal V1 row. The writer must fail end-to-end.
     perpetual_db
-        .insert_v1_object_test_only(Object::immutable_with_id_for_testing(ObjectID::ZERO))?;
+        .insert_store_object_v1_test_only(Object::immutable_with_id_for_testing(ObjectID::ZERO))?;
 
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());

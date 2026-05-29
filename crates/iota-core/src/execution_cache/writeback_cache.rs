@@ -981,7 +981,7 @@ impl WritebackCache {
     fn build_db_batch(
         &self,
         epoch: EpochId,
-        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         digests: &[TransactionDigest],
     ) -> Batch {
         let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
@@ -1008,7 +1008,7 @@ impl WritebackCache {
 
         let batch = self
             .store
-            .build_db_batch(epoch, checkpoint_seq, &all_outputs)
+            .build_db_batch(epoch, checkpoint_sequence_number, &all_outputs)
             .expect("db error");
         (all_outputs, batch)
     }
@@ -1340,10 +1340,10 @@ impl ExecutionCacheCommit for WritebackCache {
     fn build_db_batch(
         &self,
         epoch: EpochId,
-        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         digests: &[TransactionDigest],
     ) -> Batch {
-        self.build_db_batch(epoch, checkpoint_seq, digests)
+        self.build_db_batch(epoch, checkpoint_sequence_number, digests)
     }
 
     fn try_commit_transaction_outputs(
@@ -2386,10 +2386,7 @@ impl GlobalStateHashStore for WritebackCache {
                             object: object.clone(),
                             // Dirty-cache entries have not yet been flushed at checkpoint commit
                             // time, so the containing-checkpoint sequence number is not yet known;
-                            // surfaced as `previous_transaction_checkpoint: None`. Production
-                            // snapshot-write paths do not call this iterator (the asserting
-                            // `iter_live_object_set` requires an empty dirty cache), so no real
-                            // `.obj` file ever observes these `None`s.
+                            // only use for testing!
                             previous_transaction_checkpoint: None,
                         },
                     );

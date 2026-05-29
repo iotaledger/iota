@@ -66,10 +66,6 @@ pub struct StateSnapshotUploader {
     /// verification
     checkpoint_store: Arc<CheckpointStore>,
     /// gRPC indexes store; source of per-epoch `EpochInfoEntry` rows
-    /// emitted into the snapshot's `EPOCH_INFO` file. Required: the
-    /// writer-node operator contract is `enable_grpc_api = true`, so the
-    /// uploader can only be constructed with a non-`None` handle. See
-    /// `StateSnapshotWriterV1::write_epoch_info`.
     grpc_indexes: Arc<dyn GrpcIndexes>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
