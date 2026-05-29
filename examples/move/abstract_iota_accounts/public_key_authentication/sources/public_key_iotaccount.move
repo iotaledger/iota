@@ -102,6 +102,22 @@ public fun ed25519_authenticator(
     public_key_authentication::authenticate_ed25519(account.borrow_uid(), signature, ctx);
 }
 
+/// Ed25519 signature authenticator for sponsoring transactions on `IOTAccount`.
+#[authenticator]
+public fun sponsorship_ed25519_authenticator(
+    account: &IOTAccount,
+    signature: vector<u8>,
+    auth_ctx: &AuthContext,
+    ctx: &TxContext,
+) {
+    public_key_authentication::authenticate_ed25519_for_sponsorship(
+        account.borrow_uid(),
+        signature,
+        auth_ctx,
+        ctx,
+    );
+}
+
 /// Secp256k1 signature authenticator for `IOTAccount`.
 #[authenticator]
 public fun secp256k1_authenticator(
