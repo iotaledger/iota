@@ -91,7 +91,6 @@ pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
-    drop_keys_to_notify: &mut Vec<SequencedConsensusTransactionKey>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
     HashMap<ObjectRef, LockDetails>,
@@ -185,7 +184,6 @@ pub async fn validate_and_resolve_conflicts(
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
-            drop_keys_to_notify.push(tx.0.key());
             dropped.push((digest, e));
             keep[i] = false;
             continue;
@@ -200,7 +198,6 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
-                drop_keys_to_notify.push(tx.0.key());
                 dropped.push((digest, e));
                 keep[i] = false;
                 continue;
@@ -270,7 +267,6 @@ pub async fn validate_and_resolve_conflicts(
             }
         }
         if let Some(e) = conflict {
-            drop_keys_to_notify.push(tx.0.key());
             dropped.push((digest, e));
             keep[i] = false;
             continue;
@@ -328,7 +324,6 @@ pub async fn validate_and_resolve_conflicts(
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
-                drop_keys_to_notify.push(tx.0.key());
                 dropped.push((digest, e));
                 keep[i] = false;
                 continue;

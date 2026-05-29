@@ -3203,18 +3203,18 @@ impl AuthorityPerEpochStore {
         let drop_seed = consensus_commit_info.round;
 
         let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
-        // Keys of transactions that this commit decides not to process further
-        // (post-consensus load-shedding drops, validation drops). We push them
-        // onto the per-commit `notifications` Vec so the submitter's
-        // `consensus_messages_processed_notify` registration is woken and its
-        // `sequencing_in_flight_submissions` slot is released. We deliberately
-        // do NOT record the key in `consensus_message_processed`, because drop
-        // outcomes depend on the surrounding commit's state — load shedding on
-        // a future commit may not fire, lock conflicts may have resolved,
-        // `ObjectNotFound` inputs may have been produced — so a retry
-        // contained in a different commit must be re-evaluated rather than
-        // short-circuited as already-processed.
-        let mut drop_keys_to_notify: Vec<SequencedConsensusTransactionKey> = Vec::new();
+        // Transactions dropped by post-consensus load shedding in this commit.
+        // Inserted into `dropped_tx_status_cache.insert_and_notify` after the
+        // loop so that `submit_and_wait_inner`'s `await_consensus_or_checkpoint`
+        // — which watches the cache via `notify_read_dropped_digests` — sees
+        // the entry on its register-then-check (race-free against the cache's
+        // insert-then-notify path). The cache FIFO-evicts at 100k entries, so
+        // within-epoch retries arriving after eviction re-enter the consensus
+        // pipeline and are re-evaluated against the current commit's
+        // `drop_percentage` / `drop_seed`. The validation drops returned by
+        // `validate_and_resolve_conflicts` below populate the same cache via
+        // their own `dropped` Vec.
+        let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
 
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
@@ -3232,7 +3232,24 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .post_consensus_load_shedding_dropped_transactions_total
                                 .inc();
-                            drop_keys_to_notify.push(tx.0.key());
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs` (30s).
+                            // Note that a retry of the SAME digest within
+                            // `dropped_tx_status_cache`'s FIFO TTL hits the cache
+                            // and short-circuits without re-entering consensus —
+                            // the cache evicts at 100k entries, so the effective
+                            // TTL is workload-dependent (minutes under heavy drop
+                            // load, much longer under light load). Clients that
+                            // want to retry sooner than eviction need to produce
+                            // a fresh digest (e.g. bump gas price). Cross-epoch
+                            // retries always succeed because the cache is
+                            // per-epoch.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
                             continue;
                         }
                     }
@@ -3244,6 +3261,10 @@ impl AuthorityPerEpochStore {
                     current_commit_sequenced_consensus_transactions.push(tx);
                 }
             }
+        }
+        if !load_shedding_dropped.is_empty() {
+            self.dropped_tx_status_cache
+                .insert_and_notify(&load_shedding_dropped);
         }
 
         // Load transactions deferred from previous commits.
@@ -3372,7 +3393,6 @@ impl AuthorityPerEpochStore {
                     authority_state,
                     self,
                     &mut sequenced_transactions,
-                    &mut drop_keys_to_notify,
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
@@ -3460,7 +3480,7 @@ impl AuthorityPerEpochStore {
         let (
             verified_non_randomness_transactions,
             mut verified_randomness_transactions,
-            mut notifications,
+            notifications,
             lock,
             final_round,
             consensus_commit_prologue_root,
@@ -3634,7 +3654,6 @@ impl AuthorityPerEpochStore {
                 .generate_randomness(epoch, randomness_round);
         }
 
-        notifications.extend(drop_keys_to_notify);
         self.process_notifications(&notifications, &end_of_publish_transactions);
 
         if final_round {
