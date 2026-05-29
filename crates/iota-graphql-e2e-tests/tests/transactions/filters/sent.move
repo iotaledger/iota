@@ -26,9 +26,6 @@ query {
   compoundBySentAddress: transactionBlocks(filter: { sentAddress: "@{A}", kind: PROGRAMMABLE_TX }) {
     nodes { ...CoinBalances }
   }
-  compoundBySignAddress: transactionBlocks(filter: { sentAddress: "@{A}", kind: PROGRAMMABLE_TX }) {
-    nodes { ...CoinBalances }
-  }
   sentViaAddress: address(address: "@{A}") {
     transactionBlocks(relation: SENT) {
       nodes { ...CoinBalances }
