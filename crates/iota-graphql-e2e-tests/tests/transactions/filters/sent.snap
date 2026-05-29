@@ -26,7 +26,7 @@ task 3, line 19:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 21-50:
+task 4, lines 21-47:
 //# run-graphql
 Response: {
   "data": {
@@ -69,44 +69,6 @@ Response: {
       ]
     },
     "compoundBySentAddress": {
-      "nodes": [
-        {
-          "effects": {
-            "objectChanges": {
-              "nodes": [
-                {
-                  "inputState": null,
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "1000000"
-                      }
-                    }
-                  }
-                },
-                {
-                  "inputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "300000000000000"
-                      }
-                    }
-                  },
-                  "outputState": {
-                    "asMoveObject": {
-                      "asCoin": {
-                        "coinBalance": "299999996039200"
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "compoundBySignAddress": {
       "nodes": [
         {
           "effects": {
