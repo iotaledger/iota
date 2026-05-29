@@ -3,7 +3,138 @@ title: IOTA Indexer
 description: The IOTA Indexer writer service — its scope, components, system requirements, configuration, and how to run it.
 tags:
   - reference
+  - pruning
   - extended-data-services
 teams:
   - iotaledger/infrastructure
 ---
+
+## Pruning
+
+A running IOTA Indexer accumulates one row per checkpoint, transaction, and event the network produces, so the database grows without bound as long as the network progresses. For deployments that intend to run for months or years, that growth may not be sustainable.
+
+The indexer addresses this with **opt-in pruning**: the operator declares a **retention period** (a number of most recent epochs) per table, and the indexer deletes anything older on each epoch boundary. Data older than the retention period becomes inaccessible to reads against the indexer database. A few tables are never pruned; see [Non-prunable tables](#non-prunable-tables) for the list.
+
+Because retention is configured per table, the operator decides which data to retain. Shrinking the retention window of a table shortens the time range over which queries backed by that table return results.
+
+The effect of pruning a table depends on its role and the queries it backs:
+
+- **Point lookups** (`transactions`, `events`, `checkpoints`) - direct lookup of a transaction by digest, an event by digest, etc. Trying to fetch an old digest whose data has been pruned will result in an error, unless a KV Store fallback is configured. For point-lookup tables, configuring a fallback lets the data be served for both pruned and unpruned ranges.
+- **Filtered queries** (`tx_*`, `event_*`) - list transactions or events by attribute (sender, recipient, emitter package, etc.). Pruned transactions/events will be omitted from the result, with no explicit error returned. This case cannot be handled by the fallback service.
+- **Historical object tables** (`objects_backward_history`) - back queries that read past versions of objects (e.g., consistent reads at a checkpoint, dynamic-field state at a specific point in time). Pruning shortens the time range over which such historical-state queries can be served; queries that target a checkpoint older than the retained range will fail or return missing data.
+- **Optimistic tables** (`optimistic_transactions`) - Data in those tables is needed only for short periods of time and doesn't need long retention. It can be safely pruned with no side effects on data availability, as long as current and previous epochs are kept.
+
+The subsections below cover sizing and retention guidance, how to enable pruning, the configuration file format, the schedule on which deletions happen, how to monitor pruner progress, how to reclaim disk space, and a full inventory of prunable and non-prunable tables.
+
+### Sizing and retention
+
+Assuming a sustained 500 user TPS, the predicted DB size at typical retention windows is:
+
+| Retention | DB size |
+| ---: | ---: |
+| 2 days  | ~604 GB |
+| 7 days  | ~1.6 TB |
+| 30 days | ~6.3 TB |
+| 1 year  | ~74 TB  |
+
+We recommend **30 epochs of retention** as a default for all tables, and **2 epochs** for `objects_backward_history` and `optimistic_transactions`.
+
+### Enabling pruning
+
+Pruning is enabled by passing `--pruning-config-path <PATH>` to the `indexer` subcommand, pointing at a TOML file that describes retention policies. If no config path is supplied, pruning is disabled.
+
+A sync worker with pruning enabled is started like this:
+
+```sh
+iota-indexer \
+  --db-url <DATABASE_URL> \
+  indexer \
+  --remote-store-url <REMOTE_STORE_URL> \
+  --pruning-config-path <PATH_TO_PRUNING_TOML>
+```
+
+### Pruning configuration file (TOML)
+
+The TOML file contains a default retention (in epochs) and an optional table of per-table overrides:
+
+```toml
+# Default retention applied to every prunable table (in epochs).
+epochs_to_keep = 10
+
+# Per-table overrides. Keys are the snake_case table names listed below.
+[overrides]
+transactions = 5
+events = 5
+tx_senders = 3
+```
+
+Every retention value — both the default and each override — must be strictly greater than zero.
+
+**Defaults.** When the indexer resolves a final retention map, every prunable table receives the configured `epochs_to_keep` value. Any value supplied in `[overrides]` replaces the default for that table.
+
+**Selective pruning.** The configuration model is all-or-nothing at the worker level: there is no flag to skip a specific table. Once pruning is enabled, the pruner evaluates every prunable table. To approximate per-table opt-out, set a very large `epochs_to_keep` override for any table you want to retain. For example, to prune only `tx_senders` and keep the rest effectively forever:
+
+```toml
+# Default high enough that no real network will ever reach it.
+epochs_to_keep = 1_000_000
+
+[overrides]
+tx_senders = 5
+```
+
+**Inter-table dependencies.** Some tables only return useful data when their dependencies are present. For example, the `tx_*` index tables (`tx_senders`, `tx_calls_*`, `tx_changed_objects`, …) are looked up via the `tx_digests` table; setting a shorter retention on `tx_digests` than on the `tx_*` indexes means the indexes still hold rows that can no longer be resolved to a transaction digest. Keep retention on `tx_digests` at least as long as the retention on any other `tx_*` table that depends on it.
+
+### How pruning is applied
+
+The pruner runs as a set of background tasks inside the sync worker process:
+
+- A **watermarks-update task** polls every few seconds. When it detects that the network has advanced to a new epoch, it recomputes each prunable table's lower-bound watermark from the retention policy and writes the new bound into the `watermarks` table.
+- A **per-table pruner task** runs in parallel for each prunable table, polling every few seconds. When that table's watermark has been advanced, the task waits **2 hours** after the update before actually deleting data — the delay protects in-flight reads against losing rows mid-query. It then deletes in batches, sleeping briefly between chunks to limit pressure on the database.
+
+As a result, disk usage drops some time after the epoch transition, not at the boundary itself. Likewise, when a sync worker is started with pruning enabled for the first time, deletions will not begin sooner than 2 hours after the worker starts.
+
+### Monitoring pruning progress
+
+Pruner state is exposed via the `watermarks` table — one row per table (every prunable table plus a few bookkeeping entries). Useful columns:
+
+| Column                                                          | Meaning                                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`                                                        | Name of the table this row describes.                                                                                                             |
+| `current_epoch`                                                 | Most recent epoch ingestion has written into the table.                                                                                           |
+| `min_available_epoch` / `min_available_cp` / `min_available_tx` | Lowest epoch / checkpoint / transaction sequence number still queryable. Anything below is scheduled for pruning.                                 |
+| `lowest_unpruned_key`                                           | Next epoch / checkpoint / transaction sequence number the pruner will actually delete from the database. Anything below has already been removed. |
+| `min_bounds_updated_at_timestamp_ms`                            | Timestamp of the last lower-bound update. The 2-hour deletion delay is measured from this value.                                                  |
+
+### Storage reclamation
+
+Enabling pruning on a previously unpruned indexer — or shortening retention on an already-pruned one — does not immediately return the freed disk space to the operating system. Pruning deletes rows from Postgres; autovacuum reclaims the dead tuples for future inserts but does not shrink the on-disk footprint of tables and indexes.
+
+What pruning does guarantee is bounded growth going forward: pruned tables stop accumulating data past the configured retention window.
+
+To recover the existing on-disk footprint, run a compaction tool against the database (for example [`VACUUM FULL`](https://www.postgresql.org/docs/18/routine-vacuuming.html#VACUUM-FOR-SPACE-RECOVERY), [`REINDEX TABLE CONCURRENTLY`](https://www.postgresql.org/docs/18/sql-reindex.html#SQL-REINDEX-CONCURRENTLY), [`pg_repack`](https://reorg.github.io/pg_repack/), or [`pg_squeeze`](https://github.com/cybertec-postgresql/pg_squeeze)). Each option has different operational caveats — `VACUUM FULL` holds an `ACCESS EXCLUSIVE` lock for the full table rewrite, while the others run online but need temporary disk space. Review the linked Postgres docs before running any of these against a live database. The IOTA Indexer does not invoke these itself.
+
+To prevent pruned tables from re-bloating over time, autovacuum must run aggressively enough to keep up with the pruner's deletes. The following per-table autovacuum settings are a good starting point for every prunable table:
+
+```
+vacuum_index_cleanup           = on
+autovacuum_vacuum_scale_factor = 0.01
+autovacuum_vacuum_cost_limit   = 500
+```
+
+On Docker-hosted Postgres, also raise `shm_size` to at least `2g` — the default `64M` is too small for autovacuum to complete on large prunable tables, which silently disables the cleanup.
+
+### Prunable tables
+
+Tables are pruned using one of three strategies, determined by how the table is structured:
+
+| Strategy                | Mechanism                                  | Disk reclaimed       | Tables                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **By epoch partition**  | Drop the partition for each retired epoch. | Immediately          | `transactions`, `events`                                                                                                                                                                                                                          |
+| **By checkpoint**       | `DELETE` rows below a checkpoint cutoff.   | After compaction     | `checkpoints`, `pruner_cp_watermark`, `objects_backward_history`                                                                                                                                                                                  |
+| **By transaction**      | `DELETE` rows below a transaction-sequence cutoff. | After compaction | `event_emit_package`, `event_emit_module`, `event_senders`, `event_struct_instantiation`, `event_struct_module`, `event_struct_name`, `event_struct_package`, `tx_calls_pkg`, `tx_calls_mod`, `tx_calls_fun`, `tx_changed_objects`, `tx_digests`, `tx_input_objects`, `tx_kinds`, `tx_recipients`, `tx_senders`, `tx_wrapped_or_deleted_objects`, `tx_global_order`, `optimistic_transactions` |
+
+Tables not listed here are never pruned by the indexer.
+
+### Non-prunable tables
+
+Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
