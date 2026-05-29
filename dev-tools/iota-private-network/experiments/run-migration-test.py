@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Rolling migration test: start validators on a release image, then
-perform a mid-epoch rolling upgrade to a locally-built image.
+perform a rolling upgrade to a locally-built image. Simple mode (default)
+rolls a short fixed offset into the epoch; --mode advanced runs the full
+mid-epoch + post-upgrade restart schedule.
 
 Run from: iota/dev-tools/iota-private-network/experiments/
 """
@@ -1557,8 +1559,11 @@ def phase8_rolling_upgrade(
 
         # Stop old container, start it back on the upgrade image. Advanced mode
         # keeps each validator offline for a randomized rolling window (and paces
-        # between validators); simple mode swaps back-to-back with no pause so
-        # the network never loses quorum and the upgrade finishes fast.
+        # between validators); simple mode swaps back-to-back with no pause, so
+        # only one validator is intentionally down at a time and the upgrade
+        # finishes fast. Readiness is not gated — this only checks the container
+        # is running, so a freshly restarted node may still be catching up when
+        # the next one is stopped.
         docker_compose(cfg, ["stop", v], quiet=True)
         if cfg.mode == "advanced":
             restart_pause = rng.randint(
@@ -1862,9 +1867,10 @@ def parse_args() -> argparse.Namespace:
         default="simple",
         choices=("simple", "advanced"),
         help=(
-            "simple: fast rolling upgrade, no mid-epoch wait, no post-upgrade "
-            "restarts (default). advanced: full schedule with rolling offline "
-            "windows and keep-DB/wipe-DB restart torture across two epochs."
+            "simple: fast back-to-back rolling upgrade after a short fixed "
+            "warm-up, no post-upgrade restarts (default). advanced: full "
+            "schedule with a mid-epoch wait, rolling offline windows, and "
+            "keep-DB/wipe-DB restart torture across two epochs."
         ),
     )
     parser.add_argument(
@@ -1889,8 +1895,10 @@ def parse_args() -> argparse.Namespace:
         default="",
         choices=("", "testnet", "mainnet"),
         help=(
-            "Chain override for protocol feature flags (default: none = devnet-like). "
-            "Controls which features are enabled at each protocol version."
+            "Chain override for protocol feature flags. Default: empty, which "
+            "inherits from --release-network (testnet/mainnet set the matching "
+            "override; devnet/alphanet = none). Controls which features are "
+            "enabled at each protocol version."
         ),
     )
     parser.add_argument(
