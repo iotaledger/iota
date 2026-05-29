@@ -1074,15 +1074,9 @@ impl ConsensusAdapter {
         }
 
         let processed_methods = notifications.collect::<Vec<ProcessedMethod>>().await;
-        if processed_methods
-            .iter()
-            .any(|m| *m == ProcessedMethod::Dropped)
-        {
+        if processed_methods.contains(&ProcessedMethod::Dropped) {
             ProcessedMethod::Dropped
-        } else if processed_methods
-            .iter()
-            .any(|m| *m == ProcessedMethod::Checkpoint)
-        {
+        } else if processed_methods.contains(&ProcessedMethod::Checkpoint) {
             ProcessedMethod::Checkpoint
         } else {
             ProcessedMethod::Consensus
