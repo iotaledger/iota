@@ -56,7 +56,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IotaAddress, MoveTypeTagTrait,
+    IotaAddress,
     base_types::SequenceNumber,
     collection_types::{Entry, VecMap},
     derived_object,
@@ -66,14 +66,13 @@ use crate::{
 };
 
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
-pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
-    Identifier::from_static("PackageMetadataV1");
+pub const PACKAGE_METADATA_STRUCT_NAME: Identifier = Identifier::from_static("PackageMetadata");
+pub const PACKAGE_METADATA_INNER_MODULE_NAME: Identifier =
+    Identifier::from_static("package_metadata_inner");
+pub const PACKAGE_METADATA_INNER_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadata");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
-pub const PACKAGE_VIEW_FUNCTIONS_METADATA_KEY_STRUCT_NAME: Identifier =
-    Identifier::from_static("PackageViewFunctionsMetadataKey");
-pub const PACKAGE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME: Identifier =
-    Identifier::from_static("PackageViewFunctionsMetadata");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -948,44 +947,48 @@ impl RuntimeModuleMetadataV1 {
     }
 }
 
-/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
-/// IOTA specific metadata derived from a package and readable on-chain. This
-/// enums helps with the versioning, which is actually used as the object
-/// content, i.e., PackageMetadataV1 is the type used on-chain.
+/// IOTA specific package metadata object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PackageMetadata {
-    V1(PackageMetadataV1),
+pub struct PackageMetadata {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata.
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata.
+    pub package_version: u64,
 }
 
 impl PackageMetadata {
     /// Create a `PackageMetadata` for the newly
     /// published/upgraded package at `package_id`
-    pub fn new_v1(
+    pub fn new(
         uid: ObjectId,
         storage_id: ObjectId,
         runtime_id: ObjectId,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
     ) -> Self {
-        PackageMetadata::V1(PackageMetadataV1::new(
-            uid,
-            storage_id,
-            runtime_id,
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
             package_version,
-            modules_metadata_map,
-        ))
+        }
     }
 
-    pub fn type_(&self) -> StructTag {
-        match self {
-            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
-        }
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_STRUCT_NAME,
+            vec![],
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        match self {
-            PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
-        }
+        // Safe unwrap as the PackageMetadata struct is always serializable
+        bcs::to_bytes(self).unwrap()
     }
 }
 
@@ -1022,32 +1025,89 @@ pub fn derive_package_metadata_id(package_storage_id: ObjectId) -> ObjectId {
     .unwrap() // safe because type tag is known
 }
 
-/// V1 of IOTA specific package metadata.
+/// Versioned IOTA specific package metadata payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PackageMetadataInner {
+    V1(PackageMetadataV1),
+    V2(PackageMetadataV2),
+}
+
+impl PackageMetadataInner {
+    pub fn new_v1(modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>) -> Self {
+        Self::V1(PackageMetadataV1::new(modules_metadata_map))
+    }
+
+    pub fn new_v2(
+        mut modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
+        mut view_functions_map: BTreeMap<String, Vec<String>>,
+    ) -> Self {
+        let mut module_names = BTreeSet::new();
+        module_names.extend(modules_metadata_map.keys().cloned());
+        module_names.extend(view_functions_map.keys().cloned());
+
+        let mut modules_metadata = VecMap {
+            contents: Vec::with_capacity(module_names.len()),
+        };
+
+        for module_name in module_names {
+            let authenticator_metadata = modules_metadata_map
+                .remove(&module_name)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(function_name, account_type)| AuthenticatorMetadataV1 {
+                    function_name,
+                    account_type,
+                })
+                .collect();
+            let view_functions_metadata = view_functions_map
+                .remove(&module_name)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|function_name| ViewFunctionMetadataV1 { function_name })
+                .collect();
+
+            modules_metadata.contents.push(Entry {
+                key: module_name,
+                value: ModuleMetadataV2 {
+                    authenticator_metadata,
+                    view_functions_metadata,
+                },
+            });
+        }
+
+        Self::V2(PackageMetadataV2 { modules_metadata })
+    }
+
+    pub fn metadata_version(&self) -> u64 {
+        match self {
+            Self::V1(_) => 1,
+            Self::V2(_) => 2,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_INNER_MODULE_NAME,
+            PACKAGE_METADATA_INNER_STRUCT_NAME,
+            vec![],
+        )
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataInner enum is always serializable
+        bcs::to_bytes(self).unwrap()
+    }
+}
+
+/// V1 of IOTA specific package metadata payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadataV1 {
-    // The package metadata object UID
-    pub uid: UID,
-    /// Storage ID of the package represented by this metadata
-    /// The object id of the runtime package metadata object is derived from
-    /// this value.
-    pub storage_id: ID,
-    /// Runtime ID of the package represented by this metadata. Runtime ID is
-    /// the Storage ID of the first version of a package.
-    pub runtime_id: ID,
-    /// Version of the package represented by this metadata
-    pub package_version: u64,
-    // Handles to internal package modules
     pub modules_metadata: VecMap<String, ModuleMetadataV1>,
 }
 
 impl PackageMetadataV1 {
-    fn new(
-        uid: ObjectId,
-        storage_id: ObjectId,
-        runtime_id: ObjectId,
-        package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
-    ) -> Self {
+    fn new(modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
         for (module_name, module_metadata_map) in modules_metadata_map {
@@ -1068,28 +1128,14 @@ impl PackageMetadataV1 {
             });
         }
 
-        Self {
-            uid: UID::new(uid),
-            storage_id: ID::new(storage_id),
-            runtime_id: ID::new(runtime_id),
-            package_version,
-            modules_metadata,
-        }
+        Self { modules_metadata }
     }
+}
 
-    pub fn type_() -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            PACKAGE_METADATA_MODULE_NAME,
-            PACKAGE_METADATA_V1_STRUCT_NAME,
-            vec![],
-        )
-    }
-
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        // Safe unwrap as the PackageMetadataV1 struct is always serializable
-        bcs::to_bytes(&self).unwrap()
-    }
+/// V2 of IOTA specific package metadata payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV2 {
+    pub modules_metadata: VecMap<String, ModuleMetadataV2>,
 }
 
 /// V1 of IOTA specific module metadata. Only includes authenticator info.
@@ -1104,6 +1150,13 @@ impl ModuleMetadataV1 {
     }
 }
 
+/// V2 of IOTA specific module metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleMetadataV2 {
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+    pub view_functions_metadata: Vec<ViewFunctionMetadataV1>,
+}
+
 /// V1 of IOTA specific authenticator info metadata.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1112,58 +1165,9 @@ pub struct AuthenticatorMetadataV1 {
     #[serde_as(as = "TypeName")]
     pub account_type: TypeTag,
 }
+
+/// V1 of IOTA specific view function metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PackageViewFunctions {
-    // Map of view functions contained in a package, where the key is the
-    // module name and the value is the list of view function names in that module.
-    pub package_view_functions: VecMap<String, Vec<String>>,
-}
-
-impl PackageViewFunctions {
-    pub fn new() -> Self {
-        Self {
-            package_view_functions: VecMap { contents: vec![] },
-        }
-    }
-
-    pub fn type_() -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            PACKAGE_METADATA_MODULE_NAME,
-            PACKAGE_VIEW_FUNCTIONS_METADATA_STRUCT_NAME,
-            vec![],
-        )
-    }
-}
-
-// Trait needed for this Type to be used as a dynamic field
-impl MoveTypeTagTrait for PackageViewFunctions {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
-    }
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct PackageViewFunctionsMetadataKey {
-    // This field is required to make a Rust struct compatible with an empty Move one.
-    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
-    // allowed in the bytecode.
-    dummy_field: bool,
-}
-
-impl PackageViewFunctionsMetadataKey {
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            PACKAGE_METADATA_MODULE_NAME,
-            PACKAGE_VIEW_FUNCTIONS_METADATA_KEY_STRUCT_NAME,
-            vec![],
-        )
-    }
-}
-
-impl MoveTypeTagTrait for PackageViewFunctionsMetadataKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::tag()))
-    }
+pub struct ViewFunctionMetadataV1 {
+    pub function_name: String,
 }

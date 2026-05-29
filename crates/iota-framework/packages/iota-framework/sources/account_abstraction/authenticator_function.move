@@ -38,9 +38,7 @@ public fun create_auth_function_ref_v1<Account: key>(
     function_name: ascii::String,
 ): AuthenticatorFunctionRefV1<Account> {
     let authenticator_metadata = package_metadata
-        .modules_metadata_v1(
-            &module_name,
-        )
+        .modules_metadata_v1(&module_name)
         .authenticator_metadata_v1(&function_name);
 
     assert!(

@@ -7,26 +7,30 @@
 module iota::package_metadata;
 
 use iota::dynamic_field;
+use iota::package_metadata_inner::{
+    PackageMetadataV2Inner,
+    ModuleMetadataV2,
+    create_package_metadata_v2_inner
+};
 use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
 
 // === Errors ===
-
 #[error(code = 0)]
 const EModuleMetadataNotFound: vector<u8> =
     b"The requested module metadata was not found in the package metadata.";
 #[error(code = 1)]
 const EAuthenticatorMetadataNotFound: vector<u8> =
     b"The requested authenticator metadata was not found in the module metadata.";
+#[error(code = 2)]
+const EWrongInnerVersion: vector<u8> =
+    b"The provided package metadata has an unsupported inner version.";
 
 // === Dynamic field keys ===
-public struct PackageViewFunctionsMetadataKey has copy, drop, store {}
+public struct PackageMetadataV2Key has copy, drop, store {}
 
 // === Structs ===
-
-/// Key type for deriving the package metadata object address
-public struct PackageMetadataKey has copy, drop, store {}
 
 /// Represents the metadata of a Move package. This includes information
 /// such as the storage ID, runtime ID, version, and metadata for the
@@ -46,9 +50,20 @@ public struct PackageMetadataV1 has key {
     modules_metadata: VecMap<ascii::String, ModuleMetadataV1>,
 }
 
-/// Represents view function metadata for a package.
-public struct PackageViewFunctionsMetadata has copy, drop, store {
-    package_view_functions: VecMap<ascii::String, vector<ascii::String>>,
+/// Represents the metadata of a Move package. This includes information
+/// such as the storage ID, runtime ID, version, and metadata for the
+/// functions contained within the package.
+public struct PackageMetadataV2 has key {
+    id: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    storage_id: ID,
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
+    runtime_id: ID,
+    /// Version of the package represented by this metadata
+    package_version: u64,
 }
 
 /// Represents metadata associated with a module in the package.
@@ -63,6 +78,109 @@ public struct ModuleMetadataV1 has copy, drop, store {
 public struct AuthenticatorMetadataV1 has copy, drop, store {
     function_name: ascii::String,
     account_type: TypeName,
+}
+// ===  Constructors ===
+
+public(package) fun create_package_metadata_v1(
+    id: UID,
+    storage_id: ID,
+    runtime_id: ID,
+    package_version: u64,
+    modules: vector<ascii::String>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
+) {
+    let modules_metadata = create_modules_metadata_v1(
+        modules,
+        auth_functions,
+        type_names,
+    );
+    let package_metadata = PackageMetadataV1 {
+        id,
+        storage_id,
+        runtime_id,
+        package_version,
+        modules_metadata,
+    };
+    transfer::freeze_object(package_metadata);
+}
+
+public(package) fun create_package_metadata_v2(
+    id: UID,
+    storage_id: ID,
+    runtime_id: ID,
+    package_version: u64,
+    modules: vector<ascii::String>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
+    view_function_names: vector<vector<ascii::String>>,
+) {
+    let mut package_metadata = PackageMetadataV2 {
+        id,
+        storage_id,
+        runtime_id,
+        package_version,
+    };
+    let package_metadata_inner = create_package_metadata_v2_inner(
+        modules,
+        auth_functions,
+        type_names,
+        view_function_names,
+    );
+    dynamic_field::add(
+        &mut package_metadata.id,
+        PackageMetadataV2Key {},
+        package_metadata_inner,
+    );
+    transfer::freeze_object(package_metadata);
+}
+
+public(package) fun create_modules_metadata_v1(
+    modules: vector<ascii::String>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
+): VecMap<ascii::String, ModuleMetadataV1> {
+    assert!(modules.length() == auth_functions.length());
+    assert!(modules.length() == type_names.length());
+    let mut modules_metadata = iota::vec_map::empty<ascii::String, ModuleMetadataV1>();
+    let mut i = 0;
+    while (i < modules.length()) {
+        let module_name = modules[i];
+        let mut authenticator_metadata = vector[];
+        let mut j = 0;
+        while (j < auth_functions[i].length()) {
+            let function_name = auth_functions[i][j];
+            let account_type = type_names[i][j];
+            authenticator_metadata.push_back(
+                create_authenticator_metadata_v1(function_name, account_type),
+            );
+            j = j + 1;
+        };
+        modules_metadata.insert(
+            module_name,
+            create_module_metadata_v1(authenticator_metadata),
+        );
+        i = i + 1;
+    };
+    modules_metadata
+}
+
+public(package) fun create_module_metadata_v1(
+    authenticator_metadata: vector<AuthenticatorMetadataV1>,
+): ModuleMetadataV1 {
+    ModuleMetadataV1 {
+        authenticator_metadata,
+    }
+}
+
+public(package) fun create_authenticator_metadata_v1(
+    function_name: ascii::String,
+    account_type: TypeName,
+): AuthenticatorMetadataV1 {
+    AuthenticatorMetadataV1 {
+        function_name,
+        account_type,
+    }
 }
 
 // === Public functions ===
@@ -100,39 +218,14 @@ public fun modules_metadata_v1(
     self.modules_metadata.get(module_name)
 }
 
-/// Borrow the view function metadata dynamic field of the package represented by this metadata.
-public fun borrow_package_view_functions_metadata(
-    self: &PackageMetadataV1,
-): &PackageViewFunctionsMetadata {
-    dynamic_field::borrow(
-        &self.id,
-        PackageViewFunctionsMetadataKey {},
-    )
-}
-
-/// Attach view function metadata to a package metadata object.
-public(package) fun attach_package_view_functions_metadata(
-    self: &mut PackageMetadataV1,
-    package_view_functions: PackageViewFunctionsMetadata,
-) {
-    dynamic_field::add(
-        &mut self.id,
-        PackageViewFunctionsMetadataKey {},
-        package_view_functions,
-    )
-}
-
-public fun view_functions(
-    self: &PackageViewFunctionsMetadata,
-): VecMap<ascii::String, vector<ascii::String>> {
-    self.package_view_functions
-}
-
-public fun module_view_functions(
-    self: &PackageViewFunctionsMetadata,
+public fun modules_metadata_v2(
+    self: &PackageMetadataV2,
     module_name: &ascii::String,
-): &vector<ascii::String> {
-    self.package_view_functions.get(module_name)
+): ModuleMetadataV2 {
+    let package_metadata_inner = load_inner_package_metadata(self);
+    let mut module_metadata = package_metadata_inner.try_get_module_metadata_v2(module_name);
+    assert!(module_metadata.is_some(), EModuleMetadataNotFound);
+    module_metadata.extract()
 }
 
 /// Safely get the `AuthenticatorMetadataV1` associated with the specified
@@ -163,58 +256,110 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
 }
 
-// === Test-only functions ===
+// === Private functions ===
 
-/// Creates a `PackageMetadataV1` instance for testing, skipping validation.
-/// From `storage_id` the package metadata object ID will be derived.
-/// The `modules`, `functions`, and `type_names` vectors must have the same
-/// length, each entry representing an authenticator in the package. This
-/// means that the module name in the `modules` vector must be repeated for
-/// each authenticator it contains.
+fun load_inner_package_metadata(self: &PackageMetadataV2): &PackageMetadataV2Inner {
+    if (self.package_version == 1 || self.package_version == 2) {
+        dynamic_field::borrow<PackageMetadataV2Key, PackageMetadataV2Inner>(
+            &self.id,
+            PackageMetadataV2Key {},
+        )
+    } else {
+        abort (EWrongInnerVersion)
+    }
+}
+
+// === Test functions ===
+
 #[test_only]
 public fun create_package_metadata_v1_for_testing(
     storage_id: ID,
     modules: vector<ascii::String>,
-    functions: vector<ascii::String>,
-    type_names: vector<TypeName>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
 ): PackageMetadataV1 {
-    assert!(modules.length() == functions.length());
-    assert!(modules.length() == type_names.length());
     let addr = iota::derived_object::derive_address_for_testing(
         storage_id,
-        PackageMetadataKey {},
+        PackageMetadataV2Key {},
     );
     let id = object::new_uid_from_hash(addr);
+
+    assert!(modules.length() == auth_functions.length());
+    assert!(modules.length() == type_names.length());
+
     let mut modules_metadata = iota::vec_map::empty<ascii::String, ModuleMetadataV1>();
     let mut i = 0;
     while (i < modules.length()) {
         let module_name = modules[i];
-        let function_name = functions[i];
-        let account_type = type_names[i];
-        let authenticator = AuthenticatorMetadataV1 {
-            function_name,
-            account_type,
-        };
-        if (modules_metadata.contains(&module_name)) {
-            modules_metadata.get_mut(&module_name).authenticator_metadata.push_back(authenticator);
-        } else {
-            modules_metadata.insert(
-                module_name,
-                ModuleMetadataV1 { authenticator_metadata: vector[authenticator] },
+        let mut authenticator_metadata = vector[];
+        let mut j = 0;
+        while (j < auth_functions[i].length()) {
+            let function_name = auth_functions[i][j];
+            let account_type = type_names[i][j];
+            authenticator_metadata.push_back(
+                create_authenticator_metadata_v1_for_testing(function_name, account_type),
             );
+            j = j + 1;
         };
+        modules_metadata.insert(
+            module_name,
+            ModuleMetadataV1 { authenticator_metadata },
+        );
         i = i + 1;
     };
-    PackageMetadataV1 {
+
+    let package_metadata = PackageMetadataV1 {
         id,
         storage_id,
         runtime_id: storage_id,
         package_version: 1,
         modules_metadata,
+    };
+    package_metadata
+}
+
+#[test_only]
+public fun create_authenticator_metadata_v1_for_testing(
+    function_name: ascii::String,
+    account_type: TypeName,
+): AuthenticatorMetadataV1 {
+    AuthenticatorMetadataV1 {
+        function_name,
+        account_type,
     }
 }
 
-/// Creates a `PackageMetadataV1` instance for testing with only one
+#[test_only]
+public fun create_package_metadata_v2_for_testing(
+    storage_id: ID,
+    modules: vector<ascii::String>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
+    view_functions: vector<vector<ascii::String>>,
+): PackageMetadataV2 {
+    let addr = iota::derived_object::derive_address_for_testing(
+        storage_id,
+        PackageMetadataV2Key {},
+    );
+    let id = object::new_uid_from_hash(addr);
+
+    let mut package_metadata = PackageMetadataV2 {
+        id,
+        storage_id,
+        runtime_id: storage_id,
+        package_version: 2,
+    };
+    let pkg_metadata_v2 = create_package_metadata_v2_inner(
+        modules,
+        auth_functions,
+        type_names,
+        view_functions,
+    );
+    attach_package_metadata_inner(&mut package_metadata, pkg_metadata_v2);
+    package_metadata
+}
+
+/// Creates a `PackageMetadata` instance for testing with only one
 /// authenticator, skipping validation.
 #[test_only]
 public fun create_package_metadata_v1_for_testing_one_authenticator(
@@ -226,32 +371,19 @@ public fun create_package_metadata_v1_for_testing_one_authenticator(
     create_package_metadata_v1_for_testing(
         storage_id,
         vector[module_name],
-        vector[function_name],
-        vector[type_name],
+        vector[vector[function_name]],
+        vector[vector[type_name]],
     )
 }
 
-/// Creates a `PackageMetadataV1` instance for testing with package view
-/// function metadata attached as a dynamic field, skipping validation.
-#[test_only]
-public fun create_package_metadata_v1_for_testing_with_view_functions(
-    storage_id: ID,
-    module_name: ascii::String,
-    view_functions: vector<ascii::String>,
-): PackageMetadataV1 {
-    let mut metadata = create_package_metadata_v1_for_testing(
-        storage_id,
-        vector[],
-        vector[],
-        vector[],
-    );
-    let mut package_view_functions = iota::vec_map::empty<ascii::String, vector<ascii::String>>();
-    package_view_functions.insert(module_name, view_functions);
-    attach_package_view_functions_metadata(
-        &mut metadata,
-        PackageViewFunctionsMetadata {
-            package_view_functions,
-        },
-    );
-    metadata
+/// Attach package metadata payload to a package metadata object.
+public(package) fun attach_package_metadata_inner(
+    self: &mut PackageMetadataV2,
+    package_metadata_inner: PackageMetadataV2Inner,
+) {
+    dynamic_field::add(
+        &mut self.id,
+        PackageMetadataV2Key {},
+        package_metadata_inner,
+    )
 }

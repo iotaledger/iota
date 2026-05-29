@@ -27,17 +27,16 @@ mod checked {
             RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
-        collection_types::Entry,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution_config_utils::to_binary_config,
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, PackageMetadata, PackageMetadataV1,
-            PackageViewFunctions, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap,
-            UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
+            IotaAttribute, MovePackageExt, PackageMetadata, PackageMetadataInner,
+            RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy,
+            UpgradeReceipt, UpgradeTicket, normalize_deserialized_modules_with_metadata,
+            normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -85,8 +84,8 @@ mod checked {
         programmable_transactions::context::*,
     };
 
-    const ATTACH_PACKAGE_VIEW_FUNCTIONS_METADATA_FN_NAME: &IdentStr =
-        ident_str!("attach_package_view_functions_metadata");
+    const ATTACH_PACKAGE_METADATA_INNER_FN_NAME: &IdentStr =
+        ident_str!("attach_package_metadata_inner");
     const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -971,6 +970,104 @@ mod checked {
         }
     }
 
+    #[derive(Copy, Clone)]
+    enum PackageMetadataHandler {
+        V1,
+        V2,
+    }
+
+    impl PackageMetadataHandler {
+        fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
+            if protocol_config.publish_package_metadata() {
+                Self::V2
+            } else {
+                Self::V1
+            }
+        }
+
+        fn supports_view_function_metadata(self) -> bool {
+            matches!(self, Self::V2)
+        }
+
+        fn should_publish_package(
+            self,
+            modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
+        ) -> bool {
+            match self {
+                Self::V1 => modules_metadata
+                    .values()
+                    .any(|md| !md.authenticator_metadata.is_empty()),
+                Self::V2 => modules_metadata.values().any(|md| !md.is_empty()),
+            }
+        }
+
+        fn publish_package(
+            self,
+            modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
+            storage_id: ObjectId,
+            runtime_id: ObjectId,
+            package_version: u64,
+        ) -> ObjectValue {
+            match self {
+                Self::V1 => {
+                    self.publish_v1(modules_metadata, storage_id, runtime_id, package_version)
+                }
+                Self::V2 => {
+                    self.publish_v2(modules_metadata, storage_id, runtime_id, package_version)
+                }
+            }
+        }
+
+        fn publish_v1(
+            self,
+            modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
+            storage_id: ObjectId,
+            runtime_id: ObjectId,
+            package_version: u64,
+        ) -> ObjectValue {
+            // Publish package metadata V1 calling the move framework function
+            // create_package_metadata_v1
+            todo!()
+        }
+
+        fn publish_v2(
+            self,
+            modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
+            storage_id: ObjectId,
+            runtime_id: ObjectId,
+            package_version: u64,
+        ) -> ObjectValue {
+            // Publish package metadata V2 calling the move framework function
+            // create_package_metadata_v2
+            todo!()
+        }
+    }
+
+    #[derive(Default)]
+    struct PendingModuleMetadata {
+        authenticator_metadata: BTreeMap<String, TypeTag>,
+        view_function_metadata: Vec<String>,
+    }
+
+    impl PendingModuleMetadata {
+        fn is_empty(&self) -> bool {
+            self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
+        }
+
+        // fn into_v1(self) -> ModuleMetadataV1 {
+        //     ModuleMetadataV1 {
+        //         authenticator_metadata: self.authenticator_metadata,
+        //     }
+        // }
+
+        // fn into_v2(self) -> ModuleMetadataV2 {
+        //     ModuleMetadataV2 {
+        //         authenticator_metadata: self.authenticator_metadata,
+        //         view_function_metadata: self.view_function_metadata,
+        //     }
+        // }
+    }
+
     /// Creates package metadata for a Move package by extracting module
     /// metadata and wrapping it in a `PackageMetadata`. The function iterates
     /// through the provided modules, collecting metadata associated with
@@ -986,8 +1083,9 @@ mod checked {
         package_version: u64,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
+        let package_metadata_hanlder =
+            PackageMetadataHandler::from_protocol_config(context.protocol_config);
         let mut modules_metadata_map = BTreeMap::new();
-        let mut package_view_functions_map = PackageViewFunctions::new();
         // Extract metadata for each module
         for module in modules {
             if let Some(md) = module
@@ -1012,102 +1110,91 @@ mod checked {
                             )
                         })?;
 
-                // PackageMetadataV1 specific:
-                // - Process functions for each module in order to create function metadata:
-                //    - Authenticator attributes, if present, are extracted to create
-                //      AuthenticatorMetadata to insert into the PackageMetadata
-                let mut module_metadata_map = BTreeMap::new();
-                let mut module_view_functions = Vec::new();
+                // Process functions for each module in order to create package
+                // metadata.
+                let mut pending_module_metadata = PendingModuleMetadata::default();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes
                     for attribute in fn_attributes {
                         match attribute {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
-                                let contains = module_metadata_map.insert(
-                                    fn_name.to_string(),
-                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
-                                );
+                                let contains =
+                                    pending_module_metadata.authenticator_metadata.insert(
+                                        fn_name.to_string(),
+                                        get_authenticator_first_param_type_tag(module, &fn_name)?,
+                                    );
                                 debug_assert!(
                                     contains.is_none(),
                                     "Duplicate function metadata for authenticator"
                                 );
                             }
-                            IotaAttribute::View => {
-                                module_view_functions.push(fn_name.to_string());
+                            IotaAttribute::View
+                                if package_metadata_hanlder.supports_view_function_metadata() =>
+                            {
+                                pending_module_metadata
+                                    .view_function_metadata
+                                    .push(fn_name.to_string());
                             }
-                            _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
+                            _ => { /* Other attributes are ignored. */ }
                         }
                     }
                 }
                 // Fill the package metadata with a module handle (and its related function
                 // metadata) only if there is at least one function with
                 // relevant metadata
-                if !module_metadata_map.is_empty() {
-                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
+                if !pending_module_metadata.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), pending_module_metadata);
                 }
-                if !module_view_functions.is_empty() {
-                    package_view_functions_map
-                        .package_view_functions
-                        .contents
-                        .push(Entry {
-                            key: module.name().to_string(),
-                            value: module_view_functions,
-                        });
-                }
-                // End of PackageMetadataV1 specific
             }
         }
 
-        let has_package_view_functions = !package_view_functions_map
-            .package_view_functions
-            .contents
-            .is_empty();
-
         // Only publish package metadata if there is at least one module with
         // relevant metadata
-        if !modules_metadata_map.is_empty() || has_package_view_functions {
+        if package_metadata_hanlder.should_publish_package(&modules_metadata_map) {
             // Create the package metadata "special" object UID
             let metadata_uid = context.package_derived_metadata_id(storage_id)?;
-            // Create the package metadata object content
-            let metadata = PackageMetadata::new_v1(
-                metadata_uid,
+            // let package_metadata_inner =
+            //     PackageMetadataInner::new_v2(modules_metadata_map, package_view_functions_map);
+            // // Create the package metadata object content
+            // let metadata =
+            //     PackageMetadata::new(metadata_uid, storage_id, runtime_id, package_version);
+            // // Turn the content into an object
+            // let mut package_metadata = context.make_object_value(
+            //     PackageMetadata::type_(),
+            //     // used_in_non_entry_move_call
+            //     false,
+            //     &metadata.to_bcs_bytes(),
+            // )?;
+            // package_metadata = attach_package_metadata_inner(
+            //     context,
+            //     package_metadata,
+            //     package_metadata_inner,
+            //     trace_builder_opt,
+            // )?;
+            let published_metadata = package_metadata_hanlder.publish_package(
+                &modules_metadata_map,
                 storage_id,
                 runtime_id,
                 package_version,
-                modules_metadata_map,
             );
-            // Turn the content into an object
-            let mut package_metadata = context.make_object_value(
-                metadata.type_(),
-                // used_in_non_entry_move_call
-                false,
-                &metadata.to_bcs_bytes(),
-            )?;
-            if has_package_view_functions {
-                package_metadata = attach_package_view_functions_metadata(
-                    context,
-                    package_metadata,
-                    package_view_functions_map,
-                    trace_builder_opt,
-                )?;
-            }
+
             // Freeze the package metadata object
-            context.freeze_object(package_metadata)?
+            context.freeze_object(published_metadata)?
         }
         Ok(())
     }
 
-    fn attach_package_view_functions_metadata(
+    fn attach_package_metadata_inner(
         context: &mut ExecutionContext<'_, '_, '_>,
         package_metadata: ObjectValue,
-        package_view_functions: PackageViewFunctions,
+        package_metadata_inner: PackageMetadataInner,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<ObjectValue, ExecutionError> {
         let mut package_metadata_bytes = Vec::new();
         package_metadata.write_bcs_bytes(&mut package_metadata_bytes, None)?;
-        let package_view_functions_bytes = bcs::to_bytes(&package_view_functions).map_err(|e| {
+        let package_metadata_inner_bytes = bcs::to_bytes(&package_metadata_inner).map_err(|e| {
             ExecutionError::invariant_violation(format!(
-                "failed to serialize package view functions metadata: {e}"
+                "failed to serialize package metadata inner payload: {e}"
             ))
         })?;
 
@@ -1119,9 +1206,9 @@ mod checked {
             context
                 .execute_function_bypass_visibility(
                     &runtime_id,
-                    ATTACH_PACKAGE_VIEW_FUNCTIONS_METADATA_FN_NAME,
+                    ATTACH_PACKAGE_METADATA_INNER_FN_NAME,
                     vec![],
-                    vec![package_metadata_bytes, package_view_functions_bytes],
+                    vec![package_metadata_bytes, package_metadata_inner_bytes],
                     trace_builder_opt,
                 )
                 .map_err(|e| context.convert_vm_error(e))
@@ -1134,26 +1221,26 @@ mod checked {
             } = result;
             assert_invariant!(
                 return_values.is_empty(),
-                "attach_package_view_functions_metadata should not have return values"
+                "attach_package_metadata_inner should not have return values"
             );
             let mut mutable_reference_outputs = mutable_reference_outputs.into_iter();
             let Some((idx, package_metadata_bytes, _layout)) = mutable_reference_outputs.next()
             else {
                 invariant_violation!(
-                    "attach_package_view_functions_metadata should return one mutable reference output"
+                    "attach_package_metadata_inner should return one mutable reference output"
                 );
             };
             assert_invariant!(
                 mutable_reference_outputs.next().is_none(),
-                "attach_package_view_functions_metadata should return one mutable reference output"
+                "attach_package_metadata_inner should return one mutable reference output"
             );
             assert_invariant!(
                 idx == 0,
-                "attach_package_view_functions_metadata should mutate its first argument"
+                "attach_package_metadata_inner should mutate its first argument"
             );
 
             context.make_object_value(
-                PackageMetadataV1::type_(),
+                PackageMetadata::type_(),
                 // used_in_non_entry_move_call
                 false,
                 &package_metadata_bytes,

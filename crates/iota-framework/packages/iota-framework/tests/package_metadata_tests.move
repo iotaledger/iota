@@ -4,34 +4,30 @@
 #[test_only]
 module iota::package_metadata_tests;
 
-use iota::package_metadata;
+use iota::package_metadata::create_package_metadata_v2_for_testing;
 use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use std::ascii;
 
 #[test]
-fun borrow_package_view_functions_metadata_happy_path() {
-    let package = object::id_from_address(@0xA);
+fun view_functions_metadata_happy_path() {
+    let id = object::id_from_address(@0xA);
     let module_name = ascii::string(b"module");
-    let view_function = ascii::string(b"view_function");
+    let view_function_name = ascii::string(b"view_function");
 
-    let metadata = package_metadata::create_package_metadata_v1_for_testing_with_view_functions(
-        package,
-        module_name,
-        vector[view_function],
+    let package_metadata_v2 = create_package_metadata_v2_for_testing(
+        id,
+        vector[module_name],
+        vector[vector[]],
+        vector[vector[]],
+        vector[vector[view_function_name]],
     );
 
-    let view_metadata = package_metadata::borrow_package_view_functions_metadata(&metadata);
-    let module_view_functions = package_metadata::module_view_functions(
-        view_metadata,
-        &module_name,
-    );
+    let module_metadata = package_metadata_v2.modules_metadata_v2(&module_name);
 
-    assert_eq(module_view_functions.length(), 1);
-    assert_ref_eq(&module_view_functions[0], &view_function);
+    let view_function_metadata = module_metadata.view_function_metadata(&view_function_name);
 
-    let package_view_functions = package_metadata::view_functions(view_metadata);
-    assert_eq(package_view_functions.size(), 1);
-    assert_ref_eq(package_view_functions.get(&module_name), &vector[view_function]);
+    assert_eq(module_metadata.view_functions_metadata().length(), 1);
+    assert_ref_eq(view_function_metadata.view_function_name(), &view_function_name);
 
-    test_utils::destroy(metadata)
+    test_utils::destroy(package_metadata_v2);
 }
