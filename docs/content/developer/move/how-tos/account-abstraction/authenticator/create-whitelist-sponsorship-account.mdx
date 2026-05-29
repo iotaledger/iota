@@ -23,7 +23,7 @@ This guide builds on patterns from the [Enforce a Per-Transaction Spending Limit
 
 :::tip Why is this possible?
 
-The authenticator receives the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext), which exposes the sender's [`sender_authenticator_function_info_v1()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_sender_authenticator_function_info_v1) and the PTB [`tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands). Combined with the [`TxContext`](../../../../references/framework/iota/tx_context.mdx) fields [`sponsor()`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_sponsor) and [`gas_budget()`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_gas_budget), the sponsor can decide — before execution — whose transactions it is willing to pay for and how much it is willing to spend on each user.
+The authenticator receives the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext), which exposes the sender's `sender_authenticator_function_info_v1()` and the PTB [`tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands). Combined with the [`TxContext`](../../../../references/framework/iota/tx_context.mdx) fields `sponsor()` and `gas_budget()`, the sponsor can decide — before execution — whose transactions it is willing to pay for and how much it is willing to spend on each user.
 
 :::
 
