@@ -193,8 +193,7 @@ const FILE_METADATA_BYTES: usize =
 pub enum FileType {
     Object = 0,
     Reference = 1,
-    /// V2 only: per-epoch metadata file, populated from
-    /// `IndexStoreTables::epoch_info` via `GrpcIndexes::get_epoch_info_entry`.
+    /// per-epoch metadata file
     EpochInfo = 2,
 }
 
@@ -283,28 +282,16 @@ pub struct EpochInfoV1Entry {
 
     /// Certified summary of this epoch's last checkpoint — carries
     /// `end_of_epoch_data`, gas summary, timestamp, quorum signatures.
-    pub last_checkpoint_summary:
-        Option<iota_types::messages_checkpoint::CertifiedCheckpointSummary>,
+    pub last_checkpoint_summary: iota_types::messages_checkpoint::CertifiedCheckpointSummary,
 
     /// Events from the AdvanceEpoch tx — carries `SystemEpochInfoEvent`
     /// (storage/computation accounting, mint/burn, stake rewards).
-    pub end_of_epoch_tx_events: Option<iota_types::effects::TransactionEvents>,
+    pub end_of_epoch_tx_events: iota_types::effects::TransactionEvents,
 }
 
 /// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
 /// future schema evolution. `entries[i]` is the entry for epoch `i`;
 /// length is `snapshot_epoch + 1`.
-///
-/// Entries are wrapped in `Option<>` so the on-disk format can express "no
-/// row for epoch `i`" without bumping to a new `EpochInfo` variant. Today's
-/// writer always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
-/// (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`) refuses
-/// to publish unless every epoch in `[0, snapshot_epoch]` has a fully
-/// populated row — but a future partial-coverage writer (e.g. snapshots
-/// that omit pruned epochs) can emit `None` here without breaking V1
-/// decoders.
-// No `Eq`/`PartialEq` derive: `EpochInfoV1Entry` transitively contains
-// `BLS12381AggregateSignature`, which does not implement `PartialEq`.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EpochInfo {
     V1(EpochInfoV1),
@@ -312,11 +299,11 @@ pub enum EpochInfo {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EpochInfoV1 {
-    pub entries: Vec<Option<EpochInfoV1Entry>>,
+    pub entries: Vec<EpochInfoV1Entry>,
 }
 
 impl EpochInfo {
-    pub fn entries(&self) -> &[Option<EpochInfoV1Entry>] {
+    pub fn entries(&self) -> &[EpochInfoV1Entry] {
         match self {
             Self::V1(info) => &info.entries,
         }

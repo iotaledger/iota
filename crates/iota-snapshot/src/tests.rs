@@ -161,8 +161,8 @@ fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
         start_checkpoint: 0,
         start_system_state: bcs::to_bytes(&test_system_state())
             .expect("test_system_state must BCS-encode"),
-        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(epoch)),
-        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+        last_checkpoint_summary: fully_populated_checkpoint_summary(epoch),
+        end_of_epoch_tx_events: TransactionEvents::default(),
     }
 }
 
@@ -344,12 +344,7 @@ async fn snapshot_round_trip(
             1,
             "expected `entries` of length 1 for snapshot at epoch 0"
         );
-        // `EpochInfoV1.entries` is `Vec<Option<EpochInfoV1Entry>>`; the writer
-        // always emits `Some(_)` under its `EpochIndexed` watermark
-        // precondition (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`).
-        let entry = decoded_v1.entries[0]
-            .as_ref()
-            .expect("writer must emit Some entry under the watermark precondition");
+        let entry = &decoded_v1.entries[0];
         // Bit-identical round-trip of `start_system_state`. The writer
         // BCS-encodes `EpochInfoV2.system_state` into this `Vec<u8>`; the
         // assertion locks that the bytes on disk equal the deterministic
@@ -365,15 +360,7 @@ async fn snapshot_round_trip(
         );
         assert_eq!(
             entry.start_checkpoint, 0,
-            "first_checkpoint did not round-trip"
-        );
-        assert!(
-            entry.last_checkpoint_summary.is_some(),
-            "last_checkpoint_summary did not round-trip"
-        );
-        assert!(
-            entry.end_of_epoch_tx_events.is_some(),
-            "end_of_epoch_tx_events did not round-trip"
+            "start_checkpoint did not round-trip"
         );
     }
 
@@ -818,30 +805,23 @@ fn write_manifest_file(path: &std::path::Path, manifest: &Manifest) -> std::io::
 
 /// Locks the on-disk format of the `EPOCH_INFO` file body: BCS-encoding
 /// `EpochInfo::V1` must use variant tag `0`, and `entries` must round-trip
-/// with its length preserved.
+/// with its length and per-slot ordering preserved.
 ///
 /// The end-to-end payload (writer → BCS → file → BCS → reader) is covered
-/// by `snapshot_round_trip`'s EPOCH_INFO assertion, which uses the
-/// `TEST_START_SYSTEM_STATE` canary to verify a bit-identical round-trip
-/// of the opaque `start_system_state` bytes plus `first_checkpoint`,
-/// `last_checkpoint_summary`, and `end_of_epoch_tx_events`. This test
-/// exercises the discriminant and Vec framing in isolation so an on-disk-
-/// format regression that decouples from the writer (e.g. someone adds
-/// an `EpochInfoV2` variant before `V1`) is caught even if the writer
-/// path is healthy.
+/// by `snapshot_round_trip`'s EPOCH_INFO assertion. This test exercises
+/// the discriminant and `Vec` framing in isolation so an on-disk-format
+/// regression that decouples from the writer (e.g. someone adds an
+/// `EpochInfoV2` variant before `V1`) is caught even if the writer path
+/// is healthy.
 #[test]
 fn epoch_info_v1_bcs_round_trip() {
-    // Mix of `Some(_)` and `None` entries so the `Option` framing in
-    // `Vec<Option<EpochInfoV1Entry>>` is exercised end-to-end. Today's
-    // writer never emits `None` (the watermark precondition forbids it),
-    // but the on-disk format reserves that shape for a future partial-
-    // coverage writer — see [`EpochInfo`]. Locking the `None`-tag byte
-    // here keeps that forward-compat path honest.
+    // Three entries with distinct epoch numbers so a Vec-reordering bug
+    // surfaces as a per-slot mismatch below.
     let epoch_info = EpochInfo::V1(EpochInfoV1 {
         entries: vec![
-            Some(fully_populated_snapshot_epoch_entry(0)),
-            None,
-            Some(fully_populated_snapshot_epoch_entry(2)),
+            fully_populated_snapshot_epoch_entry(0),
+            fully_populated_snapshot_epoch_entry(1),
+            fully_populated_snapshot_epoch_entry(2),
         ],
     });
     let bytes = bcs::to_bytes(&epoch_info).unwrap();
@@ -853,24 +833,11 @@ fn epoch_info_v1_bcs_round_trip() {
     let decoded: EpochInfo = bcs::from_bytes(&bytes).unwrap();
     let EpochInfo::V1(decoded_v1) = decoded;
     assert_eq!(decoded_v1.entries.len(), 3);
-    assert!(
-        decoded_v1.entries[1].is_none(),
-        "Vec<Option<_>> framing must preserve None entries across BCS"
-    );
-    // Per-entry summary carries the epoch number, so this also asserts
-    // the Vec ordering is preserved across BCS round-trip.
-    let assert_entry_epoch = |i: usize, expected: EpochId| {
-        let entry = decoded_v1.entries[i]
-            .as_ref()
-            .expect("fixture populates this slot");
-        let summary = entry
-            .last_checkpoint_summary
-            .as_ref()
-            .expect("fixture populates last_checkpoint_summary");
-        assert_eq!(summary.epoch(), expected);
-    };
-    assert_entry_epoch(0, 0);
-    assert_entry_epoch(2, 2);
+    // Per-entry summary carries the epoch number, so this asserts the
+    // Vec ordering is preserved across BCS round-trip.
+    for (i, entry) in decoded_v1.entries.iter().enumerate() {
+        assert_eq!(entry.last_checkpoint_summary.epoch(), i as EpochId);
+    }
 }
 
 /// Locks the BCS field order of `EpochInfoV1Entry` against silent
@@ -893,8 +860,8 @@ fn snapshot_epoch_info_field_order_is_locked() {
         start_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
         // Distinct payload so a misordered field would be obvious.
         start_system_state: vec![0xAA, 0xBB, 0xCC, 0xDD],
-        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(0)),
-        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+        last_checkpoint_summary: fully_populated_checkpoint_summary(0),
+        end_of_epoch_tx_events: TransactionEvents::default(),
     };
 
     let entry_bytes = bcs::to_bytes(&entry).expect("entry serialization");

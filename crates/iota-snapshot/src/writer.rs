@@ -560,50 +560,43 @@ impl StateSnapshotWriterV1 {
                 .unwrap_or_else(|| {
                     panic!(
                         "epochs_v2[{epoch_id}] is absent despite `EpochIndexed` \
-                     watermark covering it — watermark/row inconsistency"
+                         watermark covering it — watermark/row inconsistency"
                     )
                 });
-            let summary = epoch_info
-                .last_checkpoint_summary
-                .as_ref()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "epochs_v2[{epoch_id}] is missing `last_checkpoint_summary` \
-                     despite `EpochIndexed` watermark covering it — \
-                     watermark/row inconsistency"
-                    )
-                });
+            let last_checkpoint_summary = epoch_info.last_checkpoint_summary.unwrap_or_else(|| {
+                panic!(
+                    "epochs_v2[{epoch_id}] is missing `last_checkpoint_summary` \
+                         despite `EpochIndexed` watermark covering it — \
+                         watermark/row inconsistency"
+                )
+            });
             // The close-of-epoch write commits `last_checkpoint_summary`
             // and `end_of_epoch_tx_events` in the same atomic batch, so if
-            // one is set the other must be too. Assert the symmetric
-            // invariant — without it, a future bug that splits the two
-            // writes would silently produce snapshots missing events.
-            assert!(
-                epoch_info.end_of_epoch_tx_events.is_some(),
-                "epochs_v2[{epoch_id}] is missing `end_of_epoch_tx_events` \
-                 despite `last_checkpoint_summary` being populated — \
-                 end-of-epoch atomicity violation",
-            );
+            // one is set the other must be too. Without this check, a
+            // future bug that splits the two writes would silently produce
+            // snapshots missing events.
+            let end_of_epoch_tx_events = epoch_info.end_of_epoch_tx_events.unwrap_or_else(|| {
+                panic!(
+                    "epochs_v2[{epoch_id}] is missing `end_of_epoch_tx_events` \
+                     despite `last_checkpoint_summary` being populated — \
+                     end-of-epoch atomicity violation"
+                )
+            });
             // Turn a silent miswrite (entry stored under the wrong epoch
             // key) into a loud panic at snapshot time.
-            let entry_epoch = summary.epoch();
+            let entry_epoch = last_checkpoint_summary.epoch();
             assert_eq!(
                 entry_epoch, epoch_id,
                 "epochs_v2[{epoch_id}] is populated with an entry for epoch \
                  {entry_epoch}; the snapshot would silently misattribute checkpoints",
             );
 
-            let entry = EpochInfoV1Entry {
+            entries.push(EpochInfoV1Entry {
                 start_checkpoint: epoch_info.start_checkpoint,
                 start_system_state: bcs::to_bytes(&epoch_info.system_state)?,
-                last_checkpoint_summary: epoch_info.last_checkpoint_summary,
-                end_of_epoch_tx_events: epoch_info.end_of_epoch_tx_events,
-            };
-
-            // On-disk format is `Vec<Option<EpochInfoV1Entry>>` (see [`EpochInfo`]).
-            // Today's writer always emits `Some` — the watermark precondition
-            // refuses to publish if any row in `[0, epoch]` is incomplete.
-            entries.push(Some(entry));
+                last_checkpoint_summary,
+                end_of_epoch_tx_events,
+            });
         }
         let epoch_info = EpochInfo::V1(EpochInfoV1 { entries });
         let serialized = bcs::to_bytes(&epoch_info)?;
