@@ -64,8 +64,9 @@ use crate::{
 ///   checks (deny list, gas, ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
-/// - An already-executed transaction is **retained** (not dropped): it registers
-///   its owned-object locks and skips re-validation. See issue #11649.
+/// - An already-executed transaction is **retained** (not dropped): it
+///   registers its owned-object locks and skips re-validation. See issue
+///   #11649.
 ///
 /// Non-`UserTransactionV1` transactions pass through unchanged.
 ///
@@ -137,15 +138,9 @@ pub async fn validate_and_resolve_conflicts(
             for obj_ref in &owned_inputs {
                 // A winner cannot be out-locked: an executed tx owns its inputs. A lock
                 // held by a different tx is a consistency violation, not a conflict.
-                let existing_lock = match current_commit_locks
-                    .get(obj_ref)
-                    .copied()
-                    .or_else(|| epoch_store.get_quarantined_owned_object_lock(obj_ref))
+                if let Some(other) =
+                    find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
                 {
-                    Some(lock) => Some(lock),
-                    None => epoch_store.tables()?.get_locked_transaction(obj_ref)?,
-                };
-                if let Some(other) = existing_lock {
                     if other != digest {
                         fatal!(
                             "already-executed transaction {:?} has owned input {:?} \
@@ -210,52 +205,21 @@ pub async fn validate_and_resolve_conflicts(
         // Tier 2: Consensus quarantine (previous uncommitted commits).
         // Tier 3: Persistent DB (committed data).
         let mut conflict: Option<IotaError> = None;
-        'conflict_check: for obj_ref in &owned_inputs {
-            if let Some(&pending_transaction) = current_commit_locks.get(obj_ref) {
-                debug!(
-                    ?digest,
-                    ?obj_ref,
-                    "Transaction conflicts with earlier tx in same commit, dropping"
-                );
-                conflict = Some(IotaError::ObjectLockConflict {
-                    obj_ref: *obj_ref,
-                    pending_transaction,
-                });
-                break 'conflict_check;
-            }
-
-            if let Some(locked_by) = epoch_store.get_quarantined_owned_object_lock(obj_ref) {
+        for obj_ref in &owned_inputs {
+            if let Some(locked_by) =
+                find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
+            {
                 debug!(
                     ?digest,
                     ?obj_ref,
                     ?locked_by,
-                    "Transaction conflicts with quarantined lock, dropping"
+                    "Transaction conflicts with existing owned-object lock, dropping"
                 );
                 conflict = Some(IotaError::ObjectLockConflict {
                     obj_ref: *obj_ref,
                     pending_transaction: locked_by,
                 });
-                break 'conflict_check;
-            }
-
-            match epoch_store.tables()?.get_locked_transaction(obj_ref)? {
-                Some(locked_by) => {
-                    debug!(
-                        ?digest,
-                        ?obj_ref,
-                        ?locked_by,
-                        "Transaction conflicts with persistent lock, dropping"
-                    );
-                    conflict = Some(IotaError::ObjectLockConflict {
-                        obj_ref: *obj_ref,
-                        pending_transaction: locked_by,
-                    });
-                    break 'conflict_check;
-                }
-                None => {
-                    // No lock in DB — this input is free to be locked by
-                    // the current transaction.
-                }
+                break;
             }
         }
         if let Some(e) = conflict {
@@ -325,6 +289,30 @@ pub async fn validate_and_resolve_conflicts(
     transactions.retain(|_| iter.next().unwrap_or(true));
 
     Ok((dropped, current_commit_locks))
+}
+
+/// Finds an existing owned-object lock on `obj_ref`, walking three tiers in
+/// order:
+/// 1. `current_commit_locks` — locks acquired earlier in the same commit.
+/// 2. Consensus quarantine — locks from previous uncommitted commits.
+/// 3. Persistent DB — committed locks.
+///
+/// Returns `Ok(Some(locker))` if any tier holds a lock, `Ok(None)` if the
+/// input is free. The caller decides what to do with the result (drop with
+/// `ObjectLockConflict` for a contender, or `fatal!` if a winner is
+/// out-locked).
+fn find_existing_lock(
+    obj_ref: &ObjectRef,
+    current_commit_locks: &HashMap<ObjectRef, LockDetails>,
+    epoch_store: &Arc<AuthorityPerEpochStore>,
+) -> IotaResult<Option<LockDetails>> {
+    if let Some(&locker) = current_commit_locks.get(obj_ref) {
+        return Ok(Some(locker));
+    }
+    if let Some(locker) = epoch_store.get_quarantined_owned_object_lock(obj_ref) {
+        return Ok(Some(locker));
+    }
+    epoch_store.tables()?.get_locked_transaction(obj_ref)
 }
 
 /// Extracts owned input object references from a `UserTransactionV1`
