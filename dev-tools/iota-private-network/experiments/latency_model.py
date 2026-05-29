@@ -10,9 +10,9 @@ flat 10x10 RTT table in network-benchmark.sh doesn't produce:
 
 * Validators are assigned to ~5 geographic regions; intra-region RTT is small,
   inter-region RTT follows a fixed (AWS-ish, scaled-down) base table.
-* A small set of "heavy-tail" validators carry a per-validator handicap that
-  is added to every edge incident to them — models peers with bad uplinks or
-  sub-optimal peering.
+* A small set of "heavy-tail" validators receive threshold-jittered inbound
+  traffic around Starfish's 50 ms min block delay, while their outbound slow
+  edges remain worse than the healthy core.
 * Each *directed* edge gets independent log-normal perturbation. Drawing
   i->j and j->i separately preserves path asymmetry; the noise spread is
   tuned to keep triangle-inequality violations to a small fraction.
@@ -55,15 +55,14 @@ class LatencyConfig:
     *Good-to-good* edges follow the regional base table plus small log-normal
     noise — these dominate the matrix and keep the **median** RTT near 50 ms.
 
-    *Edges incident to a heavy-tail validator* follow a much harsher model:
-    each heavy-tail validator has a small fixed set of `heavy_tail_fast_peers`
-    "fast" peers (default 4) — bidirectional edges to those peers are drawn
-    uniformly on `[heavy_tail_fast_floor_ms, heavy_tail_fast_ceiling_ms]`
-    (default 100–200 ms), modelling the few peers the bad node still reaches
-    over a working path. Every *other* edge incident to a heavy-tail node is
-    drawn log-uniformly on `[heavy_tail_floor_ms, heavy_tail_ceiling_ms]` —
-    a heavy tail in the statistical sense, sitting mostly near the floor with
-    a few values stretching to the ceiling.
+    *Heavy-tail validators* are treated asymmetrically:
+
+    * inbound edges to the heavy-tail validator sit around Starfish's 50 ms
+      min block delay and carry high jitter, so prior-round packets sometimes
+      arrive before the min-delay timer and sometimes after it;
+    * outbound slow edges from the heavy-tail validator remain worse than the
+      healthy core, with a small fixed set of fast peers still reachable over
+      moderate latency.
     """
 
     num_validators: int
@@ -99,8 +98,22 @@ class LatencyConfig:
     # kept close to the 2-hop alternative (fast-peer + healthy leg, ~200 ms)
     # so heavy-tail edges remain distinctly slower than the healthy core
     # without exposing a much cheaper indirect path on most triples.
-    heavy_tail_floor_ms: int = 210
-    heavy_tail_ceiling_ms: int = 300
+    heavy_tail_floor_ms: int = 240
+    heavy_tail_ceiling_ms: int = 350
+
+    # Inbound edges to a heavy-tail validator straddle Starfish's production
+    # min_block_delay (50 ms), but with enough jitter and correlation to create
+    # bursty fast/late periods instead of averaging out packet-by-packet. This
+    # is applied only when the destination is heavy-tail; healthy-to-healthy
+    # edges keep low jitter and no correlation.
+    heavy_tail_inbound_floor_ms: int = 35
+    heavy_tail_inbound_ceiling_ms: int = 95
+    heavy_tail_inbound_jitter_ms: int = 105
+    heavy_tail_inbound_correlation_pct: float = 55.0
+
+    # Slightly reduce the regional base RTT table to keep the healthy core
+    # close to the 19 blocks/s target while preserving the same topology shape.
+    base_rtt_scale: float = 0.85
 
     # Per-edge log-normal perturbation for non-heavy edges:
     # noise = (LogNormal(0, sigma) - exp(sigma^2 / 2)) * scale, i.e. the
@@ -166,6 +179,20 @@ class LatencyConfig:
             )
         if self.heavy_tail_floor_ms <= 0 or self.heavy_tail_ceiling_ms <= self.heavy_tail_floor_ms:
             raise ValueError("require 0 < heavy_tail_floor_ms < heavy_tail_ceiling_ms")
+        if self.heavy_tail_inbound_floor_ms <= 0 \
+                or self.heavy_tail_inbound_ceiling_ms < self.heavy_tail_inbound_floor_ms:
+            raise ValueError(
+                "require 0 < heavy_tail_inbound_floor_ms "
+                "<= heavy_tail_inbound_ceiling_ms"
+            )
+        if self.heavy_tail_inbound_jitter_ms < 0:
+            raise ValueError("heavy_tail_inbound_jitter_ms must be >= 0")
+        if not (0.0 <= self.heavy_tail_inbound_correlation_pct <= 100.0):
+            raise ValueError(
+                "heavy_tail_inbound_correlation_pct must be in [0, 100]"
+            )
+        if self.base_rtt_scale <= 0.0:
+            raise ValueError("base_rtt_scale must be > 0")
         # heavy_tail_fast_peers vs. available-non-heavy is checked at
         # generate() time because the heavy-tail count depends on N and
         # block alignment, not on a stored config value.
@@ -194,6 +221,7 @@ class LatencyMatrix:
     fast_peers: dict[int, list[int]]
     rtt_ms: dict[tuple[int, int], int]    # (src, dst) -> ms (1-based, src != dst)
     jitter_ms: dict[tuple[int, int], int]
+    correlation_pct: dict[tuple[int, int], float]
     loss_pct: dict[tuple[int, int], float]  # 0.0 on non-heavy-tail edges
 
 
@@ -282,6 +310,7 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
 
     rtt: dict[tuple[int, int], int] = {}
     jitter: dict[tuple[int, int], int] = {}
+    correlation: dict[tuple[int, int], float] = {}
     loss: dict[tuple[int, int], float] = {}
 
     # Precompute: log-uniform map exponent for heavy-tail slow draws, the
@@ -291,6 +320,7 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
     noise_mean = math.exp(cfg.noise_sigma ** 2 / 2.0)
     loss_span = cfg.heavy_tail_loss_max_pct - cfg.heavy_tail_loss_min_pct
     fast_span = cfg.heavy_tail_fast_ceiling_ms - cfg.heavy_tail_fast_floor_ms
+    inbound_span = cfg.heavy_tail_inbound_ceiling_ms - cfg.heavy_tail_inbound_floor_ms
 
     for i in range(n):
         for j in range(n):
@@ -309,12 +339,18 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
             )
             u_loss = _rng_for(cfg, i, j, salt=6).random()
 
-            base = _BASE_RTT_MS[region_idx[i]][region_idx[j]]
+            base = _BASE_RTT_MS[region_idx[i]][region_idx[j]] * cfg.base_rtt_scale
             ht_incident = (i in heavy_tail_set) or (j in heavy_tail_set)
+            ht_inbound = j in heavy_tail_set
             fast_edge = ht_incident and _is_fast_edge(i, j)
-            slow_sub_edge = ht_incident and not fast_edge
+            slow_sub_edge = ht_incident and not fast_edge and not ht_inbound
 
-            if fast_edge:
+            if ht_inbound:
+                # Only heavy-tail validators get threshold jitter: inbound
+                # packets hover around the 50 ms min block delay so timing
+                # varies across rounds instead of being uniformly slow.
+                value = cfg.heavy_tail_inbound_floor_ms + u_ht * inbound_span
+            elif fast_edge:
                 # Heavy-tail's fast peer: uniform on [fast_floor, fast_ceiling].
                 value = cfg.heavy_tail_fast_floor_ms + u_ht * fast_span
             elif slow_sub_edge:
@@ -335,11 +371,12 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
             # full cost). At skew=2, median handicap = max/4; at skew=3,
             # max/8 — knobs to trade off matrix p50 against per-validator
             # spread.
-            handicap_i = (
-                (1.0 - uplink_q[i]) ** cfg.uplink_handicap_skew
-                * cfg.uplink_handicap_max_ms
-            )
-            value += handicap_i
+            if not ht_inbound:
+                handicap_i = (
+                    (1.0 - uplink_q[i]) ** cfg.uplink_handicap_skew
+                    * cfg.uplink_handicap_max_ms
+                )
+                value += handicap_i
 
             rtt_val = max(cfg.min_rtt_ms, int(round(value)))
             rtt[(i + 1, j + 1)] = rtt_val
@@ -351,10 +388,16 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
             #     gets RTT-proportional jitter scaled by the sender's
             #     uplink quality, with `jitter_max_ms` as a floor so very
             #     low-RTT intra-region edges still see a couple ms.
-            if slow_sub_edge and cfg.heavy_tail_jitter_frac > 0.0:
+            if ht_inbound:
+                jitter[(i + 1, j + 1)] = cfg.heavy_tail_inbound_jitter_ms
+                correlation[(i + 1, j + 1)] = (
+                    cfg.heavy_tail_inbound_correlation_pct
+                )
+            elif slow_sub_edge and cfg.heavy_tail_jitter_frac > 0.0:
                 jitter[(i + 1, j + 1)] = int(
                     round(rtt_val * cfg.heavy_tail_jitter_frac)
                 )
+                correlation[(i + 1, j + 1)] = 0.0
             else:
                 jitter_frac = (
                     cfg.non_heavy_jitter_base_frac
@@ -363,6 +406,7 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
                 jitter[(i + 1, j + 1)] = max(
                     j_small, int(round(rtt_val * jitter_frac))
                 )
+                correlation[(i + 1, j + 1)] = 0.0
 
             # Loss only applies on slow heavy-tail edges — the fast peers
             # are explicitly the "working" connections the bad validator
@@ -389,14 +433,16 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
         fast_peers=fast_peers_1b,
         rtt_ms=rtt,
         jitter_ms=jitter,
+        correlation_pct=correlation,
         loss_pct=loss,
     )
 
 
 def write_tsv(matrix: LatencyMatrix, path: Path) -> None:
-    """Write `src \\t dst \\t rtt_ms \\t jitter_ms \\t loss_pct` rows
-    (1-based indices). The bash reader treats the 5th column as optional so
-    older TSVs without `loss_pct` still load (loss falls back to 0).
+    """Write `src \\t dst \\t rtt_ms \\t jitter_ms \\t loss_pct \\t corr_pct`
+    rows (1-based indices). The bash reader treats the 5th and 6th columns as
+    optional so older TSVs without `loss_pct` or `corr_pct` still load
+    (missing values fall back to 0).
 
     Header comment lines (starting with `#`) are skipped by the bash reader.
     """
@@ -407,17 +453,23 @@ def write_tsv(matrix: LatencyMatrix, path: Path) -> None:
     ]
     lines = [
         f"# latency-matrix n={cfg.num_validators} seed={cfg.seed} "
-        f"default_matrix_validators={cfg.default_matrix_validators}",
+        f"default_matrix_validators={cfg.default_matrix_validators} "
+        f"base_rtt_scale={cfg.base_rtt_scale:.2f}",
         f"# regions: {', '.join(f'{i+1}:{r}' for i, r in enumerate(matrix.region_of))}",
         f"# heavy_tail: {matrix.heavy_tail}",
+        f"# heavy_tail_inbound: {cfg.heavy_tail_inbound_floor_ms}-"
+        f"{cfg.heavy_tail_inbound_ceiling_ms}ms "
+        f"jitter={cfg.heavy_tail_inbound_jitter_ms}ms "
+        f"corr={cfg.heavy_tail_inbound_correlation_pct:.0f}%",
         *fast_peer_lines,
-        "# src\tdst\trtt_ms\tjitter_ms\tloss_pct",
+        "# src\tdst\trtt_ms\tjitter_ms\tloss_pct\tcorr_pct",
     ]
     for (src, dst), rtt in sorted(matrix.rtt_ms.items()):
         lines.append(
             f"{src}\t{dst}\t{rtt}\t"
             f"{matrix.jitter_ms[(src, dst)]}\t"
-            f"{matrix.loss_pct[(src, dst)]:.2f}"
+            f"{matrix.loss_pct[(src, dst)]:.2f}\t"
+            f"{matrix.correlation_pct[(src, dst)]:.0f}"
         )
     path.write_text("\n".join(lines) + "\n")
 
@@ -496,33 +548,32 @@ def summarize(matrix: LatencyMatrix) -> list[str]:
             fast = set(matrix.fast_peers.get(v, []))
             out_slow = [rtt[(v, j)] for j in range(1, n + 1)
                         if j != v and j not in fast]
-            in_slow = [rtt[(j, v)] for j in range(1, n + 1)
-                       if j != v and j not in fast]
+            in_threshold = [rtt[(j, v)] for j in range(1, n + 1) if j != v]
             out_total = sum(1 for j in range(1, n + 1) if j != v)
-            # Loss + jitter spread across this validator's *slow* edges only —
-            # fast peers are explicitly 0% loss / small jitter by construction.
-            edge_loss = [
+            out_edge_loss = [
                 matrix.loss_pct[(v, j)] for j in range(1, n + 1)
                 if j != v and j not in fast
-            ] + [
-                matrix.loss_pct[(j, v)] for j in range(1, n + 1)
-                if j != v and j not in fast
             ]
-            edge_jit = [
+            out_edge_jit = [
                 matrix.jitter_ms[(v, j)] for j in range(1, n + 1)
                 if j != v and j not in fast
-            ] + [
-                matrix.jitter_ms[(j, v)] for j in range(1, n + 1)
-                if j != v and j not in fast
+            ]
+            in_edge_jit = [
+                matrix.jitter_ms[(j, v)] for j in range(1, n + 1) if j != v
+            ]
+            in_edge_corr = [
+                matrix.correlation_pct[(j, v)]
+                for j in range(1, n + 1)
+                if j != v
             ]
             lines.append(
                 f"    validator-{v}: "
                 f"out {len(out_slow)}/{out_total} slow "
                 f"(median {_percentile(out_slow, 0.5)}ms, "
                 f"max {max(out_slow) if out_slow else 0}ms); "
-                f"in {len(in_slow)}/{out_total} slow "
-                f"(median {_percentile(in_slow, 0.5)}ms, "
-                f"max {max(in_slow) if in_slow else 0}ms)"
+                f"in {len(in_threshold)}/{out_total} threshold-jitter "
+                f"(median {_percentile(in_threshold, 0.5)}ms, "
+                f"max {max(in_threshold) if in_threshold else 0}ms)"
             )
             sorted_fast = sorted(fast)
             fast_rtts = [rtt[(v, p)] for p in sorted_fast]
@@ -531,15 +582,23 @@ def summarize(matrix: LatencyMatrix) -> list[str]:
                     f"      fast peers {sorted_fast} "
                     f"(rtt {min(fast_rtts)}–{max(fast_rtts)} ms)"
                 )
-            if edge_loss and max(edge_loss) > 0.0:
+            if in_edge_jit:
                 lines.append(
-                    f"      slow-edge loss "
-                    f"{min(edge_loss):.1f}%–{max(edge_loss):.1f}%, "
-                    f"jitter {min(edge_jit)}–{max(edge_jit)} ms"
+                    f"      inbound threshold jitter "
+                    f"{min(in_edge_jit)}-{max(in_edge_jit)} ms, "
+                    f"correlation {min(in_edge_corr):.0f}-"
+                    f"{max(in_edge_corr):.0f}%"
                 )
-            elif edge_jit:
+            if out_edge_loss and max(out_edge_loss) > 0.0:
                 lines.append(
-                    f"      slow-edge jitter {min(edge_jit)}–{max(edge_jit)} ms "
+                    f"      outbound slow-edge loss "
+                    f"{min(out_edge_loss):.1f}%–{max(out_edge_loss):.1f}%, "
+                    f"jitter {min(out_edge_jit)}-{max(out_edge_jit)} ms"
+                )
+            elif out_edge_jit:
+                lines.append(
+                    f"      outbound slow-edge jitter "
+                    f"{min(out_edge_jit)}-{max(out_edge_jit)} ms "
                     "(loss disabled)"
                 )
     else:

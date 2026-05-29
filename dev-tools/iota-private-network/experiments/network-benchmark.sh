@@ -112,14 +112,16 @@ latency_from_table() {
 }
 
 # --- Optional latency matrix loaded from -L <file> ---
-# TSV with one row per directed edge: `src \t dst \t rtt_ms \t jitter_ms`
-# and an optional 5th column `loss_pct` (float, percent). Indices are 1-based
-# (validator-1 = 1). Comment lines starting with `#` and blank lines are
-# ignored. When a (src,dst) lookup misses the matrix the script transparently
-# falls back to the legacy latency_from_table above; loss falls back to 0.
+# TSV with one row per directed edge:
+# `src \t dst \t rtt_ms \t jitter_ms \t loss_pct \t corr_pct`.
+# The 5th and 6th columns are optional. Indices are 1-based (validator-1 = 1).
+# Comment lines starting with `#` and blank lines are ignored. When a
+# (src,dst) lookup misses the matrix the script transparently falls back to
+# the legacy latency_from_table above; loss/correlation fall back to 0.
 declare -A LATENCY_MATRIX
 declare -A JITTER_MATRIX
 declare -A LOSS_MATRIX
+declare -A CORR_MATRIX
 
 load_latency_matrix() {
   local file=$1
@@ -128,21 +130,22 @@ load_latency_matrix() {
     return 1
   fi
   local count=0
-  local src dst rtt jit loss
-  while IFS=$' \t' read -r src dst rtt jit loss _rest; do
+  local src dst rtt jit loss corr
+  while IFS=$' \t' read -r src dst rtt jit loss corr _rest; do
     [[ -z "${src:-}" || "${src:0:1}" == "#" ]] && continue
     LATENCY_MATRIX[$src,$dst]=$rtt
     JITTER_MATRIX[$src,$dst]=$jit
     # Optional column: older TSVs (no loss column) get 0 here, so existing
     # callers see no behavior change.
     LOSS_MATRIX[$src,$dst]=${loss:-0}
+    CORR_MATRIX[$src,$dst]=${corr:-0}
     count=$(( count + 1 ))
   done < "$file"
   log "Loaded $count edges from latency matrix $file"
   return 0
 }
 
-# latency_for / jitter_for / loss_for take validator NAMES
+# latency_for / jitter_for / loss_for / corr_for take validator NAMES
 # (validator-1, validator-2, ...) and return ms / ms / percent. They consult
 # the loaded matrix first and fall back to safe defaults so older invocations
 # without -L keep working.
@@ -176,19 +179,31 @@ loss_for() {
   fi
 }
 
+corr_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  if [ -n "${CORR_MATRIX[$src,$dst]:-}" ]; then
+    echo "${CORR_MATRIX[$src,$dst]}"
+  else
+    echo "0"
+  fi
+}
+
 
 # container_pid(container)
 # Returns host PID of Docker container
 container_pid() { docker inspect -f '{{.State.Pid}}' "$1"; }
 
 # Apply latency and mark packets from container A → B.
-# Args: A B delay_ms jitter_ms [loss_pct]. loss_pct defaults to 0 — when it's
-# 0 the `loss` netem keyword is omitted entirely (some kernels treat `loss 0%`
-# as enabling the loss accounting machinery even with zero drop rate).
+# Args: A B delay_ms jitter_ms [loss_pct] [corr_pct]. Optional values default
+# to 0. When loss is 0 the `loss` netem keyword is omitted entirely (some
+# kernels treat `loss 0%` as enabling the loss accounting machinery even with
+# zero drop rate). Correlation is also omitted when 0.
 apply_and_mark() {
   local A=$1 B=$2
   local D=$3 J=$4
   local L=${5:-0}
+  local C=${6:-0}
   local IPB pid
   local lockfile="$LOCK_DIR/apply_and_mark_${A}.lock"
 
@@ -242,11 +257,15 @@ apply_and_mark() {
   # Loss is appended only when non-zero — see header comment on apply_and_mark.
   nsenter -t "$pid" -n tc class replace dev eth0 parent 1: classid "$classid" htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
   local tc_err
+  local delay_args=(delay "${D}ms" "${J}ms")
+  if [ "$C" != "0" ] && [ "$C" != "0.0" ] && [ "$C" != "0.00" ]; then
+    delay_args+=("${C}%")
+  fi
   if [ "$L" = "0" ] || [ "$L" = "0.0" ] || [ "$L" = "0.00" ]; then
-    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" 2>&1) || \
+    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem "${delay_args[@]}" 2>&1) || \
       log "Warning: failed to apply latency to $A → $B: $tc_err"
   else
-    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem delay "${D}ms" "${J}ms" loss "${L}%" 2>&1) || \
+    tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem "${delay_args[@]}" loss "${L}%" 2>&1) || \
       log "Warning: failed to apply latency+loss to $A → $B: $tc_err"
   fi
 
@@ -271,6 +290,17 @@ apply_loss() {
   nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
   nsenter -t "$pid" -n tc qdisc add dev eth0 root netem loss "${percent}%"
   log "Applied ${percent}% packet loss to $A"
+}
+
+# Record a blocked target for later reapplication after container restarts.
+# Values are newline-delimited because this script sets IFS to newline+tab.
+record_block_target() {
+  local A=$1 B=$2
+  if [ -n "${fuzz_block_targets[$A]:-}" ]; then
+    fuzz_block_targets["$A"]+=$'\n'"$B"
+  else
+    fuzz_block_targets["$A"]="$B"
+  fi
 }
 
 # block connection between a given pair of addresses
@@ -357,8 +387,14 @@ initially_apply_fuzz() {
       r_block_B=$(( RANDOM % 100 ))
 
 
-      (( r_block_A < PERCENT_BLOCK )) && block_connection "$A" "$B"
-      (( r_block_B < PERCENT_BLOCK )) && block_connection "$B" "$A"
+      if (( r_block_A < PERCENT_BLOCK )); then
+        block_connection "$A" "$B"
+        record_block_target "$A" "$B"
+      fi
+      if (( r_block_B < PERCENT_BLOCK )); then
+        block_connection "$B" "$A"
+        record_block_target "$B" "$A"
+      fi
     done
   done
 
@@ -378,6 +414,7 @@ initially_apply_fuzz() {
     A=${validators[indices[k]]}
     LOSS=$((RANDOM % 31 + 10 ))
     apply_loss "$A" "$LOSS"
+    fuzz_loss_amount["$A"]=$LOSS
   done
 }
 
@@ -427,8 +464,9 @@ initially_apply_latency() {
         D=$(latency_for "$A" "$B")
         J=$(jitter_for "$A" "$B")
         L=$(loss_for "$A" "$B")
-        log "Injecting ${D}ms±${J}ms latency loss=${L}% $A → $B"
-        apply_and_mark "$A" "$B" "$D" "$J" "$L"
+        C=$(corr_for "$A" "$B")
+        log "Injecting ${D}ms±${J}ms latency corr=${C}% loss=${L}% $A → $B"
+        apply_and_mark "$A" "$B" "$D" "$J" "$L" "$C"
       done
     ) &
   done
@@ -448,27 +486,6 @@ reapply_latencies_and_fuzz_loop() {
     sleep 1
     log "Starting latency + fuzz watcher loop"
 
-    # Initialize fuzz state if empty
-    if [ ${#fuzz_block_targets[@]} -eq 0 ]; then
-        for ((i=0; i<NUMBER_VALIDATORS; i++)); do
-            A=${validators[i]}
-
-            # Decide which validators A blocks
-            blocks=()
-            for ((j=0; j<NUMBER_VALIDATORS; j++)); do
-                [ "$i" -eq "$j" ] && continue
-                (( RANDOM % 100 < PERCENT_BLOCK )) && blocks+=("${validators[j]}")
-            done
-            fuzz_block_targets["$A"]="${blocks[*]}"
-
-            # Decide netem loss for A
-            if (( RANDOM % 100 < PERCENT_LOSS )); then
-                fuzz_loss_amount["$A"]=$(( RANDOM % 31 + 10 ))
-            else
-                fuzz_loss_amount["$A"]=0
-            fi
-        done
-    fi
     sleep 1
     while true; do
         for v in "${validators[@]}"; do
@@ -492,8 +509,10 @@ reapply_latencies_and_fuzz_loop() {
                     D=$(latency_for "$v" "$u")
                     J=$(jitter_for "$v" "$u")
                     L=$(loss_for "$v" "$u")
-                    apply_and_mark "$v" "$u" "$D" "$J" "$L" &
+                    C=$(corr_for "$v" "$u")
+                    apply_and_mark "$v" "$u" "$D" "$J" "$L" "$C" &
                 done
+                wait
 
                 # --- Reapply fuzz (blocking) ---
                 for target in ${fuzz_block_targets["$v"]}; do
