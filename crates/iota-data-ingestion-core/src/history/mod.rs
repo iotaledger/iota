@@ -12,11 +12,16 @@
 //! file. MANIFEST is the index and source of truth for all files present in the
 //! ingestion source history.
 //!
+//! EPOCH_BOUNDARIES holds the map between the epochs and the sequence number of
+//! the respective last checkpoint. This allows reading directly the last
+//! checkpoints from the store, which is useful for verification purposes.
+//!
 //! Ingestion Source History Directory Layout
 //! ```text
 //!  - ingestion/
 //!     - historical/
 //!          - MANIFEST
+//!          - EPOCH_BOUNDARIES
 //!          - 0.chk
 //!          - 1000.chk
 //!          - 3000.chk
@@ -44,16 +49,17 @@
 //! │ len <uvarint> │ encoding <1 byte> │ data <bytes> │
 //! └───────────────┴───────────────────┴──────────────┘
 //!
-//! MANIFEST File Disk Format
+//! MANIFEST and EPOCH_BOUNDARIES File Disk Format
 //! ┌──────────────────────────────┐
 //! │        magic<4 byte>         │
 //! ├──────────────────────────────┤
-//! │   serialized manifest        │
+//! │   serialized contents        │
 //! ├──────────────────────────────┤
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
 //! ```
 
+pub mod epoch_boundaries;
 pub mod manifest;
 pub mod reader;
 
@@ -62,3 +68,5 @@ pub const CHECKPOINT_FILE_SUFFIX: &str = "chk";
 pub const MAGIC_BYTES: usize = 4;
 pub const MANIFEST_FILE_MAGIC: u32 = 0x0000FACE;
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
+pub const EPOCH_BOUNDARIES_FILE_MAGIC: u32 = 0x0000E90C;
+pub const EPOCH_BOUNDARIES_FILENAME: &str = "EPOCH_BOUNDARIES";
