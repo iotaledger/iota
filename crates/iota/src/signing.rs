@@ -74,42 +74,54 @@ pub(crate) async fn sign_transaction(
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
-
-    if let Some((auth_call_args, auth_type_args)) = auth_args {
-        let initial_shared_version =
-            get_shared_object_version(&iota_client, signer_address).await?;
-
-        return Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(
-                auth_call_args,
-                auth_type_args,
-                CallArg::Shared(SharedObjectRef::new(
-                    ObjectID::from(*signer_address),
-                    initial_shared_version,
-                    false,
-                )),
-            ),
-        ));
-    }
-
     let key = context.config().keystore().get_key(signer_address)?;
 
     match key {
-        StoredKey::KeyPair(_) => Ok(context
-            .config()
-            .keystore()
-            .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
-            .into()),
+        // An abstract account always signs via `MoveAuthenticator`, regardless of whether
+        // `--auth-call-args` / `--auth-type-args` were supplied. When they were, the resolved
+        // `auth_args` carry the user-facing inputs; when they weren't, the authenticator is
+        // expected to take no user-facing inputs (only the signer account and the framework
+        // contexts), so we forward empty `CallArg` / `TypeTag` vectors and let the validator
+        // reject the transaction at runtime if the on-chain function actually requires more.
         StoredKey::Account(_) => {
-            bail!(
-                "Cannot sign for account address without --auth-call-args (and --auth-type-args if needed)."
-            )
+            let (auth_call_args, auth_type_args) = auth_args.unwrap_or_default();
+            let initial_shared_version =
+                get_shared_object_version(&iota_client, signer_address).await?;
+
+            Ok(GenericSignature::MoveAuthenticator(
+                MoveAuthenticator::new_v1(
+                    auth_call_args,
+                    auth_type_args,
+                    CallArg::Shared(SharedObjectRef::new(
+                        ObjectID::from(*signer_address),
+                        initial_shared_version,
+                        false,
+                    )),
+                ),
+            ))
+        }
+        StoredKey::KeyPair(_) => {
+            if auth_args.is_some() {
+                bail!(
+                    "--auth-call-args / --auth-type-args were supplied for {signer_address}, but it is not an abstract account."
+                );
+            }
+            Ok(context
+                .config()
+                .keystore()
+                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .into())
         }
         StoredKey::External {
             derivation_path,
             source,
             ..
         } => {
+            if auth_args.is_some() {
+                bail!(
+                    "--auth-call-args / --auth-type-args were supplied for {signer_address}, but it is not an abstract account."
+                );
+            }
             match ExternalKeySource::from(source.as_str()) {
                 ExternalKeySource::Ledger => {
                     let Some(derivation_path) = derivation_path else {
@@ -150,7 +162,7 @@ where
         StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
         StoredKey::Account(_) => {
             bail!(
-                "Cannot sign for account address without --auth-call-args (and --auth-type-args if needed)."
+                "Cannot sign an arbitrary message for an abstract account — abstract accounts can only sign transactions via `MoveAuthenticator`."
             )
         }
         StoredKey::External {
