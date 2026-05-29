@@ -50,6 +50,7 @@ class Config:
     geodistributed: bool = True
     log_interval: int = 60  # save logs every N seconds
     final_epoch_settle_wait: int = 10  # seconds after the second post-start epoch
+    epoch_start_slop_seconds: int = 15  # epoch_0_start is observed after boot
 
     # Derived from epoch_duration_ms (set in __post_init__)
     mid_epoch_wait: int = field(init=False)
@@ -128,7 +129,11 @@ class Config:
         )
         self.fresh_db_restart_pause_min = self.rolling_restart_pause_min
         self.fresh_db_restart_pause_max = self.rolling_restart_pause_max
-        self.protocol_probe_wait = min(15, max(1, self.rolling_restart_pause_max // 2))
+        # Time to wait after validator-1 is up before reading its logs for
+        # the new max_protocol_version. iota-node logs the version within a
+        # few seconds of startup; 5s is plenty and isn't worth scaling with
+        # the advanced-mode rolling-pause budget.
+        self.protocol_probe_wait = 5
         self.restart_settle_wait = min(10, max(1, self.rolling_restart_pause_max // 3))
 
         # Keep the post-upgrade restarts inside the same epoch by scaling the
@@ -154,6 +159,7 @@ class Config:
             - self.phase8_worst_case
             - self.phase9_epoch0_worst_case
             - self.timeline_safety_margin
+            - self.epoch_start_slop_seconds
         )
         if self.mid_epoch_wait < 0:
             # Simple mode skips phases 7 and 9, so the rolling schedule need not
@@ -163,6 +169,7 @@ class Config:
                     self.phase8_worst_case
                     + self.phase9_epoch0_worst_case
                     + self.timeline_safety_margin
+                    + self.epoch_start_slop_seconds
                 )
                 raise ValueError(
                     "epoch duration is too short for the derived migration schedule: "
@@ -171,20 +178,48 @@ class Config:
                 )
             self.mid_epoch_wait = 0
 
-        # Simple mode: per-validator phase-8 cost is the docker SIGTERM grace
-        # plus container start (~15s), plus the one-time protocol probe after
-        # validator-1. Pick pre_rolling_wait so the rolling upgrade still
-        # completes inside epoch 0 with the same safety margin.
-        self.phase8_simple_estimate = n * 15 + self.protocol_probe_wait
-        self.pre_rolling_wait = max(
-            30,
-            epoch_s - self.phase8_simple_estimate - self.timeline_safety_margin,
+        # Simple mode: per-validator phase-8 cost is dominated by docker
+        # compose CLI overhead (~4-6s parsing the compose YAML + env file)
+        # plus container start (~3-5s). With `stop -t 1` and no per-validator
+        # log save / `docker ps` check, this lands around 10s. Plus the
+        # one-time 5s protocol probe after validator-1.
+        self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait
+        min_stable_window_seconds = 60
+        min_pre_rolling_wait = (
+            self.stable_window_settle_seconds + min_stable_window_seconds
         )
+        self.pre_rolling_wait = (
+            epoch_s
+            - self.phase8_simple_estimate
+            - self.timeline_safety_margin
+            - self.epoch_start_slop_seconds
+        )
+        if self.pre_rolling_wait < min_pre_rolling_wait:
+            if self.mode == "simple":
+                required = (
+                    min_pre_rolling_wait
+                    + self.phase8_simple_estimate
+                    + self.timeline_safety_margin
+                    + self.epoch_start_slop_seconds
+                )
+                raise ValueError(
+                    "epoch duration is too short for the simple migration schedule: "
+                    f"need at least {required}s for {self.num_validators} validators "
+                    f"({min_stable_window_seconds}s stable window, "
+                    f"{self.phase8_simple_estimate}s phase-8 estimate, "
+                    f"{self.timeline_safety_margin}s safety, "
+                    f"{self.epoch_start_slop_seconds}s epoch-start slop), "
+                    f"got {epoch_s}s"
+                )
+            self.pre_rolling_wait = min_pre_rolling_wait
         # Stable analysis window: same length in epoch 0 (pre-rolling, no
         # upgrades) and in epoch 1 (after settle). Cap at 180s so test runtime
         # extension stays bounded even for long pre_rolling_wait values; floor
         # at 60s so the histogram_quantile inputs aren't statistical noise.
-        self.stable_window_seconds = max(60, min(180, self.pre_rolling_wait - 30))
+        self.stable_window_seconds = max(
+            min_stable_window_seconds,
+            min(180, self.pre_rolling_wait - self.stable_window_settle_seconds),
+        )
 
         self.network_dir = self.script_dir.parent
         self.repo_root = _find_repo_root(self.script_dir)
@@ -720,8 +755,9 @@ class CheckpointMonitor:
     ) -> str:
         """Side-by-side metric comparison over equal-length stable windows.
 
-        Epoch 0 window: [epoch_0_start, epoch_0_start + window]. Captures the
-        pre-rolling state before any upgrades start.
+        Epoch 0 window: [epoch_0_start + settle, epoch_0_start + settle + window].
+        Captures the pre-rolling state before any upgrades start, after the
+        initial startup/latency-application transient.
 
         Epoch 1 window: [epoch_1_start + settle, epoch_1_start + settle + window].
         Skips the reconfig transient; same duration as the epoch-0 window.
@@ -731,8 +767,10 @@ class CheckpointMonitor:
         """
         w = cfg.stable_window_seconds
         settle = cfg.stable_window_settle_seconds
-        e0_end = int(epoch_0_start + w)
-        e1_end = int(epoch_1_start_ts + settle + w)
+        e0_window_start = epoch_0_start + settle
+        e1_window_start = epoch_1_start_ts + settle
+        e0_end = int(e0_window_start + w)
+        e1_end = int(e1_window_start + w)
 
         def _eval(expr: str) -> float | None:
             data = _prometheus_query(expr)
@@ -758,13 +796,14 @@ class CheckpointMonitor:
             ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
         ]
 
-        e0_label = datetime.fromtimestamp(epoch_0_start, tz=timezone.utc).strftime("%H:%M:%S")
-        e1_label = datetime.fromtimestamp(epoch_1_start_ts + settle, tz=timezone.utc).strftime("%H:%M:%S")
+        e0_label = datetime.fromtimestamp(e0_window_start, tz=timezone.utc).strftime("%H:%M:%S")
+        e1_label = datetime.fromtimestamp(e1_window_start, tz=timezone.utc).strftime("%H:%M:%S")
         lines = [
-            f"  Windows ({w}s each): epoch 0 starts {e0_label} UTC, "
-            f"epoch 1 starts {e1_label} UTC (= epoch_1_at + {settle}s settle)",
+            f"  Windows ({w}s each): pre-upgrade starts {e0_label} UTC "
+            f"(= epoch_0_at + {settle}s settle), "
+            f"post-upgrade starts {e1_label} UTC (= next_epoch_at + {settle}s settle)",
             "",
-            f"  {'Metric':<24} {'epoch 0':>14} {'epoch 1':>14} {'delta':>14}",
+            f"  {'Metric':<24} {'pre-upgrade':>14} {'post-upgrade':>14} {'delta':>14}",
             f"  {'-' * 24} {'-' * 14:>14} {'-' * 14:>14} {'-' * 14:>14}",
         ]
         for label, tpl, unit, scale in metrics:
@@ -1552,7 +1591,9 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     epoch_s = cfg.epoch_duration_ms // 1000
     elapsed_since_epoch_start = int(time.time() - epoch_0_start)
     required_after_phase7 = cfg.phase8_worst_case + cfg.phase9_epoch0_worst_case
-    remaining_epoch = epoch_s - elapsed_since_epoch_start
+    remaining_epoch = (
+        epoch_s - elapsed_since_epoch_start - cfg.epoch_start_slop_seconds
+    )
     if remaining_epoch < required_after_phase7:
         raise RuntimeError(
             "not enough epoch time left for migration schedule: "
@@ -1565,6 +1606,7 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     log(
         f"  Epoch elapsed={elapsed_since_epoch_start}s, "
         f"reserved after wait={required_after_phase7}s, "
+        f"epoch-start slop={cfg.epoch_start_slop_seconds}s, "
         f"safety={max(0, remaining_epoch - wait_s - required_after_phase7)}s"
     )
 
@@ -1588,22 +1630,27 @@ def phase7_wait_fixed(cfg: Config, epoch_0_start: float) -> None:
 
     Unlike the advanced schedule, simple mode does not reserve epoch time for
     post-upgrade restarts, so it just gives the network a brief warm-up before
-    the upgrade rather than aiming for mid-epoch.
+    the upgrade rather than aiming for mid-epoch. No in-loop log save: each
+    `docker logs` over 10 validators with multi-minute accumulated state takes
+    tens of seconds and was making phase 7 overshoot its budget; the post-run
+    archive captures everything we need.
     """
     phase_start = time.time()
     elapsed = int(time.time() - epoch_0_start)
+    if elapsed > cfg.pre_rolling_wait:
+        raise RuntimeError(
+            "simple migration schedule missed the planned rolling-upgrade start: "
+            f"elapsed={elapsed}s, planned={cfg.pre_rolling_wait}s from epoch start. "
+            "Increase --epoch-duration or reduce --num-validators."
+        )
     wait_s = max(0, cfg.pre_rolling_wait - elapsed)
     log(_phase_banner(f"Waiting {wait_s}s before rolling upgrade", "PHASE 7"))
 
     start = time.time()
-    last_log_save = start
     while time.time() < start + wait_s:
         e = int(time.time() - start)
         bar = _progress_bar(e, wait_s)
         log_status(f"  {bar} {e}s / {wait_s}s")
-        if time.time() - last_log_save >= cfg.log_interval:
-            save_validator_logs(cfg, cfg.num_validators)
-            last_log_save = time.time()
         time.sleep(1)
 
     print()  # finish status line
@@ -1633,14 +1680,18 @@ def phase8_rolling_upgrade(
         bar = _progress_bar(i - 1, cfg.num_validators)
         log_status(f"  {bar} Upgrading {_C.BOLD}{v}{_C.RESET}...")
 
-        # Save pre-upgrade logs
-        with (cfg.log_dir / f"pre-upgrade-{v}.log").open("w") as fh:
-            subprocess.run(
-                ["docker", "logs", v],
-                stdout=fh,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
+        # Advanced mode snapshots per-validator pre-upgrade logs for debugging
+        # rolling-window scheduling. Simple mode skips it: each `docker logs`
+        # over a multi-minute-old validator takes 5–10s, and the final archive
+        # at phase 10 captures the same state.
+        if cfg.mode == "advanced":
+            with (cfg.log_dir / f"pre-upgrade-{v}.log").open("w") as fh:
+                subprocess.run(
+                    ["docker", "logs", v],
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                    check=False,
+                )
 
         # Append image override to env file
         with env_path.open("a") as f:
@@ -1648,12 +1699,11 @@ def phase8_rolling_upgrade(
 
         # Stop old container, start it back on the upgrade image. Advanced mode
         # keeps each validator offline for a randomized rolling window (and paces
-        # between validators); simple mode swaps back-to-back with no pause, so
-        # only one validator is intentionally down at a time and the upgrade
-        # finishes fast. Readiness is not gated — this only checks the container
-        # is running, so a freshly restarted node may still be catching up when
-        # the next one is stopped.
-        docker_compose(cfg, ["stop", v], quiet=True)
+        # between validators); simple mode swaps back-to-back with a 1s SIGTERM
+        # grace, so only one validator is briefly down at a time. RocksDB WAL
+        # makes the short grace safe (replay on restart restores last state).
+        stop_args = ["stop", v] if cfg.mode == "advanced" else ["stop", "-t", "1", v]
+        docker_compose(cfg, stop_args, quiet=True)
         if cfg.mode == "advanced":
             restart_pause = rng.randint(
                 cfg.rolling_restart_pause_min,
@@ -1665,19 +1715,21 @@ def phase8_rolling_upgrade(
 
         if cfg.mode == "advanced":
             time.sleep(cfg.upgrade_delay)
-
-        result = run(
-            ["docker", "ps", "--format", "{{.Names}}"],
-            capture=True,
-            quiet=True,
-        )
-        running_names = set(result.stdout.strip().splitlines())
-        if v in running_names:
-            bar = _progress_bar(i, cfg.num_validators)
-            log_status(f"  {bar} {_C.GREEN}✔{_C.RESET} {v} upgraded")
-        else:
-            print()  # newline before error
-            raise RuntimeError(f"{v} failed to start after upgrade!")
+            # `docker ps` validation is advanced-mode only because the
+            # randomized restart pause introduces a non-trivial window where
+            # the container could legitimately fail to come up. Simple mode
+            # trusts `docker compose up`'s exit code (raised on failure).
+            result = run(
+                ["docker", "ps", "--format", "{{.Names}}"],
+                capture=True,
+                quiet=True,
+            )
+            running_names = set(result.stdout.strip().splitlines())
+            if v not in running_names:
+                print()  # newline before error
+                raise RuntimeError(f"{v} failed to start after upgrade!")
+        bar = _progress_bar(i, cfg.num_validators)
+        log_status(f"  {bar} {_C.GREEN}✔{_C.RESET} {v} upgraded")
 
         # After first validator, extract upgrade protocol info
         if i == 1:
@@ -1869,14 +1921,14 @@ def phase9_post_upgrade_restarts(
 # ========================= Phase 10: Observation =========================
 
 
-def phase10_observe_stable_window(cfg: Config, epoch_0_at_phase8_end: int) -> None:
+def phase10_observe_stable_window(cfg: Config, epoch_0_at_phase8_end: int) -> int:
     """Simple-mode post-upgrade observation.
 
-    Waits for epoch 1 to start (proves the upgrade vote landed), then sleeps
-    `stable_window_settle_seconds + stable_window_seconds` so the end-of-run
-    report has a clean stable window in epoch 1 that matches the pre-rolling
-    window in epoch 0. The precise epoch_1 start timestamp is read from the
-    CheckpointMonitor's higher-resolution polling, not from here.
+    Waits for the next epoch to start (proves the upgrade vote landed), then
+    sleeps `stable_window_settle_seconds + stable_window_seconds` so the
+    end-of-run report has a clean stable window in the post-upgrade epoch that
+    matches the pre-rolling window. The precise next-epoch start timestamp is
+    read from the CheckpointMonitor's higher-resolution polling, not from here.
     """
     phase_start = time.time()
     total_wait = cfg.stable_window_settle_seconds + cfg.stable_window_seconds
@@ -1915,6 +1967,7 @@ def phase10_observe_stable_window(cfg: Config, epoch_0_at_phase8_end: int) -> No
     _archive_final_logs(cfg)
     log(_phase_complete("Phase 10", time.time() - phase_start))
     log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
+    return epoch_1
 
 
 def phase10_observation(cfg: Config, epoch_1: int) -> None:
@@ -1989,8 +2042,8 @@ def parse_args() -> argparse.Namespace:
         epilog=(
             "Defaults: simple mode (--mode advanced for the full restart "
             "schedule), testnet release image, 10 validators (-n to change), "
-            "10min epoch (-e to change), geodistributed latency, rolling "
-            "upgrade 3min into the epoch."
+            "10min epoch (-e to change), geodistributed latency, and a "
+            "rolling upgrade scheduled to finish before the epoch boundary."
         ),
     )
     parser.add_argument(
@@ -2167,7 +2220,8 @@ def main() -> None:
             f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
             f"phase8 <= {cfg.phase8_worst_case}s, "
             f"phase9a/9b <= {cfg.phase9_epoch0_worst_case}s, "
-            f"safety {cfg.timeline_safety_margin}s"
+            f"safety {cfg.timeline_safety_margin}s, "
+            f"epoch-start slop {cfg.epoch_start_slop_seconds}s"
         )
         log(
             f"  {_C.BOLD}Rolling offline pause{_C.RESET}: "
@@ -2196,11 +2250,14 @@ def main() -> None:
         )
         log(
             f"  {_C.BOLD}Pre-rolling wait{_C.RESET}     : {cfg.pre_rolling_wait}s from epoch start "
-            f"(phase8 estimate {cfg.phase8_simple_estimate}s, safety {cfg.timeline_safety_margin}s)"
+            f"(phase8 estimate {cfg.phase8_simple_estimate}s, "
+            f"safety {cfg.timeline_safety_margin}s, "
+            f"epoch-start slop {cfg.epoch_start_slop_seconds}s)"
         )
         log(
             f"  {_C.BOLD}Stop condition{_C.RESET}       : "
-            f"one epoch boundary after upgrade + {cfg.final_epoch_settle_wait}s"
+            f"one epoch boundary after upgrade + "
+            f"{cfg.stable_window_settle_seconds + cfg.stable_window_seconds}s"
         )
 
     # Run all phases
@@ -2216,8 +2273,10 @@ def main() -> None:
 
     if cfg.mode == "advanced":
         phase7_wait_mid_epoch(cfg, epoch_0_start)
+        simple_upgrade_epoch = None
     else:
         phase7_wait_fixed(cfg, epoch_0_start)
+        simple_upgrade_epoch = get_current_epoch()
     upgrade_proto, upgrade_consensus = phase8_rolling_upgrade(
         cfg, old_max_proto, old_consensus, local_branch, local_commit
     )
@@ -2232,21 +2291,40 @@ def main() -> None:
             upgrade_consensus,
         )
         phase10_observation(cfg, epoch_1)
+        simple_observed_epoch = None
     else:
-        # Simple mode: no post-upgrade restarts. Wait for epoch 1 to start and
-        # then hold long enough for the stable-window comparison.
-        phase10_observe_stable_window(cfg, get_current_epoch())
+        epoch_after_upgrade = get_current_epoch()
+        if (
+            simple_upgrade_epoch is not None
+            and epoch_after_upgrade != simple_upgrade_epoch
+        ):
+            raise RuntimeError(
+                "simple rolling upgrade crossed an epoch boundary: "
+                f"started in epoch {simple_upgrade_epoch}, ended in epoch "
+                f"{epoch_after_upgrade}. Increase --epoch-duration or reduce "
+                "--num-validators."
+            )
+        # Simple mode: no post-upgrade restarts. Wait for the next epoch to
+        # start and then hold long enough for the stable-window comparison.
+        simple_observed_epoch = phase10_observe_stable_window(
+            cfg, epoch_after_upgrade
+        )
     stop_load_generator(cfg)
 
     cp_monitor.stop()
     log(_phase_banner("Checkpoint Liveness Report"))
     for line in cp_monitor.report().split("\n"):
         log(line)
-    if cfg.mode == "simple":
-        # Pull the precise epoch-1 start from the monitor's 10s-resolution
-        # polling rather than from the 30s wait_for_epoch_change loop.
+    if cfg.mode == "simple" and simple_observed_epoch is not None:
+        # Pull the precise post-upgrade epoch start from the monitor's
+        # 10s-resolution polling rather than from the 30s wait_for_epoch_change
+        # loop.
         epoch_1_start_ts = next(
-            (ts for ts, _, to_ep, _ in cp_monitor._observed_epoch_changes() if to_ep == 1),
+            (
+                ts
+                for ts, _, to_ep, _ in cp_monitor._observed_epoch_changes()
+                if to_ep == simple_observed_epoch
+            ),
             None,
         )
         if epoch_1_start_ts is not None:
