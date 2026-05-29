@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
@@ -20,7 +20,10 @@ use iota_types::{
 };
 
 use crate::{
-    authority::authority_tests::init_state_with_objects_and_object_basics,
+    authority::{
+        authority_per_epoch_store::{LockDetails, consensus_quarantine::ConsensusCommitOutput},
+        authority_tests::init_state_with_objects_and_object_basics,
+    },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
     post_consensus_validation,
@@ -1240,4 +1243,306 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         !all_roots.contains(&TransactionKey::Digest(loser_digest)),
         "double-spend loser {loser_digest:?} must NOT be a checkpoint root; roots = {all_roots:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Tier 2 (quarantine) and Tier 3 (persistent DB) lock-tier coverage
+// ---------------------------------------------------------------------------
+//
+// `validate_and_resolve_conflicts` performs the same 3-tier lock lookup in
+// two places (via `find_existing_lock`):
+//   * Check #1 (already-executed branch): same digest = OK; different digest =
+//     `fatal!`.
+//   * Check #4 (conflict drop): any hit = drop with `ObjectLockConflict`.
+//
+// The earlier tests cover Tier 1 (`current_commit_locks` HashMap within the
+// same commit). The tests below close the matrix by seeding Tier 2 (consensus
+// quarantine) and Tier 3 (persistent DB).
+
+/// Which of the two non-local tiers to seed an existing lock into.
+#[derive(Clone, Copy)]
+enum LockTier {
+    Quarantine,
+    Persistent,
+}
+
+/// Shared setup: one owned object + one gas object, both owned by `sender`.
+/// `_config_guard` keeps the white-flag protocol-config override active for
+/// the duration of the test; on drop it clears the thread-local override so a
+/// later test on the same OS thread can install its own.
+struct LockTierSetup {
+    authority: Arc<crate::authority::AuthorityState>,
+    epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
+    sender: IotaAddress,
+    sender_key: AccountKeyPair,
+    recipient: IotaAddress,
+    object_ref: iota_types::base_types::ObjectRef,
+    gas_ref: iota_types::base_types::ObjectRef,
+    rgp: u64,
+    _config_guard: OverrideGuard,
+}
+
+async fn setup_lock_tier() -> LockTierSetup {
+    let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = (*authority.epoch_store_for_testing()).clone();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+
+    LockTierSetup {
+        authority,
+        epoch_store,
+        sender,
+        sender_key,
+        recipient,
+        object_ref,
+        gas_ref,
+        rgp,
+        _config_guard: _config_guard,
+    }
+}
+
+impl LockTierSetup {
+    /// Builds and verifies a transfer-object transaction spending
+    /// `self.object_ref` paid by `self.gas_ref`.
+    fn make_tx(&self) -> VerifiedTransaction {
+        let tx = make_transfer_object_transaction(
+            self.object_ref,
+            self.gas_ref,
+            self.sender,
+            &self.sender_key,
+            self.recipient,
+            self.rgp,
+        );
+        self.epoch_store.verify_transaction(tx).unwrap()
+    }
+
+    /// Marks `verified_tx` as executed via the checkpoint-executor path
+    /// (simulates state-sync winning the race against this node's consensus
+    /// handler).
+    fn execute_via_state_sync(&self, verified_tx: &VerifiedTransaction) {
+        let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+            verified_tx.clone(),
+            self.epoch_store.epoch(),
+            1,
+        );
+        self.authority
+            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .unwrap();
+    }
+
+    /// Seeds `(self.object_ref, self.gas_ref) -> locker` into the requested
+    /// tier. For `Persistent`, a signed-transaction row backing the lock is
+    /// also written.
+    fn seed_lock(&self, tier: LockTier, locker_tx: &VerifiedTransaction) {
+        let digest = *locker_tx.digest();
+        match tier {
+            LockTier::Quarantine => {
+                seed_quarantined_lock(&self.epoch_store, self.object_ref, digest);
+                seed_quarantined_lock(&self.epoch_store, self.gas_ref, digest);
+            }
+            LockTier::Persistent => {
+                seed_persistent_lock(
+                    &self.authority,
+                    &self.epoch_store,
+                    locker_tx.clone(),
+                    &[self.object_ref, self.gas_ref],
+                );
+            }
+        }
+    }
+}
+
+/// Seeds a single lock into the consensus quarantine.
+fn seed_quarantined_lock(
+    epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    obj_ref: iota_types::base_types::ObjectRef,
+    locker: LockDetails,
+) {
+    let mut output = ConsensusCommitOutput::default();
+    output.set_owned_object_locks(std::collections::HashMap::from([(obj_ref, locker)]));
+    output.set_default_commit_stats_for_testing();
+    epoch_store.push_consensus_output_for_tests(output);
+}
+
+/// Seeds locks directly into the persistent DB via the cache writer's
+/// `try_acquire_transaction_locks`.
+fn seed_persistent_lock(
+    authority: &crate::authority::AuthorityState,
+    epoch_store: &crate::authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    verified_tx: VerifiedTransaction,
+    owned_inputs: &[iota_types::base_types::ObjectRef],
+) {
+    use iota_types::transaction::VerifiedSignedTransaction;
+    let signed = VerifiedSignedTransaction::new(
+        epoch_store.epoch(),
+        verified_tx,
+        authority.name,
+        &*authority.secret,
+    );
+    authority
+        .get_cache_writer()
+        .try_acquire_transaction_locks(epoch_store, owned_inputs, signed)
+        .expect("seed_persistent_lock: try_acquire_transaction_locks failed");
+}
+
+/// Body for the Check #4 drop case: a lock held by a DIFFERENT tx in the given
+/// tier causes the new contender to be dropped with `ObjectLockConflict`.
+async fn run_different_digest_lock_drops_contender(tier: LockTier) {
+    let s = setup_lock_tier().await;
+
+    // A first tx owns the lock in `tier`.
+    let other = s.make_tx();
+    s.seed_lock(tier, &other);
+
+    // A different tx contending for the same owned input arrives via consensus.
+    // For Quarantine we can build a contender with the same inputs because
+    // make_tx is hashed by recipient/sender_key which are stable; produce a
+    // different digest by swapping recipient.
+    let alt_recipient = get_key_pair::<AccountKeyPair>().0;
+    let new_tx_raw = make_transfer_object_transaction(
+        s.object_ref,
+        s.gas_ref,
+        s.sender,
+        &s.sender_key,
+        alt_recipient,
+        s.rgp,
+    );
+    let new_verified = s.epoch_store.verify_transaction(new_tx_raw).unwrap();
+    let new_digest = *new_verified.digest();
+    assert_ne!(new_digest, *other.digest());
+
+    let mut transactions = vec![make_user_tx_v1_verified(new_verified)];
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 0, "contender must be removed");
+    assert_eq!(dropped.len(), 1);
+    assert_eq!(dropped[0].0, new_digest);
+    assert!(
+        matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }),
+        "expected ObjectLockConflict, got {:?}",
+        dropped[0].1
+    );
+}
+
+/// Body for the Check #1 retain case: an already-executed tx finding its OWN
+/// digest as the lock holder in the given tier must NOT be dropped and must
+/// NOT trigger `fatal!`.
+async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
+    let s = setup_lock_tier().await;
+
+    let tx = s.make_tx();
+    let tx_digest = *tx.digest();
+
+    // Order matters for the Persistent tier: the lock must be acquired *before*
+    // we mark the tx as executed (otherwise the perpetual
+    // `live_owned_object_markers` for its inputs are already consumed).
+    s.seed_lock(tier, &tx);
+    s.execute_via_state_sync(&tx);
+
+    let mut transactions = vec![make_user_tx_v1_verified(tx)];
+    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "already-executed tx must not be dropped"
+    );
+    assert_eq!(
+        transactions.len(),
+        1,
+        "already-executed tx must be retained"
+    );
+    assert!(
+        s.authority
+            .get_transaction_cache_reader()
+            .try_is_tx_already_executed(&tx_digest)
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn tier2_quarantine_different_digest_lock_drops_contender() {
+    run_different_digest_lock_drops_contender(LockTier::Quarantine).await;
+}
+
+#[tokio::test]
+async fn tier2_quarantine_same_digest_lock_retains_already_executed() {
+    run_same_digest_lock_retains_already_executed(LockTier::Quarantine).await;
+}
+
+#[tokio::test]
+async fn tier3_persistent_different_digest_lock_drops_contender() {
+    run_different_digest_lock_drops_contender(LockTier::Persistent).await;
+}
+
+#[tokio::test]
+async fn tier3_persistent_same_digest_lock_retains_already_executed() {
+    run_same_digest_lock_retains_already_executed(LockTier::Persistent).await;
+}
+
+/// Check #1 / `fatal!` invariant: when an already-executed transaction's owned
+/// input is locked by a DIFFERENT transaction digest,
+/// `validate_and_resolve_conflicts` must panic — the executed-but-out-locked
+/// state is a real consistency violation, not a recoverable conflict.
+///
+/// Uses the Tier 2 (quarantine) seeding path; the helper is tier-agnostic, so a
+/// single test covers both quarantine and persistent-DB code paths.
+#[tokio::test]
+#[should_panic(expected = "locked by a different transaction")]
+async fn already_executed_tx_locked_by_different_digest_is_fatal() {
+    let s = setup_lock_tier().await;
+
+    // The tx the committee actually executed (via state-sync on this node).
+    let tx = s.make_tx();
+    s.execute_via_state_sync(&tx);
+
+    // Seed the quarantine with a lock on `tx`'s inputs held by a DIFFERENT
+    // digest — simulates the consistency violation the `fatal!` guards against.
+    let other_digest = TransactionDigest::random();
+    assert_ne!(other_digest, *tx.digest());
+    seed_quarantined_lock(&s.epoch_store, s.object_ref, other_digest);
+
+    let mut transactions = vec![make_user_tx_v1_verified(tx)];
+    // Expected to panic via `fatal!` before returning.
+    let _ = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        &mut transactions,
+    )
+    .await;
 }
