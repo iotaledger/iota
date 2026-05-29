@@ -213,9 +213,6 @@ jobs:
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      # Guards the Move VM / execution-layer wasm work (epic #11545): only the
-      # crates listed here are kept wasm-compatible. The rest of the workspace
-      # is node-only and intentionally not checked.
       - name: Check Move VM crates compile to wasm32
         run: cargo check -p iota-types -p iota-common --target wasm32-unknown-unknown
 
