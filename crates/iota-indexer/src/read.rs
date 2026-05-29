@@ -4,6 +4,7 @@
 
 //! Types and logic to interact with the db.
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
@@ -903,7 +904,7 @@ impl IndexerReader {
 
     fn multi_get_transactions_with_sequence_numbers(
         &self,
-        tx_sequence_numbers: Vec<i64>,
+        tx_sequence_numbers: &[i64],
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
     ) -> Result<Vec<StoredTransaction>, IndexerError> {
@@ -1484,7 +1485,7 @@ impl IndexerReader {
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
         .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+        self.multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
             tx_sequence_numbers,
             options,
             Some(is_descending),
@@ -1535,7 +1536,7 @@ impl IndexerReader {
         ))
     }
 
-    async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
+    async fn multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
         &self,
         tx_sequence_numbers: Vec<i64>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1543,14 +1544,56 @@ impl IndexerReader {
         is_descending: Option<bool>,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking(move |this| {
-                this.multi_get_transactions_with_sequence_numbers(
-                    tx_sequence_numbers,
-                    is_descending,
-                )
+            .spawn_blocking({
+                let tx_sequence_numbers = tx_sequence_numbers.clone();
+                move |this| {
+                    this.multi_get_transactions_with_sequence_numbers(
+                        &tx_sequence_numbers,
+                        is_descending,
+                    )
+                }
             })
             .await?;
-        self.stored_transaction_to_transaction_block(stored_txes, options)
+
+        let fetched_transactions = match self
+            .fallback_reader()
+            .filter(|_| stored_txes.len() != tx_sequence_numbers.len())
+        {
+            Some(fallback_reader) => {
+                let found: HashSet<i64> =
+                    stored_txes.iter().map(|tx| tx.tx_sequence_number).collect();
+                let missing_seqs: Vec<i64> = tx_sequence_numbers
+                    .iter()
+                    .copied()
+                    .filter(|s| !found.contains(s))
+                    .collect();
+
+                let missing_digests = self
+                    .db()
+                    .resolve_tx_sequence_numbers_to_digests(missing_seqs)
+                    .await?;
+
+                let historical = fallback_reader
+                    .transactions(&missing_digests)
+                    .await?
+                    .into_iter()
+                    .flatten();
+
+                let mut merged: Vec<StoredTransaction> =
+                    stored_txes.into_iter().chain(historical).collect();
+
+                match is_descending {
+                    Some(true) => merged.sort_unstable_by_key(|tx| Reverse(tx.tx_sequence_number)),
+                    Some(false) => merged.sort_unstable_by_key(|tx| tx.tx_sequence_number),
+                    None => {}
+                }
+
+                merged
+            }
+            None => stored_txes,
+        };
+
+        self.stored_transaction_to_transaction_block(fetched_transactions, options)
             .await
     }
 
@@ -3072,6 +3115,31 @@ impl<'a> DBReader<'a> {
                 .optional()
         })
         .map(Option::flatten)
+    }
+
+    /// Resolve transaction sequence numbers to their corresponding digests.
+    async fn resolve_tx_sequence_numbers_to_digests(
+        &self,
+        tx_sequence_numbers: Vec<i64>,
+    ) -> Result<Vec<TransactionDigest>, IndexerError> {
+        let pool = self.main_reader.get_pool();
+
+        let rows = run_query_async!(&pool, |conn| {
+            tx_digests::table
+                .filter(tx_digests::tx_sequence_number.eq_any(tx_sequence_numbers))
+                .select(tx_digests::tx_digest)
+                .load::<Vec<u8>>(conn)
+        })?;
+
+        rows.into_iter()
+            .map(|bytes| {
+                TransactionDigest::from_bytes(&bytes).map_err(|e| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "unable to convert {bytes:?} as tx_digest: {e}",
+                    ))
+                })
+            })
+            .collect()
     }
 }
 

@@ -13,11 +13,15 @@ use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+#[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;
-use tracing::{instrument, warn};
+use tracing::instrument;
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::warn;
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
@@ -253,6 +257,7 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn report_checkpoint_age(&self, metrics: &Histogram) {
         SystemTime::now()
             .duration_since(self.timestamp())

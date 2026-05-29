@@ -9,6 +9,7 @@ pub use iota_sdk_types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
+#[cfg(not(target_arch = "wasm32"))]
 use tonic::Status;
 use typed_store_error::TypedStoreError;
 
@@ -684,6 +685,9 @@ pub enum IotaError {
 
     #[error("The request did not contain a certificate")]
     NoCertificateProvided,
+
+    #[error("Invalid admin request: {0}")]
+    InvalidAdminRequest(String),
 }
 
 #[repr(u64)]
@@ -728,6 +732,7 @@ impl From<ExecutionError> for IotaError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<Status> for IotaError {
     fn from(status: Status) -> Self {
         if status.message() == "Too many requests" {
@@ -757,6 +762,7 @@ impl From<crate::storage::error::Error> for IotaError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<IotaError> for Status {
     fn from(error: IotaError) -> Self {
         let bytes = bcs::to_bytes(&error).unwrap();

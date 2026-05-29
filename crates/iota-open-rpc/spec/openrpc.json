@@ -1294,7 +1294,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "27",
+              "maxSupportedProtocolVersion": "28",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1358,6 +1358,7 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "auth_context_authenticator_function_info_v1_cost_base": null,
                 "auth_context_digest_cost_base": null,
                 "auth_context_replace_cost_base": null,
                 "auth_context_replace_cost_per_byte": null,

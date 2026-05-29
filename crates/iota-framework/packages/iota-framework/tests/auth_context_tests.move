@@ -6,6 +6,7 @@ module iota::auth_context_tests;
 
 use iota::auth_context::{
     new_for_testing,
+    create_auth_function_info_v1_for_testing,
     digest,
     sender_auth_digest,
     sponsor_auth_digest,
@@ -607,7 +608,7 @@ fun test_all_argument_variants_in_move_call() {
 
 #[test]
 fun test_empty_inputs_and_commands() {
-    let ctx = make_auth_ctx(vector[], vector[]);
+    let ctx = make_def_auth_ctx();
     let digest = DIGEST;
 
     assert!(ctx.digest() == &digest);
@@ -634,6 +635,8 @@ fun test_several_auth_context_instances_in_test_scenario() {
         vector[],
         sender1,
         option::some(sponsor1),
+        option::none(),
+        option::none(),
     );
 
     let ctx1_digest_ref = ctx1.digest();
@@ -641,6 +644,8 @@ fun test_several_auth_context_instances_in_test_scenario() {
     let ctx1_sponsor_ref = ctx1.sponsor_auth_digest();
     let ctx1_tx_inputs_ref = ctx1.tx_inputs();
     let ctx1_tx_commands_ref = ctx1.tx_commands();
+    let ctx1_sender_auth_fun_info_v1 = ctx1.sender_authenticator_function_info_v1();
+    let ctx1_sponsor_auth_fun_info_v1 = ctx1.sponsor_authenticator_function_info_v1();
 
     assert!(ctx1_digest_ref == digest1);
     assert!(ctx1_sender_ref == sender1);
@@ -648,6 +653,8 @@ fun test_several_auth_context_instances_in_test_scenario() {
     assert!(ctx1_sponsor_ref.borrow() == &sponsor1);
     assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
     assert!(ctx1_tx_commands_ref == vector[cmd1]);
+    assert!(ctx1_sender_auth_fun_info_v1 == option::none());
+    assert!(ctx1_sponsor_auth_fun_info_v1 == option::none());
 
     let digest2 = b"11111111111111111111111111111111";
     let sender2 = b"11111111111111111111111111111134";
@@ -659,6 +666,21 @@ fun test_several_auth_context_instances_in_test_scenario() {
         ),
     );
 
+    let sender_auth_fun_info_v1 = option::some(
+        create_auth_function_info_v1_for_testing(
+            @0xAA,
+            b"sender_mod".to_ascii_string(),
+            b"sender_authenticate".to_ascii_string(),
+        ),
+    );
+    let sponsor_auth_fun_info_v1 = option::some(
+        create_auth_function_info_v1_for_testing(
+            @0xBB,
+            b"sponsor_mod".to_ascii_string(),
+            b"sponsor_authenticate".to_ascii_string(),
+        ),
+    );
+
     // ctx2 has no sponsor
     let ctx2 = new_for_testing(
         digest2,
@@ -667,6 +689,8 @@ fun test_several_auth_context_instances_in_test_scenario() {
         vector[],
         sender2,
         option::none(),
+        sender_auth_fun_info_v1,
+        sponsor_auth_fun_info_v1,
     );
 
     // The data returned by the `ctx1` instance should be updated
@@ -675,12 +699,16 @@ fun test_several_auth_context_instances_in_test_scenario() {
     assert!(ctx1.sponsor_auth_digest().is_none());
     assert!(ctx1.tx_inputs() == vector[pure_arg2]);
     assert!(ctx1.tx_commands() == vector[cmd2]);
+    assert!(ctx1.sender_authenticator_function_info_v1() == sender_auth_fun_info_v1);
+    assert!(ctx1.sponsor_authenticator_function_info_v1() == sponsor_auth_fun_info_v1);
 
     assert!(ctx2.digest() == digest2);
     assert!(ctx2.sender_auth_digest() == sender2);
     assert!(ctx2.sponsor_auth_digest().is_none());
     assert!(ctx2.tx_inputs() == vector[pure_arg2]);
     assert!(ctx2.tx_commands() == vector[cmd2]);
+    assert!(ctx2.sender_authenticator_function_info_v1() == sender_auth_fun_info_v1);
+    assert!(ctx2.sponsor_authenticator_function_info_v1() == sponsor_auth_fun_info_v1);
 
     // Old links are still valid and point to the old data
     assert!(ctx1_digest_ref == digest1);
@@ -688,6 +716,8 @@ fun test_several_auth_context_instances_in_test_scenario() {
     assert!(ctx1_sponsor_ref.borrow() == &sponsor1);
     assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
     assert!(ctx1_tx_commands_ref == vector[cmd1]);
+    assert!(ctx1_sender_auth_fun_info_v1 == option::none());
+    assert!(ctx1_sponsor_auth_fun_info_v1 == option::none());
 }
 
 // ---------------------------------------------------------------------------
@@ -705,6 +735,8 @@ fun test_tx_data_bytes_round_trip() {
         vector[cmd],
         tx_bytes,
         SENDER_DIGEST,
+        option::none(),
+        option::none(),
         option::none(),
     );
 
@@ -731,6 +763,8 @@ fun test_intent_tx_data_bytes() {
         vector[cmd],
         tx_bytes,
         SENDER_DIGEST,
+        option::none(),
+        option::none(),
         option::none(),
     );
 
@@ -761,6 +795,8 @@ fun test_signing_digest() {
         tx_bytes,
         SENDER_DIGEST,
         option::none(),
+        option::none(),
+        option::none(),
     );
 
     let signed = ctx.signing_digest();
@@ -783,6 +819,8 @@ fun test_tx_data_bytes_survives_replace() {
         tx_bytes1,
         SENDER_DIGEST,
         option::none(),
+        option::none(),
+        option::none(),
     );
     assert!(ctx1.tx_data_bytes() == &tx_bytes1);
 
@@ -795,6 +833,8 @@ fun test_tx_data_bytes_survives_replace() {
         vector[cmd],
         tx_bytes2,
         SENDER_DIGEST,
+        option::none(),
+        option::none(),
         option::none(),
     );
 
@@ -833,10 +873,84 @@ fun test_sponsor_auth_digest_some() {
         vector[],
         SENDER_DIGEST,
         option::some(sponsor_digest),
+        option::none(),
+        option::none(),
     );
     let sponsor = ctx.sponsor_auth_digest();
     assert!(sponsor.is_some());
     assert!(sponsor.borrow() == &sponsor_digest);
+}
+
+// ---------------------------------------------------------------------------
+// sender/sponsor authenticator function refs
+// ---------------------------------------------------------------------------
+
+#[test]
+fun test_sender_auth_fun_info_v1_initially_none() {
+    let ctx = make_def_auth_ctx();
+    assert!(ctx.sender_authenticator_function_info_v1().is_none());
+}
+
+#[test]
+fun test_sponsor_auth_fun_info_v1_initially_none() {
+    let ctx = make_def_auth_ctx();
+    assert!(ctx.sponsor_authenticator_function_info_v1().is_none());
+}
+
+#[test]
+fun test_replace_sender_auth_fun_info_v1() {
+    let sender_auth_fun_info_v1 = create_auth_function_info_v1_for_testing(
+        @0xAA,
+        b"sender_mod".to_ascii_string(),
+        b"sender_authenticate".to_ascii_string(),
+    );
+
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        vector[],
+        SENDER_DIGEST,
+        option::none(),
+        option::some(sender_auth_fun_info_v1),
+        option::none(),
+    );
+
+    assert!(ctx.sender_authenticator_function_info_v1().is_some());
+    assert!(ctx.sponsor_authenticator_function_info_v1().is_none());
+
+    let r = ctx.sender_authenticator_function_info_v1().borrow();
+    assert!(r.package().to_address() == @0xAA);
+    assert!(*r.module_name() == b"sender_mod".to_ascii_string());
+    assert!(*r.function_name() == b"sender_authenticate".to_ascii_string());
+}
+
+#[test]
+fun test_replace_sponsor_auth_fun_info_v1() {
+    let sponsor_auth_fun_info_v1 = create_auth_function_info_v1_for_testing(
+        @0xBB,
+        b"sponsor_mod".to_ascii_string(),
+        b"sponsor_authenticate".to_ascii_string(),
+    );
+
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        vector[],
+        SENDER_DIGEST,
+        option::none(),
+        option::none(),
+        option::some(sponsor_auth_fun_info_v1),
+    );
+
+    assert!(ctx.sender_authenticator_function_info_v1().is_none());
+    assert!(ctx.sponsor_authenticator_function_info_v1().is_some());
+
+    let r = ctx.sponsor_authenticator_function_info_v1().borrow();
+    assert!(r.package().to_address() == @0xBB);
+    assert!(*r.module_name() == b"sponsor_mod".to_ascii_string());
+    assert!(*r.function_name() == b"sponsor_authenticate".to_ascii_string());
 }
 
 // ---------------------------------------------------------------------------
@@ -853,13 +967,24 @@ fun test_bad_auth_digest_length() {
         vector[],
         SENDER_DIGEST,
         option::none(),
+        option::none(),
+        option::none(),
     );
 }
 
 #[test]
 #[expected_failure(abort_code = iota::auth_context::EBadDigestLength)]
 fun test_bad_sender_digest_length() {
-    let _ctx = new_for_testing(DIGEST, vector[], vector[], vector[], b"too_short", option::none());
+    let _ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        vector[],
+        b"too_short",
+        option::none(),
+        option::none(),
+        option::none(),
+    );
 }
 
 #[test]
@@ -872,6 +997,8 @@ fun test_bad_sponsor_digest_length() {
         vector[],
         SENDER_DIGEST,
         option::some(b"too_short"),
+        option::none(),
+        option::none(),
     );
 }
 
@@ -885,7 +1012,16 @@ fun make_auth_ctx(
     tx_inputs: vector<iota::ptb_call_arg::CallArg>,
     tx_commands: vector<iota::ptb_command::Command>,
 ): iota::auth_context::AuthContext {
-    new_for_testing(DIGEST, tx_inputs, tx_commands, vector[], SENDER_DIGEST, option::none())
+    new_for_testing(
+        DIGEST,
+        tx_inputs,
+        tx_commands,
+        vector[],
+        SENDER_DIGEST,
+        option::none(),
+        option::none(),
+        option::none(),
+    )
 }
 
 fun make_noop_move_call_command(): iota::ptb_command::Command {
@@ -897,4 +1033,17 @@ fun make_noop_move_call_command(): iota::ptb_command::Command {
         vector[],
     );
     new_move_call_command_for_testing(move_call)
+}
+
+fun make_def_auth_ctx(): iota::auth_context::AuthContext {
+    new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        vector[],
+        SENDER_DIGEST,
+        option::none(),
+        option::none(),
+        option::none(),
+    )
 }

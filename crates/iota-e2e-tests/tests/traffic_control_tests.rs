@@ -27,7 +27,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     traffic_control::{
-        FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig, Weight,
+        FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
+        TrafficControlReconfigParams, Weight,
     },
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
@@ -279,6 +280,76 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         tokio::task::yield_now().await;
     }
     panic!("Expected error policy to trigger within {n} requests");
+}
+
+#[tokio::test]
+async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let n = 5;
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 100,
+        error_policy_type: PolicyType::TestNConnIP(n - 1),
+        dry_run: true,
+        ..Default::default()
+    };
+    let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
+        .with_policy_config(Some(policy_config))
+        .build();
+    let committee = network_config.committee_with_network();
+    let test_cluster = TestClusterBuilder::new()
+        .set_network_config(network_config)
+        .build()
+        .await;
+    let local_clients = make_network_authority_clients_with_network_config(
+        &committee,
+        &default_iota_network_config(),
+    );
+    let (_, auth_client) = local_clients.first_key_value().unwrap();
+
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
+    let mut tx = txns.swap_remove(0);
+    let signatures = tx.tx_signatures_mut_for_testing();
+    signatures.pop();
+    signatures.push(GenericSignature::Signature(
+        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    ));
+
+    // Before reconfiguring the policy, we should not block any requests due to dry
+    // run mode, even after far exceeding the threshold. However the blocklist
+    // should be updated.
+    for _ in 0..(2 * n) {
+        let response = auth_client.handle_transaction(tx.clone(), None).await;
+        if let Err(err) = response {
+            assert!(
+                !err.to_string().contains("Too many requests"),
+                "Expected no blocked requests due to dry run mode"
+            );
+        }
+    }
+    // Reconfigure traffic control to disable dry run mode
+    for node in test_cluster.all_validator_handles() {
+        node.state()
+            .reconfigure_traffic_control(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(false),
+            })
+            .await
+            .unwrap();
+    }
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    // If Node and TrafficController has not crashed, blocklist and policy freq
+    // state should still be intact. A single additional erroneous request from
+    // the client should trigger enforcement.
+    let response = auth_client.handle_transaction(tx.clone(), None).await;
+    if let Err(err) = response {
+        if err.to_string().contains("Too many requests") {
+            return Ok(());
+        }
+    }
+    panic!("Expected error policy to trigger on next requests after reconfiguration");
 }
 
 #[tokio::test]
@@ -607,13 +678,11 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         delegate_error_blocking: false,
         destination_port: 9000,
         drain_path: drain_path.clone(),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 6,
     };
 
-    // NOTE: we need to hold onto this tc handle to ensure we don't inadvertently
-    // close the receive channel (this would cause traffic controller to exit
-    // the loop and thus we will never engage the dead mans switch)
-    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config));
+    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()))
+        .await;
     assert!(
         !drain_path.exists(),
         "Expected drain file to not exist after startup unless previously set",
@@ -621,7 +690,7 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
 
     // after n seconds with no traffic, the dead mans switch should be engaged
     let mut drain_enabled = false;
-    for _ in 0..10 {
+    for _ in 0..4 {
         if drain_path.exists() {
             drain_enabled = true;
             break;
@@ -632,6 +701,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
 
     // if we drop traffic controller and re-instantiate, drain file should remain
     // set
+    drop(tc);
+    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config)).await;
     for _ in 0..3 {
         assert!(
             drain_path.exists(),

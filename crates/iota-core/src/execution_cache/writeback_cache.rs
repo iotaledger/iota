@@ -58,6 +58,7 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
+use iota_sdk_types::Owner;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
@@ -68,7 +69,11 @@ use iota_types::{
     iota_system_state::{IotaSystemState, get_iota_system_state},
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    storage::{
+        BackingPackageStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
+        ObjectOrTombstone, ObjectStore, PackageObject,
+        error::{Error as StorageError, Result as StorageResult},
+    },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use moka::sync::SegmentedCache as MokaCache;
@@ -81,7 +86,6 @@ use super::{
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
     TransactionCacheRead,
     cache_types::{CacheResult, CachedVersionMap, IsNewer, MonotonicCache, Ticket},
-    implement_passthrough_traits,
     object_locks::ObjectLocks,
 };
 use crate::{
@@ -2155,7 +2159,162 @@ impl ExecutionCacheWrite for WritebackCache {
     }
 }
 
-implement_passthrough_traits!(WritebackCache);
+impl CheckpointCache for WritebackCache {
+    fn try_get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        self.store.get_transaction_perpetual_checkpoint(digest)
+    }
+
+    fn try_multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        self.store
+            .multi_get_transactions_perpetual_checkpoints(digests)
+    }
+
+    fn try_insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult {
+        self.store
+            .insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+    }
+}
+
+impl ExecutionCacheReconfigAPI for WritebackCache {
+    fn try_insert_genesis_object(&self, object: Object) -> IotaResult {
+        self.insert_genesis_object_impl(object)
+    }
+
+    fn try_bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult {
+        self.bulk_insert_genesis_objects_impl(objects)
+    }
+
+    fn try_revert_state_update(&self, digest: &TransactionDigest) -> IotaResult {
+        self.revert_state_update_impl(digest)
+    }
+
+    fn try_set_epoch_start_configuration(
+        &self,
+        epoch_start_config: &EpochStartConfiguration,
+    ) -> IotaResult {
+        self.store.set_epoch_start_configuration(epoch_start_config)
+    }
+
+    fn update_epoch_flags_metrics(&self, old: &[EpochFlag], new: &[EpochFlag]) {
+        self.store.update_epoch_flags_metrics(old, new)
+    }
+
+    fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>) {
+        self.clear_state_end_of_epoch_impl(execution_guard)
+    }
+
+    fn try_expensive_check_iota_conservation(
+        &self,
+        old_epoch_store: &AuthorityPerEpochStore,
+        epoch_supply_change: Option<i64>,
+    ) -> IotaResult {
+        self.store
+            .expensive_check_iota_conservation(self, old_epoch_store, epoch_supply_change)
+    }
+
+    fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
+        self.store.perpetual_tables.checkpoint_db(path)
+    }
+}
+
+impl TestingAPI for WritebackCache {
+    fn database_for_testing(&self) -> Arc<AuthorityStore> {
+        self.store.clone()
+    }
+}
+
+impl ObjectStore for WritebackCache {
+    fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+        ObjectCacheRead::try_get_object(self, object_id).map_err(StorageError::custom)
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> StorageResult<Option<Object>> {
+        ObjectCacheRead::try_get_object_by_key(self, object_id, version)
+            .map_err(StorageError::custom)
+    }
+}
+
+impl ChildObjectResolver for WritebackCache {
+    fn read_child_object(
+        &self,
+        parent: &ObjectID,
+        child: &ObjectID,
+        child_version_upper_bound: SequenceNumber,
+    ) -> IotaResult<Option<Object>> {
+        let Some(child_object) =
+            self.try_find_object_lt_or_eq_version(*child, child_version_upper_bound)?
+        else {
+            return Ok(None);
+        };
+
+        let parent = *parent;
+        if child_object.owner != Owner::Object(parent) {
+            return Err(IotaError::InvalidChildObjectAccess {
+                object: *child,
+                given_parent: parent,
+                actual_owner: child_object.owner,
+            });
+        }
+        Ok(Some(child_object))
+    }
+
+    fn get_object_received_at_version(
+        &self,
+        owner: &ObjectID,
+        receiving_object_id: &ObjectID,
+        receive_object_at_version: SequenceNumber,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        let Some(recv_object) = ObjectCacheRead::try_get_object_by_key(
+            self,
+            receiving_object_id,
+            receive_object_at_version,
+        )?
+        else {
+            return Ok(None);
+        };
+
+        // Check for:
+        // * Invalid access -- treat as the object does not exist. Or;
+        // * If we've already received the object at the version -- then treat it as
+        //   though it doesn't exist.
+        // These two cases must remain indisguishable to the caller otherwise we risk
+        // forks in transaction replay due to possible reordering of
+        // transactions during replay.
+        if recv_object.owner != Owner::Address((*owner).into())
+            || self.try_have_received_object_at_version(
+                receiving_object_id,
+                receive_object_at_version,
+                epoch_id,
+            )?
+        {
+            return Ok(None);
+        }
+
+        Ok(Some(recv_object))
+    }
+}
+
+impl BackingPackageStore for WritebackCache {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        ObjectCacheRead::try_get_package_object(self, package_id)
+    }
+}
 
 impl GlobalStateHashStore for WritebackCache {
     fn get_root_state_hash_for_epoch(

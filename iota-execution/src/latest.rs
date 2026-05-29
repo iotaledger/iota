@@ -19,9 +19,10 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
+    auth_context::AuthContextData,
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
-    digests::{Digest, TransactionDigest},
+    digests::TransactionDigest,
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
@@ -197,9 +198,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
-        sender_auth_digest: Digest,
-        sponsor_auth_digest: Option<Digest>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -223,9 +222,7 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
-            transaction_data_bytes,
-            sender_auth_digest,
-            sponsor_auth_digest,
+            auth_context_data,
             trace_builder_opt,
             &self.0,
         )
@@ -254,9 +251,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
-        sender_auth_digest: Digest,
-        sponsor_auth_digest: Option<Digest>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -273,9 +268,7 @@ impl executor::Executor for Executor {
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
-            transaction_data_bytes,
-            sender_auth_digest,
-            sponsor_auth_digest,
+            auth_context_data,
             trace_builder_opt,
             &self.0,
         )

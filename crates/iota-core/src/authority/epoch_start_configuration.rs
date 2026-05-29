@@ -5,7 +5,7 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheType, NodeConfig};
+use iota_config::NodeConfig;
 use iota_types::{
     base_types::SequenceNumber,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
@@ -27,14 +27,6 @@ pub trait EpochStartConfigTrait {
     fn flags(&self) -> &[EpochFlag];
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
-
-    fn execution_cache_type(&self) -> ExecutionCacheType {
-        if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
-            ExecutionCacheType::WritebackCache
-        } else {
-            ExecutionCacheType::PassthroughCache
-        }
-    }
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values
@@ -50,13 +42,8 @@ pub enum EpochFlag {
     // The deprecated flags have all been in production for long enough that
     // we have deleted the old code paths they were guarding.
     // We retain them here in order not to break deserialization.
+    _WritebackCacheEnabledDeprecated = 0,
     _DataQuarantineFromBeginningOfEpochDeprecated = 1,
-
-    // When switching between different cache types mid-epoch, partial checkpoint transactions
-    // might already be on disk. During lock initialization, we check if there is any existing
-    // lock or not, depending on the used implementation. That's why we should not switch
-    // mid-epoch.
-    WritebackCacheEnabled = 0,
 
     // Used for `test_epoch_flag_upgrade`.
     #[cfg(msim)]
@@ -64,8 +51,10 @@ pub enum EpochFlag {
 }
 
 impl EpochFlag {
-    pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
-        Self::default_flags_impl(config.execution_cache)
+    pub fn default_flags_for_new_epoch(_config: &NodeConfig) -> Vec<Self> {
+        // NodeConfig arg is not currently used, but we keep it here for future
+        // flags that might depend on the config.
+        Self::default_flags_impl()
     }
 
     // Return flags that are mandatory for the current version of the code. This is
@@ -78,21 +67,14 @@ impl EpochFlag {
     /// For situations in which there is no config available (e.g. setting up a
     /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
-        Self::default_flags_impl(Default::default())
+        Self::default_flags_impl()
     }
 
-    fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
-        let mut new_flags = vec![
+    fn default_flags_impl() -> Vec<Self> {
+        vec![
             #[cfg(msim)]
             EpochFlag::DummyFlag,
-        ];
-
-        // Load cache type from env
-        if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
-            new_flags.push(EpochFlag::WritebackCacheEnabled);
-        }
-
-        new_flags
+        ]
     }
 }
 
@@ -101,7 +83,9 @@ impl fmt::Display for EpochFlag {
         // Important - implementation should return low cardinality values because this
         // is used as metric key
         match self {
-            EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
+            EpochFlag::_WritebackCacheEnabledDeprecated => {
+                write!(f, "WritebackCacheEnabled (DEPRECATED)")
+            }
             EpochFlag::_DataQuarantineFromBeginningOfEpochDeprecated => {
                 write!(f, "DataQuarantineFromBeginningOfEpoch (DEPRECATED)")
             }

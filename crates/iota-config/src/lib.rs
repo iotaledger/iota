@@ -24,9 +24,7 @@ pub mod transaction_deny_config;
 pub mod verifier_signing_config;
 
 use iota_types::multiaddr::Multiaddr;
-pub use node::{
-    ConsensusConfig, ExecutionCacheConfig, ExecutionCacheType, NodeConfig, WritebackCacheConfig,
-};
+pub use node::{ConsensusConfig, ExecutionCacheConfig, NodeConfig, WritebackCacheConfig};
 
 const IOTA_DIR: &str = ".iota";
 pub const IOTA_CONFIG_DIR: &str = "iota_config";

@@ -13,6 +13,9 @@ use serde::Serialize;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
+    },
     digests::{Digest, MoveAuthenticatorDigest},
     transaction::ProgrammableTransaction,
 };
@@ -58,6 +61,12 @@ pub struct AuthContext {
     /// [`MoveAuthenticator::digest()`]; for others Blake2b256 of the
     /// serialized (flag-prefixed) signature bytes.
     sponsor_auth_digest: Option<Digest>,
+    /// The sender's authenticator function ref, present when the sender uses a
+    /// [`MoveAuthenticator`] signature.
+    sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+    /// The sponsor's authenticator function ref, present when the sponsor uses
+    /// a [`MoveAuthenticator`] signature.
+    sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
     /// The authentication input objects or primitive values
     tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
@@ -71,6 +80,8 @@ impl AuthContext {
         auth_digest: MoveAuthenticatorDigest,
         sender_auth_digest: Digest,
         sponsor_auth_digest: Option<Digest>,
+        sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+        sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
         ptb: &ProgrammableTransaction,
         tx_data_bytes: Vec<u8>,
     ) -> Self {
@@ -78,6 +89,8 @@ impl AuthContext {
             auth_digest,
             sender_auth_digest,
             sponsor_auth_digest,
+            sender_authenticator_function_ref_v1,
+            sponsor_authenticator_function_ref_v1,
             tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
             tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
             tx_data_bytes,
@@ -89,6 +102,8 @@ impl AuthContext {
             auth_digest: MoveAuthenticatorDigest::default(),
             sender_auth_digest: Digest::default(),
             sponsor_auth_digest: None,
+            sender_authenticator_function_ref_v1: None,
+            sponsor_authenticator_function_ref_v1: None,
             tx_inputs: Vec::new(),
             tx_commands: Vec::new(),
             tx_data_bytes: Vec::new(),
@@ -117,6 +132,20 @@ impl AuthContext {
     /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
     pub fn sponsor_auth_digest(&self) -> Option<&Digest> {
         self.sponsor_auth_digest.as_ref()
+    }
+
+    /// Returns the sender's authenticator function ref, present when the sender
+    /// uses a [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator) signature.
+    pub fn sender_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
+        self.sender_authenticator_function_ref_v1.as_ref()
+    }
+
+    /// Returns the sponsor's authenticator function ref, present when the
+    /// sponsor uses a
+    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// signature.
+    pub fn sponsor_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
+        self.sponsor_authenticator_function_ref_v1.as_ref()
     }
 
     pub fn tx_inputs(&self) -> &Vec<MoveCallArg> {
@@ -183,6 +212,8 @@ impl AuthContext {
         tx_data_bytes: Vec<u8>,
         sender_auth_digest: Digest,
         sponsor_auth_digest: Option<Digest>,
+        sender_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
+        sponsor_authenticator_function_ref_v1: Option<AuthenticatorFunctionRefV1>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
@@ -190,6 +221,8 @@ impl AuthContext {
         self.tx_data_bytes = tx_data_bytes;
         self.sender_auth_digest = sender_auth_digest;
         self.sponsor_auth_digest = sponsor_auth_digest;
+        self.sender_authenticator_function_ref_v1 = sender_authenticator_function_ref_v1;
+        self.sponsor_authenticator_function_ref_v1 = sponsor_authenticator_function_ref_v1;
     }
 }
 
@@ -223,6 +256,15 @@ pub fn is_auth_context(
         && struct_name == AUTH_CONTEXT_STRUCT_NAME
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AuthContextData {
+    pub transaction_data_bytes: Vec<u8>,
+    pub sender_auth_digest: Digest,
+    pub sponsor_auth_digest: Option<Digest>,
+    pub sender_authenticator_function_ref: Option<AuthenticatorFunctionRef>,
+    pub sponsor_authenticator_function_ref: Option<AuthenticatorFunctionRef>,
+}
+
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{Command, Identifier, TypeTag};
@@ -252,10 +294,23 @@ mod tests {
             )],
         };
 
+        let sender_auth_fun_ref_v1 = AuthenticatorFunctionRefV1 {
+            package: ObjectID::from([0xAAu8; 32]),
+            module: "sender_mod".to_string(),
+            function: "authenticate".to_string(),
+        };
+        let sponsor_auth_fun_ref_v1 = AuthenticatorFunctionRefV1 {
+            package: ObjectID::from([0xBBu8; 32]),
+            module: "sponsor_mod".to_string(),
+            function: "authenticate".to_string(),
+        };
+
         let ctx = AuthContext::new_from_components(
             auth_digest,
             sender_auth_digest,
             sponsor_auth_digest,
+            Some(sender_auth_fun_ref_v1.clone()),
+            Some(sponsor_auth_fun_ref_v1.clone()),
             &ptb,
             tx_data_bytes.clone(),
         );
@@ -268,6 +323,18 @@ mod tests {
 
         // sponsor_auth_digest
         assert_eq!(ctx.sponsor_auth_digest(), sponsor_auth_digest.as_ref());
+
+        // sender_authenticator_function_ref_v1
+        assert_eq!(
+            ctx.sender_authenticator_function_ref_v1(),
+            Some(&sender_auth_fun_ref_v1)
+        );
+
+        // sponsor_authenticator_function_ref_v1
+        assert_eq!(
+            ctx.sponsor_authenticator_function_ref_v1(),
+            Some(&sponsor_auth_fun_ref_v1)
+        );
 
         // tx_inputs: one Pure input
         assert_eq!(ctx.tx_inputs().len(), 1);
@@ -301,6 +368,8 @@ mod tests {
             vec![],
             vec![],
             Digest::default(),
+            None,
+            None,
             None,
         );
         let non_empty_bytes = ctx.to_bcs_bytes();
