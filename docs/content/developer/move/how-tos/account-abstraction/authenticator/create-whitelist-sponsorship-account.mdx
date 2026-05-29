@@ -1,0 +1,77 @@
+---
+description: "How to create a sponsoring account that pays gas only for whitelisted sender authenticator functions and within per-user gas allowances"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+  - account-abstraction
+---
+
+# Sponsor Transactions with a Whitelist and Per-User Gas Allowances
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to create a sponsoring account that pays gas only for transactions whose sender authenticator function is in an explicit whitelist, and only up to a per-user gas allowance — using intent-aware authentication to inspect both the sender's authenticator and the transaction's gas budget before authorizing sponsorship.
+
+:::tip Recommended reading
+
+This guide builds on patterns from the [Enforce a Per-Transaction Spending Limit](create-spending-limit-account.mdx) how-to. Reviewing that one first will help you understand the PTB-scanning pattern reused here.
+
+:::
+
+:::tip Why is this possible?
+
+The authenticator receives the full [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext), which exposes the sender's [`sender_authenticator_function_info_v1()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_sender_authenticator_function_info_v1) and the PTB [`tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands). Combined with the [`TxContext`](../../../../references/framework/iota/tx_context.mdx) fields [`sponsor()`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_sponsor) and [`gas_budget()`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_gas_budget), the sponsor can decide — before execution — whose transactions it is willing to pay for and how much it is willing to spend on each user.
+
+:::
+
+## Example Code
+
+1. Define the authenticator. It checks that the transaction is sponsored by this account, that the sender uses a `MoveAuthenticator` whose function is whitelisted, that the gas budget fits the sender's per-user allowance, and that the PTB contains a `deduct_user_gas_allowance` command that pays back at least the gas budget against the sender's allowance.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move#L139-L184
+```
+2. The PTB-scan helpers used by the authenticator. `lookup_and_calculate_deductions` walks [`auth_ctx.tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands), identifies calls to `deduct_user_gas_allowance` on this sponsor account for the right sender, and sums the deducted amounts from [`auth_ctx.tx_inputs()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_inputs). `is_deduct_call` derives the expected package and module from `type_name::get<WhitelistSponsorshipAccount>()` and confirms the call targets this module's `deduct_user_gas_allowance`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move#L293-L399
+```
+3. Create the account with an admin address. The whitelists (a `Bag` of accepted sender authenticator functions and a `Table<address, u64>` of per-user gas allowances) and the admin are attached as dynamic fields.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move#L100-L114
+```
+4. Pay back the allowance from inside the PTB.
+
+The authenticator itself cannot modify state. Instead, it verifies that the transaction contains a `deduct_user_gas_allowance` call whose total deducted amount is at least the gas budget.
+
+The actual state update (decreasing the user's allowance) happens inside `deduct_user_gas_allowance`, which is callable only by the user themselves or the admin.
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move#L116-L135
+```
+5. Administer the whitelists. The admin adds or removes accepted sender authenticator functions and sets or rotates per-user gas allowances.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move#L233-L287
+```
+
+## Expected Behavior
+
+- The authenticator scans the full PTB before execution. If the PTB does not deduct at least the transaction's gas budget against the sender's allowance, the transaction is rejected.
+- The sender's `MoveAuthenticator` function — identified by `(package, module, function)` — must be present in the whitelist. Transactions from senders using a non-whitelisted authenticator function, or from senders that do not use a `MoveAuthenticator` at all, are rejected.
+- The transaction must be sponsored by this account: `TxContext::sponsor()` must be `Some(account_address)`.
+- The sender must have a gas allowance entry, and `TxContext::gas_budget()` must not exceed it.
+- The per-user allowance is decremented at runtime inside `deduct_user_gas_allowance`, which aborts on insufficient allowance as a defense-in-depth check.
+- Administrative mutations (`attach_whitelists`, `detach_whitelists`, `add_authenticator_function`, `remove_authenticator_function`, `add_user_gas_allowance`, `rotate_user_gas_allowance`, `remove_user_gas_allowance`) abort with `ENotAdmin` when called by any sender other than the stored admin.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="account" label="Whitelist sponsorship account module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelist_sponsorship_account.move
+```
+
+</TabItem>
+<TabItem value="whitelists" label="Whitelists storage module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/whitelist_sponsorship/sources/whitelists.move
+```
+
+</TabItem>
+</Tabs>
