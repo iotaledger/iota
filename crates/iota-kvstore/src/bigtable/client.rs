@@ -23,6 +23,7 @@ use iota_types::{
     storage::ObjectKey,
     transaction::Transaction,
 };
+use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::{Checkpoint, KeyValueStoreReader, KeyValueStoreWriter, TransactionData};
@@ -105,7 +106,10 @@ impl KeyValueStoreWriter for BigTableClient {
         let rows = entries
             .into_iter()
             .map(|(address, seq, transaction_digest)| {
-                let key = encode_transaction_by_address_key(&address, seq);
+                let key = encode_transaction_by_address_key(
+                    &address,
+                    TransactionSequenceNumber::new(seq),
+                );
                 let cells = [Cell::new(
                     DEFAULT_COLUMN_QUALIFIER.as_bytes().into(),
                     transaction_digest.inner().into(),
@@ -208,8 +212,11 @@ impl KeyValueStoreReader for BigTableClient {
         &mut self,
         address: IotaAddress,
     ) -> Result<Vec<TransactionDigest>, Self::Error> {
-        let newest = encode_transaction_by_address_key(&address, u64::MAX).to_vec();
-        let oldest = encode_transaction_by_address_key(&address, 0).to_vec();
+        let newest =
+            encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(u64::MAX))
+                .to_vec();
+        let oldest =
+            encode_transaction_by_address_key(&address, TransactionSequenceNumber::new(0)).to_vec();
 
         let limit = 0;
         let rows = self
@@ -298,28 +305,77 @@ pub fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
     raw_key
 }
 
+/// A transaction sequence number, with a BigTable byte encoding that
+/// preserves *descending* order under lexicographic row-key comparison.
+///
+/// BigTable scans keys in ascending lexicographic order. To make "newest
+/// transactions for an address" a cheap forward range scan, the
+/// per-address index stores each sequence number's complement
+/// (`u64::MAX - seq`) in the key, so higher seq sorts earlier.
+///
+/// - Encode with [`TransactionSequenceNumber::to_complement_be_bytes`].
+/// - Decode with [`TransactionSequenceNumber::from_complement_be_bytes`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct TransactionSequenceNumber(u64);
+
+impl TransactionSequenceNumber {
+    pub const LENGTH: usize = std::mem::size_of::<u64>();
+
+    /// Creates a new [`TransactionSequenceNumber`] from the given sequence
+    /// number.
+    pub fn new(seq: u64) -> Self {
+        Self(seq)
+    }
+
+    /// Returns a copy of the contained sequence number.
+    pub fn get(&self) -> u64 {
+        self.0
+    }
+
+    /// Returns the complement (`u64::MAX - seq`) of the sequence number,
+    /// encoded as a big-endian byte array.
+    ///
+    /// # Lexicographical Ordering
+    /// Storing the complement ensures that BigTable's lexicographical sorting
+    /// orders entries by **descending** sequence number. This allows for
+    /// efficient forward scans to retrieve the most recent transactions
+    /// first.
+    pub fn to_complement_be_bytes(&self) -> [u8; Self::LENGTH] {
+        (u64::MAX - self.0).to_be_bytes()
+    }
+
+    /// Reconstructs a [`TransactionSequenceNumber`] from its complement
+    /// byte array representation.
+    ///
+    /// This is the inverse of
+    /// [`TransactionSequenceNumber::to_complement_be_bytes`]. It reads the
+    /// stored complement bytes and restores the original sequence number by
+    /// applying `u64::MAX - stored_value`.
+    pub fn from_complement_be_bytes(bytes: [u8; Self::LENGTH]) -> Self {
+        Self(u64::MAX - u64::from_be_bytes(bytes))
+    }
+}
+
 /// The length of an address-to-transaction row key, in bytes.
-pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + std::mem::size_of::<u64>();
+pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + TransactionSequenceNumber::LENGTH;
 
 /// Encodes a row key for the address-to-transaction index.
 ///
 /// Layout: `address (32 bytes) || complement (8 bytes)`.
 ///
-/// The `complement` is calculated as `u64::MAX - transaction_sequence_number`,
-/// encoded in big-endian byte order. Storing the complement ensures that
-/// transactions are ordered lexicographically by descending sequence number,
-/// allowing for efficient forward scans when retrieving the most recent
-/// transactions for an address.
+/// Storing the complement ensures that transactions are ordered
+/// lexicographically by descending sequence number, allowing for efficient
+/// forward scans when retrieving the most recent transactions for an address.
 ///
 /// See [`decode_transaction_by_address_key`] for the inverse operation.
 pub fn encode_transaction_by_address_key(
     address: &IotaAddress,
-    transaction_sequence_number: u64,
+    transaction_sequence_number: TransactionSequenceNumber,
 ) -> [u8; ADDRESS_TX_KEY_LEN] {
     let mut key = [0u8; ADDRESS_TX_KEY_LEN];
     key[..IotaAddress::LENGTH].copy_from_slice(address.as_ref());
     key[IotaAddress::LENGTH..]
-        .copy_from_slice(&(u64::MAX - transaction_sequence_number).to_be_bytes());
+        .copy_from_slice(&transaction_sequence_number.to_complement_be_bytes());
     key
 }
 
@@ -327,10 +383,68 @@ pub fn encode_transaction_by_address_key(
 ///
 /// This is the inverse of [`encode_transaction_by_address_key`]. It
 /// extracts the address and restores the original sequence number from
-/// the stored complement (`u64::MAX - stored_complement`).
-pub fn decode_transaction_by_address_key(key: &[u8]) -> Result<(IotaAddress, u64), anyhow::Error> {
+/// the stored complement.
+pub fn decode_transaction_by_address_key(
+    key: &[u8],
+) -> Result<(IotaAddress, TransactionSequenceNumber), anyhow::Error> {
     anyhow::ensure!(key.len() == ADDRESS_TX_KEY_LEN, "invalid key length");
     let address = IotaAddress::from_bytes(&key[..IotaAddress::LENGTH])?;
-    let tx_seq = u64::MAX - u64::from_be_bytes(key[IotaAddress::LENGTH..].try_into()?);
-    Ok((address, tx_seq))
+    let transaction_sequence_number =
+        TransactionSequenceNumber::from_complement_be_bytes(key[IotaAddress::LENGTH..].try_into()?);
+    Ok((address, transaction_sequence_number))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_transaction_sequence_number_roundtrip() {
+        for seq in [0, 1, 42, u64::MAX - 1, u64::MAX] {
+            let n = TransactionSequenceNumber::new(seq);
+            assert_eq!(
+                TransactionSequenceNumber::from_complement_be_bytes(n.to_complement_be_bytes()),
+                n,
+            );
+        }
+    }
+
+    #[test]
+    fn test_transaction_sequence_number_orders_descending() {
+        // higher seq must sort earlier (smaller bytes) so forward range scans
+        // return newest transactions first.
+        let older = TransactionSequenceNumber::new(1).to_complement_be_bytes();
+        let newer = TransactionSequenceNumber::new(2).to_complement_be_bytes();
+        assert!(newer < older);
+
+        // boundary: u64::MAX (newest possible) sorts before 0 (oldest possible).
+        let newest = TransactionSequenceNumber::new(u64::MAX).to_complement_be_bytes();
+        let oldest = TransactionSequenceNumber::new(0).to_complement_be_bytes();
+        assert!(newest < oldest);
+        assert_eq!(newest, [0; 8]);
+        assert_eq!(oldest, [0xFF; 8]);
+    }
+
+    #[test]
+    fn test_encode_transaction_by_address_key() {
+        let address = IotaAddress::random();
+        let transaction_sequence_number = TransactionSequenceNumber::new(42);
+        let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
+        assert_eq!(key[..IotaAddress::LENGTH], address.into_bytes());
+        assert_eq!(
+            key[IotaAddress::LENGTH..],
+            transaction_sequence_number.to_complement_be_bytes()
+        );
+    }
+
+    #[test]
+    fn test_decode_transaction_by_address_key() {
+        let address = IotaAddress::random();
+        let transaction_sequence_number = TransactionSequenceNumber::new(42);
+        let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
+        let (decoded_address, decoded_sequence_number) =
+            decode_transaction_by_address_key(&key).unwrap();
+        assert_eq!(decoded_address, address);
+        assert_eq!(decoded_sequence_number, transaction_sequence_number);
+    }
 }
