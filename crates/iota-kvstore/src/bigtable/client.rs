@@ -458,7 +458,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_transaction_sequence_number_roundtrip() {
+    fn transaction_sequence_number_roundtrip() {
         for seq in [0, 1, 42, u64::MAX - 1, u64::MAX] {
             let n = TransactionSequenceNumber::new(seq);
             assert_eq!(
@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transaction_sequence_number_orders_descending() {
+    fn transaction_sequence_number_orders_descending() {
         // higher seq must sort earlier (smaller bytes) so forward range scans
         // return newest transactions first.
         let older = TransactionSequenceNumber::new(1).to_complement_be_bytes();
@@ -485,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_transaction_by_address_key() {
+    fn transaction_by_address_key_encode() {
         let address = IotaAddress::random();
         let transaction_sequence_number = TransactionSequenceNumber::new(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
@@ -497,7 +497,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_transaction_by_address_key() {
+    fn transaction_by_address_key_decode() {
         let address = IotaAddress::random();
         let transaction_sequence_number = TransactionSequenceNumber::new(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
