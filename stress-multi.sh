@@ -539,6 +539,14 @@ PRE_ACQUIRE_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequen
 PRE_ACQUIRE_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_submit_pre_acquire_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 [ -z "$PRE_ACQUIRE_P50" ] && PRE_ACQUIRE_P50=0
 [ -z "$PRE_ACQUIRE_P99" ] && PRE_ACQUIRE_P99=0
+# Live graduated shed pct (gauge). Set on every admission attempt to the
+# computed shed probability from `compute_graduated_load_shedding_percentage`.
+# avg = typical shedding aggressiveness over the window. max = worst-case
+# (queue peaked into the high-shed region). Both in [0, 100].
+SHED_PCT_AVG=$(prom_scalar "avg_over_time((max(consensus_queue_load_shedding_percentage{host=~\"validator.*\"}))[${WINDOW}s:1s])")
+SHED_PCT_MAX=$(prom_scalar "max_over_time((max(consensus_queue_load_shedding_percentage{host=~\"validator.*\"}))[${WINDOW}s:1s])")
+[ -z "$SHED_PCT_AVG" ] && SHED_PCT_AVG=0
+[ -z "$SHED_PCT_MAX" ] && SHED_PCT_MAX=0
 # Stability of in-flight depth over the spam window. stddev/mean
 # gives the coefficient of variation (CV) at analysis time —
 # graduated should keep CV lower than binary since it paces
@@ -649,6 +657,8 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "admit_lat_p99:          $ADMIT_LAT_P99"
   echo "permit_wait_p50:        $PERMIT_WAIT_P50"
   echo "permit_wait_p99:        $PERMIT_WAIT_P99"
+  echo "shed_pct_avg:           $SHED_PCT_AVG"
+  echo "shed_pct_max:           $SHED_PCT_MAX"
   echo "pre_acquire_p50:        $PRE_ACQUIRE_P50"
   echo "pre_acquire_p99:        $PRE_ACQUIRE_P99"
   echo "permit_hold_p50:        $PERMIT_HOLD_P50"

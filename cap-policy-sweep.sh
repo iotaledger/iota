@@ -357,6 +357,8 @@ for i in $(seq 1 $ITERS); do
     permit_wait_p99=$(grep '^permit_wait_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     pre_acquire_p50=$(grep '^pre_acquire_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     pre_acquire_p99=$(grep '^pre_acquire_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    shed_pct_avg=$(grep '^shed_pct_avg:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    shed_pct_max=$(grep '^shed_pct_max:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     inflight_stddev=$(grep '^inflight_stddev:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     inflight_mean=$(grep '^inflight_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     saturation_75pct=$(grep '^saturation_75pct:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -369,6 +371,7 @@ for i in $(seq 1 $ITERS); do
     : "${permit_hold_p50:=0}"; : "${permit_hold_p99:=0}"
     : "${permit_wait_p50:=0}"; : "${permit_wait_p99:=0}"
     : "${pre_acquire_p50:=0}"; : "${pre_acquire_p99:=0}"
+    : "${shed_pct_avg:=0}"; : "${shed_pct_max:=0}"
     : "${inflight_stddev:=0}"; : "${inflight_mean:=0}"; : "${saturation_75pct:=0}"
     : "${consensus_lat_p50:=0}"; : "${consensus_lat_p99:=0}"
     : "${spammer_success:=0}"
@@ -384,6 +387,7 @@ for i in $(seq 1 $ITERS); do
     useful_tps=0; admit_p50=0; admit_p99=0; permit_hold_p50=0; permit_hold_p99=0
     permit_wait_p50=0; permit_wait_p99=0
     pre_acquire_p50=0; pre_acquire_p99=0
+    shed_pct_avg=0; shed_pct_max=0
     inflight_stddev=0; inflight_mean=0; saturation_75pct=0; consensus_lat_p50=0; consensus_lat_p99=0
     spammer_success=0; spammer_fp=0; ok=0; exits=""
     failed=1
@@ -406,6 +410,7 @@ for i in $(seq 1 $ITERS); do
   R_PERMIT_HOLD_P50="$permit_hold_p50" R_PERMIT_HOLD_P99="$permit_hold_p99" \
   R_PERMIT_WAIT_P50="$permit_wait_p50" R_PERMIT_WAIT_P99="$permit_wait_p99" \
   R_PRE_ACQUIRE_P50="$pre_acquire_p50" R_PRE_ACQUIRE_P99="$pre_acquire_p99" \
+  R_SHED_PCT_AVG="$shed_pct_avg" R_SHED_PCT_MAX="$shed_pct_max" \
   R_INFLIGHT_STDDEV="$inflight_stddev" R_INFLIGHT_MEAN="$inflight_mean" \
   R_SATURATION_75PCT="$saturation_75pct" \
   R_CONSENSUS_LAT_P50="$consensus_lat_p50" R_CONSENSUS_LAT_P99="$consensus_lat_p99" \
@@ -471,6 +476,8 @@ rec = {
     "permit_wait_p99": f("R_PERMIT_WAIT_P99"),
     "pre_acquire_p50": f("R_PRE_ACQUIRE_P50"),
     "pre_acquire_p99": f("R_PRE_ACQUIRE_P99"),
+    "shed_pct_avg": f("R_SHED_PCT_AVG"),
+    "shed_pct_max": f("R_SHED_PCT_MAX"),
     "inflight_stddev": f("R_INFLIGHT_STDDEV"),
     "inflight_mean": f("R_INFLIGHT_MEAN"),
     "saturation_75pct": f("R_SATURATION_75PCT"),
@@ -502,7 +509,7 @@ print(json.dumps(rec))
   else
     echo ">>> RESULT: iter=$i pct=$val_start_pct max=$val_max_pending sem=$val_sem_cap sem_shed=$val_sem_shedding"
     echo "    spammer: offered=$SPAMMER_OFFERED success=$spammer_success first_pass=${spammer_fp}%"
-    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]"
+    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  shed[avg=$shed_pct_avg,max=$shed_pct_max]"
   fi
 
   # Per-iter cleanup: keep last 2 multi-* dirs, drop older ones.

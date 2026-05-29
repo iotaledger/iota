@@ -90,7 +90,7 @@ SPAMMER_OFFERED=$((BURST_SIZE * N_SPAMMER + QPS_PER_SPAMMER * DURATION_SECS * N_
 HONEST_OFFERED=$((HONEST_QPS_PER_PROC * DURATION_SECS * HONEST_PROC_COUNT))
 
 # CSV header (only if new file)
-[ -f "$OUT_CSV" ] || echo "iso_time,iter,start_pct,duration_secs,spammer_proc_count,spammer_qps_per_proc,spammer_burst,spammer_offered,spammer_success,spammer_first_pass_pct,honest_proc_count,honest_qps_per_proc,honest_offered,honest_success,honest_first_pass_pct,peak_inflight,ratio,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,admit_lat_p50,admit_lat_p99,permit_hold_p50,permit_hold_p99,permit_wait_p50,permit_wait_p99,pre_acquire_p50,pre_acquire_p99,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p50,consensus_lat_p99,exit_codes_ok" > "$OUT_CSV"
+[ -f "$OUT_CSV" ] || echo "iso_time,iter,start_pct,duration_secs,spammer_proc_count,spammer_qps_per_proc,spammer_burst,spammer_offered,spammer_success,spammer_first_pass_pct,honest_proc_count,honest_qps_per_proc,honest_offered,honest_success,honest_first_pass_pct,peak_inflight,ratio,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,admit_lat_p50,admit_lat_p99,permit_hold_p50,permit_hold_p99,permit_wait_p50,permit_wait_p99,pre_acquire_p50,pre_acquire_p99,shed_pct_avg,shed_pct_max,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p50,consensus_lat_p99,exit_codes_ok" > "$OUT_CSV"
 
 exec >> "$OUT_LOG" 2>&1
 
@@ -288,6 +288,8 @@ for i in $(seq 1 $ITERS); do
     permit_wait_p99=$(grep '^permit_wait_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     pre_acquire_p50=$(grep '^pre_acquire_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     pre_acquire_p99=$(grep '^pre_acquire_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    shed_pct_avg=$(grep '^shed_pct_avg:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    shed_pct_max=$(grep '^shed_pct_max:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     inflight_stddev=$(grep '^inflight_stddev:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     inflight_mean=$(grep '^inflight_mean:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     saturation_75pct=$(grep '^saturation_75pct:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -307,6 +309,7 @@ for i in $(seq 1 $ITERS); do
     : "${permit_hold_p50:=0}"; : "${permit_hold_p99:=0}"
     : "${permit_wait_p50:=0}"; : "${permit_wait_p99:=0}"
     : "${pre_acquire_p50:=0}"; : "${pre_acquire_p99:=0}"
+    : "${shed_pct_avg:=0}"; : "${shed_pct_max:=0}"
     : "${inflight_stddev:=0}"; : "${inflight_mean:=0}"; : "${saturation_75pct:=0}"
     : "${consensus_lat_p50:=0}"; : "${consensus_lat_p99:=0}"
     : "${spammer_success:=0}"; : "${honest_success:=0}"; : "${current_pct:=?}"
@@ -321,7 +324,7 @@ for i in $(seq 1 $ITERS); do
       'BEGIN{if(o>0) printf "%.4f", 100.0*s/o; else print 0}')
 
     iso=$(basename "$latest" | sed 's/multi-//')
-    echo "$iso,$i,$current_pct,$DURATION_SECS,$N_SPAMMER,$QPS_PER_SPAMMER,$BURST_SIZE,$SPAMMER_OFFERED,$spammer_success,$spammer_fp,$HONEST_PROC_COUNT,$HONEST_QPS_PER_PROC,$HONEST_OFFERED,$honest_success,$honest_fp,$peak,$ratio,$r_prev,$r_grad_react,$r_max,$r_sem,$useful_tps,$admit_p50,$admit_p99,$permit_hold_p50,$permit_hold_p99,$permit_wait_p50,$permit_wait_p99,$pre_acquire_p50,$pre_acquire_p99,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p50,$consensus_lat_p99,$ok" >> "$OUT_CSV"
+    echo "$iso,$i,$current_pct,$DURATION_SECS,$N_SPAMMER,$QPS_PER_SPAMMER,$BURST_SIZE,$SPAMMER_OFFERED,$spammer_success,$spammer_fp,$HONEST_PROC_COUNT,$HONEST_QPS_PER_PROC,$HONEST_OFFERED,$honest_success,$honest_fp,$peak,$ratio,$r_prev,$r_grad_react,$r_max,$r_sem,$useful_tps,$admit_p50,$admit_p99,$permit_hold_p50,$permit_hold_p99,$permit_wait_p50,$permit_wait_p99,$pre_acquire_p50,$pre_acquire_p99,$shed_pct_avg,$shed_pct_max,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p50,$consensus_lat_p99,$ok" >> "$OUT_CSV"
 
     echo ">>> RESULT: iter=$i pct=$current_pct"
     echo "    spammer: offered=$SPAMMER_OFFERED success=$spammer_success first_pass=${spammer_fp}%"
