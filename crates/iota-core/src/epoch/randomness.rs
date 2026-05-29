@@ -905,6 +905,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
                 true,
             ));
             let epoch_store = state.epoch_store_for_testing();
@@ -1057,6 +1058,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
                 true,
             ));
             let epoch_store = state.epoch_store_for_testing();

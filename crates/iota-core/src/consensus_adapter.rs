@@ -346,10 +346,17 @@ pub struct ConsensusAdapter {
     /// Percentage of `max_pending_transactions` (hard limit) defining the soft
     /// limit at which graduated pre-consensus load shedding begins. When
     /// in-flight transactions are at or below the soft limit, no shedding
-    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
-    /// `max_pending_transactions`. Used in the certificate-less (pcool /
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100%
+    /// at the saturation limit. Used in the certificate-less (pcool /
     /// white-flag) mode.
     graduated_load_shedding_soft_limit_pct: u32,
+
+    /// Percentage of `max_pending_transactions` at which graduated load
+    /// shedding saturates at 100% rejection. Defaults to 100 (saturates at
+    /// the hard limit; same boundary as reactive — guarantees overshoot).
+    /// Setting below 100 (e.g. 90) gives preventive headroom to reach 100%
+    /// shedding before the hard limit.
+    graduated_load_shedding_saturation_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -383,11 +390,25 @@ impl ConsensusAdapter {
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
         graduated_load_shedding_soft_limit_pct: u32,
+        graduated_load_shedding_saturation_pct: u32,
         semaphore_shedding_enabled: bool,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
             ArcSwap::from_pointee(Arc::new(ArcSwap::from_pointee(HashMap::new())));
+        // Validate saturation_pct vs soft_limit_pct. Clamp + warn (Option B).
+        let saturation_pct =
+            if graduated_load_shedding_saturation_pct < graduated_load_shedding_soft_limit_pct {
+                warn!(
+                    "graduated-load-shedding-saturation-pct ({}) < \
+                 graduated-load-shedding-soft-limit-pct ({}); clamping to soft-limit-pct \
+                 (binary cutoff at soft limit). Update yaml to fix.",
+                    graduated_load_shedding_saturation_pct, graduated_load_shedding_soft_limit_pct
+                );
+                graduated_load_shedding_soft_limit_pct
+            } else {
+                graduated_load_shedding_saturation_pct
+            };
         Self {
             consensus_client,
             checkpoint_store,
@@ -403,6 +424,7 @@ impl ConsensusAdapter {
             semaphore_shedding_enabled,
             latency_observer: LatencyObserver::new(),
             graduated_load_shedding_soft_limit_pct,
+            graduated_load_shedding_saturation_pct: saturation_pct,
         }
     }
 
@@ -421,6 +443,7 @@ impl ConsensusAdapter {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
             true,
         )
     }
@@ -718,6 +741,12 @@ impl ConsensusAdapter {
     /// (pcool / white-flag) mode.
     pub(super) fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
         self.graduated_load_shedding_soft_limit_pct
+    }
+
+    /// Saturation point (as % of max_pending_transactions) where the
+    /// graduated shedding curve reaches 100%. Defaults to 100.
+    pub(super) fn graduated_load_shedding_saturation_pct(&self) -> u32 {
+        self.graduated_load_shedding_saturation_pct
     }
 
     /// Returns the number of transactions currently in-flight in consensus.
@@ -1621,6 +1650,7 @@ mod adapter_tests {
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
             true,
         );
 
@@ -1653,6 +1683,7 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
             true,
         );
 

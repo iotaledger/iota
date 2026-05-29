@@ -43,13 +43,18 @@ set -uo pipefail
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-ITERS="${ITERS:-20}"
+ITERS="${ITERS:-10}"
 
 # Validator-side load-shedding policy knobs. Each is OPTIONAL — if set,
 # the script patches the corresponding field in validator-common.yaml
 # before the sweep. If unset, whatever the yaml currently has is used.
 #
 # START_PCT       → graduated-load-shedding-soft-limit-pct (0-100)
+# SAT_PCT         → graduated-load-shedding-saturation-pct (0-100, must be
+#                   >= START_PCT). Where the curve reaches 100% shedding.
+#                   Default 100 = saturate at max_pending (legacy). Lower
+#                   gives preventive headroom: at SAT_PCT=90 the curve
+#                   reaches 100% at 90% of max_pending, preventing overshoot.
 # MAX_PENDING     → max-pending-transactions (any positive int)
 # SEMAPHORE_CAP   → max-pending-local-submissions (any positive int)
 # SEM_SHEDDING    → semaphore-shedding-enabled (true|false). When false,
@@ -63,6 +68,7 @@ ITERS="${ITERS:-20}"
 #       ITERS=60 ./cap-policy-sweep.sh
 #   done
 START_PCT="${START_PCT:-}"
+SAT_PCT="${SAT_PCT:-}"
 MAX_PENDING="${MAX_PENDING:-}"
 SEMAPHORE_CAP="${SEMAPHORE_CAP:-}"
 SEM_SHEDDING="${SEM_SHEDDING:-}"
@@ -175,6 +181,7 @@ patch_yaml_bool() {
 patch_yaml_int "max-pending-transactions"               "$MAX_PENDING"
 patch_yaml_int "max-pending-local-submissions"          "$SEMAPHORE_CAP"
 patch_yaml_int "graduated-load-shedding-soft-limit-pct" "$START_PCT"
+patch_yaml_int "graduated-load-shedding-saturation-pct" "$SAT_PCT"
 patch_yaml_bool "semaphore-shedding-enabled"            "$SEM_SHEDDING"
 
 # Bump per-process file descriptor limit to the hard cap. Each stress
@@ -336,6 +343,8 @@ for i in $(seq 1 $ITERS); do
   val_max_pending=$(read_yaml_int "max-pending-transactions")
   val_sem_cap=$(read_yaml_int "max-pending-local-submissions")
   val_start_pct=$(read_yaml_int "graduated-load-shedding-soft-limit-pct")
+  val_sat_pct=$(read_yaml_int "graduated-load-shedding-saturation-pct")
+  : "${val_sat_pct:=100}"
   val_sem_shedding=$(read_yaml_int "semaphore-shedding-enabled")
   # Default to "true" if the yaml line is somehow missing (matches Rust default).
   : "${val_sem_shedding:=true}"
@@ -346,6 +355,7 @@ for i in $(seq 1 $ITERS); do
     exits=$(grep '^exit codes:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_prev=$(grep '^reject_grad_preventive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_grad_react=$(grep '^reject_grad_reactive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    r_grad_sat=$(grep '^reject_grad_saturated:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_max=$(grep '^reject_max_pending:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_sem=$(grep '^reject_semaphore:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     useful_tps=$(grep '^useful_tps:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -367,7 +377,7 @@ for i in $(seq 1 $ITERS); do
     spammer_success=$(grep '^spammer_success:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
 
     : "${peak:=0}"; : "${ratio:=0}"; : "${r_prev:=0}"; : "${r_grad_react:=0}"
-    : "${r_max:=0}"; : "${r_sem:=0}"; : "${useful_tps:=0}"; : "${admit_p50:=0}"; : "${admit_p99:=0}"
+    : "${r_max:=0}"; : "${r_sem:=0}"; : "${r_grad_sat:=0}"; : "${useful_tps:=0}"; : "${admit_p50:=0}"; : "${admit_p99:=0}"
     : "${permit_hold_p50:=0}"; : "${permit_hold_p99:=0}"
     : "${permit_wait_p50:=0}"; : "${permit_wait_p99:=0}"
     : "${pre_acquire_p50:=0}"; : "${pre_acquire_p99:=0}"
@@ -383,7 +393,7 @@ for i in $(seq 1 $ITERS); do
     failed=0
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")
-    peak=0; ratio=0; r_prev=0; r_grad_react=0; r_max=0; r_sem=0
+    peak=0; ratio=0; r_prev=0; r_grad_react=0; r_grad_sat=0; r_max=0; r_sem=0
     useful_tps=0; admit_p50=0; admit_p99=0; permit_hold_p50=0; permit_hold_p99=0
     permit_wait_p50=0; permit_wait_p99=0
     pre_acquire_p50=0; pre_acquire_p99=0
@@ -404,6 +414,7 @@ for i in $(seq 1 $ITERS); do
   SPAM_GAS_CHUNK="$GAS_CHUNK_SIZE" SPAM_NUM_VALIDATORS="$NUM_VALIDATORS_TO_TARGET" \
   SPAM_OFFERED="$SPAMMER_OFFERED" \
   VAL_MAX_PENDING="$val_max_pending" VAL_SEM_CAP="$val_sem_cap" VAL_START_PCT="$val_start_pct" \
+  VAL_SAT_PCT="$val_sat_pct" \
   VAL_SEM_SHEDDING="$val_sem_shedding" \
   R_PEAK="$peak" R_RATIO="$ratio" R_USEFUL_TPS="$useful_tps" \
   R_ADMIT_LAT_P50="$admit_p50" R_ADMIT_LAT_P99="$admit_p99" \
@@ -415,7 +426,7 @@ for i in $(seq 1 $ITERS); do
   R_SATURATION_75PCT="$saturation_75pct" \
   R_CONSENSUS_LAT_P50="$consensus_lat_p50" R_CONSENSUS_LAT_P99="$consensus_lat_p99" \
   R_SPAMMER_SUCCESS="$spammer_success" R_SPAMMER_FP="$spammer_fp" \
-  R_REJ_PREV="$r_prev" R_REJ_REACT="$r_grad_react" R_REJ_MAX="$r_max" R_REJ_SEM="$r_sem" \
+  R_REJ_PREV="$r_prev" R_REJ_REACT="$r_grad_react" R_REJ_SAT="$r_grad_sat" R_REJ_MAX="$r_max" R_REJ_SEM="$r_sem" \
   R_EXIT_CODES="$exits" R_OK="$ok" \
   python3 -c '
 import json, os
@@ -462,6 +473,7 @@ rec = {
     "max_pending_transactions": i("VAL_MAX_PENDING"),
     "max_pending_local_submissions": i("VAL_SEM_CAP"),
     "graduated_load_shedding_soft_limit_pct": i("VAL_START_PCT"),
+    "graduated_load_shedding_saturation_pct": i("VAL_SAT_PCT"),
     "semaphore_shedding_enabled": b("VAL_SEM_SHEDDING"),
   },
   "results": {
@@ -486,6 +498,7 @@ rec = {
     "spammer_success": i("R_SPAMMER_SUCCESS"),
     "spammer_first_pass_pct": f("R_SPAMMER_FP"),
     "reject_grad_preventive": i("R_REJ_PREV"),
+    "reject_grad_saturated": i("R_REJ_SAT"),
     "reject_grad_reactive": i("R_REJ_REACT"),
     "reject_max_pending": i("R_REJ_MAX"),
     "reject_semaphore": i("R_REJ_SEM"),
@@ -507,9 +520,9 @@ print(json.dumps(rec))
   if [ "$failed" -eq 1 ]; then
     echo ">>> RESULT: iter=$i pct=$val_start_pct FAILED"
   else
-    echo ">>> RESULT: iter=$i pct=$val_start_pct max=$val_max_pending sem=$val_sem_cap sem_shed=$val_sem_shedding"
+    echo ">>> RESULT: iter=$i pct=$val_start_pct sat=$val_sat_pct max=$val_max_pending sem=$val_sem_cap sem_shed=$val_sem_shedding"
     echo "    spammer: offered=$SPAMMER_OFFERED success=$spammer_success first_pass=${spammer_fp}%"
-    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  shed[avg=$shed_pct_avg,max=$shed_pct_max]"
+    echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,sat=$r_grad_sat,react=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  shed[avg=$shed_pct_avg,max=$shed_pct_max]"
   fi
 
   # Per-iter cleanup: keep last 2 multi-* dirs, drop older ones.
@@ -553,6 +566,7 @@ with open(path) as f:
       v.get("max_pending_transactions", "?"),
       v.get("max_pending_local_submissions", "?"),
       v.get("graduated_load_shedding_soft_limit_pct", "?"),
+      v.get("graduated_load_shedding_saturation_pct", "?"),
     )
     groups[key].append({
       "peak": peak,
@@ -560,14 +574,14 @@ with open(path) as f:
       "tps": r["results"].get("useful_tps") or 0,
     })
 
-print(f"  {\"host\":<14} {\"max_pend\":>9} {\"sem\":>5} {\"pct\":>4} {\"n\":>3} {\"peak_med\":>9} {\"peak_max\":>9} {\"ratio_med\":>10} {\"ratio_max\":>10} {\"tps_med\":>8} {\"tps_max\":>8}")
-print("  " + "-" * 110)
+print(f"  {'host':<14} {'max_pend':>9} {'sem':>5} {'pct':>4} {'sat':>4} {'n':>3} {'peak_med':>9} {'peak_max':>9} {'ratio_med':>10} {'ratio_max':>10} {'tps_med':>8} {'tps_max':>8}")
+print("  " + "-" * 115)
 for key in sorted(groups):
   rows = groups[key]
   peaks = [r["peak"] for r in rows]
   ratios = [r["ratio_cap"] for r in rows if r["ratio_cap"] is not None]
   tps = [r["tps"] for r in rows]
-  print(f"  {key[0]:<14} {str(key[1]):>9} {str(key[2]):>5} {str(key[3]):>4} {len(rows):>3} {median(peaks):>9.0f} {max(peaks):>9} {median(ratios):>10.3f} {max(ratios):>10.3f} {median(tps):>8.1f} {max(tps):>8.1f}")
+  print(f"  {key[0]:<14} {str(key[1]):>9} {str(key[2]):>5} {str(key[3]):>4} {str(key[4]):>4} {len(rows):>3} {median(peaks):>9.0f} {max(peaks):>9} {median(ratios):>10.3f} {max(ratios):>10.3f} {median(tps):>8.1f} {max(tps):>8.1f}")
 ' P="$OUT_JSONL"
 
 # -------- Teardown ---------

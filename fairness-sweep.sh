@@ -90,7 +90,7 @@ SPAMMER_OFFERED=$((BURST_SIZE * N_SPAMMER + QPS_PER_SPAMMER * DURATION_SECS * N_
 HONEST_OFFERED=$((HONEST_QPS_PER_PROC * DURATION_SECS * HONEST_PROC_COUNT))
 
 # CSV header (only if new file)
-[ -f "$OUT_CSV" ] || echo "iso_time,iter,start_pct,duration_secs,spammer_proc_count,spammer_qps_per_proc,spammer_burst,spammer_offered,spammer_success,spammer_first_pass_pct,honest_proc_count,honest_qps_per_proc,honest_offered,honest_success,honest_first_pass_pct,peak_inflight,ratio,reject_grad_preventive,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,admit_lat_p50,admit_lat_p99,permit_hold_p50,permit_hold_p99,permit_wait_p50,permit_wait_p99,pre_acquire_p50,pre_acquire_p99,shed_pct_avg,shed_pct_max,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p50,consensus_lat_p99,exit_codes_ok" > "$OUT_CSV"
+[ -f "$OUT_CSV" ] || echo "iso_time,iter,start_pct,duration_secs,spammer_proc_count,spammer_qps_per_proc,spammer_burst,spammer_offered,spammer_success,spammer_first_pass_pct,honest_proc_count,honest_qps_per_proc,honest_offered,honest_success,honest_first_pass_pct,peak_inflight,ratio,reject_grad_preventive,reject_grad_saturated,reject_grad_reactive,reject_max_pending,reject_semaphore,useful_tps,admit_lat_p50,admit_lat_p99,permit_hold_p50,permit_hold_p99,permit_wait_p50,permit_wait_p99,pre_acquire_p50,pre_acquire_p99,shed_pct_avg,shed_pct_max,inflight_stddev,inflight_mean,saturation_75pct,consensus_lat_p50,consensus_lat_p99,exit_codes_ok" > "$OUT_CSV"
 
 exec >> "$OUT_LOG" 2>&1
 
@@ -277,6 +277,7 @@ for i in $(seq 1 $ITERS); do
     exits=$(grep '^exit codes:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_prev=$(grep '^reject_grad_preventive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_grad_react=$(grep '^reject_grad_reactive:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    r_grad_sat=$(grep '^reject_grad_saturated:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_max=$(grep '^reject_max_pending:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_sem=$(grep '^reject_semaphore:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     useful_tps=$(grep '^useful_tps:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -304,7 +305,7 @@ for i in $(seq 1 $ITERS); do
       "$YAML_CFG" 2>/dev/null | awk -F: '{print $2}' | xargs)
 
     # Defaults
-    : "${peak:=0}"; : "${ratio:=0}"; : "${r_prev:=0}"; : "${r_grad_react:=0}"
+    : "${peak:=0}"; : "${ratio:=0}"; : "${r_prev:=0}"; : "${r_grad_react:=0}"; : "${r_grad_sat:=0}"
     : "${r_max:=0}"; : "${r_sem:=0}"; : "${useful_tps:=0}"; : "${admit_p50:=0}"; : "${admit_p99:=0}"
     : "${permit_hold_p50:=0}"; : "${permit_hold_p99:=0}"
     : "${permit_wait_p50:=0}"; : "${permit_wait_p99:=0}"
@@ -324,12 +325,12 @@ for i in $(seq 1 $ITERS); do
       'BEGIN{if(o>0) printf "%.4f", 100.0*s/o; else print 0}')
 
     iso=$(basename "$latest" | sed 's/multi-//')
-    echo "$iso,$i,$current_pct,$DURATION_SECS,$N_SPAMMER,$QPS_PER_SPAMMER,$BURST_SIZE,$SPAMMER_OFFERED,$spammer_success,$spammer_fp,$HONEST_PROC_COUNT,$HONEST_QPS_PER_PROC,$HONEST_OFFERED,$honest_success,$honest_fp,$peak,$ratio,$r_prev,$r_grad_react,$r_max,$r_sem,$useful_tps,$admit_p50,$admit_p99,$permit_hold_p50,$permit_hold_p99,$permit_wait_p50,$permit_wait_p99,$pre_acquire_p50,$pre_acquire_p99,$shed_pct_avg,$shed_pct_max,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p50,$consensus_lat_p99,$ok" >> "$OUT_CSV"
+    echo "$iso,$i,$current_pct,$DURATION_SECS,$N_SPAMMER,$QPS_PER_SPAMMER,$BURST_SIZE,$SPAMMER_OFFERED,$spammer_success,$spammer_fp,$HONEST_PROC_COUNT,$HONEST_QPS_PER_PROC,$HONEST_OFFERED,$honest_success,$honest_fp,$peak,$ratio,$r_prev,$r_grad_sat,$r_grad_react,$r_max,$r_sem,$useful_tps,$admit_p50,$admit_p99,$permit_hold_p50,$permit_hold_p99,$permit_wait_p50,$permit_wait_p99,$pre_acquire_p50,$pre_acquire_p99,$shed_pct_avg,$shed_pct_max,$inflight_stddev,$inflight_mean,$saturation_75pct,$consensus_lat_p50,$consensus_lat_p99,$ok" >> "$OUT_CSV"
 
     echo ">>> RESULT: iter=$i pct=$current_pct"
     echo "    spammer: offered=$SPAMMER_OFFERED success=$spammer_success first_pass=${spammer_fp}%"
     echo "    honest:  offered=$HONEST_OFFERED success=$honest_success first_pass=${honest_fp}%"
-    echo "    peak=$peak  ratio=${ratio}×  rej[prev=$r_prev,grad_reactive=$r_grad_react,max=$r_max,sem=$r_sem]"
+    echo "    peak=$peak  ratio=${ratio}×  rej[prev=$r_prev,sat=$r_grad_sat,react=$r_grad_react,max=$r_max,sem=$r_sem]"
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")
     current_pct=$(grep -E '^[[:space:]]*graduated-load-shedding-soft-limit-pct:' \

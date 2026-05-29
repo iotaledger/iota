@@ -1198,6 +1198,7 @@ impl AuthorityState {
             num_inflight_txs,
             max_pending_txs,
             consensus_adapter.graduated_load_shedding_soft_limit_pct(),
+            consensus_adapter.graduated_load_shedding_saturation_pct(),
         );
 
         self.metrics
@@ -1209,8 +1210,9 @@ impl AuthorityState {
         }
 
         if num_inflight_txs >= max_pending_txs {
-            // 100% shedding at the cap — equivalent to old binary check.
-            // Counts as reactive.
+            // At or above the hard cap — safety-net fallback path. With a
+            // tight saturation_pct, this should rarely fire; if it does, the
+            // saturation_pct wasn't tight enough to hold the queue back.
             self.update_overload_metrics("consensus_graduated_reactive");
 
             return Err(IotaError::TooManyTransactionsPendingConsensus);
@@ -1218,8 +1220,18 @@ impl AuthorityState {
 
         let result = overload_monitor_accept_tx(shedding_pct, tx_data.digest());
         if result.is_err() {
-            // Probabilistic drop below the cap — preventive.
-            self.update_overload_metrics("consensus_graduated_preventive");
+            if shedding_pct >= 100 {
+                // Saturation band [saturation_limit, hard_limit) — 100%
+                // shedding but the cap itself hasn't been crossed yet. This
+                // is what `saturation_pct < 100` adds: graduated can
+                // guarantee rejection before the cap, leaving headroom.
+                self.update_overload_metrics("consensus_graduated_saturated");
+            } else {
+                // Probabilistic drop in the soft zone [soft_limit,
+                // saturation_limit) — graduated working in its intended
+                // ramp regime.
+                self.update_overload_metrics("consensus_graduated_preventive");
+            }
         }
 
         result

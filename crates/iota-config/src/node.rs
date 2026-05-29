@@ -855,10 +855,21 @@ pub struct ConsensusConfig {
     /// limit at which graduated pre-consensus load shedding begins. When
     /// in-flight transactions are at or below the soft limit, no shedding
     /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
-    /// `max_pending_transactions`. Used in the certificate-less (pcool /
-    /// white-flag) mode.
+    /// the saturation point (`graduated_load_shedding_saturation_pct`).
+    /// Used in the certificate-less (pcool / white-flag) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graduated_load_shedding_soft_limit_pct: Option<u32>,
+
+    /// Percentage of `max_pending_transactions` (hard limit) at which the
+    /// graduated load-shedding curve saturates at 100% rejection. Defaults
+    /// to 100 (saturates exactly at the hard limit; preventive and reactive
+    /// share the same boundary, which guarantees overshoot under load).
+    /// Setting it below 100 (e.g. 90) gives preventive headroom to reach
+    /// 100% shedding before the hard limit, preventing overshoot. Must be >=
+    /// `graduated_load_shedding_soft_limit_pct`; if not, the validator
+    /// warns and clamps at boot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_saturation_pct: Option<u32>,
 
     /// Cap on the number of in-flight submissions actively being sent to
     /// consensus (the `submit_semaphore` permit count). Bounds concurrent
@@ -907,6 +918,17 @@ impl ConsensusConfig {
     pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
         self.graduated_load_shedding_soft_limit_pct
             .unwrap_or(50)
+            .min(100)
+    }
+
+    /// Returns the saturation percentage for graduated load shedding (where
+    /// the shedding curve reaches 100%). Defaults to 100 (preserves the
+    /// original behavior of saturating exactly at the hard limit).
+    /// Clamped to [0, 100]; further validation against soft_limit_pct
+    /// happens at ConsensusAdapter construction (warn + clamp if sat < soft).
+    pub fn graduated_load_shedding_saturation_pct(&self) -> u32 {
+        self.graduated_load_shedding_saturation_pct
+            .unwrap_or(100)
             .min(100)
     }
 

@@ -77,11 +77,20 @@ if df.empty:
 
 # ---------- policy label + ordering ----------
 def policy_label(r):
-    return (
-        f"max={int(r['validator.max_pending_transactions'])} "
-        f"sem={int(r['validator.max_pending_local_submissions'])} "
-        f"pct={int(r['validator.graduated_load_shedding_soft_limit_pct'])}"
-    )
+    parts = [
+        f"max={int(r['validator.max_pending_transactions'])}",
+        f"sem={int(r['validator.max_pending_local_submissions'])}",
+        f"pct={int(r['validator.graduated_load_shedding_soft_limit_pct'])}",
+    ]
+    sat = r.get("validator.graduated_load_shedding_saturation_pct")
+    if sat is not None and not (isinstance(sat, float) and pd.isna(sat)):
+        parts.append(f"sat={int(sat)}")
+    ss = r.get("validator.semaphore_shedding_enabled")
+    if ss is True:
+        parts.append("sem_shed=true")
+    elif ss is False:
+        parts.append("sem_shed=false")
+    return " ".join(parts)
 
 
 df["policy"] = df.apply(policy_label, axis=1)
@@ -199,123 +208,101 @@ GROUPS = [
     {
         "dir": "grad-no-sem-shed",
         "policies": [
-            "max=1000 sem=2000 pct=100",
-            "max=1000 sem=2000 pct=75",
-            "max=1000 sem=2000 pct=50",
-            "max=1000 sem=2000 pct=25",
+            "max=1000 sem=250 pct=100 sat=100 sem_shed=false",
+            "max=1000 sem=250 pct=75 sat=90 sem_shed=false",
+            "max=1000 sem=250 pct=50 sat=100 sem_shed=false",
+            "max=1000 sem=250 pct=50 sat=90 sem_shed=false",
+            "max=1000 sem=250 pct=25 sat=90 sem_shed=false",
         ],
         "ratio_col": "results.ratio_peak_over_max_pending",
         "ratio_label": "peak_inflight/max_pending",
         "overshoot_col": "overshoot_above_max",
         "overshoot_label": "peak_inflight−max_pending",
-        # Stability metrics don't tell a clear story for this group at n=50 —
-        # stddev is flat across policies (~450), CV(all) is noisy from
-        # bimodal saturation, CV(saturated) shows only ~20% gain. Headline
-        # lives in overshoot.png + tps.png. Re-evaluate if more iters land.
         "skip_plots": ["cv", "cv-saturated", "stddev"],
         "description": """\
 # grad-no-sem-shed
 
-**Question:** Does graduated shedding reduce peak overshoot at the max_pending
-gate? How does the soft-zone width (controlled by `start_pct`) affect the
-safety/throughput trade-off?
+**Question:** Does graduated load shedding (with the new `saturation_pct`
+knob) reduce peak overshoot at `max_pending` without sacrificing
+throughput? Within graduated, which combination of `start_pct` and
+`saturation_pct` works best?
 
-**Policies** (all `max_pending_transactions=1000`, `max_pending_local_submissions=2000`):
+**Policies** (all `max_pending_transactions=1000`,
+`max_pending_local_submissions=250`, `semaphore_shedding_enabled=false`):
 
-| pct | soft zone | semantics |
+| pct | sat | role |
 |---|---|---|
-| 100 | (none) | binary: hard reject at max_pending |
-| 75  | 750–1000 | graduated: gentle shedding in soft zone |
-| 50  | 500–1000 | graduated: wider soft zone |
-| 25  | 250–1000 | graduated: very early onset |
+| 100 | 100 | binary baseline (legacy behaviour) |
+| 75  | 90  | graduated, narrow soft zone [750, 900] |
+| 50  | 100 | graduated, legacy saturation — **sat isolation** vs the row below |
+| 50  | 90  | graduated, soft zone [500, 900] — proposed default |
+| 25  | 90  | aggressive graduated, soft zone [250, 900] |
 
-**Binding cap:** `max_pending` — sem is inert here (sem=2000 ≫ observed peak
-~1000), so the only shedding policy actively engaging is the graduated one.
+**Why sat=90:** caps the saturation_limit at 900, leaving 100 units of
+headroom below the hard cap. Combined with the observed race window
+(~5–10 units), peak inflight should stay ≤ ~910 — `reject_grad_reactive`
+becomes structurally 0.
 
-**Safety metric:** `peak_inflight / max_pending` — values >1.0 mean the validator
-admitted more in-flight than its own max_pending promise. Lower = safer.
+**Sat isolation:** the two `pct=50` rows differ only in `sat_pct` (100 vs
+90), so any difference between them attributes cleanly to the
+saturation_pct change. Useful for distinguishing "graduated wins because
+of pct" from "graduated wins because of sat".
+
+**Binding cap:** `max_pending` — sem=250 leaves room for the validator
+to actually push the queue toward 900–1000, so graduated does the real
+work.
+
+**Safety metric:** `peak_inflight / max_pending`. Values < 1.0 indicate
+the saturation_limit kept peak structurally below the declared cap —
+the proposed new default behaviour.
 """,
     },
     {
         "dir": "just-lower-the-cap",
         "policies": [
-            "max=500 sem=2000 pct=100",
-            "max=1000 sem=2000 pct=50",
-            "max=1000 sem=2000 pct=100",
+            "max=500 sem=250 pct=100 sat=100 sem_shed=false",
+            "max=900 sem=250 pct=100 sat=100 sem_shed=false",
+            "max=1000 sem=250 pct=100 sat=100 sem_shed=false",
+            "max=1000 sem=250 pct=50 sat=90 sem_shed=false",
         ],
         "ratio_col": "results.ratio_peak_over_max_pending",
         "ratio_label": "peak_inflight/max_pending",
         "overshoot_col": "overshoot_above_max",
         "overshoot_label": "peak_inflight−max_pending",
-        # No clean stability story here either: CV(all) shows graduated worst
-        # due to bimodality, stddev confounded with mean (max=500 mean ≪ max=1000),
-        # only CV(sat) supports graduated and only on small n≈20 saturated subset.
-        # Re-evaluate if more iters land.
         "skip_plots": ["cv", "cv-saturated", "stddev"],
         "description": """\
 # just-lower-the-cap
 
-**Question:** If graduated@1000/pct=50 effectively starts shedding around
-in-flight=500, isn't that equivalent to binary at `max_pending=500`? I.e. would
-just lowering the binary cap give the same safety + throughput?
+**Question:** A natural counter-proposal to graduated shedding is "just
+lower `max_pending` to a tighter cap". This group tests it head-to-head
+against graduated. Specifically: graduated@1000 with sat=90 (effective
+ceiling ~900) is benchmarked against binary@900 (same effective
+ceiling) AND binary@500/binary@1000 as the obvious-overcorrected and
+obvious-undercorrected bookends.
 
-**Policies:**
+**Policies** (all `sem=250`, `semaphore_shedding_enabled=false`):
 
-| label | semantics |
-|---|---|
-| max=500  sem=2000 pct=100 | binary at the tight cap (sheds starting at 500) |
-| max=1000 sem=2000 pct=50  | graduated with soft zone 500–1000 |
-| max=1000 sem=2000 pct=100 | binary at the loose cap (sheds starting at 1000) |
+| label | mechanism | effective ceiling |
+|---|---|---|
+| `max=500  pct=100 sat=100` | binary, tight cap | 500 |
+| `max=900  pct=100 sat=100` | binary, medium cap | 900 |
+| `max=1000 pct=100 sat=100` | binary, legacy cap | 1000 |
+| `max=1000 pct=50  sat=90`  | **graduated, soft zone [500, 900]** | ~900 (via sat) |
 
-**What to look at:** Compare binary@500 vs graduated@1000-pct50 directly. If
-graduated wins on either safety (lower peak) or throughput (higher useful_tps),
-the soft zone is reclaiming real capacity that a lower binary cap throws away.
-If they're equivalent, the simpler "just use a lower cap" alternative is no
-worse than the more complex graduated policy.
+**Head-to-head:** graduated@1000-sat=90 vs binary@900 — both target
+peak ~900, so the comparison isolates "soft probabilistic ramp toward
+saturation" vs "hard cap at 900". The interesting hypothesis: graduated
+should match or beat binary@900 on TPS (it admits txs probabilistically
+in [500, 900] instead of hard-rejecting at 900) while retaining
+max=1000 as an absolute safety net.
 
-**Safety metric:** `peak_inflight / max_pending`. Note this normalizes against
-different caps (500 vs 1000), so absolute overshoot (`peak − max_pending`) is
-also worth looking at.
-""",
-    },
-    {
-        "dir": "max-sem-prod-ratio",
-        "policies": [
-            "max=1000 sem=20 pct=100",
-            "max=1000 sem=20 pct=50",
-        ],
-        "ratio_col": "results.ratio_peak_over_sem",
-        "ratio_label": "peak_inflight/sem_cap",
-        "overshoot_col": "overshoot_above_sem",
-        "overshoot_label": "peak_inflight−sem_cap",
-        # cv.png: CVs are identical between policies (~1.24), no story.
-        # cv-saturated.png: saturation_75pct is defined vs max_pending, but
-        # sem is the binding cap here — peak never reaches 75% of max, so
-        # graduated has zero saturated iters and the box is empty.
-        # stddev tells the only clean stability story here (85 vs 59, ~30%
-        # reduction with graduated, comparable because means are similar).
-        "skip_plots": ["cv", "cv-saturated"],
-        "description": """\
-# max-sem-prod-ratio
+**What to watch:** the TPS-vs-overshoot scatter. If graduated@1000-sat=90
+dominates binary@900 on TPS at equal overshoot, the soft ramp recovers
+throughput the tight binary cap throws away.
 
-**Question:** When `max_pending_local_submissions` (sem) is the binding cap
-rather than `max_pending_transactions` (the production-grade ratio of
-max:sem = 50:1), does the graduated policy still help? And how dramatic is
-the sem cap violation under heavy load?
-
-**Policies** (all `max_pending_transactions=1000`, `max_pending_local_submissions=20`):
-
-| pct | semantics |
-|---|---|
-| 100 | binary: hard reject at max_pending, but sem chokes admission first |
-| 50  | graduated: soft zone 500–1000, but sem still chokes |
-
-**Binding cap:** `sem` — peak in-flight typically sits near sem×10-20× (not near
-max_pending). `peak / max_pending` is meaningless here because peak ≪ max. The
-relevant safety ratio is `peak / sem` instead.
-
-**Safety metric:** `peak / sem` — values ≫ 1 mean the validator advertised that
-only N transactions could be in local submission, but allowed ~10-15N in flight.
+**Safety metric:** `peak_inflight / max_pending` — normalises across
+caps (500/900/1000); absolute overshoot (`peak − max_pending`) is also
+informative.
 """,
     },
 ]

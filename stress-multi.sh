@@ -441,14 +441,20 @@ prom_range() {
 }
 
 # Pull rejection counts per source from Prometheus over the spam window.
-# The graduated check writes 4 distinct labels after the authority.rs split:
-#   consensus_graduated_preventive  — num_inflight < max_pending, probabilistic drop
-#   consensus_graduated_reactive    — num_inflight >= max_pending, 100% shed (graduated path)
+# The graduated check writes 5 distinct labels after the authority.rs split:
+#   consensus_graduated_preventive  — shed_pct<100, probabilistic drop (soft zone)
+#   consensus_graduated_saturated   — shed_pct=100, current<hard_limit (saturation
+#                                     band [saturation_limit, hard_limit) — only
+#                                     fires when graduated_load_shedding_saturation_pct
+#                                     < 100, otherwise this band is empty)
+#   consensus_graduated_reactive    — num_inflight >= max_pending, 100% shed at the
+#                                     hard cap (safety fallback)
 #   consensus_max_pending_exceeded  — num_inflight >= max_pending detected by the
 #                                     binary check after graduated passed (race window)
 #   consensus_semaphore_no_permits  — submit_semaphore exhausted (independent limit)
 declare -A REJECT
 REJECT[consensus_graduated_preventive]=0
+REJECT[consensus_graduated_saturated]=0
 REJECT[consensus_graduated_reactive]=0
 REJECT[consensus_max_pending_exceeded]=0
 REJECT[consensus_semaphore_no_permits]=0
@@ -507,7 +513,7 @@ QUEUE_P99=$(prom_scalar "quantile_over_time(0.99, max(sum by (host) (sequencing_
 # 5-sec windows) vs mean_rate characterises cliff vs ramp.
 REJECT_RATE_MAX=$(prom_scalar "max_over_time((sum(rate(transaction_overload_sources{host=~\"validator.*\"}[5s])))[${WINDOW}s:5s])")
 [ -z "$REJECT_RATE_MAX" ] && REJECT_RATE_MAX=0
-TOTAL_REJ=$(( REJECT[consensus_graduated_preventive] + REJECT[consensus_graduated_reactive] + REJECT[consensus_max_pending_exceeded] + REJECT[consensus_semaphore_no_permits] ))
+TOTAL_REJ=$(( REJECT[consensus_graduated_preventive] + REJECT[consensus_graduated_saturated] + REJECT[consensus_graduated_reactive] + REJECT[consensus_max_pending_exceeded] + REJECT[consensus_semaphore_no_permits] ))
 REJECT_RATE_MEAN=$(awk -v t="$TOTAL_REJ" -v w="$WINDOW" 'BEGIN{printf "%.2f", t/w}')
 
 # Admission latency. The validator does not yet expose a full submit_tx
@@ -644,6 +650,7 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
     echo "ratio:        ${ratio:-0}×"
   fi
   echo "reject_grad_preventive: ${REJECT[consensus_graduated_preventive]}"
+  echo "reject_grad_saturated:  ${REJECT[consensus_graduated_saturated]}"
   echo "reject_grad_reactive:   ${REJECT[consensus_graduated_reactive]}"
   echo "reject_max_pending:     ${REJECT[consensus_max_pending_exceeded]}"
   echo "reject_semaphore:       ${REJECT[consensus_semaphore_no_permits]}"
