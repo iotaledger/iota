@@ -46,10 +46,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FILE_MAX_BYTES, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_FILE_MAGIC,
-    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, compute_sha3_checksum,
-    create_file_metadata,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
+    FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
+    ManifestBody, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
+    compute_sha3_checksum, create_file_metadata,
 };
 
 /// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
@@ -503,9 +503,10 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Verifies the `Watermark::EpochIndexed` precondition: every epoch
-    /// in `[0, epoch]` must have both boundary writes committed. Called
-    /// from [`Self::write_internal`] before any disk work so a
-    /// misconfigured node fails fast instead of burning a full DB scan.
+    /// in `[0, epoch]` must be fully populated (both start-of-epoch and
+    /// end-of-epoch fields committed). Called from [`Self::write_internal`]
+    /// before any disk work so a misconfigured node fails fast instead of
+    /// burning a full DB scan.
     /// `None` and `Some(h) where h < epoch` are distinct failure modes
     /// with distinct remediations — keep them as separate messages.
     fn check_epoch_indexed_watermark(&self, epoch: u64) -> Result<()> {
@@ -547,48 +548,59 @@ impl StateSnapshotWriterV1 {
         // loop is fine; a range scan would be a micro-optimization.
         for epoch_id in 0..=epoch {
             // The watermark precondition above guarantees every entry in
-            // `[0, epoch]` is present with both boundary-2 fields set; the
+            // `[0, epoch]` is present with both end-of-epoch fields set; the
             // panics below turn any watermark/row inconsistency into a
             // loud failure rather than a silently truncated snapshot.
             // `panic!` is deliberate: this runs inside `spawn_blocking`,
             // so the panic surfaces as `JoinError` and fails only the
             // snapshot task — exactly the desired blast radius.
-            let entry = self
+            let epoch_info = self
                 .grpc_indexes
-                .get_epoch_info_entry(epoch_id)?
+                .get_epoch_info(epoch_id)?
                 .unwrap_or_else(|| {
                     panic!(
-                        "epoch_info[{epoch_id}] is absent despite `EpochIndexed` \
-                         watermark covering it — watermark/row inconsistency"
+                        "epochs_v2[{epoch_id}] is absent despite `EpochIndexed` \
+                     watermark covering it — watermark/row inconsistency"
                     )
                 });
-            let summary = entry.last_checkpoint_summary.as_ref().unwrap_or_else(|| {
-                panic!(
-                    "epoch_info[{epoch_id}] is missing `last_checkpoint_summary` \
+            let summary = epoch_info
+                .last_checkpoint_summary
+                .as_ref()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "epochs_v2[{epoch_id}] is missing `last_checkpoint_summary` \
                      despite `EpochIndexed` watermark covering it — \
                      watermark/row inconsistency"
-                )
-            });
-            // Boundary-2 writes both `last_checkpoint_summary` and
-            // `end_of_epoch_tx_events` in the same atomic batch, so if
+                    )
+                });
+            // The close-of-epoch write commits `last_checkpoint_summary`
+            // and `end_of_epoch_tx_events` in the same atomic batch, so if
             // one is set the other must be too. Assert the symmetric
             // invariant — without it, a future bug that splits the two
             // writes would silently produce snapshots missing events.
             assert!(
-                entry.end_of_epoch_tx_events.is_some(),
-                "epoch_info[{epoch_id}] is missing `end_of_epoch_tx_events` \
+                epoch_info.end_of_epoch_tx_events.is_some(),
+                "epochs_v2[{epoch_id}] is missing `end_of_epoch_tx_events` \
                  despite `last_checkpoint_summary` being populated — \
-                 boundary-2 atomicity violation",
+                 end-of-epoch atomicity violation",
             );
             // Turn a silent miswrite (entry stored under the wrong epoch
             // key) into a loud panic at snapshot time.
             let entry_epoch = summary.epoch();
             assert_eq!(
                 entry_epoch, epoch_id,
-                "epoch_info[{epoch_id}] is populated with an entry for epoch \
+                "epochs_v2[{epoch_id}] is populated with an entry for epoch \
                  {entry_epoch}; the snapshot would silently misattribute checkpoints",
             );
-            // On-disk format is `Vec<Option<EpochInfoEntry>>` (see [`EpochInfo`]).
+
+            let entry = EpochInfoV1Entry {
+                start_checkpoint: epoch_info.start_checkpoint,
+                start_system_state: bcs::to_bytes(&epoch_info.system_state)?,
+                last_checkpoint_summary: epoch_info.last_checkpoint_summary,
+                end_of_epoch_tx_events: epoch_info.end_of_epoch_tx_events,
+            };
+
+            // On-disk format is `Vec<Option<EpochInfoV1Entry>>` (see [`EpochInfo`]).
             // Today's writer always emits `Some` — the watermark precondition
             // refuses to publish if any row in `[0, epoch]` is incomplete.
             entries.push(Some(entry));

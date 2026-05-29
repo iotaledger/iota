@@ -17,10 +17,9 @@ use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectID},
     digests::{ChainIdentifier, TransactionDigest},
-    epoch_info::EpochInfoEntry,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
-        CoinInfo, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectCursor,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
@@ -76,22 +75,10 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 /// epoch info, transaction-to-checkpoint mapping, owned objects, dynamic
 /// fields, coin info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
 
-    /// Per-epoch metadata used to produce the snapshot V2 `EPOCH_INFO`
-    /// file. Returns `None` if no row exists for `epoch` (either the row
-    /// has not been seeded by `index_epoch`'s boundary-1 write yet, or
-    /// this node lacks coverage for that epoch and needs an external
-    /// backfill to fill the gap).
-    ///
-    /// Distinct from `get_epoch_info` (which returns the indexer's
-    /// `EpochInfo` for the live `epochs` table) — different shape, different
-    /// consumer, different lifecycle.
-    fn get_epoch_info_entry(&self, epoch: EpochId) -> Result<Option<EpochInfoEntry>>;
-
-    /// Highest epoch whose `epoch_info` row is fully populated (both
-    /// boundary writes committed). `None` if no epoch has been fully
-    /// indexed yet.
+    /// Highest epoch whose `epochs_v2` epochs have been fully populated
+    /// (indexed and closed epochs).
     fn highest_indexed_epoch(&self) -> Result<Option<EpochId>>;
 
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;

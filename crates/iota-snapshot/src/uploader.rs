@@ -65,7 +65,7 @@ pub struct StateSnapshotUploader {
     /// Checkpoint store; needed to fetch epoch state commitments for
     /// verification
     checkpoint_store: Arc<CheckpointStore>,
-    /// gRPC indexes store; source of per-epoch `EpochInfoEntry` rows
+    /// gRPC indexes store; source of per-epoch `EpochInfoV2` rows
     grpc_indexes: Arc<dyn GrpcIndexes>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,

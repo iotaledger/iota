@@ -52,7 +52,6 @@ pub mod display;
 pub mod dynamic_field;
 pub mod effects;
 pub mod epoch_data;
-pub mod epoch_info;
 pub mod event;
 pub mod executable_transaction;
 pub mod execution;

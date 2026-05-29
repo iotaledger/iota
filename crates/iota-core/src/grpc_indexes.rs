@@ -15,8 +15,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,
-    effects::TransactionEvents,
-    epoch_info::EpochInfoEntry,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
@@ -24,7 +22,7 @@ use iota_types::{
     move_package::MovePackageExt,
     object::{Object, Owner},
     storage::{
-        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectCursor,
+        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, EpochInfoV2, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
         TransactionInfo, error::Error as StorageError,
     },
@@ -34,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    rocks::{DBMap, MetricConf, ReadWriteOptions},
     traits::Map,
 };
 
@@ -72,9 +70,9 @@ pub enum Watermark {
     Indexed,
     /// Highest checkpoint sequence number pruned.
     Pruned,
-    /// Highest epoch whose `epoch_info` row is fully populated. Value is
+    /// Highest epoch whose `epochs_v2` row is fully populated. Value is
     /// an `EpochId`, not a checkpoint sequence number. Advanced atomically
-    /// with the boundary-2 upsert in `index_epoch`. The snapshot V2 writer
+    /// with the close-of-epoch upsert in `index_epoch`. The snapshot V2 writer
     /// reads this before publishing; a value `< snapshot_epoch` (or
     /// absent) means the writer cannot vouch for `[0, snapshot_epoch]`
     /// and must refuse the snapshot.
@@ -356,25 +354,20 @@ struct IndexStoreTables {
     /// enabled again so that the tables can be reinitialized.
     watermark: DBMap<Watermark, CheckpointSequenceNumber>,
 
-    /// An index of extra metadata for Epochs.
-    ///
-    /// Only contains entries for epochs which have yet to be pruned from the
-    /// main database.
-    // TODO: https://github.com/iotaledger/iota/issues/10957
-    epochs: DBMap<EpochId, EpochInfo>,
+    /// Deprecated: superseded by `epochs_v2`.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "migrate_epochs_to_v2")]
+    epochs: Option<DBMap<EpochId, EpochInfo>>,
 
-    /// Per-epoch metadata sufficient to rebuild the indexer's `epochs`
-    /// table from a snapshot (see `EpochInfoEntry`). Written by
-    /// `index_epoch` over two consecutive epoch boundaries (start-of-N
-    /// fields at N-1 close; end-of-N fields at N close). Read by the
-    /// snapshot V2 writer to produce the `EPOCH_INFO` file. Completeness
-    /// is tracked by `Watermark::EpochIndexed`.
+    /// An index of extra metadata for Epochs.
     ///
     /// Intentionally not pruned: the snapshot writer needs full
     /// `[0, snapshot_epoch]` coverage, so this table grows unboundedly
     /// with epoch count (one row per epoch, ever) by design. Do not add
     /// it to the `prune` function.
-    epoch_info: DBMap<EpochId, EpochInfoEntry>,
+    ///
+    /// Completeness is tracked by `Watermark::EpochIndexed`.
+    epochs_v2: DBMap<EpochId, EpochInfoV2>,
 
     /// Maps transaction digests to the checkpoint that contains them.
     ///
@@ -610,132 +603,63 @@ impl IndexStoreTables {
         let Some((epoch_info, end_of_epoch_events)) = checkpoint.epoch_info()? else {
             return Ok(());
         };
+        let new_epoch_id = epoch_info.epoch;
 
-        // Two-boundary writes for the `epoch_info` table; staged into the
-        // same batch as the `epochs` writes below so they commit atomically.
-        // See `write_epoch_info_entries` and `EpochInfoEntry` for the
-        // boundary semantics.
-        self.write_epoch_info_entries(checkpoint, &epoch_info, end_of_epoch_events, batch)?;
-
-        // We need to handle closing the previous epoch by updating the entry for it, if
-        // it exists.
-        if epoch_info.epoch > 0 {
-            let prev_epoch = epoch_info.epoch - 1;
-
-            if let Some(mut previous_epoch) = self.epochs.get(&prev_epoch)? {
+        // Finalize `prev_epoch`'s row with the close-of-epoch fields and
+        // advance `Watermark::EpochIndexed`. Genesis has no previous epoch
+        // to finalize; the close-of-epoch write for epoch 0 fires when
+        // epoch 1 is seeded, so `EpochIndexed` stays absent until then.
+        if new_epoch_id > 0 {
+            let prev_epoch = new_epoch_id - 1;
+            // In safe mode the AdvanceEpoch tx is replaced by
+            // `advance_epoch_safe_mode`, which mutates `0x5` but emits no
+            // events. `Some(default())` says "finalized, with no events" —
+            // distinct from the not-yet-finalized `None` lifecycle state.
+            let end_of_epoch_tx_events = Some(end_of_epoch_events.unwrap_or_default());
+            let last_checkpoint_summary = checkpoint.checkpoint_summary.clone();
+            // If no row exists for `prev_epoch`, this node didn't see its
+            // start (e.g. bootstrapped mid-epoch). Skip the upsert; the
+            // row stays absent and the watermark stays behind, so the
+            // snapshot writer correctly refuses to publish until an
+            // external backfill fills the gap.
+            if let Some(mut previous_epoch) = self.epochs_v2.get(&prev_epoch)? {
                 previous_epoch.end_timestamp_ms = Some(epoch_info.start_timestamp_ms);
                 previous_epoch.end_checkpoint = Some(epoch_info.start_checkpoint - 1);
-                batch.insert_batch(&self.epochs, [(prev_epoch, previous_epoch)])?;
+                previous_epoch.last_checkpoint_summary = Some(last_checkpoint_summary);
+                previous_epoch.end_of_epoch_tx_events = end_of_epoch_tx_events;
+                batch.insert_batch(&self.epochs_v2, [(prev_epoch, previous_epoch)])?;
+                batch.insert_batch(&self.watermark, [(Watermark::EpochIndexed, prev_epoch)])?;
             }
         }
 
-        // Insert the current epoch info
-        batch.insert_batch(&self.epochs, [(epoch_info.epoch, epoch_info)])?;
+        // seed the new epoch's row.
+        let new_info = EpochInfoV2 {
+            epoch: epoch_info.epoch,
+            protocol_version: epoch_info.protocol_version,
+            start_timestamp_ms: epoch_info.start_timestamp_ms,
+            end_timestamp_ms: epoch_info.end_timestamp_ms,
+            start_checkpoint: epoch_info.start_checkpoint,
+            end_checkpoint: epoch_info.end_checkpoint,
+            reference_gas_price: epoch_info.reference_gas_price,
+            system_state: epoch_info.system_state,
+            last_checkpoint_summary: None,
+            end_of_epoch_tx_events: None,
+        };
+        batch.insert_batch(&self.epochs_v2, [(new_epoch_id, new_info)])?;
 
         Ok(())
-    }
-
-    /// Stage the two-boundary `epoch_info` writes for this checkpoint into
-    /// `batch`. The system state decoded by `checkpoint.epoch_info()` is
-    /// re-encoded here as opaque BCS bytes so the outer `IotaSystemState`
-    /// enum can evolve through its own variant axis (see
-    /// `EpochInfoEntry::start_system_state`).
-    fn write_epoch_info_entries(
-        &self,
-        checkpoint: &CheckpointData,
-        epoch_info: &EpochInfo,
-        end_of_epoch_events: Option<TransactionEvents>,
-        batch: &mut typed_store::rocks::DBBatch,
-    ) -> Result<(), StorageError> {
-        let new_epoch_id = epoch_info.epoch;
-        let first_checkpoint = epoch_info.start_checkpoint;
-        let start_system_state = bcs::to_bytes(&epoch_info.system_state)
-            .map_err(|e| StorageError::custom(format!("Failed to encode system state: {e}")))?;
-
-        // Boundary 1 — seed `new_epoch_id`'s row with start-of-epoch fields.
-        // On a re-run over the same boundary (e.g. an init replay), preserve
-        // any boundary-2 fields that may already be set on the row;
-        // `first_checkpoint` and `start_system_state` are deterministic per
-        // epoch, so re-stamping them is a no-op on a healthy node.
-        let new_entry = match self.epoch_info.get(&new_epoch_id)? {
-            Some(existing) => {
-                debug_assert_eq!(
-                    existing.first_checkpoint, first_checkpoint,
-                    "epoch {new_epoch_id}: re-seeded `first_checkpoint` diverges from existing row",
-                );
-                debug_assert_eq!(
-                    existing.start_system_state, start_system_state,
-                    "epoch {new_epoch_id}: re-seeded `start_system_state` diverges from existing row",
-                );
-                EpochInfoEntry {
-                    first_checkpoint,
-                    start_system_state,
-                    ..existing
-                }
-            }
-            None => EpochInfoEntry {
-                first_checkpoint,
-                start_system_state,
-                last_checkpoint_summary: None,
-                end_of_epoch_tx_events: None,
-            },
-        };
-        batch.insert_batch(&self.epoch_info, [(new_epoch_id, new_entry)])?;
-
-        // Boundary 2 — finalize `prev_epoch`'s row. Genesis has no previous
-        // epoch to finalize; epoch 0's boundary 2 fires when epoch 1 is
-        // seeded, so `EpochIndexed` stays absent until then.
-        if new_epoch_id == 0 {
-            return Ok(());
-        }
-        let prev_epoch = new_epoch_id - 1;
-        // In safe mode the AdvanceEpoch tx is replaced by
-        // `advance_epoch_safe_mode`, which mutates `0x5` but emits no
-        // events. `Some(default())` says "finalized, with no events" —
-        // distinct from the boundary-2 `None` lifecycle state.
-        let end_of_epoch_tx_events = Some(end_of_epoch_events.unwrap_or_default());
-        let last_checkpoint_summary = checkpoint.checkpoint_summary.clone();
-        let prev_entry = match self.epoch_info.get(&prev_epoch)? {
-            Some(existing) => EpochInfoEntry {
-                last_checkpoint_summary: Some(last_checkpoint_summary),
-                end_of_epoch_tx_events,
-                ..existing
-            },
-            // No boundary-1 row exists — this node didn't see `prev_epoch`'s
-            // start (e.g. bootstrapped mid-epoch). Skip the upsert; the row
-            // stays absent and the watermark stays behind, so the snapshot
-            // writer correctly refuses to publish until an external backfill
-            // fills the gap.
-            None => return Ok(()),
-        };
-        batch.insert_batch(&self.epoch_info, [(prev_epoch, prev_entry)])?;
-        batch.insert_batch(&self.watermark, [(Watermark::EpochIndexed, prev_epoch)])?;
-
-        Ok(())
-    }
-
-    /// Read a single `epoch_info` row. Returns `None` if the row is absent
-    /// or has not yet been seeded (boundary 1 not done).
-    ///
-    /// Named `get_epoch_info_entry` (not `get_epoch_info`) to avoid
-    /// shadowing the auto-derived accessor for the existing `epochs`
-    /// table, which returns the indexer's `EpochInfo` type.
-    fn get_epoch_info_entry(
-        &self,
-        epoch: EpochId,
-    ) -> Result<Option<EpochInfoEntry>, TypedStoreError> {
-        self.epoch_info.get(&epoch)
     }
 
     /// Read `Watermark::EpochIndexed`: the highest epoch whose
-    /// `epoch_info` row is fully populated (both boundary-2 fields set).
+    /// `epochs_v2` row has its end-of-epoch fields populated
+    /// (`last_checkpoint_summary` and `end_of_epoch_tx_events`).
     /// `None` if no epoch has been fully indexed yet.
     fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
         self.watermark.get(&Watermark::EpochIndexed)
     }
 
     /// Re-derive `Watermark::EpochIndexed` from the actual contents of the
-    /// `epoch_info` table, set it to the contiguous-prefix maximum, and
+    /// `epochs_v2` table, set it to the contiguous-prefix maximum, and
     /// remove the watermark entirely if no epoch is fully populated.
     ///
     /// The snapshot writer's precondition requires that *all* rows in
@@ -753,7 +677,7 @@ impl IndexStoreTables {
     /// walk.
     fn reconcile_epoch_indexed_watermark(&self) -> Result<(), TypedStoreError> {
         let mut expected: EpochId = 0;
-        for result in self.epoch_info.safe_iter() {
+        for result in self.epochs_v2.safe_iter() {
             let (epoch_id, entry) = result?;
             if epoch_id != expected {
                 break;
@@ -786,7 +710,7 @@ impl IndexStoreTables {
             return Ok(());
         };
 
-        if self.epochs.get(&checkpoint.epoch)?.is_some() {
+        if self.epochs_v2.get(&checkpoint.epoch)?.is_some() {
             // no need to initialize if it already exists
             return Ok(());
         }
@@ -799,7 +723,7 @@ impl IndexStoreTables {
             let previous_epoch = checkpoint.epoch - 1;
 
             // Find the last checkpoint of the previous epoch
-            if let Some(previous_epoch_info) = self.epochs.get(&previous_epoch)? {
+            if let Some(previous_epoch_info) = self.epochs_v2.get(&previous_epoch)? {
                 if let Some(end_checkpoint) = previous_epoch_info.end_checkpoint {
                     end_checkpoint + 1
                 } else {
@@ -823,7 +747,7 @@ impl IndexStoreTables {
             0
         };
 
-        let epoch_info = EpochInfo {
+        let epoch_info = EpochInfoV2 {
             epoch: checkpoint.epoch,
             protocol_version: system_state.protocol_version(),
             start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
@@ -832,9 +756,11 @@ impl IndexStoreTables {
             end_checkpoint: None,
             reference_gas_price: system_state.reference_gas_price(),
             system_state,
+            last_checkpoint_summary: None,
+            end_of_epoch_tx_events: None,
         };
 
-        self.epochs.insert(&epoch_info.epoch, &epoch_info)?;
+        self.epochs_v2.insert(&epoch_info.epoch, &epoch_info)?;
 
         Ok(())
     }
@@ -1007,8 +933,8 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
-        self.epochs.get(&epoch)
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>, TypedStoreError> {
+        self.epochs_v2.get(&epoch)
     }
 
     fn get_transaction_info(
@@ -1202,7 +1128,7 @@ impl GrpcIndexesStore {
         Ok(batch.write()?)
     }
 
-    pub fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
+    pub fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>, TypedStoreError> {
         self.tables.get_epoch_info(epoch)
     }
 
@@ -1250,13 +1176,6 @@ impl GrpcIndexesStore {
             .package_versions_iter(original_package_id, cursor)
     }
 
-    pub fn get_epoch_info_entry(
-        &self,
-        epoch: EpochId,
-    ) -> Result<Option<EpochInfoEntry>, TypedStoreError> {
-        self.tables.get_epoch_info_entry(epoch)
-    }
-
     pub fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
         self.tables.highest_indexed_epoch()
     }
@@ -1270,18 +1189,9 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
     fn get_epoch_info(
         &self,
         epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
+    ) -> iota_types::storage::error::Result<Option<EpochInfoV2>> {
         self.tables
             .get_epoch_info(epoch)
-            .map_err(|e| StorageError::custom(e.to_string()))
-    }
-
-    fn get_epoch_info_entry(
-        &self,
-        epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfoEntry>> {
-        self.tables
-            .get_epoch_info_entry(epoch)
             .map_err(|e| StorageError::custom(e.to_string()))
     }
 
@@ -1587,4 +1497,137 @@ fn sparse_checkpoint_data_for_backfill(
     };
 
     Ok(checkpoint_data)
+}
+
+fn migrate_epochs_to_v2(db: &Arc<typed_store::database::Database>) -> Result<(), TypedStoreError> {
+    let old = DBMap::<EpochId, EpochInfo>::reopen(
+        db,
+        Some("epochs"),
+        &ReadWriteOptions::default(),
+        true, // is_deprecated
+    )?;
+    let new = DBMap::<EpochId, EpochInfoV2>::reopen(
+        db,
+        Some("epochs_v2"),
+        &ReadWriteOptions::default(),
+        false,
+    )?;
+
+    // TODO: Add correct batching, and backfill the new fields from historical
+    // archive
+    let mut batch = new.batch();
+    for entry in old.safe_iter() {
+        let (epoch_id, old_info) = entry?;
+        let new_info = EpochInfoV2 {
+            epoch: old_info.epoch,
+            protocol_version: old_info.protocol_version,
+            start_timestamp_ms: old_info.start_timestamp_ms,
+            end_timestamp_ms: old_info.end_timestamp_ms,
+            start_checkpoint: old_info.start_checkpoint,
+            end_checkpoint: old_info.end_checkpoint,
+            reference_gas_price: old_info.reference_gas_price,
+            system_state: old_info.system_state,
+            last_checkpoint_summary: None,
+            end_of_epoch_tx_events: None,
+        };
+        batch.insert_batch(&new, std::iter::once((epoch_id, new_info)))?;
+    }
+    batch.write()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::iota_system_state::IotaSystemState;
+    use typed_store::rocks::{MetricConf, open_cf_opts};
+
+    use super::*;
+
+    /// On first open under the `#[deprecated_db_map(migration = ...)]`
+    /// schema, an existing `epochs` column family must be:
+    ///   1. drained into `epochs_v2` (with `None` for the end-of-epoch fields
+    ///      that the old schema did not carry),
+    ///   2. dropped from disk, and
+    ///   3. left absent on subsequent opens so the migration is not re-run.
+    ///
+    /// Mirrors the macro contract verified by `migration_test` in
+    /// `typed-store/tests/macro_tests.rs`.
+    #[tokio::test]
+    async fn migrate_epochs_to_v2_backfills_then_drops_old_cf() {
+        let tmp_dir = iota_common::tempdir();
+        let dbdir = tmp_dir.path().to_path_buf();
+
+        // Step 1 — open RocksDB with both column families (mimicking the
+        // pre-migration schema on disk) and write one row to `epochs`.
+        let old_info = EpochInfo {
+            epoch: 7,
+            protocol_version: 1,
+            start_timestamp_ms: 1_000_000,
+            end_timestamp_ms: Some(2_000_000),
+            start_checkpoint: 42,
+            end_checkpoint: Some(99),
+            reference_gas_price: 1_000,
+            system_state: IotaSystemState::for_testing(7, 1),
+        };
+        {
+            let opt_cfs: Vec<(&str, typed_store::rocksdb::Options)> = vec![
+                ("epochs", typed_store::rocks::default_db_options().options),
+                (
+                    "epochs_v2",
+                    typed_store::rocks::default_db_options().options,
+                ),
+            ];
+            let db = open_cf_opts(&dbdir, None, MetricConf::default(), &opt_cfs)
+                .expect("open DB with both CFs");
+            let epochs = DBMap::<EpochId, EpochInfo>::reopen(
+                &db,
+                Some("epochs"),
+                &ReadWriteOptions::default(),
+                false,
+            )
+            .unwrap();
+            epochs.insert(&old_info.epoch, &old_info).unwrap();
+        }
+
+        // Step 2 — open via the new schema. The macro must invoke
+        // `migrate_epochs_to_v2` and then drop the `epochs` CF.
+        let tables = IndexStoreTables::open_tables_read_write(
+            dbdir.clone(),
+            MetricConf::default(),
+            None,
+            None,
+        );
+        let migrated = tables
+            .epochs_v2
+            .get(&old_info.epoch)
+            .unwrap()
+            .expect("migrated row must be present in epochs_v2");
+        assert_eq!(migrated.epoch, old_info.epoch);
+        assert_eq!(migrated.protocol_version, old_info.protocol_version);
+        assert_eq!(migrated.start_timestamp_ms, old_info.start_timestamp_ms);
+        assert_eq!(migrated.end_timestamp_ms, old_info.end_timestamp_ms);
+        assert_eq!(migrated.start_checkpoint, old_info.start_checkpoint);
+        assert_eq!(migrated.end_checkpoint, old_info.end_checkpoint);
+        assert_eq!(migrated.reference_gas_price, old_info.reference_gas_price);
+        // Migrated rows carry dummy `None` for the end-of-epoch fields.
+        assert!(migrated.last_checkpoint_summary.is_none());
+        assert!(migrated.end_of_epoch_tx_events.is_none());
+        drop(tables);
+
+        // The `epochs` CF must have been dropped from disk.
+        let listed = typed_store::rocks::list_tables(dbdir.clone()).unwrap();
+        assert!(
+            !listed.contains(&"epochs".to_string()),
+            "epochs CF should have been dropped after migration; saw: {listed:?}"
+        );
+
+        // Step 3 — reopen. Migration must be idempotent: no panic, data
+        // still present in `epochs_v2`.
+        let tables2 =
+            IndexStoreTables::open_tables_read_write(dbdir, MetricConf::default(), None, None);
+        assert!(
+            tables2.epochs_v2.get(&old_info.epoch).unwrap().is_some(),
+            "migrated data must survive reopen"
+        );
+    }
 }

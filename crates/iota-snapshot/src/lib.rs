@@ -38,7 +38,6 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::ObjectID,
-    epoch_info::EpochInfoEntry,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -81,7 +80,7 @@ use tokio::time::Instant;
 ///   concrete checkpoint sequence number.
 /// - REFERENCE file format is unchanged from V1.
 /// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
-///   carrying one [`EpochInfoEntry`] per epoch in `[0, snapshot_epoch]` from
+///   carrying one [`EpochInfoV1Entry`] per epoch in `[0, snapshot_epoch]` from
 ///   `IndexStoreTables::epoch_info`. Writer-node operator contract:
 ///   `enable_grpc_api = true`; the writer refuses to publish unless
 ///   `Watermark::EpochIndexed >= snapshot_epoch`.
@@ -272,19 +271,39 @@ impl Manifest {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1Entry {
+    /// First checkpoint of this epoch (`0` for genesis; otherwise the prior
+    /// epoch's `last_checkpoint_summary.sequence_number + 1`).
+    pub start_checkpoint: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+
+    /// BCS-encoded `IotaSystemState` of object `0x5` right after the
+    /// AdvanceEpoch tx of the previous epoch (or the genesis tx for epoch 0).
+    pub start_system_state: Vec<u8>,
+
+    /// Certified summary of this epoch's last checkpoint — carries
+    /// `end_of_epoch_data`, gas summary, timestamp, quorum signatures.
+    pub last_checkpoint_summary:
+        Option<iota_types::messages_checkpoint::CertifiedCheckpointSummary>,
+
+    /// Events from the AdvanceEpoch tx — carries `SystemEpochInfoEvent`
+    /// (storage/computation accounting, mint/burn, stake rewards).
+    pub end_of_epoch_tx_events: Option<iota_types::effects::TransactionEvents>,
+}
+
 /// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
 /// future schema evolution. `entries[i]` is the entry for epoch `i`;
 /// length is `snapshot_epoch + 1`.
 ///
 /// Entries are wrapped in `Option<>` so the on-disk format can express "no
-/// row for epoch `i`" without bumping to `EpochInfoV2`. Today's writer
-/// always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
+/// row for epoch `i`" without bumping to a new `EpochInfo` variant. Today's
+/// writer always emits `Some(_)` — its `Watermark::EpochIndexed` precondition
 /// (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`) refuses
 /// to publish unless every epoch in `[0, snapshot_epoch]` has a fully
 /// populated row — but a future partial-coverage writer (e.g. snapshots
 /// that omit pruned epochs) can emit `None` here without breaking V1
 /// decoders.
-// No `Eq`/`PartialEq` derive: `EpochInfoEntry` transitively contains
+// No `Eq`/`PartialEq` derive: `EpochInfoV1Entry` transitively contains
 // `BLS12381AggregateSignature`, which does not implement `PartialEq`.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EpochInfo {
@@ -293,11 +312,11 @@ pub enum EpochInfo {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EpochInfoV1 {
-    pub entries: Vec<Option<EpochInfoEntry>>,
+    pub entries: Vec<Option<EpochInfoV1Entry>>,
 }
 
 impl EpochInfo {
-    pub fn entries(&self) -> &[Option<EpochInfoEntry>] {
+    pub fn entries(&self) -> &[Option<EpochInfoV1Entry>] {
         match self {
             Self::V1(info) => &info.entries,
         }

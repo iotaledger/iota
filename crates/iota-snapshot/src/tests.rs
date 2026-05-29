@@ -26,35 +26,36 @@ use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::TransactionEvents,
-    epoch_info::EpochInfoEntry,
     gas::GasCostSummary,
     global_state_hash::GlobalStateHash,
+    iota_system_state::IotaSystemState,
     message_envelope::Envelope,
     messages_checkpoint::{CheckpointSummary, ECMHLiveObjectSetDigest},
     object::Object,
     storage::{
-        CoinInfo, DynamicFieldIteratorItem, EpochInfo, OwnedObjectCursor, OwnedObjectIteratorItem,
-        PackageVersionIteratorItem, TransactionInfo, error::Result as StorageResult,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, OwnedObjectCursor,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, TransactionInfo,
+        error::Result as StorageResult,
     },
 };
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo as SnapshotEpochInfo, EpochInfoV1, FileCompression,
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody,
-    OBJECT_REF_BYTES, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestBody, OBJECT_REF_BYTES,
+    reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
 };
 
 /// In-memory `GrpcIndexes` stub for snapshot tests.
 ///
-/// Pre-populates `epoch_info` rows for a contiguous range `[0..=highest]`
-/// with empty-but-structurally-valid `EpochInfoEntry`s and advances the
+/// Pre-populates `epochs_v2` rows for a contiguous range `[0..=highest]`
+/// with empty-but-structurally-valid `EpochInfoV2`s and advances the
 /// `EpochIndexed` watermark to `highest`. Lets snapshot-writer tests satisfy
 /// the watermark precondition without standing up a full RocksDB-backed
-/// `IndexStoreTables`. Every method other than the two `epoch_info` paths
+/// `IndexStoreTables`. Every method other than the two `epoch` paths
 /// returns `None`/empty iterators — tests that exercise other surfaces of
 /// `GrpcIndexes` should not use this stub.
 struct TestGrpcIndexes {
-    entries: HashMap<EpochId, EpochInfoEntry>,
+    entries: HashMap<EpochId, EpochInfoV2>,
     highest: Option<EpochId>,
 }
 
@@ -62,17 +63,17 @@ impl TestGrpcIndexes {
     /// Synthetic state for exercising the writer's `Some(..)` path: every
     /// epoch in `[0..=highest]` is fully populated and the watermark is
     /// advanced to `highest`. In production, epoch `N`'s row is only
-    /// finalized when epoch `N+1` is seeded (see the boundary-2 logic in
-    /// `grpc_indexes::write_epoch_info_entries`), so a true production
-    /// state with `EpochIndexed = highest` would additionally carry a
-    /// boundary-1-only row for `highest + 1`. The writer only reads
+    /// finalized when epoch `N+1` is seeded (see the close-of-epoch logic
+    /// in `grpc_indexes::index_epoch`), so a true production state with
+    /// `EpochIndexed = highest` would additionally carry a start-of-epoch-
+    /// only row for `highest + 1`. The writer only reads
     /// `[0, snapshot_epoch]`, so that extra row is irrelevant to the
     /// tests here — but the asymmetry is worth flagging so future
     /// readers don't mistake this fixture for a production snapshot.
     fn with_epochs_through(highest: EpochId) -> Arc<dyn GrpcIndexes> {
         let mut entries = HashMap::new();
         for epoch in 0..=highest {
-            entries.insert(epoch, fully_populated_entry(epoch));
+            entries.insert(epoch, fully_populated_epoch_info(epoch));
         }
         Arc::new(TestGrpcIndexes {
             entries,
@@ -102,20 +103,20 @@ impl TestGrpcIndexes {
     }
 }
 
-/// A recognizable, non-trivial byte pattern stamped into the test
-/// fixture's `start_system_state` so the snapshot round-trip can prove
-/// the opaque bytes pass through writer → BCS → file → BCS → reader
-/// untouched. Mixed-bit nibbles (`0xA5`, `0x5A`) and a length not aligned
-/// to common word sizes (37 bytes) surface off-by-one truncation, byte
-/// swap, or fixed-padding bugs as a specific mismatch rather than an
-/// all-zero or all-`0xFF` clobber.
-const TEST_START_SYSTEM_STATE: &[u8] = &[
-    0xA5, 0x5A, 0xDE, 0xAD, 0xBE, 0xEF, 0xC0, 0xFF, 0xEE, 0x42, 0x13, 0x37, 0x00, 0x01, 0x02, 0x03,
-    0x04, 0x05, 0x06, 0x07, 0xFE, 0xED, 0xFA, 0xCE, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
-    0xA5, 0x5A, 0xCA, 0xFE, 0x99,
-];
+/// Test-fixture system state. The snapshot writer BCS-encodes this when
+/// translating `EpochInfoV2 → EpochInfoV1Entry` for the on-disk
+/// EPOCH_INFO file, so the round-trip assertion below compares against
+/// `bcs::to_bytes(&TEST_SYSTEM_STATE)` — verifying that the writer's BCS
+/// encoding is deterministic and not corrupted en route to disk.
+fn test_system_state() -> IotaSystemState {
+    // Distinctive `epoch` + `protocol_version` so a bug that swaps fields
+    // or zeroes them surfaces as a specific mismatch.
+    IotaSystemState::for_testing(0x1234_5678, 0x9ABC_DEF0)
+}
 
-fn fully_populated_entry(epoch: EpochId) -> EpochInfoEntry {
+fn fully_populated_checkpoint_summary(
+    epoch: EpochId,
+) -> iota_types::messages_checkpoint::CertifiedCheckpointSummary {
     let summary = CheckpointSummary {
         epoch,
         sequence_number: 0,
@@ -133,20 +134,40 @@ fn fully_populated_entry(epoch: EpochId) -> EpochInfoEntry {
         signature: Default::default(),
         signers_map: Default::default(),
     };
-    EpochInfoEntry {
-        first_checkpoint: 0,
-        start_system_state: TEST_START_SYSTEM_STATE.to_vec(),
-        last_checkpoint_summary: Some(Envelope::new_from_data_and_sig(summary, sig)),
+    Envelope::new_from_data_and_sig(summary, sig)
+}
+
+fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
+    EpochInfoV2 {
+        epoch,
+        protocol_version: 0,
+        start_timestamp_ms: 0,
+        end_timestamp_ms: None,
+        start_checkpoint: 0,
+        end_checkpoint: None,
+        reference_gas_price: 0,
+        system_state: test_system_state(),
+        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(epoch)),
+        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+    }
+}
+
+/// On-disk equivalent of [`fully_populated_entry`]: used by tests that
+/// exercise the on-disk `EpochInfoV1Entry` directly (BCS round-trip of
+/// the `EPOCH_INFO` file body) rather than going through the writer's
+/// `EpochInfoV2 → EpochInfoV1Entry` translation.
+fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
+    EpochInfoV1Entry {
+        start_checkpoint: 0,
+        start_system_state: bcs::to_bytes(&test_system_state())
+            .expect("test_system_state must BCS-encode"),
+        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(epoch)),
         end_of_epoch_tx_events: Some(TransactionEvents::default()),
     }
 }
 
 impl GrpcIndexes for TestGrpcIndexes {
-    fn get_epoch_info(&self, _epoch: EpochId) -> StorageResult<Option<EpochInfo>> {
-        Ok(None)
-    }
-
-    fn get_epoch_info_entry(&self, epoch: EpochId) -> StorageResult<Option<EpochInfoEntry>> {
+    fn get_epoch_info(&self, epoch: EpochId) -> StorageResult<Option<EpochInfoV2>> {
         Ok(self.entries.get(&epoch).cloned())
     }
 
@@ -313,8 +334,8 @@ async fn snapshot_round_trip(
             magic, EPOCH_INFO_FILE_MAGIC,
             "EPOCH_INFO magic mismatch: got {magic:#x}, expected {EPOCH_INFO_FILE_MAGIC:#x}"
         );
-        let decoded: SnapshotEpochInfo = bcs::from_bytes(&bytes[MAGIC_BYTES..])?;
-        let SnapshotEpochInfo::V1(decoded_v1) = decoded;
+        let decoded: EpochInfo = bcs::from_bytes(&bytes[MAGIC_BYTES..])?;
+        let EpochInfo::V1(decoded_v1) = decoded;
         // `TestGrpcIndexes::with_epochs_through(0)` provides exactly one
         // populated entry for epoch 0, so the snapshot's EPOCH_INFO must
         // carry exactly one entry.
@@ -323,25 +344,27 @@ async fn snapshot_round_trip(
             1,
             "expected `entries` of length 1 for snapshot at epoch 0"
         );
-        // `EpochInfoV1.entries` is `Vec<Option<EpochInfoEntry>>`; the writer
+        // `EpochInfoV1.entries` is `Vec<Option<EpochInfoV1Entry>>`; the writer
         // always emits `Some(_)` under its `EpochIndexed` watermark
         // precondition (see `StateSnapshotWriterV1::check_epoch_indexed_watermark`).
         let entry = decoded_v1.entries[0]
             .as_ref()
             .expect("writer must emit Some entry under the watermark precondition");
-        // Bit-identical round-trip of `start_system_state`. This is the
-        // canary for the contract that the snapshot crate treats the inner
-        // BCS as opaque bytes (never decodes, never reframes) — a writer
-        // bug that truncated, padded, or re-encoded the field would change
-        // these bytes and fail here, even though the outer BCS round-trip
-        // would still succeed.
+        // Bit-identical round-trip of `start_system_state`. The writer
+        // BCS-encodes `EpochInfoV2.system_state` into this `Vec<u8>`; the
+        // assertion locks that the bytes on disk equal the deterministic
+        // BCS encoding of `test_system_state()`. A writer bug that
+        // truncated, padded, or re-encoded the field would change these
+        // bytes and fail here, even though the outer BCS round-trip would
+        // still succeed.
+        let expected_system_state_bytes =
+            bcs::to_bytes(&test_system_state()).expect("test_system_state must BCS-encode");
         assert_eq!(
-            entry.start_system_state.as_slice(),
-            TEST_START_SYSTEM_STATE,
+            entry.start_system_state, expected_system_state_bytes,
             "start_system_state did not round-trip bit-identical through the snapshot"
         );
         assert_eq!(
-            entry.first_checkpoint, 0,
+            entry.start_checkpoint, 0,
             "first_checkpoint did not round-trip"
         );
         assert!(
@@ -809,16 +832,16 @@ fn write_manifest_file(path: &std::path::Path, manifest: &Manifest) -> std::io::
 #[test]
 fn epoch_info_v1_bcs_round_trip() {
     // Mix of `Some(_)` and `None` entries so the `Option` framing in
-    // `Vec<Option<EpochInfoEntry>>` is exercised end-to-end. Today's
+    // `Vec<Option<EpochInfoV1Entry>>` is exercised end-to-end. Today's
     // writer never emits `None` (the watermark precondition forbids it),
     // but the on-disk format reserves that shape for a future partial-
     // coverage writer — see [`EpochInfo`]. Locking the `None`-tag byte
     // here keeps that forward-compat path honest.
-    let epoch_info = SnapshotEpochInfo::V1(EpochInfoV1 {
+    let epoch_info = EpochInfo::V1(EpochInfoV1 {
         entries: vec![
-            Some(fully_populated_entry(0)),
+            Some(fully_populated_snapshot_epoch_entry(0)),
             None,
-            Some(fully_populated_entry(2)),
+            Some(fully_populated_snapshot_epoch_entry(2)),
         ],
     });
     let bytes = bcs::to_bytes(&epoch_info).unwrap();
@@ -827,8 +850,8 @@ fn epoch_info_v1_bcs_round_trip() {
         "EpochInfo::V1 must remain at BCS discriminant 0"
     );
 
-    let decoded: SnapshotEpochInfo = bcs::from_bytes(&bytes).unwrap();
-    let SnapshotEpochInfo::V1(decoded_v1) = decoded;
+    let decoded: EpochInfo = bcs::from_bytes(&bytes).unwrap();
+    let EpochInfo::V1(decoded_v1) = decoded;
     assert_eq!(decoded_v1.entries.len(), 3);
     assert!(
         decoded_v1.entries[1].is_none(),
@@ -848,4 +871,48 @@ fn epoch_info_v1_bcs_round_trip() {
     };
     assert_entry_epoch(0, 0);
     assert_entry_epoch(2, 2);
+}
+
+/// Locks the BCS field order of `EpochInfoV1Entry` against silent
+/// reordering. BCS encodes struct fields in declaration order, so
+/// swapping any two fields would silently change the on-disk EPOCH_INFO
+/// file layout and break every existing snapshot consumer.
+///
+/// Asserts that `bcs(entry)` equals the concatenation:
+///   `first_checkpoint.to_le_bytes()
+///    ++ uvarint(start_system_state.len()) ++ start_system_state
+///    ++ bcs(last_checkpoint_summary: Option<...>)
+///    ++ bcs(end_of_epoch_tx_events: Option<...>)`.
+/// This both verifies the relative order of the four fields and
+/// detects any encoding-shape change in the inner types.
+#[test]
+fn snapshot_epoch_info_field_order_is_locked() {
+    let entry = EpochInfoV1Entry {
+        // Distinct, recognizable u64 — easy to spot in a hex dump if
+        // this assertion ever needs to be debugged.
+        start_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
+        // Distinct payload so a misordered field would be obvious.
+        start_system_state: vec![0xAA, 0xBB, 0xCC, 0xDD],
+        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(0)),
+        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+    };
+
+    let entry_bytes = bcs::to_bytes(&entry).expect("entry serialization");
+    let start_system_state_bytes =
+        bcs::to_bytes(&entry.start_system_state).expect("start_system_state serialization");
+    let summary_bytes =
+        bcs::to_bytes(&entry.last_checkpoint_summary).expect("summary serialization");
+    let events_bytes = bcs::to_bytes(&entry.end_of_epoch_tx_events).expect("events serialization");
+
+    let mut expected = Vec::with_capacity(entry_bytes.len());
+    expected.extend_from_slice(&entry.start_checkpoint.to_le_bytes());
+    expected.extend_from_slice(&start_system_state_bytes);
+    expected.extend_from_slice(&summary_bytes);
+    expected.extend_from_slice(&events_bytes);
+
+    assert_eq!(
+        entry_bytes, expected,
+        "EpochInfoV1Entry BCS layout changed; re-anchor this test only if \
+         the schema change is deliberate and reviewers have signed off"
+    );
 }
