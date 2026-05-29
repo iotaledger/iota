@@ -14,8 +14,8 @@ flat 10x10 RTT table in network-benchmark.sh doesn't produce:
   is added to every edge incident to them — models peers with bad uplinks or
   sub-optimal peering.
 * Each *directed* edge gets independent log-normal perturbation. Drawing
-  i->j and j->i separately produces both asymmetric paths and a non-trivial
-  fraction of triangle-inequality violations.
+  i->j and j->i separately preserves path asymmetry; the noise spread is
+  tuned to keep triangle-inequality violations to a small fraction.
 
 The model is fully seeded. For small networks it draws a canonical
 20-validator table first and emits the requested prefix, so a 10-validator run
@@ -88,21 +88,26 @@ class LatencyConfig:
     # Each heavy-tail validator gets exactly this many fast bidirectional
     # peers, deterministically chosen from the non-heavy validators. The
     # edges to/from those peers are drawn uniformly on
-    # [heavy_tail_fast_floor_ms, heavy_tail_fast_ceiling_ms].
-    heavy_tail_fast_peers: int = 4
+    # [heavy_tail_fast_floor_ms, heavy_tail_fast_ceiling_ms]. Fewer fast
+    # peers means fewer cheap 2-hop alternatives, which directly reduces
+    # the triangle-violation count.
+    heavy_tail_fast_peers: int = 2
     heavy_tail_fast_floor_ms: int = 100
     heavy_tail_fast_ceiling_ms: int = 200
 
-    # Heavy-tail (slow) edges: log-uniform on [floor, ceiling] ms.
-    heavy_tail_floor_ms: int = 150
-    heavy_tail_ceiling_ms: int = 1500
+    # Heavy-tail (slow) edges: log-uniform on [floor, ceiling] ms. Range is
+    # kept close to the 2-hop alternative (fast-peer + healthy leg, ~200 ms)
+    # so heavy-tail edges remain distinctly slower than the healthy core
+    # without exposing a much cheaper indirect path on most triples.
+    heavy_tail_floor_ms: int = 210
+    heavy_tail_ceiling_ms: int = 300
 
     # Per-edge log-normal perturbation for non-heavy edges:
     # noise = (LogNormal(0, sigma) - exp(sigma^2 / 2)) * scale, i.e. the
     # mean of the multiplicative term is exactly subtracted so the noise
     # is zero-mean and the matrix p50 lands at the base-table median.
-    noise_sigma: float = 0.75
-    noise_scale_ms: float = 12.0
+    noise_sigma: float = 0.4
+    noise_scale_ms: float = 8.0
 
     # --- Per-validator outbound quality ---
     # Every validator k gets a stable quality `q_k ∈ [0, 1]` (lower = worse

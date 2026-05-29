@@ -50,10 +50,10 @@ class Config:
     geodistributed: bool = True
     log_interval: int = 60  # save logs every N seconds
     final_epoch_settle_wait: int = 10  # seconds after the second post-start epoch
-    pre_rolling_wait: int = 180  # simple mode: wait into epoch 0 before rolling
 
     # Derived from epoch_duration_ms (set in __post_init__)
     mid_epoch_wait: int = field(init=False)
+    pre_rolling_wait: int = field(init=False)  # simple mode: wait into epoch 0 before rolling
     upgrade_delay: int = field(init=False)
     protocol_probe_wait: int = field(init=False)
     restart_settle_wait: int = field(init=False)
@@ -64,8 +64,15 @@ class Config:
     fresh_db_restart_pause_min: int = field(init=False)
     fresh_db_restart_pause_max: int = field(init=False)
     phase8_worst_case: int = field(init=False)
+    phase8_simple_estimate: int = field(init=False)
     phase9_epoch0_worst_case: int = field(init=False)
     timeline_safety_margin: int = field(init=False)
+    # End-of-run stable-window comparison: matched-length windows in epoch 0
+    # (pre-rolling, no upgrades started) and epoch 1 (post-migration, after a
+    # short settle offset). Window length is capped so total test time stays
+    # reasonable when pre_rolling_wait is large.
+    stable_window_seconds: int = field(init=False)
+    stable_window_settle_seconds: int = 30
 
     image_old: str = "iota-node:old"
     image_upgrade: str = "iota-node:upgrade"
@@ -163,6 +170,21 @@ class Config:
                     f"got {epoch_s}s"
                 )
             self.mid_epoch_wait = 0
+
+        # Simple mode: per-validator phase-8 cost is the docker SIGTERM grace
+        # plus container start (~15s), plus the one-time protocol probe after
+        # validator-1. Pick pre_rolling_wait so the rolling upgrade still
+        # completes inside epoch 0 with the same safety margin.
+        self.phase8_simple_estimate = n * 15 + self.protocol_probe_wait
+        self.pre_rolling_wait = max(
+            30,
+            epoch_s - self.phase8_simple_estimate - self.timeline_safety_margin,
+        )
+        # Stable analysis window: same length in epoch 0 (pre-rolling, no
+        # upgrades) and in epoch 1 (after settle). Cap at 180s so test runtime
+        # extension stays bounded even for long pre_rolling_wait values; floor
+        # at 60s so the histogram_quantile inputs aren't statistical noise.
+        self.stable_window_seconds = max(60, min(180, self.pre_rolling_wait - 30))
 
         self.network_dir = self.script_dir.parent
         self.repo_root = _find_repo_root(self.script_dir)
@@ -689,6 +711,73 @@ class CheckpointMonitor:
         if current_epoch is not None:
             segments.append((current_epoch, start_ts, last_ts, start_cp, last_cp))
         return segments
+
+    def stable_window_report(
+        self,
+        cfg: "Config",
+        epoch_0_start: float,
+        epoch_1_start_ts: float,
+    ) -> str:
+        """Side-by-side metric comparison over equal-length stable windows.
+
+        Epoch 0 window: [epoch_0_start, epoch_0_start + window]. Captures the
+        pre-rolling state before any upgrades start.
+
+        Epoch 1 window: [epoch_1_start + settle, epoch_1_start + settle + window].
+        Skips the reconfig transient; same duration as the epoch-0 window.
+
+        Queries Prometheus with the `@` modifier so the report stays valid
+        regardless of how long the test ran after these windows.
+        """
+        w = cfg.stable_window_seconds
+        settle = cfg.stable_window_settle_seconds
+        e0_end = int(epoch_0_start + w)
+        e1_end = int(epoch_1_start_ts + settle + w)
+
+        def _eval(expr: str) -> float | None:
+            data = _prometheus_query(expr)
+            if not data:
+                return None
+            try:
+                r = data["data"]["result"]
+                if not r:
+                    return None
+                v = float(r[0]["value"][1])
+                return v if v == v else None  # NaN guard
+            except (KeyError, IndexError, TypeError, ValueError):
+                return None
+
+        # (label, query_template, unit, value_scale)
+        metrics = [
+            ("Tx commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Tx commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Tx commit p99", "histogram_quantile(0.99, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Proposed blocks/s", "sum(rate(consensus_proposed_blocks[{w}s] @ {t}))", "blk/s", 1.0),
+            ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
+        ]
+
+        e0_label = datetime.fromtimestamp(epoch_0_start, tz=timezone.utc).strftime("%H:%M:%S")
+        e1_label = datetime.fromtimestamp(epoch_1_start_ts + settle, tz=timezone.utc).strftime("%H:%M:%S")
+        lines = [
+            f"  Windows ({w}s each): epoch 0 starts {e0_label} UTC, "
+            f"epoch 1 starts {e1_label} UTC (= epoch_1_at + {settle}s settle)",
+            "",
+            f"  {'Metric':<24} {'epoch 0':>14} {'epoch 1':>14} {'delta':>14}",
+            f"  {'-' * 24} {'-' * 14:>14} {'-' * 14:>14} {'-' * 14:>14}",
+        ]
+        for label, tpl, unit, scale in metrics:
+            v0 = _eval(tpl.format(w=w, t=e0_end))
+            v1 = _eval(tpl.format(w=w, t=e1_end))
+            s0 = f"{v0 * scale:.1f} {unit}" if v0 is not None else "—"
+            s1 = f"{v1 * scale:.1f} {unit}" if v1 is not None else "—"
+            if v0 is not None and v1 is not None:
+                sd = f"{(v1 - v0) * scale:+.1f} {unit}"
+            else:
+                sd = "—"
+            lines.append(f"  {label:<24} {s0:>14} {s1:>14} {sd:>14}")
+        return "\n".join(lines)
 
     def report(self) -> str:
         if not self._samples:
@@ -1780,6 +1869,54 @@ def phase9_post_upgrade_restarts(
 # ========================= Phase 10: Observation =========================
 
 
+def phase10_observe_stable_window(cfg: Config, epoch_0_at_phase8_end: int) -> None:
+    """Simple-mode post-upgrade observation.
+
+    Waits for epoch 1 to start (proves the upgrade vote landed), then sleeps
+    `stable_window_settle_seconds + stable_window_seconds` so the end-of-run
+    report has a clean stable window in epoch 1 that matches the pre-rolling
+    window in epoch 0. The precise epoch_1 start timestamp is read from the
+    CheckpointMonitor's higher-resolution polling, not from here.
+    """
+    phase_start = time.time()
+    total_wait = cfg.stable_window_settle_seconds + cfg.stable_window_seconds
+    log(
+        _phase_banner(
+            f"Waiting for epoch > {epoch_0_at_phase8_end}, then {total_wait}s "
+            f"of stable epoch-1 observation",
+            "PHASE 10",
+        )
+    )
+
+    epoch_1 = wait_for_epoch_change(cfg, epoch_0_at_phase8_end)
+    if epoch_1 <= epoch_0_at_phase8_end:
+        raise RuntimeError(
+            f"Epoch did not advance past {epoch_0_at_phase8_end}; "
+            "aborting final observation"
+        )
+    log(
+        f"  Epoch advanced to {epoch_1}; observing {total_wait}s "
+        f"({cfg.stable_window_settle_seconds}s settle + "
+        f"{cfg.stable_window_seconds}s window)"
+    )
+
+    obs_start = time.time()
+    last_log_save = obs_start
+    while time.time() < obs_start + total_wait:
+        elapsed = int(time.time() - obs_start)
+        bar = _progress_bar(elapsed, total_wait)
+        log_status(f"  {bar} {elapsed}s / {total_wait}s")
+        if time.time() - last_log_save >= cfg.log_interval:
+            save_validator_logs(cfg, cfg.num_validators)
+            last_log_save = time.time()
+        time.sleep(1)
+    print()
+
+    _archive_final_logs(cfg)
+    log(_phase_complete("Phase 10", time.time() - phase_start))
+    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
+
+
 def phase10_observation(cfg: Config, epoch_1: int) -> None:
     phase_start = time.time()
     log(
@@ -1809,9 +1946,13 @@ def phase10_observation(cfg: Config, epoch_1: int) -> None:
         time.sleep(1)
 
     print()  # finish status line
-    # Final log save with timestamp
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    _archive_final_logs(cfg)
+    log(_phase_complete("Phase 10", time.time() - phase_start))
+    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
 
+
+def _archive_final_logs(cfg: Config) -> None:
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     for i in range(1, cfg.num_validators + 1):
         v = f"validator-{i}"
         dest = cfg.log_dir / f"migration-{v}-{ts}.log"
@@ -1836,9 +1977,6 @@ def phase10_observation(cfg: Config, epoch_1: int) -> None:
         shutil.copy2(dest, cfg.log_dir / "migration-fullnode-1-latest.log")
 
     shutil.copy2(cfg.log_file, cfg.log_dir / f"migration_script_{ts}.log")
-
-    log(_phase_complete("Phase 10", time.time() - phase_start))
-    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
 
 
 # ========================= Main =========================
@@ -2056,7 +2194,10 @@ def main() -> None:
             f"  {_C.BOLD}Rolling upgrade{_C.RESET}      : "
             f"back-to-back, no offline pause, no post-upgrade restarts"
         )
-        log(f"  {_C.BOLD}Pre-rolling wait{_C.RESET}     : {cfg.pre_rolling_wait}s from epoch start")
+        log(
+            f"  {_C.BOLD}Pre-rolling wait{_C.RESET}     : {cfg.pre_rolling_wait}s from epoch start "
+            f"(phase8 estimate {cfg.phase8_simple_estimate}s, safety {cfg.timeline_safety_margin}s)"
+        )
         log(
             f"  {_C.BOLD}Stop condition{_C.RESET}       : "
             f"one epoch boundary after upgrade + {cfg.final_epoch_settle_wait}s"
@@ -2090,18 +2231,30 @@ def main() -> None:
             upgrade_proto,
             upgrade_consensus,
         )
+        phase10_observation(cfg, epoch_1)
     else:
-        # Simple mode: no post-upgrade restarts. Use the current epoch as the
-        # baseline so phase 10 still verifies the migrated network crosses an
-        # epoch boundary under the new protocol.
-        epoch_1 = get_current_epoch()
-    phase10_observation(cfg, epoch_1)
+        # Simple mode: no post-upgrade restarts. Wait for epoch 1 to start and
+        # then hold long enough for the stable-window comparison.
+        phase10_observe_stable_window(cfg, get_current_epoch())
     stop_load_generator(cfg)
 
     cp_monitor.stop()
     log(_phase_banner("Checkpoint Liveness Report"))
     for line in cp_monitor.report().split("\n"):
         log(line)
+    if cfg.mode == "simple":
+        # Pull the precise epoch-1 start from the monitor's 10s-resolution
+        # polling rather than from the 30s wait_for_epoch_change loop.
+        epoch_1_start_ts = next(
+            (ts for ts, _, to_ep, _ in cp_monitor._observed_epoch_changes() if to_ep == 1),
+            None,
+        )
+        if epoch_1_start_ts is not None:
+            log(_phase_banner("Stable-Window Comparison"))
+            for line in cp_monitor.stable_window_report(
+                cfg, epoch_0_start, epoch_1_start_ts
+            ).split("\n"):
+                log(line)
 
     # Kill latency background process (runs under sudo, so use sudo pkill)
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
