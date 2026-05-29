@@ -674,7 +674,7 @@ async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
             config
         });
 
-    let (mut test_cluster, client) =
+    let (test_cluster, client) =
         setup_grpc_test_with_builder(|b| b.with_num_validators(4), None, None).await;
     let mut exec_client = client.execution_service_client();
 
