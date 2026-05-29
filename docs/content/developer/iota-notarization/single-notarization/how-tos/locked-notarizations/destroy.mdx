@@ -44,14 +44,14 @@ First, ensure you have a funded notarization client with ownership of the notari
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/utils/utils.rs#L39-L50
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
 ```
 
 </TabItem>
@@ -67,14 +67,14 @@ First, let's create a locked notarization that can be destroyed immediately:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L122-L134
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs#L122-L134
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L100-L110
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L100-L110
 ```
 
 </TabItem>
@@ -90,14 +90,14 @@ Before attempting to destroy, check if destruction is allowed:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L132-L139
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs#L132-L139
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L112-L114
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L112-L114
 ```
 
 </TabItem>
@@ -113,7 +113,7 @@ Destroy the locked notarization with no delete lock (should succeed):
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L140-L152
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs#L140-L152
 ```
 
 </TabItem>
@@ -121,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notariz
 
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L117-L120
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L117-L120
 ```
 
 </TabItem>
@@ -139,14 +139,14 @@ Time-locked notarizations cannot be destroyed until their delete lock expires:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L89-L100
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs#L89-L100
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L74-L84
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L74-L84
 ```
 
 </TabItem>
@@ -160,14 +160,14 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L109-L119
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs#L109-L119
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L89-L97
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L89-L97
 ```
 
 </TabItem>
@@ -216,14 +216,14 @@ The complete example demonstrates various destruction scenarios for locked notar
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/04_destroy_notarization.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts
 ```
 
 </TabItem>

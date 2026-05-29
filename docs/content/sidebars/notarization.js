@@ -114,7 +114,7 @@ const notarization = [
                 type: 'category',
                 label: 'Explanations',
                 items: [
-                    'developer/iota-notarization/audit-trail/explanations/about-notarization',
+                    'developer/iota-notarization/audit-trail/explanations/about-audit-trail',
                     'developer/iota-notarization/audit-trail/explanations/role-based-access-control',
                     'developer/iota-notarization/audit-trail/explanations/locking-configuration',
                     'developer/iota-notarization/audit-trail/explanations/privacy-and-off-chain-documents',

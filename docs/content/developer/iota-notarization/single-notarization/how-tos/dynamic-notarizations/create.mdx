@@ -28,24 +28,63 @@ you will need an address with actual IOTA funds to create a new Dynamic Notariza
 
 :::
 
+This is how to create a notarization client and call a utility function explained below to fund the test account.
+
+<div className={'hide-code-block-extras'}>
+    <Tabs groupId="language" queryString>
+        <TabItem value="rust" label="Rust">
+
+            ```rust reference
+            https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/utils/utils.rs#L39-L50
+            ```
+
+        </TabItem>
+        <TabItem value="typescript-node" label="Typescript (Node.js)">
+
+            ```ts reference
+            https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
+            ```
+
+        </TabItem>
+    </Tabs>
+</div>
+
+The utility function to fund the test account is implemented this way:
+
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+https://github.com/iotaledger/product-core/blob/main/product_common/src/test_utils/utils.rs#L65-L74
+```
+
+```rust
+fn unpack_command_output(output: &Output, task: &str) -> anyhow::Result<String> {
+    let stdout = std::str::from_utf8(&output.stdout)?;
+    if !output.status.success() {
+        let stderr = std::str::from_utf8(&output.stderr)?;
+        anyhow::bail!("Failed to {task}: {stdout}, {stderr}");
+    }
+
+    Ok(stdout.to_string())
+}
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/util.ts#L19-L24
 ```
 
 </TabItem>
 </Tabs>
 </div>
+
+Note:
+* The TypeScript implementation uses the TypeScript SDK function [requestIotaFromFaucetV0](https://docs.iota.org/developer/ts-sdk/typescript/faucet)
+* The Rust implementation uses the local installed IOTA client via [std::process::Command](https://doc.rust-lang.org/std/process/struct.Command.html).
 
 ### 2. Create a Simple Dynamic Notarization
 
@@ -56,7 +95,7 @@ The simplest form of a Dynamic Notarization can be created without any locks, ma
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/02_create_dynamic_notarization.rs#L20-L32
 ```
 
 </TabItem>
@@ -90,14 +129,14 @@ You can also create a Dynamic Notarization with a transfer lock to prevent trans
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L43-L53
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/02_create_dynamic_notarization.rs#L43-L53
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L21-L34
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L21-L34
 ```
 
 </TabItem>
@@ -113,14 +152,14 @@ To publish the Dynamic Notarization, you will need to call the `build_and_execut
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L29-L32
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/02_create_dynamic_notarization.rs#L29-L32
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-L34
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-L34
 ```
 
 </TabItem>
@@ -149,14 +188,14 @@ Dynamic notarizations support optional transfer locks:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/notarization/02_create_dynamic_notarization.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts
 ```
 
 </TabItem>
