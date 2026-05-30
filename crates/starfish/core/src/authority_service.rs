@@ -2440,7 +2440,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
         // we set sync_last_known_own_block to true and last known proposed round to
         // rounds+5 so that core doesn't start to create its own new blocks,
         // that would be different from the blocks created in dag builder
@@ -2609,7 +2610,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
         // we set sync_last_known_own_block to true and last known proposed round to
         // rounds+5 so that core doesn't start to create its own new blocks,
         // that would be different from the blocks created in dag builder
@@ -2793,7 +2795,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let core = Core::new(
             context.clone(),
@@ -3125,7 +3128,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let core = Core::new(
             context.clone(),
@@ -3269,7 +3273,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let core = Core::new(
             context.clone(),
@@ -3435,7 +3440,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // we set sync_last_known_own_block to true and last known proposed round to
         // rounds+5 so that core doesn't start to create its own new blocks,
@@ -3634,7 +3640,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let core = Core::new(
             context.clone(),
@@ -3862,7 +3869,8 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let core = Core::new(
             context.clone(),
