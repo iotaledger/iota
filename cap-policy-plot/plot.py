@@ -182,20 +182,59 @@ BOX_LEGEND_HANDLES = [
 ]
 
 
-def add_box_legend(ax):
-    ax.legend(handles=BOX_LEGEND_HANDLES, loc="best", fontsize=8)
+def add_box_legend(ax, extra_handles=None):
+    handles = list(BOX_LEGEND_HANDLES)
+    if extra_handles:
+        handles.extend(extra_handles)
+    ax.legend(handles=handles, loc="best", fontsize=8)
+
+
+# Highlight conventions for x-tick labels / legend entries. Each rule is
+# (list_of_substrings_ALL_required, color). Matched against the FULL policy
+# string so we can require fields that may be stripped from the shortened
+# label (e.g. max=1000 is dropped when max is constant within a group).
+# Order matters: first match wins.
+TICK_LABEL_HIGHLIGHTS = [
+    (["max=1000", "pct=50 sat=90"],   "#9bd49b"),  # green: proposed default
+    (["max=1000", "pct=100 sat=100"], "#e6a3a3"),  # red:   legacy binary baseline
+]
+
+
+def _highlight_color(policy):
+    for substrs, color in TICK_LABEL_HIGHLIGHTS:
+        if all(s in policy for s in substrs):
+            return color
+    return None
+
+
+def highlight_tick_labels(ax, policies):
+    """Paint x-tick label backgrounds based on TICK_LABEL_HIGHLIGHTS rules
+    matched against the full policy strings (positional with tick labels).
+    Call after labels have been set + rotated."""
+    for tick_label, policy in zip(ax.get_xticklabels(), policies):
+        color = _highlight_color(policy)
+        if color:
+            tick_label.set_bbox(dict(facecolor=color, alpha=0.5,
+                                     edgecolor="none",
+                                     boxstyle="round,pad=0.25"))
 
 
 def shortened_labels(policies):
     """Strip fields that are constant across all policies in the group.
     E.g. ["max=1000 sem=2000 pct=100", "max=1000 sem=2000 pct=75"] →
-         ["pct=100", "pct=75"] (only the varying field remains)."""
+         ["pct=100", "pct=75"] (only the varying field remains).
+
+    Field order in the output preserves intent: max → sem → pct → sat →
+    sem_shed. Fields not present in a policy's label string are simply
+    skipped for that policy."""
     parsed = [dict(part.split("=") for part in p.split()) for p in policies]
-    varying = [k for k in ("max", "sem", "pct")
-               if len({d[k] for d in parsed}) > 1]
+    all_fields = ("max", "sem", "pct", "sat", "sem_shed")
+    varying = [k for k in all_fields
+               if len({d.get(k) for d in parsed if k in d}) > 1
+               or any((k in d) != (k in parsed[0]) for d in parsed)]
     if not varying:
         return policies  # nothing varies (n=1 policy), keep full label
-    return [" ".join(f"{k}={d[k]}" for k in varying) for d in parsed]
+    return [" ".join(f"{k}={d[k]}" for k in varying if k in d) for d in parsed]
 
 
 # ---------- experiment groups ----------
@@ -309,9 +348,11 @@ informative.
 
 
 # ---------- plotting helpers ----------
-def boxplot(col, title, ylabel, out_path, policies, log=False, data_df=None, tick_labels=None):
+def boxplot(col, title, ylabel, out_path, policies, log=False, data_df=None, tick_labels=None, hline=None, highlight=True):
     """Box plot of `col` grouped by `policies`. Writes to `out_path`.
-    `tick_labels` overrides the x-axis labels (defaults to `policies`)."""
+    `tick_labels` overrides the x-axis labels (defaults to `policies`).
+    `hline` draws a horizontal reference line at that y value (e.g. 0 for
+    "no overshoot" on the absolute plot, 1 for the same on the ratio plot)."""
     src = data_df if data_df is not None else df
     if col not in src.columns:
         return
@@ -324,13 +365,24 @@ def boxplot(col, title, ylabel, out_path, policies, log=False, data_df=None, tic
                     medianprops={"color": "C1", "linewidth": 2})
     for box in bp["boxes"]:
         box.set_facecolor("#c5d9f1")
+        box.set_alpha(0.8)
+    extra_handles = None
+    if hline is not None:
+        ax.axhline(hline, color="black", linewidth=1.2, linestyle="--", alpha=0.7, zorder=0)
+        extra_handles = [Line2D([0], [0], color="black", linewidth=1.2,
+                                linestyle="--", alpha=0.7,
+                                label=f"y={hline}")]
     ax.set_title(title)
     ax.set_ylabel(ylabel)
     if log:
         ax.set_yscale("log")
-    ax.grid(axis="y", alpha=0.3)
-    plt.setp(ax.get_xticklabels(), fontsize=8)
-    add_box_legend(ax)
+    ax.minorticks_on()
+    ax.grid(which="major", axis="y", alpha=0.5)
+    ax.grid(which="minor", axis="y", alpha=0.5, linestyle=":", linewidth=0.8)
+    plt.setp(ax.get_xticklabels(), fontsize=8, rotation=45, ha="right")
+    if highlight:
+        highlight_tick_labels(ax, policies)
+    add_box_legend(ax, extra_handles=extra_handles)
     plt.tight_layout()
     plt.savefig(out_path, dpi=130)
     plt.close()
@@ -371,14 +423,33 @@ def plot_group(group):
     denom_values = df[df.policy.isin(policies)][ratio_denom_field].dropna().unique()
     if len(denom_values) > 1:
         boxplot(ratio_col,
-                f"Peak overshoot ratio — {ratio_label} — [lower = safer]",
-                ratio_label, out_dir / "ratio.png", policies, tick_labels=short_labels)
+                f"Peak over/under-shoot ratio — {ratio_label} — [lower = safer]",
+                ratio_label, out_dir / "ratio.png", policies,
+                tick_labels=short_labels, hline=1)
     boxplot(overshoot_col,
-            f"Absolute overshoot — {overshoot_label} — [lower = safer]",
-            "Transactions", out_dir / "overshoot.png", policies, tick_labels=short_labels)
+            f"Absolute over/under-shoot — {overshoot_label} — [lower = safer]",
+            "Transactions", out_dir / "overshoot.png", policies,
+            tick_labels=short_labels, hline=0)
     boxplot("results.useful_tps",
             "Useful TPS — [higher = better]",
-            "tps", out_dir / "tps.png", policies, tick_labels=short_labels)
+            "TPS", out_dir / "tps.png", policies, tick_labels=short_labels)
+
+    # Stage B (permit_wait) and e2e (consensus_lat) latency boxplots at
+    # both p50 and p99. Stage B is where graduated's queue-depth reduction
+    # cashes out as latency reduction; e2e is the user-visible outcome.
+    # Stages A and C are intentionally NOT plotted: A is structurally tiny
+    # (~3ms p50) and C is independent of queue depth (per-tx submit_inner
+    # work). See methodology appendix for the full A/B/C decomposition.
+    if "latency" not in skip:
+        for col, title_metric, fname in [
+            ("results.permit_wait_p50",   "Semaphore permit wait time — p50",   "wait-p50.png"),
+            ("results.permit_wait_p99",   "Semaphore permit wait time — p99",   "wait-p99.png"),
+            ("results.consensus_lat_p50", "Admission-to-consensus latency — p50", "e2e-p50.png"),
+            ("results.consensus_lat_p99", "Admission-to-consensus latency — p99", "e2e-p99.png"),
+        ]:
+            boxplot(col,
+                    f"{title_metric} — [lower = better]",
+                    "seconds", out_dir / fname, policies, tick_labels=short_labels)
 
     # Mean useful TPS, one bar per policy. The boxplot above shows the full
     # distribution; this gives a single-number headline that's robust to the
@@ -387,7 +458,7 @@ def plot_group(group):
         means = [df.loc[df.policy == p, "results.useful_tps"].dropna().mean()
                  for p in policies]
         fig, ax = plt.subplots(figsize=(max(7, 1.4 * len(policies)), 5))
-        bars = ax.bar(short_labels, means, color="#c5d9f1", edgecolor="black")
+        bars = ax.bar(short_labels, means, color="#c5d9f1", edgecolor="black", alpha=0.8)
         for bar, value in zip(bars, means):
             ax.annotate(f"{value:.0f}",
                         xy=(bar.get_x() + bar.get_width() / 2, value),
@@ -395,8 +466,11 @@ def plot_group(group):
                         ha="center", fontsize=9)
         ax.set_title("Mean useful TPS per policy — [higher = better]")
         ax.set_ylabel("Mean useful TPS")
-        ax.grid(axis="y", alpha=0.3)
-        plt.setp(ax.get_xticklabels(), fontsize=8)
+        ax.minorticks_on()
+        ax.grid(which="major", axis="y", alpha=0.5)
+        ax.grid(which="minor", axis="y", alpha=0.5, linestyle=":", linewidth=0.8)
+        plt.setp(ax.get_xticklabels(), fontsize=8, rotation=45, ha="right")
+        highlight_tick_labels(ax, policies)
         plt.tight_layout()
         plt.savefig(out_dir / "tps-mean.png", dpi=130)
         plt.close()
@@ -444,8 +518,19 @@ def plot_group(group):
     ax.set_xlabel(f"{ratio_label}  (← safer)")
     ax.set_ylabel("Useful TPS  (better →)")
     ax.set_title("Safety / throughput trade-off")
-    ax.grid(alpha=0.3)
-    ax.legend(fontsize=8, loc="best")
+    ax.minorticks_on()
+    ax.grid(which="major", alpha=0.5)
+    ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
+    leg = ax.legend(fontsize=8, loc="best")
+    # Apply the same green/red highlights to legend entries. The legend
+    # is in the same order as `policies`, so we match by index into the
+    # full policy string (same matching logic as x-tick labels).
+    for text, policy in zip(leg.get_texts(), policies):
+        color = _highlight_color(policy)
+        if color:
+            text.set_bbox(dict(facecolor=color, alpha=0.5,
+                               edgecolor="none",
+                               boxstyle="round,pad=0.25"))
     plt.tight_layout()
     plt.savefig(out_dir / "tradeoff.png", dpi=130)
     plt.close()

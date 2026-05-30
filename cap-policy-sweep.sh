@@ -43,7 +43,7 @@ set -uo pipefail
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=true
 
-ITERS="${ITERS:-10}"
+ITERS="${ITERS:-20}"
 
 # Validator-side load-shedding policy knobs. Each is OPTIONAL — if set,
 # the script patches the corresponding field in validator-common.yaml
@@ -91,7 +91,7 @@ BURST_SIZE="${BURST_SIZE:-1800}"
 # nominal QPS under heavy validator contention. Use for cap-safety and
 # goodput experiments where sustained validator-gate pressure matters
 # more than per-tx correctness.
-OPEN_LOOP="${OPEN_LOOP:-false}"
+OPEN_LOOP="${OPEN_LOOP:-true}"
 BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-500}"
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-1}"
@@ -543,7 +543,7 @@ echo "Results: $OUT_JSONL"
 #   useful_tps                (throughput — higher is better)
 echo
 echo "=== Per-policy summary from $OUT_JSONL ==="
-python3 -c '
+P="$OUT_JSONL" python3 -c '
 import json, os, sys
 from collections import defaultdict
 from statistics import median, mean
@@ -582,7 +582,7 @@ for key in sorted(groups):
   ratios = [r["ratio_cap"] for r in rows if r["ratio_cap"] is not None]
   tps = [r["tps"] for r in rows]
   print(f"  {key[0]:<14} {str(key[1]):>9} {str(key[2]):>5} {str(key[3]):>4} {str(key[4]):>4} {len(rows):>3} {median(peaks):>9.0f} {max(peaks):>9} {median(ratios):>10.3f} {max(ratios):>10.3f} {median(tps):>8.1f} {max(tps):>8.1f}")
-' P="$OUT_JSONL"
+'
 
 # -------- Teardown ---------
 echo
