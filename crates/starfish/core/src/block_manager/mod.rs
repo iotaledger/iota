@@ -13,8 +13,7 @@ use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 #[cfg(test)]
-use tracing::debug;
-use tracing::warn;
+use tracing::trace;
 
 /// Block Suspender is a private module unless under test.
 #[cfg(not(test))]
@@ -407,7 +406,7 @@ impl BlockManager {
 
         block_refs.sort_by_key(|b| b.round);
 
-        debug!(
+        trace!(
             "Trying to find blocks: {}",
             block_refs.iter().map(|b| b.to_string()).join(",")
         );
