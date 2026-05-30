@@ -88,8 +88,8 @@ impl ConsensusAuthority {
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {} {}, {:?}, boot counter {}, last processed commit index {}",
+            own_index, own_hostname, protocol_config.version, boot_counter, commit_consumer.last_processed_commit_index
         );
         info!(
             "Consensus authorities: {}",
