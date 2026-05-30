@@ -14,6 +14,7 @@ use std::{
 use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
+use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 use tracing::debug;
@@ -941,16 +942,7 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
 }
 
 fn format_block_digests(blocks: &[BlockRef]) -> String {
-    let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
-        if idx > 0 {
-            result.push_str(", ");
-        }
-        result.push_str(&block.digest.to_string());
-        result.push('@');
-        result.push_str(&block.round.to_string());
-    }
-    result
+    blocks.iter().map(|b| b.to_string()).join(", ")
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
