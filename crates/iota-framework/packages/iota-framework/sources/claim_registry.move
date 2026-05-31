@@ -7,6 +7,11 @@
 /// as claimed, and returns a deterministic `UID` for the new account object.
 /// Callers with raw bytes use `iota::public_key::from_prefixed_bytes` to construct
 /// the `PublicKey` before calling `claim`.
+///
+/// `claim` is `public(package)` — only modules within the iota-framework package
+/// may call it directly.  External callers use the built-in account modules.
+/// For transactional-test coverage, `test_claim_account` is provided as a
+/// `public` wrapper that creates a `DummyAccount` object.
 module iota::claim_registry;
 
 use iota::dynamic_field as df;
@@ -33,6 +38,12 @@ public struct ClaimRegistry has key {
     id: UID,
 }
 
+/// Minimal account object used by `test_claim_account` to exercise the full
+/// claim flow from an external PTB without publishing a separate module.
+public struct DummyAccount has key {
+    id: UID,
+}
+
 // === Genesis ===
 
 /// Create and share the `ClaimRegistry` singleton. Called once during genesis.
@@ -54,16 +65,31 @@ fun create(ctx: &TxContext) {
 ///
 /// Aborts with `EAddressMismatch` if `public_key` does not derive to the sender,
 /// or `EAlreadyClaimed` if the address was already claimed.
-public fun claim(
+///
+/// `public(package)` — only callable from within the iota-framework package.
+public(package) fun claim(
     registry: &mut ClaimRegistry,
     public_key: PublicKey,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ): UID {
     let derived_addr = public_key.to_iota_address();
     assert!(derived_addr == ctx.sender(), EAddressMismatch);
     assert!(!is_claimed(registry, derived_addr), EAlreadyClaimed);
     df::add(&mut registry.id, derived_addr, true);
     object::new_uid_from_hash(derived_addr)
+}
+
+/// Creates a `DummyAccount` owned by the sender.
+///
+/// Provided so that transactional tests can exercise the full `claim` flow
+/// directly from a PTB without publishing an external module.
+public fun test_claim_account(
+    registry: &mut ClaimRegistry,
+    public_key: PublicKey,
+    ctx: &mut TxContext,
+) {
+    let uid = claim(registry, public_key, ctx);
+    transfer::share_object(DummyAccount { id: uid });
 }
 
 // === Public reads ===
@@ -81,5 +107,5 @@ public fun create_for_testing(ctx: &mut TxContext) {
 
 #[test_only]
 public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
-    public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
+    iota::public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
 }

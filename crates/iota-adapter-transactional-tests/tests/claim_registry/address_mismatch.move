@@ -8,4 +8,4 @@
 
 //# programmable --sender A --inputs object(0x10) x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
 //> iota::public_key::from_prefixed_bytes(Input(1));
-//> 1: iota::claim_registry::claim(Input(0), Result(0));
+//> 1: iota::claim_registry::test_claim_account(Input(0), Result(0));
