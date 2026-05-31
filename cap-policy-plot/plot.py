@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-plot.py — turn cap-policy-sweep.jsonl into figures + a summary table.
+plot.py — turn sweep.jsonl into figures + a summary table.
 
 Tells the "graduated vs binary load shedding" story across whatever policies
 are present in the JSONL. Handles mixed schemas (older iters may lack
-permit_hold / inflight_stddev / saturation_75pct / consensus_lat_p99).
+permit_hold / inflight_stddev / saturation_75pct / consensus_lat_p99 /
+honest pool / timeseries).
 
 Usage (from repo root):
     cap-policy-plot/.venv/bin/python cap-policy-plot/plot.py
-    # or with an explicit input path:
-    cap-policy-plot/.venv/bin/python cap-policy-plot/plot.py path/to/cap-policy-sweep.jsonl
+    # or with an explicit input path (e.g. archived data files):
+    cap-policy-plot/.venv/bin/python cap-policy-plot/plot.py path/to/sweep.jsonl
 
 Outputs (next to the script):
     summary.csv                       per-policy median + IQR table (all policies)
@@ -39,7 +40,7 @@ from matplotlib.patches import Patch
 
 # ---------- paths ----------
 HERE = Path(__file__).resolve().parent
-DEFAULT_INPUT = HERE.parent / "cap-policy-sweep.jsonl"
+DEFAULT_INPUT = HERE.parent / "sweep.jsonl"
 
 PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_INPUT
 if not PATH.exists():
@@ -238,113 +239,158 @@ def shortened_labels(policies):
 
 
 # ---------- experiment groups ----------
-# Each group is a self-contained comparison answering one research question.
-# Policies are listed in the order they should appear left-to-right in the
-# boxplots. `ratio_col` and `overshoot_col` switch between max-bound and
-# sem-bound framings depending on which cap is the binding constraint.
-# `description` is written verbatim to README.md inside the group's folder.
-GROUPS = [
-    {
-        "dir": "grad-no-sem-shed",
-        "policies": [
-            "max=1000 sem=250 pct=100 sat=100 sem_shed=false",
-            "max=1000 sem=250 pct=75 sat=90 sem_shed=false",
-            "max=1000 sem=250 pct=50 sat=100 sem_shed=false",
-            "max=1000 sem=250 pct=50 sat=90 sem_shed=false",
-            "max=1000 sem=250 pct=25 sat=90 sem_shed=false",
-        ],
-        "ratio_col": "results.ratio_peak_over_max_pending",
-        "ratio_label": "peak_inflight/max_pending",
-        "overshoot_col": "overshoot_above_max",
-        "overshoot_label": "peak_inflight−max_pending",
-        "skip_plots": ["cv", "cv-saturated", "stddev"],
-        "description": """\
+# Groups are discovered from the data, not hardcoded. Two comparison shapes
+# are recognised:
+#
+#   grad-no-sem-shed   — at fixed (max, sem, sem_shed), all available
+#                        (pct, sat) variants. The "policy sweep at fixed cap".
+#   just-lower-the-cap — at fixed (sem, sem_shed), binary policies
+#                        (pct=100, sat=100) across multiple `max` values,
+#                        plus the most-graduated policy at the largest `max`
+#                        for head-to-head.
+#
+# `ratio_col` and `overshoot_col` switch between max-bound and sem-bound
+# framings depending on which cap is the binding constraint.
+def _parse_policy(p):
+    """'max=1000 sem=50 pct=100 sat=100 sem_shed=false' → dict."""
+    return dict(part.split("=", 1) for part in p.split() if "=" in part)
+
+
+def _is_binary(f):
+    return f.get("pct") == "100" and f.get("sat", "100") == "100"
+
+
+def _policy_role(f):
+    pct = int(f.get("pct", 100))
+    sat = int(f.get("sat", 100))
+    if _is_binary(f):
+        return "binary baseline (legacy)"
+    if sat == 100:
+        return "graduated, legacy saturation (sat isolation)"
+    if pct == sat:
+        return "graduated, narrow soft zone"
+    return f"graduated, soft zone [{int(int(f['max']) * pct / 100)}, {int(int(f['max']) * sat / 100)}]"
+
+
+def discover_groups(df):
+    """Inspect `df` and emit one group spec per recognised comparison shape."""
+    from collections import defaultdict
+    parsed = {p: _parse_policy(p) for p in df["policy"].unique()}
+    groups = []
+
+    # --- Group 1: grad-no-sem-shed (fixed cap, varying policy) ---
+    # Pick the (max, sem, sem_shed) tuple with the most distinct (pct, sat)
+    # variants. If multiple tuples tie, prefer the one with a non-binary
+    # variant present (otherwise the group degenerates to one binary row).
+    by_cfg = defaultdict(list)
+    for p, f in parsed.items():
+        by_cfg[(f.get("max"), f.get("sem"), f.get("sem_shed"))].append(p)
+    scored = sorted(
+        by_cfg.items(),
+        key=lambda kv: (len(kv[1]), any(not _is_binary(parsed[p]) for p in kv[1])),
+        reverse=True,
+    )
+    if scored and len(scored[0][1]) >= 2:
+        (max_, sem_, shed_), policies = scored[0]
+        # binary first (pct=100), then graduated by pct desc, sat desc within pct
+        policies = sorted(policies, key=lambda p: (
+            -int(parsed[p].get("pct", 100)),
+            -int(parsed[p].get("sat", 100)),
+        ))
+        rows = "\n".join(
+            f"| {parsed[p].get('pct','-'):>3} | {parsed[p].get('sat','100'):>3} | {_policy_role(parsed[p])} |"
+            for p in policies
+        )
+        groups.append({
+            "dir": "grad-no-sem-shed",
+            "policies": policies,
+            "ratio_col": "results.ratio_peak_over_max_pending",
+            "ratio_label": "peak_inflight/max_pending",
+            "overshoot_col": "overshoot_above_max",
+            "overshoot_label": "peak_inflight−max_pending",
+            "skip_plots": ["stddev"],
+            "description": f"""\
 # grad-no-sem-shed
 
-**Question:** Does graduated load shedding (with the new `saturation_pct`
-knob) reduce peak overshoot at `max_pending` without sacrificing
-throughput? Within graduated, which combination of `start_pct` and
-`saturation_pct` works best?
+**Question:** Does graduated load shedding reduce peak overshoot at
+`max_pending` without sacrificing throughput?
 
-**Policies** (all `max_pending_transactions=1000`,
-`max_pending_local_submissions=250`, `semaphore_shedding_enabled=false`):
+**Policies** (all `max_pending_transactions={max_}`,
+`max_pending_local_submissions={sem_}`, `semaphore_shedding_enabled={shed_}`):
 
 | pct | sat | role |
 |---|---|---|
-| 100 | 100 | binary baseline (legacy behaviour) |
-| 75  | 90  | graduated, narrow soft zone [750, 900] |
-| 50  | 100 | graduated, legacy saturation — **sat isolation** vs the row below |
-| 50  | 90  | graduated, soft zone [500, 900] — proposed default |
-| 25  | 90  | aggressive graduated, soft zone [250, 900] |
-
-**Why sat=90:** caps the saturation_limit at 900, leaving 100 units of
-headroom below the hard cap. Combined with the observed race window
-(~5–10 units), peak inflight should stay ≤ ~910 — `reject_grad_reactive`
-becomes structurally 0.
-
-**Sat isolation:** the two `pct=50` rows differ only in `sat_pct` (100 vs
-90), so any difference between them attributes cleanly to the
-saturation_pct change. Useful for distinguishing "graduated wins because
-of pct" from "graduated wins because of sat".
-
-**Binding cap:** `max_pending` — sem=250 leaves room for the validator
-to actually push the queue toward 900–1000, so graduated does the real
-work.
+{rows}
 
 **Safety metric:** `peak_inflight / max_pending`. Values < 1.0 indicate
-the saturation_limit kept peak structurally below the declared cap —
-the proposed new default behaviour.
+the saturation_limit kept peak structurally below the declared cap.
 """,
-    },
-    {
-        "dir": "just-lower-the-cap",
-        "policies": [
-            "max=500 sem=250 pct=100 sat=100 sem_shed=false",
-            "max=900 sem=250 pct=100 sat=100 sem_shed=false",
-            "max=1000 sem=250 pct=100 sat=100 sem_shed=false",
-            "max=1000 sem=250 pct=50 sat=90 sem_shed=false",
-        ],
-        "ratio_col": "results.ratio_peak_over_max_pending",
-        "ratio_label": "peak_inflight/max_pending",
-        "overshoot_col": "overshoot_above_max",
-        "overshoot_label": "peak_inflight−max_pending",
-        "skip_plots": ["cv", "cv-saturated", "stddev"],
-        "description": """\
+        })
+
+    # --- Group 2: just-lower-the-cap (varying cap, fixed sem) ---
+    # Binary policies (pct=100, sat=100) at different `max`, at the most-common
+    # (sem, sem_shed). Append the most-graduated policy at the largest `max`
+    # for head-to-head against the cap-lowering alternative.
+    binary_by_sem = defaultdict(list)
+    for p, f in parsed.items():
+        if _is_binary(f):
+            binary_by_sem[(f.get("sem"), f.get("sem_shed"))].append(p)
+    if binary_by_sem:
+        (best_sem, best_shed), binaries = max(
+            binary_by_sem.items(), key=lambda kv: len(kv[1])
+        )
+        if len(binaries) >= 2:
+            binaries = sorted(binaries, key=lambda p: int(parsed[p].get("max", 0)))
+            max_largest = int(parsed[binaries[-1]].get("max", 0))
+            grads = [
+                p for p, f in parsed.items()
+                if int(f.get("max", 0)) == max_largest
+                and f.get("sem") == best_sem
+                and f.get("sem_shed") == best_shed
+                and not _is_binary(f)
+            ]
+            # Prefer the tightest cushion: lowest sat, then lowest pct.
+            grads.sort(key=lambda p: (
+                int(parsed[p].get("sat", 100)),
+                int(parsed[p].get("pct", 100)),
+            ))
+            if grads:
+                policies = binaries + [grads[0]]
+                rows = "\n".join(
+                    f"| `{p}` | "
+                    f"{'binary' if _is_binary(parsed[p]) else '**graduated**'} | "
+                    f"{parsed[p].get('max')} |"
+                    for p in policies
+                )
+                groups.append({
+                    "dir": "just-lower-the-cap",
+                    "policies": policies,
+                    "ratio_col": "results.ratio_peak_over_max_pending",
+                    "ratio_label": "peak_inflight/max_pending",
+                    "overshoot_col": "overshoot_above_max",
+                    "overshoot_label": "peak_inflight−max_pending",
+                    "skip_plots": ["stddev"],
+                    "description": f"""\
 # just-lower-the-cap
 
 **Question:** A natural counter-proposal to graduated shedding is "just
 lower `max_pending` to a tighter cap". This group tests it head-to-head
-against graduated. Specifically: graduated@1000 with sat=90 (effective
-ceiling ~900) is benchmarked against binary@900 (same effective
-ceiling) AND binary@500/binary@1000 as the obvious-overcorrected and
-obvious-undercorrected bookends.
+against graduated.
 
-**Policies** (all `sem=250`, `semaphore_shedding_enabled=false`):
+**Policies** (all `sem={best_sem}`, `semaphore_shedding_enabled={best_shed}`):
 
-| label | mechanism | effective ceiling |
+| label | mechanism | max_pending |
 |---|---|---|
-| `max=500  pct=100 sat=100` | binary, tight cap | 500 |
-| `max=900  pct=100 sat=100` | binary, medium cap | 900 |
-| `max=1000 pct=100 sat=100` | binary, legacy cap | 1000 |
-| `max=1000 pct=50  sat=90`  | **graduated, soft zone [500, 900]** | ~900 (via sat) |
+{rows}
 
-**Head-to-head:** graduated@1000-sat=90 vs binary@900 — both target
-peak ~900, so the comparison isolates "soft probabilistic ramp toward
-saturation" vs "hard cap at 900". The interesting hypothesis: graduated
-should match or beat binary@900 on TPS (it admits txs probabilistically
-in [500, 900] instead of hard-rejecting at 900) while retaining
-max=1000 as an absolute safety net.
-
-**What to watch:** the TPS-vs-overshoot scatter. If graduated@1000-sat=90
-dominates binary@900 on TPS at equal overshoot, the soft ramp recovers
-throughput the tight binary cap throws away.
-
-**Safety metric:** `peak_inflight / max_pending` — normalises across
-caps (500/900/1000); absolute overshoot (`peak − max_pending`) is also
-informative.
+**Safety metric:** `peak_inflight / max_pending` — normalises across caps.
 """,
-    },
-]
+                })
+
+    return groups
+
+
+GROUPS = discover_groups(df)
 
 
 # ---------- plotting helpers ----------

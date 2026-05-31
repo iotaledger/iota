@@ -48,12 +48,30 @@ HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
 HONEST_BARRIER_PERIOD_MS="${HONEST_BARRIER_PERIOD_MS:-0}"
 HONEST_IFR="${HONEST_IFR:-4}"
 HONEST_WORKERS="${HONEST_WORKERS:-4}"
+# When false (legacy), honest is closed-loop: it self-throttles under
+# load and our admission-rate denominator (QPS x duration) overstates
+# actual arrivals — biasing first_pass_pct upward.  When true, honest
+# fires at fixed QPS regardless of inflight, so first_pass_pct measures
+# pure validator behavior (the canonical fairness probe).
+HONEST_OPEN_LOOP="${HONEST_OPEN_LOOP:-false}"
 
-N_SPAMMER=$((N - HONEST_PROC_COUNT))
+# Second honest pool with same config but always closed-loop. Pairs with
+# the (possibly open-loop) HONEST_* pool to capture both perspectives in
+# one iter: open-loop = pure validator admission, closed-loop = real-client
+# effective throughput. Set HONEST_CL_PROC_COUNT=0 to disable.
+HONEST_CL_PROC_COUNT="${HONEST_CL_PROC_COUNT:-0}"
+
+N_SPAMMER=$((N - HONEST_PROC_COUNT - HONEST_CL_PROC_COUNT))
 if [ "$N_SPAMMER" -le 0 ]; then
-  echo "Error: HONEST_PROC_COUNT=$HONEST_PROC_COUNT >= NUM_PROCS=$N (no spammer procs left)" >&2
+  echo "Error: HONEST_PROC_COUNT=$HONEST_PROC_COUNT + HONEST_CL_PROC_COUNT=$HONEST_CL_PROC_COUNT >= NUM_PROCS=$N (no spammer procs left)" >&2
   exit 1
 fi
+# Boundary indices for pool dispatch in the proc launch loop below.
+# Proc i belongs to: spammer if i < HONEST_OL_START, honest (the
+# HONEST_OPEN_LOOP-configurable pool) if i < HONEST_CL_START,
+# honest_cl (always closed-loop) otherwise.
+HONEST_OL_START=$N_SPAMMER
+HONEST_CL_START=$((N_SPAMMER + HONEST_PROC_COUNT))
 # QPS_PER is the per-spammer-proc QPS. With HONEST_PROC_COUNT=0 this
 # collapses to the original QPS_TOTAL / N.
 QPS_PER=$((QPS_TOTAL / N_SPAMMER))
@@ -106,12 +124,18 @@ BARRIER_DIR="$PARENT_DIR/barrier"
 mkdir -p "$BARRIER_DIR"
 START_FILE="$BARRIER_DIR/go"
 
-if [ "$HONEST_PROC_COUNT" -gt 0 ]; then
-  echo "=> Launching $N stress.rs processes in two pools:"
-  echo "     spammer pool: $N_SPAMMER procs @ QPS=$QPS_PER each (total=$QPS_TOTAL)"
-  echo "                   BURST_SIZE=$BURST_SIZE BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS"
-  echo "     honest pool:  $HONEST_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each"
-  echo "                   BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+if [ "$HONEST_PROC_COUNT" -gt 0 ] || [ "$HONEST_CL_PROC_COUNT" -gt 0 ]; then
+  echo "=> Launching $N stress.rs processes across pools:"
+  echo "     spammer pool:   $N_SPAMMER procs @ QPS=$QPS_PER each (total=$QPS_TOTAL)"
+  echo "                     BURST_SIZE=$BURST_SIZE BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS"
+  if [ "$HONEST_PROC_COUNT" -gt 0 ]; then
+    echo "     honest pool:    $HONEST_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each open_loop=$HONEST_OPEN_LOOP"
+    echo "                     BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+  fi
+  if [ "$HONEST_CL_PROC_COUNT" -gt 0 ]; then
+    echo "     honest_cl pool: $HONEST_CL_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each open_loop=false (always closed-loop)"
+    echo "                     BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+  fi
 else
   echo "=> Launching $N stress.rs processes, each at QPS=$QPS_PER (total=$QPS_TOTAL)"
 fi
@@ -151,19 +175,32 @@ for ((i=0; i<N; i++)); do
     mkdir -p "$GAS_POOL_CACHE_DIR" 2>/dev/null
     proc_cache="$GAS_POOL_CACHE_DIR/owner-$cache_idx.json"
   fi
-  # Pool dispatch: procs [N_SPAMMER..N-1] use the honest config when
-  # HONEST_PROC_COUNT > 0. Procs [0..N_SPAMMER-1] always use the existing
-  # spammer config. The two pools share the same barrier and fire their
-  # first activity at the same instant once all N procs are ready.
-  if [ "$HONEST_PROC_COUNT" -gt 0 ] && [ "$i" -ge "$N_SPAMMER" ]; then
+  # Pool dispatch: procs partition into three ranges. All pools share
+  # the same barrier and fire their first activity at the same instant
+  # once all N procs are ready. Both honest pools use IDENTICAL config
+  # (QPS, burst, IFR, workers) — only `proc_open_loop` differs, so the
+  # comparison isolates the loop-type variable.
+  if [ "$i" -ge "$HONEST_CL_START" ]; then
+    pool="honest_cl"
+    proc_qps=$HONEST_QPS_PER_PROC
+    proc_burst=$HONEST_BURST_SIZE
+    proc_barrier=$HONEST_BARRIER_PERIOD_MS
+    proc_ifr=$HONEST_IFR
+    proc_workers=$HONEST_WORKERS
+    # Closed-loop by design — models a polite client that backs off
+    # under load. Captures real-client effective throughput.
+    proc_open_loop="false"
+  elif [ "$i" -ge "$HONEST_OL_START" ]; then
     pool="honest"
     proc_qps=$HONEST_QPS_PER_PROC
     proc_burst=$HONEST_BURST_SIZE
     proc_barrier=$HONEST_BARRIER_PERIOD_MS
     proc_ifr=$HONEST_IFR
     proc_workers=$HONEST_WORKERS
-    # Honest pool stays closed-loop — we want it to model a real client.
-    proc_open_loop="false"
+    # Open/closed-loop controlled by HONEST_OPEN_LOOP. When true (the
+    # fairness-probe configuration) honest fires at fixed QPS regardless
+    # of inflight, so first_pass_pct measures pure validator admission.
+    proc_open_loop="$HONEST_OPEN_LOOP"
   else
     pool="spammer"
     proc_qps=$QPS_PER
@@ -295,6 +332,11 @@ echo "=> Releasing start barrier."
 # content when --barrier-period-ms > 0.
 date +%s%N > "$START_FILE"
 SPAM_START_EPOCH=$(date +%s)
+# Derive spam_end_epoch from DURATION so downstream analysis can slice
+# per-iter time-series to the actual spam window (sweep.sh's iter_window
+# also covers stress-multi setup + cooldown, which is ~70s of mostly-idle).
+SPAM_DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
+SPAM_END_EPOCH=$((SPAM_START_EPOCH + SPAM_DURATION_SECS))
 echo "=> Spam phase running (DURATION=$DURATION, BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS)..."
 
 echo "=> Waiting for all $N processes to finish (pids: ${pids[*]})"
@@ -528,17 +570,30 @@ ADMIT_LAT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(validato
 # Wall-clock time the submit_semaphore permit is held per tx
 # (acquire-success → drop). Drives interval sizing for burst sweeps:
 # interval ≲ p99 → bursts overlap, interval ≫ p99 → drain between bursts.
+# p90/p95/p999 added for richer tail characterisation.
 PERMIT_HOLD_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_HOLD_P90=$(prom_scalar "histogram_quantile(0.90, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_HOLD_P95=$(prom_scalar "histogram_quantile(0.95, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 PERMIT_HOLD_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_HOLD_P999=$(prom_scalar "histogram_quantile(0.999, sum by (le) (rate(sequencing_submit_permit_hold_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 [ -z "$PERMIT_HOLD_P50" ] && PERMIT_HOLD_P50=0
+[ -z "$PERMIT_HOLD_P90" ] && PERMIT_HOLD_P90=0
+[ -z "$PERMIT_HOLD_P95" ] && PERMIT_HOLD_P95=0
 [ -z "$PERMIT_HOLD_P99" ] && PERMIT_HOLD_P99=0
+[ -z "$PERMIT_HOLD_P999" ] && PERMIT_HOLD_P999=0
 # Stage B: time each tx blocked on submit_semaphore.acquire() — non-zero
 # only when sem is the binding cap. Together with permit_hold (stage C),
 # total in-flight latency ≈ wait + hold.
 PERMIT_WAIT_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequencing_submit_permit_wait_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_WAIT_P90=$(prom_scalar "histogram_quantile(0.90, sum by (le) (rate(sequencing_submit_permit_wait_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_WAIT_P95=$(prom_scalar "histogram_quantile(0.95, sum by (le) (rate(sequencing_submit_permit_wait_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 PERMIT_WAIT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_submit_permit_wait_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+PERMIT_WAIT_P999=$(prom_scalar "histogram_quantile(0.999, sum by (le) (rate(sequencing_submit_permit_wait_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 [ -z "$PERMIT_WAIT_P50" ] && PERMIT_WAIT_P50=0
+[ -z "$PERMIT_WAIT_P90" ] && PERMIT_WAIT_P90=0
+[ -z "$PERMIT_WAIT_P95" ] && PERMIT_WAIT_P95=0
 [ -z "$PERMIT_WAIT_P99" ] && PERMIT_WAIT_P99=0
+[ -z "$PERMIT_WAIT_P999" ] && PERMIT_WAIT_P999=0
 # Stage A: pre-acquire wait — InflightDropGuard::acquire to select! resolution.
 # Captures leader-rotation wait + dedup-via-consensus race.
 PRE_ACQUIRE_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequencing_submit_pre_acquire_duration_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
@@ -575,9 +630,15 @@ SATURATION_75PCT=$(prom_scalar "avg_over_time(((max(sum by (host) (sequencing_ce
 # through ack). Different from admit_lat_p99 (verification only).
 # Tail behavior here is what users feel.
 CONSENSUS_LAT_P50=$(prom_scalar "histogram_quantile(0.50, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+CONSENSUS_LAT_P90=$(prom_scalar "histogram_quantile(0.90, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+CONSENSUS_LAT_P95=$(prom_scalar "histogram_quantile(0.95, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 CONSENSUS_LAT_P99=$(prom_scalar "histogram_quantile(0.99, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
+CONSENSUS_LAT_P999=$(prom_scalar "histogram_quantile(0.999, sum by (le) (rate(sequencing_certificate_latency_bucket{host=~\"validator.*\"}[${WINDOW}s])))")
 [ -z "$CONSENSUS_LAT_P50" ] && CONSENSUS_LAT_P50=0
+[ -z "$CONSENSUS_LAT_P90" ] && CONSENSUS_LAT_P90=0
+[ -z "$CONSENSUS_LAT_P95" ] && CONSENSUS_LAT_P95=0
 [ -z "$CONSENSUS_LAT_P99" ] && CONSENSUS_LAT_P99=0
+[ -z "$CONSENSUS_LAT_P999" ] && CONSENSUS_LAT_P999=0
 
 # Time-series captures for post-hoc analysis (e.g. plotting cliff vs ramp,
 # inspecting queue-depth shape during a burst). One JSON per metric, saved
@@ -598,6 +659,8 @@ SPAMMER_SUCCESS=0
 SPAMMER_ERROR=0
 HONEST_SUCCESS=0
 HONEST_ERROR=0
+HONEST_CL_SUCCESS=0
+HONEST_CL_ERROR=0
 for ((i=0; i<N; i++)); do
   stats_file=$(ls "${runs_dirs[$i]}"/*/benchmark_stats.json 2>/dev/null | head -1)
   if [ -z "$stats_file" ] || [ ! -f "$stats_file" ]; then continue; fi
@@ -611,23 +674,33 @@ except Exception:
 " 2>/dev/null)
   succ=${succ:-0}
   err=${err:-0}
-  if [ "${pool_labels[$i]}" = "honest" ]; then
-    HONEST_SUCCESS=$((HONEST_SUCCESS + succ))
-    HONEST_ERROR=$((HONEST_ERROR + err))
-  else
-    SPAMMER_SUCCESS=$((SPAMMER_SUCCESS + succ))
-    SPAMMER_ERROR=$((SPAMMER_ERROR + err))
-  fi
+  case "${pool_labels[$i]}" in
+    honest_cl)
+      HONEST_CL_SUCCESS=$((HONEST_CL_SUCCESS + succ))
+      HONEST_CL_ERROR=$((HONEST_CL_ERROR + err))
+      ;;
+    honest)
+      HONEST_SUCCESS=$((HONEST_SUCCESS + succ))
+      HONEST_ERROR=$((HONEST_ERROR + err))
+      ;;
+    *)
+      SPAMMER_SUCCESS=$((SPAMMER_SUCCESS + succ))
+      SPAMMER_ERROR=$((SPAMMER_ERROR + err))
+      ;;
+  esac
 done
 # Derive per-pool TPS and accept-rate. Uses DURATION-seconds field from the
 # stats file via Prometheus WINDOW (close enough; the stress.rs duration
 # field is the same span).
 SPAMMER_TPS=$(awk -v s=$SPAMMER_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
 HONEST_TPS=$(awk -v s=$HONEST_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
+HONEST_CL_TPS=$(awk -v s=$HONEST_CL_SUCCESS -v w=$WINDOW 'BEGIN{if(w>0) printf "%.2f", s/w; else print 0}')
 SPAMMER_TOTAL=$((SPAMMER_SUCCESS + SPAMMER_ERROR))
 HONEST_TOTAL=$((HONEST_SUCCESS + HONEST_ERROR))
+HONEST_CL_TOTAL=$((HONEST_CL_SUCCESS + HONEST_CL_ERROR))
 SPAMMER_ACCEPT_PCT=$(awk -v s=$SPAMMER_SUCCESS -v t=$SPAMMER_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
 HONEST_ACCEPT_PCT=$(awk -v s=$HONEST_SUCCESS -v t=$HONEST_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
+HONEST_CL_ACCEPT_PCT=$(awk -v s=$HONEST_CL_SUCCESS -v t=$HONEST_CL_TOTAL 'BEGIN{if(t>0) printf "%.2f", 100.0*s/t; else print 0}')
 
 # Extract the targeted-validators line that stress.rs's TD prints at startup.
 # All processes select identically (deterministic via sorted display names
@@ -663,20 +736,33 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "admit_lat_p50:          $ADMIT_LAT_P50"
   echo "admit_lat_p99:          $ADMIT_LAT_P99"
   echo "permit_wait_p50:        $PERMIT_WAIT_P50"
+  echo "permit_wait_p90:        $PERMIT_WAIT_P90"
+  echo "permit_wait_p95:        $PERMIT_WAIT_P95"
   echo "permit_wait_p99:        $PERMIT_WAIT_P99"
+  echo "permit_wait_p999:       $PERMIT_WAIT_P999"
   echo "shed_pct_avg:           $SHED_PCT_AVG"
   echo "shed_pct_max:           $SHED_PCT_MAX"
   echo "pre_acquire_p50:        $PRE_ACQUIRE_P50"
   echo "pre_acquire_p99:        $PRE_ACQUIRE_P99"
   echo "permit_hold_p50:        $PERMIT_HOLD_P50"
+  echo "permit_hold_p90:        $PERMIT_HOLD_P90"
+  echo "permit_hold_p95:        $PERMIT_HOLD_P95"
   echo "permit_hold_p99:        $PERMIT_HOLD_P99"
+  echo "permit_hold_p999:       $PERMIT_HOLD_P999"
   echo "inflight_stddev:        $INFLIGHT_STDDEV"
   echo "inflight_mean:          $INFLIGHT_MEAN"
   echo "saturation_75pct:       $SATURATION_75PCT"
   echo "consensus_lat_p50:      $CONSENSUS_LAT_P50"
+  echo "consensus_lat_p90:      $CONSENSUS_LAT_P90"
+  echo "consensus_lat_p95:      $CONSENSUS_LAT_P95"
   echo "consensus_lat_p99:      $CONSENSUS_LAT_P99"
+  echo "consensus_lat_p999:     $CONSENSUS_LAT_P999"
+  echo "spam_start_epoch:       $SPAM_START_EPOCH"
+  echo "spam_end_epoch:         $SPAM_END_EPOCH"
+  echo "spam_duration_secs:     $SPAM_DURATION_SECS"
   echo "spammer_proc_count:     $N_SPAMMER"
   echo "honest_proc_count:      $HONEST_PROC_COUNT"
+  echo "honest_cl_proc_count:   $HONEST_CL_PROC_COUNT"
   echo "spammer_success:        $SPAMMER_SUCCESS"
   echo "spammer_error:          $SPAMMER_ERROR"
   echo "spammer_tps:            $SPAMMER_TPS"
@@ -685,6 +771,10 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "honest_error:           $HONEST_ERROR"
   echo "honest_tps:             $HONEST_TPS"
   echo "honest_accept_pct:      $HONEST_ACCEPT_PCT"
+  echo "honest_cl_success:      $HONEST_CL_SUCCESS"
+  echo "honest_cl_error:        $HONEST_CL_ERROR"
+  echo "honest_cl_tps:          $HONEST_CL_TPS"
+  echo "honest_cl_accept_pct:   $HONEST_CL_ACCEPT_PCT"
 } > "$PARENT_DIR/summary.txt"
 echo
 echo "=> Top-level summary: $PARENT_DIR/summary.txt"
