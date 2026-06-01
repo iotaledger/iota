@@ -35,6 +35,11 @@ initial_bringup() {
   echo "=== run.sh: initial bring-up $(date -u +%H:%M:%S) ==="
   (
     cd "$PRIVNET"
+    # Validator RocksDB lives in bind-mounted ./data/validator-* dirs,
+    # untouched by `docker compose down -v`. If the prior run forked
+    # (panic at checkpoints/mod.rs:545 or :1299), the poisoned state
+    # replays on the next `compose up` — wipe before bringing up.
+    sudo rm -rf data/validator-* data/fullnode-* data/faucet-* data/primary data/replica 2>/dev/null || true
     if [ ! -f configs/genesis/genesis.blob ]; then
       sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
     fi

@@ -477,6 +477,13 @@ for i in $(seq 1 $ITERS); do
   sleep 2
   cd "$PRIVNET"
   docker compose down -v 2>&1 | tail -1 || true
+  # `docker compose down -v` purges named volumes only — the validator
+  # RocksDB lives in bind-mounted ./data/validator-* dirs and survives.
+  # If a prior iter forked (panic at checkpoints/mod.rs:545 or :1299),
+  # the broken checkpoint state replays deterministically on the next
+  # `compose up`, looking like a "new" failure but with identical digests.
+  # Wipe the data dirs before bootstrap regenerates genesis.
+  sudo rm -rf data/validator-* data/fullnode-* data/faucet-* data/primary data/replica 2>/dev/null || true
   sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
   ./run.sh -n 4 faucet 2>&1 | tail -1
   rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
