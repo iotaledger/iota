@@ -21,8 +21,8 @@ tracing.workspace = true
 iota-types.workspace = true
 move-vm-config.workspace = true
 
-# Heavy node-side deps (network, file IO, key management). Gated so wasm32
-# only sees `transaction_deny_config` and `verifier_signing_config`.
+# Heavy node-side deps (network, file IO, key management). Gated so they're
+# excluded from the wasm32 build.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # external dependencies
 anemo.workspace = true
