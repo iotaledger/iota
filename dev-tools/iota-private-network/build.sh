@@ -9,13 +9,41 @@ build_one() {
   local subdir="$1"
   pushd "$REPO_ROOT/docker/$subdir" >/dev/null
   ./build.sh
+  # Capture rc explicitly: when build_all is called from a conditional (`if`,
+  # `||`), bash suspends `set -e` inside the function body, so a failed
+  # ./build.sh would otherwise be masked by a successful popd.
+  local rc=$?
   popd >/dev/null
+  return $rc
 }
 
 build_all() {
-  build_one iota-node
-  build_one iota-indexer
-  build_one iota-tools
+  # `&&` chain (not just sequential calls): when build_all is called from a
+  # conditional, bash suspends `set -e` inside the function, so without the
+  # short-circuit a failed iota-node build would still let iota-indexer and
+  # iota-tools run, and build_all would return the last call's exit code —
+  # masking the earlier failure from build_all_with_retry.
+  build_one iota-node \
+    && build_one iota-indexer \
+    && build_one iota-tools
+}
+
+# Symmetric to the post-build HEAD-vs-label check below: when BuildKit's cargo
+# cache mount has stale .rlib files (e.g., after a develop rebase removed a
+# symbol the working tree still references), the inner `cargo build` fails
+# before any image is produced — so the post-build verifier can't catch it.
+# Try the build once against the existing cache; on failure prune just the
+# cache mounts and retry once. A second failure means staleness was not the
+# issue, so propagate that exit code and let the user see the real error.
+build_all_with_retry() {
+  if build_all; then
+    return 0
+  fi
+  echo
+  echo "=== Build failed — pruning cargo cache mounts and retrying once ==="
+  echo "    (likely cause: BuildKit cargo cache has stale .rlib metadata)"
+  docker builder prune -f --filter type=exec.cachemount
+  build_all
 }
 
 # Verify each image's git-revision label matches HEAD. BuildKit's cargo-cache
@@ -47,7 +75,7 @@ verify_all() {
   $all_ok
 }
 
-build_all
+build_all_with_retry
 
 echo
 echo "=== Verifying built images match HEAD ($HEAD_REV) ==="
