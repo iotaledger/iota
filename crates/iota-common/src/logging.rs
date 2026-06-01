@@ -23,6 +23,7 @@ pub fn crash_on_debug() -> bool {
     *CRASH_ON_DEBUG
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[macro_export]
 macro_rules! debug_fatal {
     ($($arg:tt)*) => {{

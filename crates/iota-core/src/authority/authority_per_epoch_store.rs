@@ -847,6 +847,17 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
+
+    /// Per-validator received misbehavior reports state. Keyed by the
+    /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
+    /// at 256 by Starfish). Each entry is the merged-max observation set plus
+    /// invalid-report counter, snapshotted from the live aggregator when its
+    /// state changes inside a consensus commit. Written atomically with the
+    /// rest of `ConsensusCommitOutput::write_to_batch`. Survives restart;
+    /// `ReportAggregator::restore_from_tables` loads it during epoch-store
+    /// construction.
+    pub(crate) received_reports_state:
+        DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1103,8 +1114,21 @@ impl AuthorityPerEpochStore {
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
+        report_aggregator
+            .restore_from_tables(&tables)
+            .expect("AuthorityEpochTables should contain valid ReportAggregator state");
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scoreboard = Scoreboard::new(voting_power, &protocol_config);
+        // Prime the published score vector from any restored aggregator state.
+        // Without this, a freshly constructed Scoreboard starts at [MAX_SCORE;
+        // committee_size], so the next no-report commit (which both restored
+        // and never-restarted validators skip) would publish different vectors
+        // across the network. `update_scores` is a no-op when the aggregator
+        // is empty (no `received_metrics` rows restored), so this is also
+        // correct for the fresh-epoch path.
+        if protocol_config.calculate_validator_scores() {
+            scoreboard.update_scores(&report_aggregator);
+        }
 
         let s = Arc::new(Self {
             name,
@@ -3234,7 +3258,14 @@ impl AuthorityPerEpochStore {
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the published score
         // snapshot (`ArcSwap<Vec<u64>>`).
-        if self.protocol_config().calculate_validator_scores() {
+        //
+        // Skip the recompute entirely when no `process_report` ran this commit:
+        // the aggregator state didn't change, so the score vector can't either.
+        // All validators see the same `report_state_snapshots` emptiness, so
+        // they all skip / run in lock-step — `current_scores` stays consistent
+        // across the network.
+        if self.protocol_config().calculate_validator_scores() && output.has_report_state_changes()
+        {
             self.scoreboard.update_scores(&self.report_aggregator);
         }
         self.process_user_signatures(
@@ -4264,8 +4295,10 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(&report.authority)
                     .expect("authority in committee");
-                self.report_aggregator
+                let snapshot = self
+                    .report_aggregator
                     .process_report(authority_index, report);
+                output.record_report_state_snapshot(authority_index, snapshot);
 
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }

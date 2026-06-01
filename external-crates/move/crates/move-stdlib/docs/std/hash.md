@@ -9,17 +9,23 @@ The functions in this module are natively declared both in the Move runtime
 as in the Move prover's prelude.
 
 
--  [Function `sha2_256`](#std_hash_sha2_256)
--  [Function `sha3_256`](#std_hash_sha3_256)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `sha2_256`](#std_hash_sha2_256)
+    -  [<span class="move-vis move-vis-public">pub</span> `sha3_256`](#std_hash_sha3_256)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
 <a name="std_hash_sha2_256"></a>
 
-## Function `sha2_256`
+### <span class="move-vis move-vis-public">pub</span> `sha2_256`
 
 
 
@@ -41,7 +47,7 @@ as in the Move prover's prelude.
 
 <a name="std_hash_sha3_256"></a>
 
-## Function `sha3_256`
+### <span class="move-vis move-vis-public">pub</span> `sha3_256`
 
 
 

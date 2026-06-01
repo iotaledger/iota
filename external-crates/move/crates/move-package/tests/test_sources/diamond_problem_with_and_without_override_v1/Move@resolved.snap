@@ -120,6 +120,16 @@ ResolvedGraph {
         dev_mode: true,
         test_mode: false,
         generate_docs: false,
+        docgen_flags: DocgenFlags {
+            section_level_start: 1,
+            exclude_private_fun: false,
+            exclude_impl: false,
+            toc_depth: 3,
+            no_collapsed_sections: false,
+            include_dep_diagrams: false,
+            include_call_diagrams: false,
+            include_module_toc: true,
+        },
         save_disassembly: false,
         install_dir: Some(
             "ELIDED_FOR_TEST",

@@ -15,7 +15,7 @@ use iota_json::call_args;
 use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
 
 use crate::{
-    backward_history::{call_test_fn, first_created_id},
+    backward_history::{call_test_fn, first_created},
     common::{
         ApiTestSetup, indexer_wait_for_object, indexer_wait_for_transaction,
         publish_test_move_package,
@@ -74,7 +74,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
             Some(gas_id),
         )
         .await;
-        let item_id = first_created_id(&resp);
+        let (item_id, _) = first_created(&resp);
 
         let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("item should exist in checkpointed_objects after creation");
@@ -99,7 +99,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
             Some(gas_id),
         )
         .await;
-        let box_id = first_created_id(&resp);
+        let (box_id, _) = first_created(&resp);
 
         let entry = find_checkpointed_object(store, item_id.as_bytes())?
             .expect("wrapped item should still exist in checkpointed_objects as tombstone");

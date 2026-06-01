@@ -316,6 +316,9 @@ pub struct AuthorityMetrics {
     pub consensus_calculated_throughput: IntGauge,
     pub consensus_calculated_throughput_profile: IntGauge,
 
+    pub validator_scoreboard_scores: IntGaugeVec,
+    pub invalid_misbehavior_reports_by_authority: IntGaugeVec,
+
     pub limits_metrics: Arc<LimitsMetrics>,
 
     /// bytecode verifier metrics for tracking timeouts
@@ -689,6 +692,18 @@ impl AuthorityMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            validator_scoreboard_scores: register_int_gauge_vec_with_registry!(
+                "validator_scoreboard_scores",
+                "Per-authority validator scores published by the local Scoreboard after each consensus commit. Range [0, MAX_SCORE].",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_gauge_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Cumulative count of invalid misbehavior reports received from each reporting authority in the current epoch. Bumped when a `MisbehaviorReport` consensus transaction fails sender/authority match or payload validation. Snapshot republished after each consensus commit.",
+                &["authority"],
+                registry,
+            ).unwrap(),
             consensus_handler_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_deferred_transactions",
                 "Number of transactions deferred by consensus handler",
@@ -763,6 +778,8 @@ impl AuthorityMetrics {
     pub fn reset_on_reconfigure(&self) {
         self.consensus_committed_messages.reset();
         self.consensus_handler_scores.reset();
+        self.validator_scoreboard_scores.reset();
+        self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
     }
 }
@@ -3521,10 +3538,6 @@ impl AuthorityState {
                 )?;
             }
         }
-
-        self.get_reconfig_api()
-            .reconfigure_cache(&epoch_start_configuration)
-            .await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self

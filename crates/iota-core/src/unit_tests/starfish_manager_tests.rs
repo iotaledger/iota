@@ -201,6 +201,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
                 1000 + commit_idx * 1000,
                 StarfishCommitRef::new(commit_idx as u32, StarfishCommitDigest::MIN),
                 vec![],
+                vec![],
             )
         })
         .collect();

@@ -2751,7 +2751,12 @@ mod test {
         // Record traversed headers and sequenced transactions
         while let Some(sub_dag) = commit_receiver_own.recv().await {
             let sub_dag_leader_round = sub_dag.leader.round;
-            let CommittedSubDag { base, transactions } = sub_dag;
+            let CommittedSubDag {
+                base,
+                transactions,
+                misbehavior_counts,
+            } = sub_dag;
+            assert_eq!(misbehavior_counts.len(), committee_size);
 
             for block_ref in &base.committed_header_refs {
                 existing_headers.insert(*block_ref);

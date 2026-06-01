@@ -204,7 +204,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   check-wasm32:
-    name: Check wasm32-unknown-unknown
+    name: Check Move VM crates compile to wasm32-unknown-unknown
     if: (!cancelled() && !failure() && inputs.isRust)
     runs-on: [self-hosted-x64]
     steps:
@@ -213,8 +213,8 @@ jobs:
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Check iota-types compiles to wasm32
-        run: cargo check -p iota-types --target wasm32-unknown-unknown
+      - name: Check Move VM crates compile to wasm32
+        run: cargo check -p iota-types -p iota-common --target wasm32-unknown-unknown
 
   check-wasm32-cancel:
     needs: [check-wasm32]
