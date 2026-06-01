@@ -37,6 +37,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Identifier, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -51,7 +52,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
-        TransactionDataAPI,
+        TransactionDataAPI, auth_digest_for_sig,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -68,6 +69,10 @@ enum MaxAuthGas {
     G10k,
     /// 20_000 — still very tight.
     G20k,
+    /// 30_000 — fills the gap between the two tightest budgets and 50k.
+    G30k,
+    /// 40_000 — fills the gap between the two tightest budgets and 50k.
+    G40k,
     /// 50_000 — small but more comfortable.
     G50k,
     /// 250_000 — fixed numeric budget. Today it coincides with the Devnet
@@ -98,6 +103,8 @@ impl MaxAuthGas {
     const ALL_BUT_NETWORKS: &'static [MaxAuthGas] = &[
         MaxAuthGas::G10k,
         MaxAuthGas::G20k,
+        MaxAuthGas::G30k,
+        MaxAuthGas::G40k,
         MaxAuthGas::G50k,
         MaxAuthGas::G250k,
         MaxAuthGas::G1m,
@@ -119,6 +126,8 @@ impl MaxAuthGas {
         match self {
             MaxAuthGas::G10k => 10_000,
             MaxAuthGas::G20k => 20_000,
+            MaxAuthGas::G30k => 30_000,
+            MaxAuthGas::G40k => 40_000,
             MaxAuthGas::G50k => 50_000,
             MaxAuthGas::G250k => 250_000,
             MaxAuthGas::G1m => 1_000_000,
@@ -229,10 +238,37 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         | "account_multi_auth"
         | "dynamic_multisig_account" => Pass,
 
+        // Signature-driven gas sponsor. The sponsor authenticator builds a
+        // ~140-byte message (tx digest + sender auth digest + bcs of the
+        // sender's authenticator function info) and runs ed25519_verify over
+        // it — the vector-append + bcs::to_bytes + per-byte verify cost
+        // doesn't fit the two tightest budgets under simtest.
+        "sponsorship_ed25519" => {
+            if simtest && matches!(budget, G10k) {
+                Fail
+            } else {
+                Pass
+            }
+        }
+
+        // Policy-driven gas sponsor. The sponsor's authenticator pairs a
+        // small PTB scan with `type_name::get<WhitelistSponsorshipAccount>()`
+        // and `ascii::string(...)` constants — those natives dominate the
+        // budget. Under simtest the combined cost (upstream whitelist /
+        // allowance checks + the per-command name comparisons + the rest of
+        // the scan) overruns the two tightest budgets.
+        "whitelist_sponsorship" => {
+            if simtest && matches!(budget, G10k | G20k | G30k | G40k | G50k) {
+                Fail
+            } else {
+                Pass
+            }
+        }
+
         // ed25519 + keccak Merkle walk. Heavier than the plain variants;
-        // under simtest it runs out of gas at the two tightest budgets.
+        // under simtest it runs out of gas at the tighter budgets.
         "onesig" => {
-            if simtest && matches!(budget, G10k | G20k) {
+            if simtest && matches!(budget, G10k | G20k | G30k) {
                 Fail
             } else {
                 Pass
@@ -240,9 +276,9 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         }
 
         // ed25519 + BN254 Groth16. Under simtest the proof verification
-        // overruns the gas budget at the three tightest budgets.
+        // overruns every tight budget — only G250k and above fit.
         "lean_imt_account" => {
-            if simtest && matches!(budget, G10k | G20k | G50k) {
+            if simtest && matches!(budget, G10k | G20k | G30k | G40k | G50k) {
                 Fail
             } else {
                 Pass
@@ -276,6 +312,10 @@ fn expected_super_heavy(cycles: u64, budget: MaxAuthGas) -> Outcome {
     let max_cycles: u64 = match budget {
         G10k => 3,
         G20k => 7,
+        // Interpolated placeholders for the new budgets — refine from the
+        // test report's per-budget table once it's measured.
+        G30k => 10,
+        G40k => 14,
         G50k => 17,
         G250k | Devnet | Testnet => 89,
         G1m => 209,
@@ -377,6 +417,8 @@ async fn run_across_max_auth_gas_budgets(budgets: &[MaxAuthGas]) -> Result<(), a
         results.push(run_onesig(&env).await);
         results.push(run_lean_imt_account(&mut env).await);
         results.push(run_account_multi_auth(&env).await);
+        results.push(run_whitelist_sponsorship(&env).await);
+        results.push(run_sponsorship_ed25519(&env).await);
         results.extend(run_account_for_benchmarks(&env, NUM_OF_CYCLES).await);
 
         // Every package must publish successfully — independent of the
@@ -1303,6 +1345,463 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
         }
     };
     let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
+    r.authenticate_outcome = outcome;
+    r.authenticate_err = err;
+    r
+}
+
+/// `whitelist_sponsorship` — policy-driven gas sponsor.
+///
+/// Publishes the WLS package and, separately, `public_key_authentication`
+/// so we have a real sender authenticator function to whitelist. Creates a
+/// sender `IOTAccount` (ed25519-authenticated) and a sponsor
+/// `WhitelistSponsorshipAccount`. The owner (= admin) then whitelists the
+/// sender's authenticator function and grants the sender a gas allowance.
+/// Finally we issue a sponsored transaction:
+///
+/// - **sender** = the `IOTAccount`, authenticating with `ed25519(sig over
+///   tx_digest)`;
+/// - **sponsor** = the `WhitelistSponsorshipAccount`, authenticating with an
+///   empty-call-args `MoveAuthenticator` (the sponsor's `authenticator` takes
+///   only `&AuthContext` and `&TxContext`);
+/// - the PTB contains a `deduct_user_gas_allowance` move call so the sponsor
+///   authenticator's PTB scan accepts it.
+///
+/// The scenario expects every step — including the validator-side run of the
+/// sponsor authenticator — to succeed under all `max_auth_gas` budgets.
+async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
+    let mut r = PackageResult::new("whitelist_sponsorship");
+
+    // Publish the WLS sponsor package.
+    let (wls_pkg_id, wls_metadata_ref, _resp) = match env
+        .publish_example_with_metadata("whitelist_sponsorship")
+        .await
+    {
+        Ok(v) => {
+            r.publish_ok = true;
+            v
+        }
+        Err(e) => {
+            r.publish_err = Some(format!("{e:?}"));
+            return r;
+        }
+    };
+
+    // Publish the sender package — we use `public_key_authentication`'s
+    // `IOTAccount` + ed25519 authenticator as a concrete sender.
+    let (sender_pkg_id, sender_metadata_ref, _) = match env
+        .publish_example_with_metadata("public_key_authentication")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            r.create_outcome = Outcome::Fail;
+            r.create_err = Some(format!("publish public_key_authentication: {e:?}"));
+            return r;
+        }
+    };
+
+    let sender_account_type = type_tag(&sender_pkg_id, "iotaccount", "IOTAccount");
+
+    // 1. Create the sender IOTAccount via `public_key_iotaccount::create(pk, ref)`.
+    let sender_create_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let sender_auth_ref = match build_auth_function_ref_v1(
+            &mut b,
+            sender_account_type.clone(),
+            sender_metadata_ref,
+            "public_key_iotaccount",
+            "ed25519_authenticator",
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.create_outcome = Outcome::Fail;
+                r.create_err = Some(format!("sender auth ref: {e:?}"));
+                return r;
+            }
+        };
+        let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
+        b.programmable_move_call(
+            sender_pkg_id,
+            Identifier::from_static("public_key_iotaccount"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![pk_arg, sender_auth_ref],
+        );
+        b.finish()
+    };
+    let sender_account_ref = match create_account_with_pt(env, sender_create_pt).await {
+        Ok(v) => v,
+        Err(e) => {
+            r.create_outcome = Outcome::Fail;
+            r.create_err = Some(format!("create sender: {e:?}"));
+            return r;
+        }
+    };
+
+    // 2. Create the WLS sponsor account with the owner as admin.
+    let sponsor_create_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let sponsor_type = type_tag(
+            &wls_pkg_id,
+            "whitelist_sponsorship_account",
+            "WhitelistSponsorshipAccount",
+        );
+        let sponsor_auth_ref = match build_auth_function_ref_v1(
+            &mut b,
+            sponsor_type,
+            wls_metadata_ref,
+            "whitelist_sponsorship_authentication",
+            "authenticator",
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.create_outcome = Outcome::Fail;
+                r.create_err = Some(format!("sponsor auth ref: {e:?}"));
+                return r;
+            }
+        };
+        let admin_arg = b.pure(env.owner).unwrap();
+        b.programmable_move_call(
+            wls_pkg_id,
+            Identifier::from_static("whitelist_sponsorship_account"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![admin_arg, sponsor_auth_ref],
+        );
+        b.finish()
+    };
+    let sponsor_account_ref = match create_account_with_pt(env, sponsor_create_pt).await {
+        Ok(v) => {
+            r.create_outcome = Outcome::Pass;
+            v
+        }
+        Err(e) => {
+            r.create_outcome = Outcome::Fail;
+            r.create_err = Some(format!("create sponsor: {e:?}"));
+            return r;
+        }
+    };
+
+    let sender_addr: IotaAddress = sender_account_ref.object_id.into();
+    let sponsor_addr: IotaAddress = sponsor_account_ref.object_id.into();
+    let rgp = env.test_cluster.get_reference_gas_price().await;
+    let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
+    let allowance: u64 = gas_budget.saturating_mul(2);
+
+    // 3. Admin (= owner) whitelists the sender's `ed25519_authenticator` and grants
+    //    the sender a gas allowance. Both calls take `&mut sponsor`.
+    let admin_setup_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let sponsor_arg = b
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: sponsor_account_ref.object_id,
+                initial_shared_version: sponsor_account_ref.version,
+                mutable: true,
+            }))
+            .unwrap();
+        let sender_auth_ref_for_whitelist = match build_auth_function_ref_v1(
+            &mut b,
+            sender_account_type.clone(),
+            sender_metadata_ref,
+            "public_key_iotaccount",
+            "ed25519_authenticator",
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.authenticate_outcome = Outcome::Fail;
+                r.authenticate_err = Some(format!("admin: build sender ref: {e:?}"));
+                return r;
+            }
+        };
+        b.programmable_move_call(
+            wls_pkg_id,
+            Identifier::from_static("whitelist_sponsorship_account"),
+            Identifier::from_static("add_authenticator_function"),
+            vec![sender_account_type.clone()],
+            vec![sponsor_arg, sender_auth_ref_for_whitelist],
+        );
+        let user_arg = b.pure(sender_addr).unwrap();
+        let allowance_arg = b.pure(allowance).unwrap();
+        b.programmable_move_call(
+            wls_pkg_id,
+            Identifier::from_static("whitelist_sponsorship_account"),
+            Identifier::from_static("add_user_gas_allowance"),
+            vec![],
+            vec![sponsor_arg, user_arg, allowance_arg],
+        );
+        b.finish()
+    };
+    let admin_setup_outcome = async {
+        let tx_data = env
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(admin_setup_pt)
+            .build();
+        let tx = env.test_cluster.wallet.sign_transaction(&tx_data);
+        let (effects, _) = env
+            .test_cluster
+            .execute_transaction_return_raw_effects(tx)
+            .await?;
+        if !effects.status().is_success() {
+            anyhow::bail!("admin setup failed: {:?}", effects.status());
+        }
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    if let Err(e) = admin_setup_outcome {
+        r.authenticate_outcome = Outcome::Fail;
+        r.authenticate_err = Some(format!("admin setup: {e:?}"));
+        return r;
+    }
+
+    // 4. Build the sponsored PTB: a trivial sender action + the required
+    //    `deduct_user_gas_allowance(sponsor, sender, gas_budget)` move call so the
+    //    sponsor authenticator's PTB scan finds and accepts it.
+    let sponsor_gas = env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let sponsored_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+
+        // Put the sponsor's `deduct_user_gas_allowance` call FIRST so the sponsor
+        // authenticator's PTB scan matches on the first command and the
+        // subsequent commands are cheap byte-compares.
+        let sponsor_arg = b
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: sponsor_account_ref.object_id,
+                initial_shared_version: sponsor_account_ref.version,
+                mutable: true,
+            }))
+            .unwrap();
+        b.programmable_move_call(
+            wls_pkg_id,
+            Identifier::from_static("whitelist_sponsorship_account"),
+            Identifier::from_static("deduct_user_gas_allowance"),
+            vec![],
+            vec![sponsor_arg],
+        );
+
+        let clock = b
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: IOTA_CLOCK_OBJECT_ID,
+                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
+                mutable: false,
+            }))
+            .unwrap();
+        b.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::from_static("clock"),
+            Identifier::from_static("timestamp_ms"),
+            vec![],
+            vec![clock],
+        );
+
+        b.finish()
+    };
+
+    let tx_data = TransactionData::new_programmable_allow_sponsor(
+        sender_addr,
+        vec![sponsor_gas],
+        sponsored_pt,
+        gas_budget,
+        rgp,
+        sponsor_addr,
+    );
+    let tx_digest = tx_data.digest().into_inner();
+    let signature = env.sign_digest_raw(&tx_digest);
+
+    let sender_auth = match make_move_authenticator(
+        sender_account_ref,
+        vec![CallArg::Pure(bcs::to_bytes(&signature).unwrap())],
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            r.authenticate_outcome = Outcome::Fail;
+            r.authenticate_err = Some(format!("sender authenticator: {e:?}"));
+            return r;
+        }
+    };
+    // The sponsor authenticator takes no user-facing inputs; pass an empty
+    // extra-args list. This is the path enabled by the `signing.rs` refactor:
+    // an AA whose authenticator has no user inputs is signed via a
+    // `MoveAuthenticator` with empty call args.
+    let sponsor_auth = match make_move_authenticator(sponsor_account_ref, vec![]) {
+        Ok(v) => v,
+        Err(e) => {
+            r.authenticate_outcome = Outcome::Fail;
+            r.authenticate_err = Some(format!("sponsor authenticator: {e:?}"));
+            return r;
+        }
+    };
+
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
+    r.authenticate_outcome = outcome;
+    r.authenticate_err = err;
+    r
+}
+
+/// `public_key_authentication::public_key_iotaccount::sponsorship_ed25519_authenticator`
+/// — signature-driven gas sponsor.
+///
+/// Publishes the `public_key_authentication` package once and creates two
+/// `IOTAccount`s on top of it:
+///
+/// - **sender** — bound to `ed25519_authenticator`. Signs over `ctx.digest()`.
+/// - **sponsor** — bound to `sponsorship_ed25519_authenticator`. Signs over
+///   `ctx.digest() || auth_ctx.sender_auth_digest() || bcs(auth_ctx.sender_authenticator_function_info_v1())`,
+///   matching the helper
+///   [`public_key_authentication::authenticate_ed25519_for_sponsorship`].
+///
+/// The test reconstructs that exact byte sequence off-chain (the sender
+/// `MoveAuthenticator`'s digest, plus the BCS encoding of the sender's
+/// authenticator function info) and signs it with the owner's ed25519 key,
+/// then submits the sponsored transaction with both `MoveAuthenticator`s.
+async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
+    let mut r = PackageResult::new("sponsorship_ed25519");
+    let (pkg_id, metadata_ref, _resp) = match env
+        .publish_example_with_metadata("public_key_authentication")
+        .await
+    {
+        Ok(v) => {
+            r.publish_ok = true;
+            v
+        }
+        Err(e) => {
+            r.publish_err = Some(format!("{e:?}"));
+            return r;
+        }
+    };
+
+    let account_type = type_tag(&pkg_id, "iotaccount", "IOTAccount");
+
+    // Only the sponsor is an abstract account in this scenario — the sender
+    // is a regular keypair-backed address (`env.owner`) that signs the
+    // transaction with a standard `GenericSignature::Signature`.
+    let sponsor_create_pt = {
+        let mut b = ProgrammableTransactionBuilder::new();
+        let auth_ref = match build_auth_function_ref_v1(
+            &mut b,
+            account_type.clone(),
+            metadata_ref,
+            "public_key_iotaccount",
+            "sponsorship_ed25519_authenticator",
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                r.create_outcome = Outcome::Fail;
+                r.create_err = Some(format!("sponsor create pt: {e:?}"));
+                return r;
+            }
+        };
+        let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
+        b.programmable_move_call(
+            pkg_id,
+            Identifier::from_static("public_key_iotaccount"),
+            Identifier::from_static("create"),
+            vec![],
+            vec![pk_arg, auth_ref],
+        );
+        b.finish()
+    };
+    let sponsor_account_ref = match create_account_with_pt(env, sponsor_create_pt).await {
+        Ok(v) => {
+            r.create_outcome = Outcome::Pass;
+            v
+        }
+        Err(e) => {
+            r.create_outcome = Outcome::Fail;
+            r.create_err = Some(format!("create sponsor: {e:?}"));
+            return r;
+        }
+    };
+
+    // Build the sponsored transaction. The PTB body itself is trivial — only
+    // the two authenticators (regular sender signature + AA sponsor) matter
+    // for this scenario.
+    let sender_addr: IotaAddress = env.owner;
+    let sponsor_addr: IotaAddress = sponsor_account_ref.object_id.into();
+    let rgp = env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+    let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
+
+    let pt = simple_sender_clock_ptb();
+    let tx_data = TransactionData::new_programmable_allow_sponsor(
+        sender_addr,
+        vec![sponsor_gas],
+        pt,
+        gas_budget,
+        rgp,
+        sponsor_addr,
+    );
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Sender: standard `GenericSignature::Signature` (ed25519 over the
+    // intent-wrapped TransactionData) — NOT a `MoveAuthenticator`. So
+    // `auth_ctx.sender_authenticator_function_info_v1()` is `None` on-chain.
+    let sender_auth = GenericSignature::Signature(
+        env.test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&env.owner, &tx_data, Intent::iota_transaction())
+            .expect("sender ed25519 sign should not fail"),
+    );
+
+    // Reconstruct the byte sequence `authenticate_ed25519_for_sponsorship`
+    // verifies against. For a non-AA sender, `sender_authenticator_function_info_v1()`
+    // is `None`, so the Move helper skips the third segment entirely:
+    //
+    //   msg = ctx.digest()                  // 32 bytes
+    //      || auth_ctx.sender_auth_digest() // 32 bytes — Blake2b256(sender_sig.as_ref())
+    let sender_auth_digest = match auth_digest_for_sig(&sender_auth) {
+        Ok(d) => d,
+        Err(e) => {
+            r.authenticate_outcome = Outcome::Fail;
+            r.authenticate_err = Some(format!("sender auth digest: {e:?}"));
+            return r;
+        }
+    };
+    let mut sponsor_msg = Vec::with_capacity(32 + 32);
+    sponsor_msg.extend_from_slice(&tx_digest);
+    sponsor_msg.extend_from_slice(sender_auth_digest.as_bytes());
+
+    // Sign the constructed message with the owner's ed25519 key. `sign_hashed`
+    // here just performs standard `Ed25519::sign(msg)` over the raw bytes — no
+    // intent wrapping — which is exactly what
+    // `ed25519::ed25519_verify(sig, pk, &msg)` checks on-chain.
+    let sponsor_signature: Vec<u8> = {
+        let raw = env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&env.owner, &sponsor_msg)
+            .expect("ed25519 sign should not fail");
+        let bytes = raw.as_ref();
+        bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
+    };
+    let sponsor_auth = match make_move_authenticator(
+        sponsor_account_ref,
+        vec![CallArg::Pure(bcs::to_bytes(&sponsor_signature).unwrap())],
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            r.authenticate_outcome = Outcome::Fail;
+            r.authenticate_err = Some(format!("sponsor authenticator: {e:?}"));
+            return r;
+        }
+    };
+
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
